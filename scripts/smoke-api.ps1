@@ -42,6 +42,10 @@ $adminHeaders = @{ Authorization = "Bearer $($adminLogin.token)" }
 
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/dashboard" -Headers $adminHeaders | Out-Null
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/api-providers" -Headers $adminHeaders | Out-Null
+$providerTest = Invoke-SmokeJson -Method "POST" -Path "/api/admin/api-providers/pub_route_64f93e01e8f3/test" -Headers $adminHeaders
+if (-not $providerTest.success) {
+  throw "Provider test failed"
+}
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/model-prices" -Headers $adminHeaders | Out-Null
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/template-workflows" -Headers $adminHeaders | Out-Null
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/settings" -Headers $adminHeaders | Out-Null

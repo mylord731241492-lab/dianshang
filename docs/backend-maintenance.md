@@ -21,6 +21,10 @@ npm start
 | `AI_TEXT_MODEL` | `gpt-5.5` | 文本模型名 |
 | `AI_IMAGE_MODEL` | `gpt-image-2` | 图片模型名 |
 | `ENABLE_REAL_AI` | `false` | 只有为 `true` 且 key 有效才调用真实 AI |
+| `AI_PROVIDER_GATEWAY` | `new-api` | Provider Adapter 默认网关 |
+| `NEW_API_BASE` | 空/占位 | New-API OpenAI-compatible 地址 |
+| `NEW_API_KEY` | 空/占位 | New-API 服务端 token |
+| `PROVIDER_TIMEOUT_MS` | `30000` | Provider 请求超时 |
 | `ENABLE_REAL_EMAIL` | `false` | 预留真实邮件开关 |
 | `ENABLE_REAL_PAYMENT` | `false` | 预留真实支付开关 |
 | `ENABLE_REAL_STORAGE` | `false` | 预留真实云存储开关 |
@@ -30,6 +34,7 @@ npm start
 - 真实 AI、邮件、支付、云存储默认关闭。
 - 没有有效 key 时必须走本地 mock，不允许请求卡死。
 - New-API/CPA 作为外部基础设施使用，不在本项目内重造通用 AI 网关、Token 分发、CLI OAuth 账号池。
+- Provider Adapter 只能持有服务端 New-API token，不允许把 New-API/CPA key 下发给前端。
 - `/api/*` 未命中必须返回 JSON，不允许返回 SPA HTML。
 - 管理后台删除默认软删除，永久删除只做匿名化。
 - 余额变化必须写入 `balance_logs`。

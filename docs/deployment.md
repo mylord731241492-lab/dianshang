@@ -38,11 +38,26 @@ npm start
 | `ENABLE_REAL_EMAIL` | `false` | 是否启用真实邮件 |
 | `ENABLE_REAL_PAYMENT` | `false` | 是否启用真实支付 |
 | `ENABLE_REAL_STORAGE` | `false` | 是否启用真实云存储 |
+| `AI_PROVIDER_GATEWAY` | `new-api` | Provider Adapter 网关类型，正式部署默认 New-API |
+| `NEW_API_BASE` | New-API 占位地址 | New-API OpenAI-compatible 入口 |
+| `NEW_API_KEY` | 占位值 | New-API 分配给本平台服务端的 token |
+| `PROVIDER_TIMEOUT_MS` | `30000` | Provider 调用超时时间 |
 | `AI_API_BASE` | provider 占位地址 | OpenAI-compatible 服务地址 |
 | `AI_IMAGE_KEY` | 占位值 | 生图 key，不允许提交到 Git |
 | `AI_TEXT_KEY` | 占位值 | 文本 key，不允许提交到 Git |
 | `AI_IMAGE_MODEL` | `gpt-image-2` | 生图模型名 |
 | `AI_TEXT_MODEL` | `gpt-5.5` | 文本模型名 |
+
+New-API 生产配置示例：
+
+```env
+ENABLE_REAL_AI=true
+AI_PROVIDER_GATEWAY=new-api
+NEW_API_BASE=https://new-api.example.com/v1
+NEW_API_KEY=sk-your-new-api-token
+```
+
+未配置 `ENABLE_REAL_AI=true` 或未提供有效 `NEW_API_KEY` 时，Provider Adapter 必须保持 mock 模式。
 
 ## 健康检查
 

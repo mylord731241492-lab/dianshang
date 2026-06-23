@@ -30,11 +30,19 @@ const AI_IMAGE_KEY = process.env.AI_IMAGE_KEY || process.env.AI_API_KEY || 'sk-'
 const AI_TEXT_KEY = process.env.AI_TEXT_KEY || process.env.AI_API_KEY || 'sk-';
 const AI_IMAGE_MODEL = process.env.AI_IMAGE_MODEL || 'gpt-image-2';
 const AI_TEXT_MODEL = process.env.AI_TEXT_MODEL || 'gpt-5.5';
+const AI_PROVIDER_GATEWAY = process.env.AI_PROVIDER_GATEWAY || 'new-api';
+const NEW_API_BASE = process.env.NEW_API_BASE || AI_API_BASE;
+const NEW_API_KEY = process.env.NEW_API_KEY || process.env.AI_API_KEY || AI_TEXT_KEY;
+const PROVIDER_TIMEOUT_MS = Number(process.env.PROVIDER_TIMEOUT_MS || 30000);
 const ENABLE_REAL_AI = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_AI || '').toLowerCase());
 const ENABLE_REAL_EMAIL = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_EMAIL || '').toLowerCase());
 const ENABLE_REAL_PAYMENT = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_PAYMENT || '').toLowerCase());
 const ENABLE_REAL_STORAGE = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_STORAGE || '').toLowerCase());
 const hasUsableKey = (key = '') => /^sk-[A-Za-z0-9_\-]{12,}/.test(String(key || ''));
+const hasConfiguredSecret = (key = '') => {
+  const value = String(key || '').trim();
+  return value.length >= 12 && !/replace|your-|填|占位|sk-$|^sk-replace/i.test(value);
+};
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -181,6 +189,97 @@ const saveModelPriceState = (value) => writeState('admin.modelPrices', value);
 function findRouteByAnyId(id) {
   const routes = routeState();
   return routes.find(r => [r.id, r.routeId, r.lineId, r.rk, r.routeKey, r.lineKey, r.code].includes(id)) || routes[0] || RTS[0];
+}
+
+// ===================== PROVIDER ADAPTER =====================
+function providerStatus() {
+  const gateway = String(AI_PROVIDER_GATEWAY || 'new-api').toLowerCase();
+  const baseUrl = gateway === 'new-api' ? NEW_API_BASE : AI_API_BASE;
+  const textKey = gateway === 'new-api' ? NEW_API_KEY : AI_TEXT_KEY;
+  const imageKey = gateway === 'new-api' ? NEW_API_KEY : AI_IMAGE_KEY;
+  const enabled = ENABLE_REAL_AI && hasConfiguredSecret(textKey) && !!baseUrl;
+  return {
+    gateway,
+    enabled,
+    mode: enabled ? 'real-provider-ready' : 'mock',
+    baseUrl,
+    timeoutMs: PROVIDER_TIMEOUT_MS,
+    textModel: AI_TEXT_MODEL,
+    imageModel: AI_IMAGE_MODEL,
+    textKeyConfigured: hasConfiguredSecret(textKey),
+    imageKeyConfigured: hasConfiguredSecret(imageKey),
+    routesThroughNewApi: gateway === 'new-api',
+    cpaExpectedBehindNewApi: gateway === 'new-api'
+  };
+}
+
+function mockChatCompletion(messages = [], model = AI_TEXT_MODEL) {
+  const last = Array.isArray(messages) ? [...messages].reverse().find(m => m && m.content)?.content : '';
+  return {
+    success: true,
+    id: uid('chatcmpl_'),
+    object: 'chat.completion',
+    created: Math.floor(Date.now() / 1000),
+    model,
+    mock: true,
+    provider: providerStatus(),
+    choices: [{
+      index: 0,
+      message: {
+        role: 'assistant',
+        content: `本地 mock 回复：已收到 ${String(last || '').slice(0, 80) || '你的请求'}。如需真实调用，请配置 New-API 并设置 ENABLE_REAL_AI=true。`
+      },
+      finish_reason: 'stop'
+    }],
+    usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+  };
+}
+
+async function callProviderChat(messages, options = {}) {
+  const status = providerStatus();
+  const model = options.model || reqBodyModel(options) || AI_TEXT_MODEL;
+  if (!status.enabled) {
+    return mockChatCompletion(messages, model);
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), status.timeoutMs);
+  try {
+    const resp = await fetch(`${status.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${status.gateway === 'new-api' ? NEW_API_KEY : AI_TEXT_KEY}`
+      },
+      body: JSON.stringify({ model, messages, stream: false }),
+      signal: controller.signal
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      return {
+        success: false,
+        code: 'PROVIDER_CHAT_FAILED',
+        message: data.message || data.error?.message || `Provider returned ${resp.status}`,
+        provider: status,
+        upstreamStatus: resp.status,
+        upstream: data
+      };
+    }
+    return { success: true, provider: status, ...data };
+  } catch (error) {
+    return {
+      success: false,
+      code: error.name === 'AbortError' ? 'PROVIDER_TIMEOUT' : 'PROVIDER_REQUEST_FAILED',
+      message: error.name === 'AbortError' ? 'AI Provider 请求超时' : `AI Provider 调用失败: ${error.message}`,
+      provider: status
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function reqBodyModel(body = {}) {
+  return body.model || body.modelKey || body.textModel || body.textModelKey || '';
 }
 
 function routeKind(route = {}) {
@@ -663,37 +762,9 @@ app.get('/api/user/generations', auth, (req, res) => {
 app.post('/api/chat/completions', auth, async (req, res) => {
   const { messages } = req.body;
   if (!messages) return res.status(400).json({ message: '缺少 messages' });
-  if (!ENABLE_REAL_AI || !hasUsableKey(AI_TEXT_KEY)) {
-    const last = Array.isArray(messages) ? [...messages].reverse().find(m => m && m.content)?.content : '';
-    return res.json({
-      success: true,
-      id: uid('chatcmpl_'),
-      object: 'chat.completion',
-      created: Math.floor(Date.now() / 1000),
-      model: AI_TEXT_MODEL,
-      mock: true,
-      choices: [{
-        index: 0,
-        message: {
-          role: 'assistant',
-          content: `本地 mock 回复：已收到 ${String(last || '').slice(0, 80) || '你的请求'}。如需调用真实模型，请在 .env 设置 ENABLE_REAL_AI=true 并配置有效 API Key。`
-        },
-        finish_reason: 'stop'
-      }],
-      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
-    });
-  }
-  try {
-    const resp = await fetch(`${AI_API_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AI_TEXT_KEY}` },
-      body: JSON.stringify({ model: AI_TEXT_MODEL, messages, stream: false })
-    });
-    const d = await resp.json();
-    res.json(d);
-  } catch (e) {
-    res.status(500).json({ message: `AI 调用失败: ${e.message}` });
-  }
+  const result = await callProviderChat(messages, req.body);
+  if (!result.success) return res.status(502).json(result);
+  res.json(result);
 });
 
 app.post('/api/user/preferences/api-provider', auth, (req, res) => {
@@ -1073,8 +1144,27 @@ app.delete('/api/admin/api-providers/:id', auth, admin, (req, res) => {
   saveRouteState(nextRoutes);
   res.json({ success: true, id: req.params.id, deleted: before.length !== nextRoutes.length });
 });
-app.post('/api/admin/api-providers/:id/test', auth, admin, (req, res) => {
-  res.json({ success: true, latencyMs: 128, message: '本地 mock 线路连接正常' });
+app.post('/api/admin/api-providers/:id/test', auth, admin, async (req, res) => {
+  const startedAt = Date.now();
+  const status = providerStatus();
+  if (!status.enabled) {
+    return res.json({
+      success: true,
+      mock: true,
+      latencyMs: Date.now() - startedAt,
+      message: '当前为本地 mock 模式；配置 New-API 并启用 ENABLE_REAL_AI 后可测试真实网关',
+      provider: status
+    });
+  }
+
+  const result = await callProviderChat([{ role: 'user', content: 'ping' }], { model: AI_TEXT_MODEL });
+  res.status(result.success ? 200 : 502).json({
+    success: result.success,
+    latencyMs: Date.now() - startedAt,
+    message: result.success ? 'New-API 网关连接正常' : result.message,
+    provider: status,
+    code: result.code || undefined
+  });
 });
 app.post('/api/admin/api-providers/:id/fetch-models', auth, admin, (req, res) => {
   const route = findRouteByAnyId(req.params.id);
@@ -1235,14 +1325,15 @@ app.get('/api/health', (req, res) => {
     database = 'error';
   }
 
+  const provider = providerStatus();
   res.json({
     success: true,
     status: database === 'ok' ? 'ok' : 'degraded',
     service: 'hjm-mb-clone',
-    mode: ENABLE_REAL_AI ? 'real-provider-ready' : 'mock',
+    mode: provider.mode,
     database,
     providers: {
-      ai: { enabled: ENABLE_REAL_AI, imageKeyConfigured: hasUsableKey(AI_IMAGE_KEY), textKeyConfigured: hasUsableKey(AI_TEXT_KEY) },
+      ai: provider,
       email: { enabled: ENABLE_REAL_EMAIL },
       payment: { enabled: ENABLE_REAL_PAYMENT },
       storage: { enabled: ENABLE_REAL_STORAGE }

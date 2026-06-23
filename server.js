@@ -84,6 +84,11 @@ db.exec(`
     code TEXT PRIMARY KEY, amount REAL NOT NULL,
     max_uses INTEGER DEFAULT 1, used_count INTEGER DEFAULT 0, enabled INTEGER DEFAULT 1
   );
+  CREATE TABLE IF NOT EXISTS app_state (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
 `);
 
 // Seed
@@ -130,6 +135,53 @@ const RTS = [
 ];
 const TMPL = JSON.parse(fs.readFileSync(path.join(__dirname,'template-data.json'),'utf8'));
 const tasks = new Map();
+
+function readState(key, fallback) {
+  try {
+    const row = db.prepare('SELECT value FROM app_state WHERE key=?').get(key);
+    return row ? JSON.parse(row.value) : fallback;
+  } catch (error) {
+    console.warn('[STATE_READ_FALLBACK]', key, error.message);
+    return fallback;
+  }
+}
+function writeState(key, value) {
+  db.prepare(`
+    INSERT INTO app_state (key,value,updated_at) VALUES (?,?,datetime('now'))
+    ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=datetime('now')
+  `).run(key, JSON.stringify(value));
+  return value;
+}
+function ensureState(key, fallback) {
+  const existing = readState(key, null);
+  if (existing !== null && existing !== undefined) return existing;
+  return writeState(key, fallback);
+}
+
+const defaultAdminSettings = {
+  siteName: '哈吉米 AI',
+  registrationEnabled: true,
+  emailCodeEnabled: true,
+  canvasStorageEnabled: true,
+  templateImageEnabled: true,
+  imageHistoryEnabled: true,
+  mockMode: true,
+  maxUploadSizeMb: 20,
+  defaultCredits: 50
+};
+const routeState = () => ensureState('admin.apiProviders', RTS);
+const saveRouteState = (routes) => writeState('admin.apiProviders', routes);
+const templateWorkflowState = () => ensureState('admin.templateWorkflows', TMPL);
+const saveTemplateWorkflowState = (value) => writeState('admin.templateWorkflows', value);
+const settingsState = () => ensureState('admin.settings', defaultAdminSettings);
+const saveSettingsState = (value) => writeState('admin.settings', value);
+const modelPriceState = () => ensureState('admin.modelPrices', []);
+const saveModelPriceState = (value) => writeState('admin.modelPrices', value);
+
+function findRouteByAnyId(id) {
+  const routes = routeState();
+  return routes.find(r => [r.id, r.routeId, r.lineId, r.rk, r.routeKey, r.lineKey, r.code].includes(id)) || routes[0] || RTS[0];
+}
 
 function routeKind(route = {}) {
   const raw = String(route.g || route.group || route.cat || route.category || route.type || 'image').toLowerCase();
@@ -195,7 +247,7 @@ function routePayload(route = RTS[0]) {
 }
 function filteredRoutes(group) {
   const g = String(group || '').toLowerCase();
-  return RTS
+  return routeState()
     .filter(r => !g || routeKind(r) === g || String(r.g || r.cat || '').toLowerCase() === g)
     .map(routePayload);
 }
@@ -278,13 +330,14 @@ app.post('/api/admin/login', (req, res) => {
 app.get('/api/public/routes', (req, res) => res.json({ items: filteredRoutes(req.query.group || 'image') }));
 app.get('/api/public/models', (req, res) => {
   const rid = req.query.routeId || req.query.lineId || req.query.routeKey || req.query.lineKey;
-  const rt = RTS.find(r=>[r.id,r.rk].includes(rid)) || RTS[0];
+  const routes = routeState();
+  const rt = routes.find(r=>[r.id,r.rk].includes(rid)) || routes[0] || RTS[0];
   res.json({ items: (rt&&rt.cat==='text'?TXT:IMG).map(m=>fmt(m, rt)) });
 });
 app.get('/api/model-routes', (req, res) => {
   res.json({ items: filteredRoutes(req.query.group) });
 });
-app.get('/api/template/settings', (req, res) => res.json(TMPL));
+app.get('/api/template/settings', (req, res) => res.json(templateWorkflowState()));
 app.get('/api/settings/canvas-storage', (req, res) => res.json({ enabled: true, maxSize: 100, allowedTypes: ['image/png','image/jpeg','image/webp'] }));
 
 // ===================== USER ROUTES =====================
@@ -296,11 +349,12 @@ app.get('/api/user/profile', auth, (req, res) => {
 app.get('/api/user/routes', auth, (req, res) => res.json({ success: true, data: filteredRoutes(req.query.group || 'image'), items: filteredRoutes(req.query.group || 'image') }));
 app.get('/api/user/models', auth, (req, res) => {
   const rid = req.query.routeId || req.query.lineId || req.query.routeKey || req.query.lineKey || 'pub_route_64f93e01e8f3';
-  const rt = RTS.find(r=>[r.id,r.rk].includes(rid)) || RTS[0];
+  const routes = routeState();
+  const rt = routes.find(r=>[r.id,r.rk].includes(rid)) || routes[0] || RTS[0];
   res.json({ success: true, data: (rt&&rt.cat==='text'?TXT:IMG).map(m=>fmt(m, rt)) });
 });
 app.get('/api/user/api-status', auth, (req, res) => {
-  const rt = RTS[0];
+  const rt = routeState()[0] || RTS[0];
   res.json({ status: 'active', mode: 'auto',
     provider: { id:rt.id, routeId:rt.id, lineId:rt.id, routeKey:rt.rk, lineKey:rt.rk, name:rt.dn, displayName:rt.dn,
       defaultImageModel:'GPT Image 2', models: IMG.map(m=>fmt(m, rt)), supportsChat:true, supportsImage:true }
@@ -752,35 +806,36 @@ function mockOrders() {
   }));
 }
 function modelPriceRows() {
-  return filteredRoutes().flatMap(route => route.models.map(model => ({
-    id: `${route.id}:${model.modelKey}`,
-    routeId: route.id,
-    routeKey: route.routeKey,
-    routeName: route.displayName,
-    modelId: model.modelId,
-    modelKey: model.modelKey,
-    realName: model.realName,
-    displayName: model.displayName,
-    modelType: model.modelType,
-    price: model.pricePoints,
-    pricePoints: model.pricePoints,
-    baseCredits: model.baseCredits,
-    enabled: true,
-    status: 'active',
-    qualities: model.qualities || []
-  })));
+  const overrides = modelPriceState();
+  const overrideMap = new Map(overrides.map(row => [row.id, row]));
+  const baseRows = filteredRoutes().flatMap(route => route.models.map(model => {
+    const id = `${route.id}:${model.modelKey}`;
+    const override = overrideMap.get(id) || {};
+    return {
+      ...override,
+      id,
+      routeId: route.id,
+      routeKey: route.routeKey,
+      routeName: route.displayName,
+      modelId: model.modelId,
+      modelKey: model.modelKey,
+      realName: model.realName,
+      displayName: model.displayName,
+      modelType: model.modelType,
+      price: Number(override.price ?? override.pricePoints ?? model.pricePoints),
+      pricePoints: Number(override.pricePoints ?? override.price ?? model.pricePoints),
+      baseCredits: Number(override.baseCredits ?? model.baseCredits),
+      enabled: override.enabled !== false,
+      status: override.status || 'active',
+      qualities: override.qualities || model.qualities || []
+    };
+  }));
+  const baseIds = new Set(baseRows.map(row => row.id));
+  return [
+    ...baseRows,
+    ...overrides.filter(row => !baseIds.has(row.id))
+  ];
 }
-const adminSettings = {
-  siteName: '哈吉米 AI',
-  registrationEnabled: true,
-  emailCodeEnabled: true,
-  canvasStorageEnabled: true,
-  templateImageEnabled: true,
-  imageHistoryEnabled: true,
-  mockMode: true,
-  maxUploadSizeMb: 20,
-  defaultCredits: 50
-};
 
 app.get('/api/admin/users', auth, admin, (req, res) => {
   const q = String(req.query.keyword || req.query.q || '').trim().toLowerCase();
@@ -828,7 +883,7 @@ app.get('/api/admin/dashboard', auth, admin, (req, res) => {
     totalCost,
     apiFailures: 0,
     activeUsers: db.prepare("SELECT COUNT(*) as c FROM users WHERE status='active'").get().c,
-    routeCount: RTS.length,
+    routeCount: routeState().length,
     modelCount: IMG.length + TXT.length
   };
   res.json({
@@ -851,9 +906,9 @@ app.get('/api/admin/dashboard', auth, admin, (req, res) => {
         routeId: route.id,
         routeKey: route.routeKey,
         routeName: route.displayName,
-        totalCredits: Math.round(totalCost / Math.max(1, RTS.length) * 100) / 100,
-        totalCount: Math.ceil(totalGenerations / Math.max(1, RTS.length)),
-        successCount: Math.ceil(totalGenerations / Math.max(1, RTS.length)),
+        totalCredits: Math.round(totalCost / Math.max(1, routeState().length) * 100) / 100,
+        totalCount: Math.ceil(totalGenerations / Math.max(1, routeState().length)),
+        successCount: Math.ceil(totalGenerations / Math.max(1, routeState().length)),
         failCount: 0
       }))
     },
@@ -972,23 +1027,63 @@ app.get('/api/admin/api-providers', auth, admin, (req, res) => {
 });
 app.post('/api/admin/api-providers', auth, admin, (req, res) => {
   const id = uid('pub_route_');
-  const route = routePayload({ id, rk: req.body.routeKey || req.body.code || id, dn: req.body.name || req.body.displayName || '本地线路', cat: req.body.type || 'image', g: req.body.type || 'image', pri: Number(req.body.priority || 1) });
-  res.json({ success: true, item: route, provider: route });
+  const rawRoute = {
+    id,
+    rk: req.body.routeKey || req.body.code || id,
+    dn: req.body.name || req.body.displayName || '本地线路',
+    cat: req.body.type || req.body.group || 'image',
+    g: req.body.type || req.body.group || 'image',
+    pri: Number(req.body.priority || 1),
+    enabled: req.body.enabled !== false,
+    status: req.body.status || 'active',
+    baseUrl: req.body.baseUrl || req.body.apiBase || '',
+    apiKey: req.body.apiKey ? 'sk-local-********' : ''
+  };
+  const routes = [...routeState(), rawRoute];
+  saveRouteState(routes);
+  const route = routePayload(rawRoute);
+  res.json({ success: true, item: route, provider: route, route });
 });
 app.put('/api/admin/api-providers/:id', auth, admin, (req, res) => {
-  res.json({ success: true, id: req.params.id, item: { id: req.params.id, ...req.body } });
+  const routes = routeState();
+  let updated = null;
+  const nextRoutes = routes.map(route => {
+    if (![route.id, route.rk, route.routeKey, route.lineKey].includes(req.params.id)) return route;
+    updated = {
+      ...route,
+      ...req.body,
+      id: route.id,
+      rk: req.body.routeKey || req.body.code || route.rk,
+      dn: req.body.name || req.body.displayName || route.dn,
+      cat: req.body.type || req.body.group || route.cat,
+      g: req.body.type || req.body.group || route.g,
+      pri: Number(req.body.priority ?? route.pri ?? 0),
+      enabled: req.body.enabled !== false
+    };
+    return updated;
+  });
+  if (!updated) return res.status(404).json({ success: false, code: 'ROUTE_NOT_FOUND', message: 'API 线路不存在' });
+  saveRouteState(nextRoutes);
+  const item = routePayload(updated);
+  res.json({ success: true, id: req.params.id, item, provider: item, route: item });
 });
 app.delete('/api/admin/api-providers/:id', auth, admin, (req, res) => {
-  res.json({ success: true, id: req.params.id });
+  const before = routeState();
+  const nextRoutes = before.filter(route => ![route.id, route.rk, route.routeKey, route.lineKey].includes(req.params.id));
+  saveRouteState(nextRoutes);
+  res.json({ success: true, id: req.params.id, deleted: before.length !== nextRoutes.length });
 });
 app.post('/api/admin/api-providers/:id/test', auth, admin, (req, res) => {
   res.json({ success: true, latencyMs: 128, message: '本地 mock 线路连接正常' });
 });
 app.post('/api/admin/api-providers/:id/fetch-models', auth, admin, (req, res) => {
-  const route = RTS.find(r => r.id === req.params.id || r.rk === req.params.id) || RTS[0];
+  const route = findRouteByAnyId(req.params.id);
   res.json({ success: true, items: (route.cat === 'text' ? TXT : IMG).map(m => fmt(m, route)) });
 });
 app.post('/api/admin/api-providers/:id/set-default', auth, admin, (req, res) => {
+  const routes = routeState();
+  const nextRoutes = routes.map(route => ({ ...route, def: [route.id, route.rk, route.routeKey, route.lineKey].includes(req.params.id) }));
+  saveRouteState(nextRoutes);
   res.json({ success: true, defaultRouteId: req.params.id });
 });
 app.get('/api/admin/model-prices', auth, admin, (req, res) => {
@@ -996,17 +1091,48 @@ app.get('/api/admin/model-prices', auth, admin, (req, res) => {
   res.json({ success: true, ...pageList(rows, req), models: rows, prices: rows });
 });
 app.post('/api/admin/routes/:id/models', auth, admin, (req, res) => {
-  const route = RTS.find(r => r.id === req.params.id || r.rk === req.params.id) || RTS[0];
+  const route = findRouteByAnyId(req.params.id);
   const model = fmt({ k: req.body.modelKey || req.body.realName || 'custom-model', n: req.body.displayName || req.body.name || req.body.modelKey || 'Custom Model', p: Number(req.body.pricePoints || req.body.price || 10), q: req.body.qualities || ['1k'] }, route);
+  const rows = modelPriceState();
+  const nextRows = rows.filter(row => row.id !== `${route.id}:${model.modelKey}`);
+  nextRows.push({
+    id: `${route.id}:${model.modelKey}`,
+    routeId: route.id,
+    routeKey: route.routeKey || route.rk,
+    modelKey: model.modelKey,
+    displayName: model.displayName,
+    realName: model.realName,
+    modelType: model.modelType,
+    price: model.pricePoints,
+    pricePoints: model.pricePoints,
+    baseCredits: model.baseCredits,
+    enabled: true,
+    qualities: model.qualities || []
+  });
+  saveModelPriceState(nextRows);
   res.json({ success: true, model, item: model });
 });
 app.patch('/api/admin/route-models/:id', auth, admin, (req, res) => {
-  res.json({ success: true, id: req.params.id, item: { id: req.params.id, ...req.body } });
+  const rows = modelPriceRows();
+  const existing = rows.find(row => row.id === req.params.id) || { id: req.params.id };
+  const item = { ...existing, ...req.body, id: req.params.id };
+  const nextRows = modelPriceState().filter(row => row.id !== req.params.id);
+  nextRows.push(item);
+  saveModelPriceState(nextRows);
+  res.json({ success: true, id: req.params.id, item });
 });
 app.patch('/api/admin/route-models/:id/enabled', auth, admin, (req, res) => {
-  res.json({ success: true, id: req.params.id, enabled: req.body.enabled !== false });
+  const rows = modelPriceRows();
+  const existing = rows.find(row => row.id === req.params.id) || { id: req.params.id };
+  const item = { ...existing, enabled: req.body.enabled !== false };
+  const nextRows = modelPriceState().filter(row => row.id !== req.params.id);
+  nextRows.push(item);
+  saveModelPriceState(nextRows);
+  res.json({ success: true, id: req.params.id, enabled: item.enabled });
 });
 app.delete('/api/admin/route-models/:id', auth, admin, (req, res) => {
+  const nextRows = modelPriceState().filter(row => row.id !== req.params.id);
+  saveModelPriceState(nextRows);
   res.json({ success: true, id: req.params.id });
 });
 app.get('/api/admin/generate-tasks', auth, admin, (req, res) => {
@@ -1064,18 +1190,30 @@ app.get('/api/admin/generate-tasks/:id/reference-images/:imageId/thumb', auth, a
   res.redirect(302, placeholderUrl(`reference ${req.params.imageId}`));
 });
 app.get('/api/admin/template-workflows', auth, admin, (req, res) => {
-  res.json({ success: true, ...TMPL, items: TMPL.templates, data: TMPL.templates });
+  const workflow = templateWorkflowState();
+  res.json({ success: true, ...workflow, items: workflow.templates || [], data: workflow.templates || [] });
 });
 app.put('/api/admin/template-workflows', auth, admin, (req, res) => {
-  if (Array.isArray(req.body.templates)) TMPL.templates = req.body.templates;
-  res.json({ success: true, ...TMPL, items: TMPL.templates, data: TMPL.templates });
+  const current = templateWorkflowState();
+  const next = {
+    ...current,
+    ...req.body,
+    templates: Array.isArray(req.body.templates) ? req.body.templates : (current.templates || []),
+    platforms: Array.isArray(req.body.platforms) ? req.body.platforms : current.platforms,
+    qualities: Array.isArray(req.body.qualities) ? req.body.qualities : current.qualities,
+    ratios: Array.isArray(req.body.ratios) ? req.body.ratios : current.ratios,
+    model_configs: req.body.model_configs || current.model_configs
+  };
+  saveTemplateWorkflowState(next);
+  res.json({ success: true, ...next, items: next.templates || [], data: next.templates || [] });
 });
 app.get('/api/admin/settings', auth, admin, (req, res) => {
-  res.json({ success: true, settings: adminSettings, data: adminSettings, ...adminSettings });
+  const settings = settingsState();
+  res.json({ success: true, settings, data: settings, ...settings });
 });
 app.patch('/api/admin/settings', auth, admin, (req, res) => {
-  Object.assign(adminSettings, req.body || {});
-  res.json({ success: true, settings: adminSettings, data: adminSettings, ...adminSettings });
+  const settings = saveSettingsState({ ...settingsState(), ...(req.body || {}) });
+  res.json({ success: true, settings, data: settings, ...settings });
 });
 app.all('/api/admin/*', auth, admin, (req, res) => {
   res.status(404).json({
@@ -1090,7 +1228,7 @@ app.get('/api/health', (req, res) => {
   const tableCounts = {};
   let database = 'ok';
   try {
-    ['users', 'projects', 'generations', 'balance_logs', 'redeem_codes'].forEach((table) => {
+    ['users', 'projects', 'generations', 'balance_logs', 'redeem_codes', 'app_state'].forEach((table) => {
       tableCounts[table] = db.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get().count;
     });
   } catch (error) {

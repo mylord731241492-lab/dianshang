@@ -43,6 +43,15 @@ SQLite 文件：
 - `data.db-shm`
 - `data.db-wal`
 
+当前核心表：
+
+- `users`：用户、角色、余额和状态。
+- `projects`：画布项目和工作流 JSON。
+- `generations`：生成记录和图库历史。
+- `balance_logs`：余额变化流水。
+- `redeem_codes`：兑换码。
+- `app_state`：后台可变配置，包括 API 线路、模型价格、模板工作流和系统设置。
+
 备份：
 
 ```powershell
@@ -78,3 +87,21 @@ $bytes = [System.IO.File]::ReadAllBytes("C:\Users\pc\Desktop\hjm-mb-clone\server
 if ($bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $bytes[2] -eq 191) { "BOM" } else { "NO_BOM" }
 ```
 
+## 接口冒烟
+
+后端改动后运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\pc\Desktop\hjm-mb-clone\scripts\smoke-api.ps1"
+```
+
+脚本覆盖：
+
+- `/api/health`
+- `/api/admin/login`
+- `/api/admin/dashboard`
+- `/api/admin/api-providers`
+- `/api/admin/model-prices`
+- `/api/admin/template-workflows`
+- `/api/admin/settings`
+- `/api/public/routes`

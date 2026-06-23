@@ -29,6 +29,7 @@ npm start
 
 - 真实 AI、邮件、支付、云存储默认关闭。
 - 没有有效 key 时必须走本地 mock，不允许请求卡死。
+- New-API/CPA 作为外部基础设施使用，不在本项目内重造通用 AI 网关、Token 分发、CLI OAuth 账号池。
 - `/api/*` 未命中必须返回 JSON，不允许返回 SPA HTML。
 - 管理后台删除默认软删除，永久删除只做匿名化。
 - 余额变化必须写入 `balance_logs`。
@@ -78,6 +79,24 @@ Copy-Item "C:\Users\pc\Desktop\hjm-mb-clone\data.backup.db" "C:\Users\pc\Desktop
 - Start：管理员初始化和服务启动。
 
 后续拆分模块时保持路径不变，先拆实现文件，不改前端 API。
+
+## AI Provider 集成边界
+
+正式接真实模型时，本项目 Provider Adapter 默认连接 New-API。CPA 只作为 New-API 的一个底层渠道。
+
+本项目负责：
+
+- 业务用户、项目、任务和图库记录。
+- 业务余额、订单和成本映射。
+- 任务重试、超时、失败状态和审计日志。
+
+New-API/CPA 负责：
+
+- 模型渠道聚合。
+- 员工 token、额度、模型白名单和用量统计。
+- Codex/Claude Code 等 CLI/OAuth 账号池和协议转换。
+
+详细设计见 `docs/architecture-newapi-cpa.md`。
 
 ## 发布前检查
 

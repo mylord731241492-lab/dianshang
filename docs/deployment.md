@@ -4,6 +4,15 @@
 
 本项目当前是打包后的 Vue 前端资产 + Express/SQLite 本地后端。默认运行在 mock 模式，真实 AI、邮件、支付、云存储都必须显式开启。
 
+## AI 网关原则
+
+正式部署不在本项目里重造通用 AI 网关。优先复用：
+
+- New-API：统一模型网关、Token 分发、额度、统计和渠道管理。
+- CLIProxyAPI / CPA：作为 New-API 后置渠道，处理 Codex、Claude Code 等 CLI/OAuth 账号池。
+
+本项目只做业务平台和 Provider Adapter，默认把真实模型调用转发给 New-API。员工或内部工具只拿 New-API token，不直接接触 CPA 或真实上游 key。
+
 ## 本地启动
 
 ```powershell
@@ -92,4 +101,5 @@ server {
 2. 将后台设置、API 线路、模型价格、模板工作流持久化到 SQLite。
 3. 拆分 `server.js` 为 Auth/User/Projects/Generation/Template/Admin/Provider/DB 模块。
 4. 增加自动化接口冒烟测试。
-5. 通过 Provider Adapter 接真实 AI 服务。
+5. 通过 Provider Adapter 对接 New-API，不直接重造 New-API/CPA 已有能力。
+6. 公司多人部署前迁移到 Postgres + Redis + BullMQ。

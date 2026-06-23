@@ -1,0 +1,268 @@
+.home-background {
+  background:
+    radial-gradient(circle at 16% 14%, rgba(71, 137, 125, .12), transparent 30%),
+    radial-gradient(circle at 82% 20%, rgba(82, 112, 154, .1), transparent 34%),
+    linear-gradient(180deg, #f4f7f5 0%, #edf3f0 48%, #e2ebe8 100%) !important;
+}
+
+.home-background .home-bg-video {
+  display: none !important;
+}
+
+.home-background .home-bg-image {
+  background-image: url("/assets/home-product-workbench.png") !important;
+  background-position: center top !important;
+  background-size: cover !important;
+  opacity: .5 !important;
+  filter: blur(12px) saturate(.88) contrast(.92) brightness(1.02) !important;
+  transform: scale(1.065) !important;
+}
+
+.home-background:after {
+  background:
+    linear-gradient(90deg, rgba(248, 250, 249, .84) 0%, rgba(248, 250, 249, .64) 45%, rgba(248, 250, 249, .3) 100%),
+    radial-gradient(circle at 58% 48%, rgba(255, 255, 255, .42), transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, .18), rgba(225, 235, 232, .4)) !important;
+  backdrop-filter: blur(3px) !important;
+  -webkit-backdrop-filter: blur(3px) !important;
+}
+
+.home-glow {
+  display: block !important;
+  opacity: .32 !important;
+}
+
+.glow-one {
+  background: rgba(66, 138, 124, .14) !important;
+}
+
+.glow-two {
+  background: rgba(82, 112, 154, .12) !important;
+}
+
+.home-header,
+.side-rail,
+.global-workflow-actions,
+.hero-panel,
+.hero-inner,
+.hero-tabs,
+.upload-box,
+.prompt-input-wrap,
+.history-card,
+.history-empty {
+  background: rgba(255, 255, 255, .56) !important;
+  border: 1px solid rgba(255, 255, 255, .72) !important;
+  box-shadow:
+    0 32px 86px rgba(64, 83, 84, .12),
+    0 8px 26px rgba(64, 83, 84, .06),
+    inset 0 1px 0 rgba(255, 255, 255, .82) !important;
+  backdrop-filter: blur(20px) saturate(1.08) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.08) !important;
+}
+
+.hero-panel,
+.hero-inner {
+  background: rgba(255, 255, 255, .46) !important;
+  border-color: rgba(255, 255, 255, .8) !important;
+  box-shadow:
+    0 34px 95px rgba(46, 65, 66, .1),
+    0 2px 14px rgba(46, 65, 66, .04),
+    inset 0 1px 0 rgba(255, 255, 255, .86) !important;
+}
+
+.hero-tabs,
+.global-workflow-actions {
+  background: rgba(255, 255, 255, .34) !important;
+}
+
+.brand-orb,
+.pill-dot {
+  background: linear-gradient(135deg, #3f8f82, #597ca5) !important;
+  box-shadow: 0 10px 24px rgba(63, 143, 130, .22) !important;
+}
+
+.brand-lockup,
+.workflow-action,
+.header-icon-button,
+.side-item,
+.hero-tab,
+.param-pill,
+.power-cost,
+.history-header h2,
+.history-header button,
+.upload-empty,
+.upload-state,
+.prompt-input,
+.history-meta strong {
+  color: rgba(37, 52, 55, .86) !important;
+}
+
+.brand-text em,
+.side-item:hover,
+.side-item.active,
+.header-icon-button.user,
+.power-cost strong,
+.param-pill:hover,
+.history-header button:hover,
+.header-icon-button:hover,
+.workflow-action:hover {
+  color: #2d7f72 !important;
+}
+
+.brand-beta,
+.tab-badge {
+  background: rgba(45, 127, 114, .12) !important;
+  color: #2d7f72 !important;
+}
+
+.hero-title {
+  color: rgba(36, 51, 55, .94) !important;
+  font-size: clamp(54px, 5.4vw, 92px) !important;
+  font-weight: 900 !important;
+  line-height: .98 !important;
+  letter-spacing: 0 !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .72), 0 18px 44px rgba(255, 255, 255, .38) !important;
+}
+
+.hero-title .brand {
+  display: none !important;
+}
+
+.brand-text em {
+  display: none !important;
+}
+
+.hero-desc {
+  color: rgba(42, 57, 61, .66) !important;
+  text-shadow: 0 1px 12px rgba(255, 255, 255, .52) !important;
+}
+
+.hero-tab.active,
+.side-item.active {
+  background: rgba(232, 244, 240, .72) !important;
+  box-shadow: inset 0 0 0 1px rgba(45, 127, 114, .16) !important;
+}
+
+.generate-button,
+.save-manual-action {
+  background: linear-gradient(135deg, #3f8f82, #597ca5) !important;
+  box-shadow: 0 14px 32px rgba(63, 143, 130, .26), inset 0 1px 0 rgba(255, 255, 255, .32) !important;
+}
+
+.prompt-input::placeholder,
+.prompt-count,
+.history-meta span {
+  color: rgba(42, 57, 61, .46) !important;
+}
+
+.history-thumb,
+.upload-preview-thumb,
+.upload-plus {
+  background: rgba(255, 255, 255, .42) !important;
+}
+
+.history-card {
+  background: rgba(255, 255, 255, .44) !important;
+  box-shadow:
+    none !important;
+}
+
+.history-card:hover {
+  box-shadow: none !important;
+}
+
+.hero-panel,
+.history-carousel {
+  width: min(980px, calc(100vw - 128px)) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.history-carousel {
+  position: relative !important;
+  isolation: isolate !important;
+  max-width: 980px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.history-carousel::before {
+  content: "" !important;
+  display: none !important;
+}
+
+.history-track {
+  justify-content: flex-start !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  padding: 8px 4px 18px !important;
+  scroll-behavior: auto !important;
+  cursor: grab !important;
+  touch-action: pan-y !important;
+  overscroll-behavior-x: contain !important;
+  user-select: none !important;
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
+}
+
+.history-track.is-dragging {
+  cursor: grabbing !important;
+  scroll-snap-type: none !important;
+}
+
+.history-track.is-dragging .history-card {
+  pointer-events: none !important;
+}
+
+.history-card {
+  scroll-snap-align: start !important;
+}
+
+.history-wrap {
+  width: 100% !important;
+}
+
+.history-card {
+  flex-basis: 220px !important;
+  border-color: rgba(255, 255, 255, .86) !important;
+}
+
+.history-thumb {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .68), rgba(247, 250, 249, .42)),
+    radial-gradient(circle at 50% 38%, rgba(255, 126, 35, .08), transparent 34%) !important;
+}
+
+.hero-avatar,
+.hero-avatar-glow,
+.hero-avatar-shadow {
+  display: none !important;
+}
+
+.home-main {
+  padding-top: 136px !important;
+}
+
+@media (max-width: 768px) {
+  .home-background .home-bg-image {
+    background-position: 58% top !important;
+    opacity: .38 !important;
+  }
+
+  .home-background:after {
+    background: rgba(248, 250, 249, .8) !important;
+  }
+
+  .home-main {
+    padding-top: 86px !important;
+  }
+
+  .hero-panel,
+  .history-carousel {
+    width: calc(100vw - 28px) !important;
+  }
+
+  .history-track {
+    justify-content: flex-start !important;
+  }
+}

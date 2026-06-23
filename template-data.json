@@ -1,0 +1,747 @@
+{
+  "templates": [
+    {
+      "key": "main-image",
+      "id": "main-image",
+      "templateType": "main-image",
+      "name": "一键主图反推复刻",
+      "templateName": "一键主图反推复刻",
+      "desc": "主图结构与卖点复刻",
+      "enabled": true,
+      "version": 1,
+      "imageSlots": [
+        {
+          "key": "productImages",
+          "group": "productImages",
+          "label": "自家产品图",
+          "description": "用于保留产品主体、结构、材质、颜色和品牌识别",
+          "role": "product",
+          "required": false,
+          "multiple": true,
+          "maxFiles": 12,
+          "accept": "image/*"
+        },
+        {
+          "key": "referenceImages",
+          "group": "referenceImages",
+          "label": "复刻参考图",
+          "description": "用于分析构图、风格、光影、排版和卖点表达方式",
+          "role": "reference",
+          "required": true,
+          "multiple": true,
+          "maxFiles": 12,
+          "accept": "image/*"
+        }
+      ],
+      "fields": [
+        {
+          "key": "userPrompt",
+          "label": "提示词 / 需求",
+          "type": "textarea",
+          "placeholder": "把产品参数、使用人群、卖点、风格要求都写在这里",
+          "required": false,
+          "mapsTo": "userPrompt",
+          "options": []
+        }
+      ],
+      "outputSchema": {
+        "type": "json-array",
+        "maxItems": 5,
+        "itemShape": {
+          "title": "方案A",
+          "prompt": "图片模型可直接使用的完整提示词",
+          "negativePrompt": "不希望出现的内容",
+          "ratio": "1:1",
+          "styleTags": []
+        }
+      },
+      "categoryId": "main",
+      "categoryName": "主图生成",
+      "coverImage": "/templates/covers/main-image.svg",
+      "tags": [
+        "主图",
+        "复刻",
+        "高转化"
+      ],
+      "platformTags": [
+        "淘宝",
+        "京东",
+        "拼多多"
+      ],
+      "sort": 10,
+      "galleryEnabled": true,
+      "ratioOptions": [
+        {
+          "label": "自适应",
+          "value": "auto"
+        },
+        {
+          "label": "1:1 正方形",
+          "value": "1:1"
+        },
+        {
+          "label": "4:5 电商竖图",
+          "value": "4:5"
+        }
+      ],
+      "recommendedRatio": "1:1",
+      "generateDefaults": {
+        "platform": "京东",
+        "ratio": "1:1",
+        "quality": "2K",
+        "imageCount": 1
+      },
+      "thumbnail": "/templates/covers/main-image.svg",
+      "previewImage": "/templates/covers/main-image.svg"
+    },
+    {
+      "key": "baiditu",
+      "id": "baiditu",
+      "templateType": "baiditu",
+      "name": "白底图",
+      "templateName": "白底图",
+      "desc": "产品白底图批量生成",
+      "enabled": true,
+      "version": 1,
+      "imageSlots": [
+        {
+          "key": "productImages",
+          "group": "productImages",
+          "label": "自家产品图",
+          "role": "product",
+          "required": true,
+          "multiple": true,
+          "maxFiles": 12,
+          "accept": "image/*"
+        }
+      ],
+      "fields": [
+        {
+          "key": "userPrompt",
+          "label": "补充要求",
+          "type": "textarea",
+          "required": false,
+          "mapsTo": "userPrompt"
+        }
+      ],
+      "outputSchema": {
+        "type": "json-array",
+        "maxItems": 5
+      },
+      "categoryId": "main",
+      "categoryName": "主图生成",
+      "tags": [
+        "白底图",
+        "平台规范"
+      ],
+      "platformTags": [
+        "Amazon",
+        "Ozon",
+        "Shopify"
+      ],
+      "sort": 9,
+      "coverImage": "/templates/covers/baiditu.svg",
+      "thumbnail": "/templates/covers/baiditu.svg",
+      "previewImage": "/templates/covers/baiditu.svg"
+    },
+    {
+      "key": "sub-image-replica",
+      "id": "sub-image-replica",
+      "templateType": "sub-image-replica",
+      "name": "副图复刻",
+      "templateName": "副图复刻",
+      "desc": "产品图与多张参考图逐张对应复刻",
+      "enabled": true,
+      "version": 1,
+      "imageSlots": [
+        {
+          "key": "productImages",
+          "group": "productImages",
+          "label": "自家产品图",
+          "role": "product",
+          "required": true,
+          "multiple": false,
+          "maxFiles": 1,
+          "accept": "image/*"
+        },
+        {
+          "key": "referenceImages",
+          "group": "referenceImages",
+          "label": "参考图组",
+          "role": "reference",
+          "required": true,
+          "multiple": true,
+          "maxFiles": 50,
+          "accept": "image/*"
+        }
+      ],
+      "fields": [
+        {
+          "key": "userPrompt",
+          "label": "提示词 / 需求",
+          "type": "textarea",
+          "required": false,
+          "mapsTo": "userPrompt"
+        },
+        {
+          "key": "platform",
+          "label": "目标平台",
+          "type": "select",
+          "options": [
+            "淘宝",
+            "京东",
+            "拼多多",
+            "小红书",
+            "抖音",
+            "Amazon",
+            "Shopify",
+            "Ozon"
+          ]
+        },
+        {
+          "key": "ratio",
+          "label": "图片比例",
+          "type": "select",
+          "options": [
+            "auto",
+            "1:1",
+            "4:5",
+            "3:4",
+            "16:9"
+          ]
+        }
+      ],
+      "outputSchema": {
+        "type": "json-array",
+        "maxItems": 50
+      },
+      "categoryId": "replica",
+      "categoryName": "爆款复刻",
+      "tags": [
+        "参考图复刻",
+        "副图",
+        "批量"
+      ],
+      "platformTags": [
+        "淘宝",
+        "京东",
+        "拼多多"
+      ],
+      "sort": 8,
+      "coverImage": "/templates/covers/sub-image-replica.svg",
+      "thumbnail": "/templates/covers/sub-image-replica.svg",
+      "previewImage": "/templates/covers/sub-image-replica.svg"
+    },
+    {
+      "key": "detail-page",
+      "id": "detail-page",
+      "templateType": "detail-page",
+      "name": "电商详情页复刻",
+      "templateName": "电商详情页复刻",
+      "desc": "长图分镜与模块拆解",
+      "enabled": true,
+      "version": 1,
+      "imageSlots": [
+        {
+          "key": "productImages",
+          "group": "productImages",
+          "label": "自家产品图",
+          "role": "product",
+          "required": true,
+          "multiple": true,
+          "maxFiles": 12,
+          "accept": "image/*"
+        },
+        {
+          "key": "referenceImages",
+          "group": "referenceImages",
+          "label": "参考详情页",
+          "role": "reference",
+          "required": true,
+          "multiple": false,
+          "maxFiles": 1,
+          "accept": "image/*"
+        }
+      ],
+      "fields": [
+        {
+          "key": "userPrompt",
+          "label": "额外要求",
+          "type": "textarea",
+          "required": false,
+          "mapsTo": "userPrompt"
+        }
+      ],
+      "outputSchema": {
+        "type": "json-array",
+        "maxItems": 5
+      },
+      "categoryId": "detail",
+      "categoryName": "详情页套图",
+      "tags": [
+        "详情页",
+        "套图",
+        "模块拆解"
+      ],
+      "platformTags": [
+        "淘宝",
+        "天猫",
+        "京东"
+      ],
+      "sort": 7,
+      "coverImage": "/templates/covers/detail-page.svg",
+      "thumbnail": "/templates/covers/detail-page.svg",
+      "previewImage": "/templates/covers/detail-page.svg"
+    },
+    {
+      "key": "scene",
+      "id": "scene",
+      "templateType": "scene",
+      "name": "场景图复刻",
+      "templateName": "场景图复刻",
+      "desc": "环境、光影、构图",
+      "enabled": true,
+      "version": 1,
+      "imageSlots": [
+        {
+          "key": "productImages",
+          "group": "productImages",
+          "label": "自家产品图",
+          "role": "product",
+          "required": true,
+          "multiple": false,
+          "maxFiles": 1,
+          "accept": "image/*"
+        },
+        {
+          "key": "referenceImages",
+          "group": "referenceImages",
+          "label": "参考场景图",
+          "role": "reference",
+          "required": true,
+          "multiple": true,
+          "maxFiles": 5,
+          "accept": "image/*"
+        }
+      ],
+      "fields": [
+        {
+          "key": "userPrompt",
+          "label": "场景描述",
+          "type": "textarea",
+          "required": false,
+          "mapsTo": "userPrompt"
+        }
+      ],
+      "outputSchema": {
+        "type": "json-array",
+        "maxItems": 5
+      },
+      "categoryId": "refine",
+      "categoryName": "产品精修",
+      "tags": [
+        "精修",
+        "质感",
+        "场景"
+      ],
+      "platformTags": [
+        "淘宝",
+        "京东",
+        "小红书"
+      ],
+      "sort": 6,
+      "coverImage": "/templates/covers/scene.svg",
+      "thumbnail": "/templates/covers/scene.svg",
+      "previewImage": "/templates/covers/scene.svg"
+    },
+    {
+      "key": "model",
+      "id": "model",
+      "templateType": "model",
+      "name": "模特图复刻",
+      "templateName": "模特图复刻",
+      "desc": "姿态、穿搭、镜头",
+      "enabled": true,
+      "version": 1,
+      "imageSlots": [
+        {
+          "key": "productImages",
+          "group": "productImages",
+          "label": "自家产品图",
+          "role": "product",
+          "required": true,
+          "multiple": false,
+          "maxFiles": 1,
+          "accept": "image/*"
+        },
+        {
+          "key": "referenceImages",
+          "group": "referenceImages",
+          "label": "参考模特图",
+          "role": "reference",
+          "required": true,
+          "multiple": true,
+          "maxFiles": 3,
+          "accept": "image/*"
+        }
+      ],
+      "fields": [
+        {
+          "key": "userPrompt",
+          "label": "模特/姿态描述",
+          "type": "textarea",
+          "required": false,
+          "mapsTo": "userPrompt"
+        }
+      ],
+      "outputSchema": {
+        "type": "json-array",
+        "maxItems": 5
+      },
+      "categoryId": "refine",
+      "categoryName": "产品精修",
+      "tags": [
+        "精修",
+        "质感",
+        "场景"
+      ],
+      "platformTags": [
+        "淘宝",
+        "京东",
+        "小红书"
+      ],
+      "sort": 5,
+      "coverImage": "/templates/covers/model.svg",
+      "thumbnail": "/templates/covers/model.svg",
+      "previewImage": "/templates/covers/model.svg"
+    },
+    {
+      "key": "packaging",
+      "id": "packaging",
+      "templateType": "packaging",
+      "name": "包装图复刻",
+      "templateName": "包装图复刻",
+      "desc": "包装质感与陈列",
+      "enabled": true,
+      "version": 1,
+      "imageSlots": [
+        {
+          "key": "productImages",
+          "group": "productImages",
+          "label": "自家产品图",
+          "role": "product",
+          "required": true,
+          "multiple": false,
+          "maxFiles": 1,
+          "accept": "image/*"
+        },
+        {
+          "key": "referenceImages",
+          "group": "referenceImages",
+          "label": "参考包装图",
+          "role": "reference",
+          "required": true,
+          "multiple": true,
+          "maxFiles": 3,
+          "accept": "image/*"
+        }
+      ],
+      "fields": [
+        {
+          "key": "userPrompt",
+          "label": "包装要求",
+          "type": "textarea",
+          "required": false,
+          "mapsTo": "userPrompt"
+        }
+      ],
+      "outputSchema": {
+        "type": "json-array",
+        "maxItems": 5
+      },
+      "categoryId": "refine",
+      "categoryName": "产品精修",
+      "tags": [
+        "精修",
+        "质感",
+        "场景"
+      ],
+      "platformTags": [
+        "淘宝",
+        "京东",
+        "小红书"
+      ],
+      "sort": 4,
+      "coverImage": "/templates/covers/packaging.svg",
+      "thumbnail": "/templates/covers/packaging.svg",
+      "previewImage": "/templates/covers/packaging.svg"
+    },
+    {
+      "key": "poster",
+      "id": "poster",
+      "templateType": "poster",
+      "name": "产品海报复刻",
+      "templateName": "产品海报复刻",
+      "desc": "视觉主KV与氛围",
+      "enabled": true,
+      "version": 1,
+      "imageSlots": [
+        {
+          "key": "productImages",
+          "group": "productImages",
+          "label": "自家产品图",
+          "role": "product",
+          "required": true,
+          "multiple": false,
+          "maxFiles": 1,
+          "accept": "image/*"
+        },
+        {
+          "key": "referenceImages",
+          "group": "referenceImages",
+          "label": "参考海报",
+          "role": "reference",
+          "required": true,
+          "multiple": true,
+          "maxFiles": 3,
+          "accept": "image/*"
+        }
+      ],
+      "fields": [
+        {
+          "key": "userPrompt",
+          "label": "活动/文案要求",
+          "type": "textarea",
+          "required": false,
+          "mapsTo": "userPrompt"
+        }
+      ],
+      "outputSchema": {
+        "type": "json-array",
+        "maxItems": 5
+      },
+      "categoryId": "ad",
+      "categoryName": "广告图",
+      "tags": [
+        "海报",
+        "活动图",
+        "转化视觉"
+      ],
+      "platformTags": [
+        "天猫",
+        "抖音",
+        "Shopify"
+      ],
+      "sort": 3,
+      "coverImage": "/templates/covers/poster.svg",
+      "thumbnail": "/templates/covers/poster.svg",
+      "previewImage": "/templates/covers/poster.svg"
+    },
+    {
+      "key": "xiaohongshu",
+      "id": "xiaohongshu",
+      "templateType": "xiaohongshu",
+      "name": "小红书封面复刻",
+      "templateName": "小红书封面复刻",
+      "desc": "封面标题与生活方式",
+      "enabled": true,
+      "version": 1,
+      "imageSlots": [
+        {
+          "key": "productImages",
+          "group": "productImages",
+          "label": "自家产品图",
+          "role": "product",
+          "required": true,
+          "multiple": false,
+          "maxFiles": 1,
+          "accept": "image/*"
+        },
+        {
+          "key": "referenceImages",
+          "group": "referenceImages",
+          "label": "参考封面",
+          "role": "reference",
+          "required": true,
+          "multiple": true,
+          "maxFiles": 3,
+          "accept": "image/*"
+        }
+      ],
+      "fields": [
+        {
+          "key": "userPrompt",
+          "label": "标题/风格",
+          "type": "textarea",
+          "required": false,
+          "mapsTo": "userPrompt"
+        }
+      ],
+      "outputSchema": {
+        "type": "json-array",
+        "maxItems": 5
+      },
+      "categoryId": "social",
+      "categoryName": "种草内容",
+      "tags": [
+        "小红书",
+        "封面",
+        "生活方式"
+      ],
+      "platformTags": [
+        "小红书",
+        "抖音"
+      ],
+      "sort": 2,
+      "coverImage": "/templates/covers/xiaohongshu.svg",
+      "thumbnail": "/templates/covers/xiaohongshu.svg",
+      "previewImage": "/templates/covers/xiaohongshu.svg"
+    },
+    {
+      "key": "custom",
+      "id": "custom",
+      "templateType": "custom",
+      "name": "自定义模板",
+      "templateName": "自定义模板",
+      "desc": "自由配置工作流",
+      "enabled": true,
+      "version": 1,
+      "imageSlots": [
+        {
+          "key": "productImages",
+          "group": "productImages",
+          "label": "自家产品图",
+          "role": "product",
+          "required": false,
+          "multiple": true,
+          "maxFiles": 12,
+          "accept": "image/*"
+        },
+        {
+          "key": "referenceImages",
+          "group": "referenceImages",
+          "label": "参考图",
+          "role": "reference",
+          "required": false,
+          "multiple": true,
+          "maxFiles": 12,
+          "accept": "image/*"
+        }
+      ],
+      "fields": [
+        {
+          "key": "userPrompt",
+          "label": "提示词",
+          "type": "textarea",
+          "required": true,
+          "mapsTo": "userPrompt"
+        }
+      ],
+      "outputSchema": {
+        "type": "json-array",
+        "maxItems": 5
+      },
+      "categoryId": "custom",
+      "categoryName": "自定义",
+      "tags": [
+        "自定义",
+        "工作流"
+      ],
+      "platformTags": [],
+      "sort": 1,
+      "coverImage": "/templates/covers/custom.svg",
+      "thumbnail": "/templates/covers/custom.svg",
+      "previewImage": "/templates/covers/custom.svg"
+    }
+  ],
+  "platforms": [
+    "淘宝",
+    "天猫",
+    "京东",
+    "拼多多",
+    "小红书",
+    "抖音",
+    "Amazon",
+    "Ozon",
+    "Shopify",
+    "Other"
+  ],
+  "qualities": [
+    "1K",
+    "2K",
+    "4K"
+  ],
+  "ratios": [
+    "1:1",
+    "3:2",
+    "2:3",
+    "4:3",
+    "3:4",
+    "16:9",
+    "9:16"
+  ],
+  "model_configs": {
+    "languageModels": [
+      {
+        "name": "GPT-4o",
+        "enabled": true
+      },
+      {
+        "name": "GPT-5.5",
+        "enabled": true
+      },
+      {
+        "name": "Gemini",
+        "enabled": true
+      },
+      {
+        "name": "Claude",
+        "enabled": true
+      },
+      {
+        "name": "Qwen",
+        "enabled": true
+      }
+    ],
+    "imageModels": [
+      {
+        "name": "Nano Banana",
+        "enabled": true
+      },
+      {
+        "name": "GPT Image",
+        "enabled": true
+      },
+      {
+        "name": "Flux",
+        "enabled": true
+      },
+      {
+        "name": "Seedream",
+        "enabled": true
+      },
+      {
+        "name": "Midjourney",
+        "enabled": true
+      },
+      {
+        "name": "Other",
+        "enabled": true
+      }
+    ],
+    "qualities": [
+      "1K",
+      "2K",
+      "4K"
+    ],
+    "ratios": [
+      "1:1",
+      "3:2",
+      "2:3",
+      "4:3",
+      "3:4",
+      "16:9",
+      "9:16"
+    ]
+  }
+}

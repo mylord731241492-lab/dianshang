@@ -373,3 +373,26 @@
 
 - Docker 容器首次完整构建。
 - Docker volume 持久化和容器重启验收。
+
+## 2026-06-24 Docker 实跑复核
+
+### 已验证
+
+- 人工下载 `node:20-bookworm` 后，使用该镜像完成 `docker compose -f docker-compose.internal.yml build`。
+- 构建阶段 `npm ci --omit=dev` 通过，`better-sqlite3` 未再因缺 Python/编译工具失败。
+- 停止本机 Node 服务后，`docker compose -f docker-compose.internal.yml up -d` 成功启动 `dianshang-app`。
+- `docker compose ps` 显示容器 `healthy`，端口映射为 `0.0.0.0:3456->3456/tcp`。
+- `http://127.0.0.1:3456/api/health` 返回 `success: true`、`status: ok`、`mode: mock`、`database: ok`，运行路径为 `/app/data`、`/app/uploads`、`/app/logs`。
+- 首页 `http://127.0.0.1:3456/` 返回 200。
+- 执行 `scripts/smoke-api.ps1` 后重启容器，`/api/health` 仍正常，`users/generations/balance_logs/redeem_codes/app_state` 表计数保留，证明 SQLite volume 基础持久化有效。
+
+### 结论
+
+- Docker 本地内网测试路径已跑通，不需要现在引入 Postgres、Redis、Worker、Open WebUI。
+- 默认镜像应使用 `node:20-bookworm`，避免 slim 镜像缺少 `better-sqlite3` 编译工具。
+- 真实 New-API、CPA、邮件、支付、云存储仍保持关闭，不影响 mock 测试。
+
+### 未覆盖
+
+- 人工浏览器完整点击测试 Docker 服务。
+- 服务器/Nginx/HTTPS 正式部署验收。

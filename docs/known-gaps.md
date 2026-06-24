@@ -9,9 +9,8 @@
 - API 线路、模型价格、模板工作流和系统设置目前通过 SQLite `app_state` 持久化；还未迁移为独立业务表。
 - 画布高级 AI 工具：扩图、消除、局部修改、参考图融合的真实图像编辑效果。
 - New-API 真实联通测试和 CPA 后置渠道配置。
-- Docker 容器重启后的 SQLite 数据持久化验收。
+- Docker 容器已可启动，重启后 SQLite 基础持久化已验证；仍需人工浏览器完整点击测试。
 - CodeGraph 未在当前项目目录初始化，结构索引工具暂不可用。
-- 本机没有 Docker CLI，`docker compose config/up/restart` 仍需在内网服务器或安装 Docker Desktop 后实测。
 - 服务器正式部署前的 `.env` 生产密钥、Nginx/HTTPS、访问权限和备份恢复演练尚未完成；当前先以内网测试为目标。
 
 ## 前端 1:1 尚需精修

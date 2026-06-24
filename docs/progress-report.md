@@ -79,6 +79,19 @@
 - 验证方式：临时端口 `4573` 启动独立 SQLite 服务；执行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/preflight-check.ps1`；检查 `/api/health`。
 - 验证结果：`node --check server.js` 通过；`node --check assets/home-carousel-inertia.js` 通过；后台与 public routes API smoke 全部通过；`/api/health` 返回 `success: true`、`database: ok`、`mode: mock`、New-API mock 回落状态和运行路径。
 
+## 2026-06-24 Docker 内网实跑进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：使用人工下载的 `node:20-bookworm` 完成 Docker 镜像构建，启动 `dianshang-app` 容器并验证健康检查；将 Docker 默认基础镜像从 slim 调整为已验证可构建的完整版 Debian Node 镜像；完成接口 smoke 和容器重启后的 SQLite 基础持久化验证。
+- 修改文件：`Dockerfile`、`docker-compose.internal.yml`、`.env.example`、`docs/deployment.md`、`docs/feature-completion-checklist.md`、`docs/known-gaps.md`、`docs/review-log.md`、`docs/progress-report.md`
+- 验证方式：`node --check server.js`、`node --check assets/home-carousel-inertia.js`、`docker compose -f docker-compose.internal.yml config/build/up/ps/restart`、`scripts/smoke-api.ps1`、`Invoke-RestMethod http://127.0.0.1:3456/api/health`、`Invoke-WebRequest http://127.0.0.1:3456/`
+- 验证结果：镜像构建通过；容器状态 `healthy`；`/api/health` 返回 `success: true`、`status: ok`、`mode: mock`、`database: ok`；首页返回 200；接口 smoke 全部通过；容器重启后表计数保留。
+- 当前完成度：部署护栏约 92%，后端平台护栏约 72%，前端 1:1 仍需继续人工逐页复核。
+- 新发现问题：`node:20-bookworm-slim` 会因 `better-sqlite3` 缺编译工具失败；本地测试阶段改用 `node:20-bookworm` 更省心。
+- 未完成清单：Docker 服务的人工浏览器点击测试、服务器/Nginx/HTTPS 部署、真实 New-API 联通。
+- 下一轮建议：先让用户在 Docker 服务上手动测试首页、模板、图库、画布、后台；若页面无明显问题，再做容器重启持久化验证和提交推送。
+- 需要人工介入：浏览器人工验收；真实 New-API token、服务器 IP/域名/Nginx 后续再配置。
+
 ## 2026-06-24 内网测试优先部署进度报告
 
 - 分支：`codex/backend-platform`
@@ -239,3 +252,16 @@
 - 未完成清单：Docker Desktop 镜像源稳定后完整构建、容器 healthcheck、volume 重启持久化。
 - 下一轮建议：继续人工页面测试；Docker 需要先解决基础镜像拉取，可以在 Docker Desktop 配置可用 registry mirror 或换稳定网络后重试。
 - 需要人工介入：如必须立刻 Docker，需要你确认可用代理/网络或允许配置 Docker Desktop 镜像加速。
+
+## 2026-06-24 Docker 内网实跑最终确认进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：在用户人工下载 `node:20-bookworm` 后完成 Docker 构建、启动、健康检查、接口 smoke 和容器重启后的 SQLite 基础持久化验证；把默认 Docker 镜像固定为当前验证通过的 `node:20-bookworm`，避免后续默认使用 slim 镜像再次失败。
+- 修改文件：`Dockerfile`、`docker-compose.internal.yml`、`.env.example`、`docs/deployment.md`、`docs/feature-completion-checklist.md`、`docs/known-gaps.md`、`docs/review-log.md`、`docs/progress-report.md`
+- 验证方式：`node --check server.js`、`node --check assets/home-carousel-inertia.js`、`docker compose -f docker-compose.internal.yml config`、`docker compose -f docker-compose.internal.yml build`、`docker compose -f docker-compose.internal.yml up -d`、`scripts/smoke-api.ps1`、`docker compose -f docker-compose.internal.yml restart app`、`/api/health`、首页 200 检查。
+- 验证结果：全部通过；容器 `dianshang-app` 处于 `healthy`；`/api/health` 返回 `success: true`、`mode: mock`、`database: ok`；重启后 SQLite 表计数保留。
+- 当前完成度：部署护栏约 92%，后端平台护栏约 72%，前端 1:1 仍需人工逐页复核。
+- 新发现问题：`node:20-bookworm-slim` 不适合作为当前默认 Docker 基础镜像，因为 `better-sqlite3` 可能需要原生编译工具。
+- 未完成清单：Docker 服务人工浏览器完整点击测试、服务器/Nginx/HTTPS 正式部署、真实 New-API 联通、前端 1:1 剩余视觉细节。
+- 下一轮建议：用户先在当前 Docker 服务 `http://127.0.0.1:3456/` 手动测试首页、模板、图库、画布和后台；我根据反馈继续修前端交互或后台接口。
+- 需要人工介入：浏览器人工验收；真实 New-API token 和服务器部署信息后续再提供。

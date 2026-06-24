@@ -5,15 +5,27 @@ services:
       dockerfile: Dockerfile
     container_name: dianshang-app
     restart: unless-stopped
-    env_file:
-      - .env
     environment:
       NODE_ENV: production
       PORT: ${PORT:-3456}
+      JWT_SECRET: ${JWT_SECRET:-replace-with-a-long-random-secret}
       DATA_DIR: /app/data
       DB_PATH: /app/data/data.db
       UPLOAD_DIR: /app/uploads
       LOG_DIR: /app/logs
+      ENABLE_REAL_AI: ${ENABLE_REAL_AI:-false}
+      ENABLE_REAL_EMAIL: ${ENABLE_REAL_EMAIL:-false}
+      ENABLE_REAL_PAYMENT: ${ENABLE_REAL_PAYMENT:-false}
+      ENABLE_REAL_STORAGE: ${ENABLE_REAL_STORAGE:-false}
+      AI_PROVIDER_GATEWAY: ${AI_PROVIDER_GATEWAY:-new-api}
+      NEW_API_BASE: ${NEW_API_BASE:-https://your-new-api.example.com/v1}
+      NEW_API_KEY: ${NEW_API_KEY:-sk-replace-with-new-api-token}
+      PROVIDER_TIMEOUT_MS: ${PROVIDER_TIMEOUT_MS:-30000}
+      AI_API_BASE: ${AI_API_BASE:-https://your-provider.example.com/v1}
+      AI_IMAGE_KEY: ${AI_IMAGE_KEY:-sk-replace-with-image-key}
+      AI_TEXT_KEY: ${AI_TEXT_KEY:-sk-replace-with-text-key}
+      AI_IMAGE_MODEL: ${AI_IMAGE_MODEL:-gpt-image-2}
+      AI_TEXT_MODEL: ${AI_TEXT_MODEL:-gpt-5.5}
     ports:
       - "${PORT:-3456}:3456"
     volumes:

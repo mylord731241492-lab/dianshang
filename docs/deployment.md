@@ -41,6 +41,8 @@ docker compose -f docker-compose.internal.yml config
 docker compose -f docker-compose.internal.yml up --build -d
 ```
 
+`.env` 不是 mock 启动的硬依赖。没有 `.env` 时，`docker-compose.internal.yml` 会使用安全占位默认值，`ENABLE_REAL_AI=false`，Provider Adapter 保持 mock 回落。生产或内网正式使用前仍建议复制 `.env.example` 为 `.env`，至少修改 `JWT_SECRET`，再按需填写 New-API 配置。
+
 访问地址：
 
 - 前台：`http://服务器IP:3456/`

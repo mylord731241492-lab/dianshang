@@ -37,7 +37,7 @@
 | GET | `/api/user/api-status` | mock | 当前线路状态 |
 | GET | `/api/user/balance-logs` | local-db | 余额流水 |
 | GET | `/api/user/generations` | local-db | 图片历史 |
-| GET/POST/PUT/DELETE | `/api/user/projects` | local-db | 画布项目 |
+| GET/POST/PUT/DELETE | `/api/user/projects` | local-db | 画布项目，返回 `success` 和 `items/projects/list/data` 兼容字段 |
 | POST/PUT | `/api/user/avatar...` | local-db | 头像上传/设置 |
 | POST | `/api/user/redeem` | local-db | 兑换码 |
 
@@ -73,7 +73,7 @@
 
 | Method | Path | 状态 | 说明 |
 | --- | --- | --- | --- |
-| POST | `/api/workflows/:id/save-json` | local-db | 保存画布工作流到 `projects` |
+| POST | `/api/workflows/:id/save-json` | local-db | 保存画布 workflow JSON 到 `projects.data`，返回 `id/workflowId/savedAt` |
 
 ## PowerShell 验证
 

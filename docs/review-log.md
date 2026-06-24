@@ -227,3 +227,23 @@
 - 后台 `n-dialog` 创建类弹窗保存成功后不会自动关闭，关闭/取消按钮在本次浏览器自动化中表现不稳定；需要前端 polish 阶段修复。
 - API 线路 `测试连接` 在真实 New-API token 下的联通和错误格式。
 - users/orders/model-prices 的浏览器 UI 写操作全覆盖。
+
+## 2026-06-24 画布保存恢复 API 长流程
+
+### 已验证
+
+- `scripts/smoke-api.ps1` 已覆盖画布项目创建、`/api/workflows/:id/save-json` 云保存、`/api/user/projects/:id` 读取恢复、项目列表缩略图、`PUT /api/user/projects/:id` 更新恢复和删除清理。
+- 临时端口 `4584` 的默认 `scripts/preflight-check.ps1` 通过，画布 smoke 最终删除测试项目，`/api/health` 中 `projects: 0`，没有残留测试项目。
+- `/api/user/projects` 响应补齐 `success/projects/list/data/total` 兼容字段，保持前端已有 `items` 不变。
+
+### 风险与原则
+
+- 本轮只补业务平台接口兼容和 smoke，不引入新的画布存储服务，不重造 workflow 引擎。
+- 画布真实 UI 的拖拽、连线、上传、保存按钮仍需浏览器交互验收；API 长流程只能证明后端持久化和恢复链路可用。
+- 继续使用 SQLite 作为 7 月前轻量内网版本的持久化层。
+
+### 未覆盖
+
+- 浏览器 UI 点击级：新增节点、上传素材、点击保存、刷新/重新进入同一项目恢复。
+- 本地文件夹授权后的本地保存路径。
+- 多用户并发编辑冲突和版本历史。

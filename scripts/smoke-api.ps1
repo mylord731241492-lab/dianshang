@@ -75,6 +75,95 @@ if (-not $profile.user) {
   throw "User profile missing"
 }
 
+$projectName = "Smoke Canvas " + (Get-Date -Format "HHmmss")
+$createdProject = Invoke-SmokeJson -Method "POST" -Path "/api/user/projects" -Headers $userHeaders -Body @{
+  name = $projectName
+}
+if (-not $createdProject.success -or -not $createdProject.id) {
+  throw "Canvas project create failed"
+}
+$projectId = $createdProject.id
+
+$workflowData = @{
+  nodes = @(
+    @{
+      id = "node-smoke-product"
+      type = "imageNode"
+      position = @{ x = 120; y = 160 }
+      data = @{
+        title = "Smoke product image"
+        prompt = "white thermos bottle"
+      }
+    },
+    @{
+      id = "node-smoke-output"
+      type = "resultNode"
+      position = @{ x = 520; y = 160 }
+      data = @{
+        title = "Smoke output"
+      }
+    }
+  )
+  edges = @(
+    @{
+      id = "edge-smoke"
+      source = "node-smoke-product"
+      target = "node-smoke-output"
+    }
+  )
+  viewport = @{ x = 10; y = 20; zoom = 0.85 }
+  storage = @{ mode = "cloud-smoke"; checkedAt = (Get-Date).ToUniversalTime().ToString("o") }
+  thumbnail = "/templates/covers/main-image.svg"
+}
+
+$savedWorkflow = Invoke-SmokeJson -Method "POST" -Path "/api/workflows/$projectId/save-json" -Headers $userHeaders -Body @{
+  name = $projectName
+  data = $workflowData
+}
+if (-not $savedWorkflow.success -or $savedWorkflow.workflowId -ne $projectId) {
+  throw "Canvas workflow cloud save failed"
+}
+
+$loadedProject = Invoke-SmokeJson -Method "GET" -Path "/api/user/projects/$projectId" -Headers $userHeaders
+if (-not $loadedProject.success -or $loadedProject.data.nodes.Count -ne 2 -or $loadedProject.data.edges.Count -ne 1) {
+  throw "Canvas project restore failed"
+}
+if ($loadedProject.data.viewport.zoom -ne 0.85 -or $loadedProject.data.storage.mode -ne "cloud-smoke") {
+  throw "Canvas workflow viewport/storage restore failed"
+}
+
+$projectList = Invoke-SmokeJson -Method "GET" -Path "/api/user/projects" -Headers $userHeaders
+$listedProject = @($projectList.items) | Where-Object { $_.id -eq $projectId } | Select-Object -First 1
+if (-not $projectList.success -or -not $listedProject -or -not $listedProject.thumbnail) {
+  throw "Canvas project list restore failed"
+}
+
+$updatedWorkflowData = @{
+  nodes = @(
+    @{
+      id = "node-smoke-updated"
+      type = "textNode"
+      position = @{ x = 240; y = 260 }
+      data = @{ title = "Updated smoke node" }
+    }
+  )
+  edges = @()
+  viewport = @{ x = 0; y = 0; zoom = 1 }
+  storage = @{ mode = "project-put-smoke" }
+}
+$updatedProject = Invoke-SmokeJson -Method "PUT" -Path "/api/user/projects/$projectId" -Headers $userHeaders -Body @{
+  name = "$projectName Updated"
+  data = $updatedWorkflowData
+}
+if (-not $updatedProject.success) {
+  throw "Canvas project update failed"
+}
+
+$reloadedProject = Invoke-SmokeJson -Method "GET" -Path "/api/user/projects/$projectId" -Headers $userHeaders
+if ($reloadedProject.name -ne "$projectName Updated" -or $reloadedProject.data.nodes.Count -ne 1 -or $reloadedProject.data.storage.mode -ne "project-put-smoke") {
+  throw "Canvas project update restore failed"
+}
+
 $reversePrompt = Invoke-SmokeJson -Method "POST" -Path "/api/template/reverse-prompt" -Headers $userHeaders -Body @{
   templateType = "main-image"
   fields = @{
@@ -162,6 +251,11 @@ if (-not $patchedSettings.success) {
 $publicRoutes = Invoke-SmokeJson -Method "GET" -Path "/api/public/routes"
 if (-not $publicRoutes.items -or $publicRoutes.items.Count -lt 1) {
   throw "Public routes missing"
+}
+
+$deletedProject = Invoke-SmokeJson -Method "DELETE" -Path "/api/user/projects/$projectId" -Headers $userHeaders
+if (-not $deletedProject.success) {
+  throw "Canvas project delete failed"
 }
 
 Write-Host "Smoke API checks passed for $baseUrl"

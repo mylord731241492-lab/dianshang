@@ -485,24 +485,27 @@ app.post('/api/user/redeem', auth, (req, res) => {
 // ===================== PROJECTS / CANVAS =====================
 app.get('/api/user/projects', auth, (req, res) => {
   const ps = db.prepare('SELECT * FROM projects WHERE user_id=? ORDER BY updated_at DESC').all(req.user.userId);
-  res.json({ items: ps.map(p=>({id:p.id,name:p.name,thumbnail:p.data?JSON.parse(p.data).thumbnail||'':'',updatedAt:p.updated_at,createdAt:p.created_at})) });
+  const items = ps.map(p=>({id:p.id,name:p.name,thumbnail:p.data?JSON.parse(p.data).thumbnail||'':'',updatedAt:p.updated_at,createdAt:p.created_at}));
+  res.json({ success: true, items, projects: items, list: items, data: items, total: items.length });
 });
 app.post('/api/user/projects', auth, (req, res) => {
   const { name } = req.body;
   const id = uid('proj_');
   db.prepare('INSERT INTO projects (id,user_id,name,data) VALUES (?,?,?,?)').run(id, req.user.userId, name||'未命名项目', '{}');
-  res.json({ id, name: name||'未命名项目', createdAt: new Date().toISOString() });
+  const project = { id, name: name||'未命名项目', data: {}, createdAt: new Date().toISOString() };
+  res.json({ success: true, ...project, project });
 });
 app.get('/api/user/projects/:id', auth, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id=?').get(req.params.id);
   if (!p || p.user_id !== req.user.userId) return res.status(404).json({ message: '项目不存在' });
-  res.json({ id:p.id, name:p.name, data: JSON.parse(p.data||'{}'), createdAt:p.created_at, updatedAt:p.updated_at });
+  const project = { id:p.id, name:p.name, data: JSON.parse(p.data||'{}'), createdAt:p.created_at, updatedAt:p.updated_at };
+  res.json({ success: true, ...project, project });
 });
 app.put('/api/user/projects/:id', auth, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id=?').get(req.params.id);
   if (!p || p.user_id !== req.user.userId) return res.status(404).json({ message: '项目不存在' });
   db.prepare("UPDATE projects SET name=?, data=?, updated_at=datetime('now') WHERE id=?").run(req.body.name||p.name, JSON.stringify(req.body.data||{}), req.params.id);
-  res.json({ success: true });
+  res.json({ success: true, id: req.params.id, name: req.body.name||p.name, data: req.body.data||{} });
 });
 app.delete('/api/user/projects/:id', auth, (req, res) => {
   const r = db.prepare('DELETE FROM projects WHERE id=? AND user_id=?').run(req.params.id, req.user.userId);

@@ -11,6 +11,20 @@
 
 ## 推荐调用链
 
+7 月前内网测试阶段：
+
+```text
+内网浏览器
+  ↓
+Express 一体服务
+  ├── 静态前端资产
+  ├── /api/* 业务接口
+  ├── SQLite
+  └── Provider Adapter -> New-API(可选) -> CPA/上游
+```
+
+内网测试稳定后的服务器/多人阶段：
+
 ```text
 Nginx / HTTPS
   ↓
@@ -59,7 +73,9 @@ New-API
 
 ## 部署建议
 
-正式服务器建议使用 Docker Compose：
+内网测试优先使用当前仓库的 `docker-compose.internal.yml` 或 PM2，不把 New-API/CPA 打进本项目镜像。New-API 和 CPA 可以单独部署，也可以先使用已有可访问实例。
+
+正式服务器和多人规模化后，建议使用独立 Compose 编排：
 
 ```text
 nginx
@@ -79,3 +95,5 @@ cpa
 - 真实供应商条款、账号共享限制和调用成本由部署方负责确认。
 - 不把 New-API/CPA 管理后台凭据提交到仓库。
 - 员工只拿 New-API 发放的 token，不接触 CPA 和真实上游 key。
+- 内网测试阶段不要求真实 New-API 联通；无 key 或未启用真实 AI 时必须保持 mock 回落。
+- 服务器部署前再强制校验 New-API token、访问域名、HTTPS 和日志/备份策略。

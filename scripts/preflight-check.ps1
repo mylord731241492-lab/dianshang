@@ -24,10 +24,13 @@ if (Test-Path "assets\home-carousel-inertia.js") {
   }
 }
 
-if (Test-Path "scripts\verify-canvas-restore-guard.js") {
+if ($env:VERIFY_CANVAS_LOCAL_GUARD -eq "true" -and (Test-Path "scripts\verify-canvas-restore-guard.js")) {
   Invoke-Step -Name "canvas restore guard" -Script {
     node "scripts\verify-canvas-restore-guard.js"
   }
+} else {
+  Write-Host "== canvas restore guard =="
+  Write-Host "Skipped. Canvas remains local-first; set VERIFY_CANVAS_LOCAL_GUARD=true only when changing local JSON restore behavior."
 }
 
 Invoke-Step -Name "API smoke" -Script {

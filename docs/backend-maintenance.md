@@ -35,6 +35,8 @@ npm start
 - 没有有效 key 时必须走本地 mock，不允许请求卡死。
 - New-API/CPA 作为外部基础设施使用，不在本项目内重造通用 AI 网关、Token 分发、CLI OAuth 账号池。
 - Provider Adapter 只能持有服务端 New-API token，不允许把 New-API/CPA key 下发给前端。
+- 当前阶段先内网测试，mock 跑通和配置持久化优先；服务器正式部署前再强制生产 `.env`、Nginx/HTTPS 和备份策略。
+- 画布保持本地优先，依赖浏览器本地存储、本地文件夹授权和 JSON 导入/导出；后端 `/api/workflows/*` 保留兼容，但不把画布服务端化作为当前阻塞项。
 - `/api/*` 未命中必须返回 JSON，不允许返回 SPA HTML。
 - 管理后台删除默认软删除，永久删除只做匿名化。
 - 余额变化必须写入 `balance_logs`。
@@ -103,12 +105,24 @@ New-API/CPA 负责：
 
 详细设计见 `docs/architecture-newapi-cpa.md`。
 
-## 发布前检查
+## 内网测试检查
+
+内网测试可以使用 mock 配置，重点先证明服务可启动、页面可访问、后台配置能持久化：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\preflight-check.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\verify-internal-deploy.ps1"
+```
+
+## 服务器发布前检查
 
 ```powershell
 node --check "C:\Users\pc\Desktop\hjm-mb-clone\server.js"
 $bytes = [System.IO.File]::ReadAllBytes("C:\Users\pc\Desktop\hjm-mb-clone\server.js")
 if ($bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $bytes[2] -eq 191) { "BOM" } else { "NO_BOM" }
+$env:REQUIRE_ENV_FILE = "true"
+$env:REQUIRE_PRODUCTION_SECRETS = "true"
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\verify-internal-deploy.ps1"
 ```
 
 ## 接口冒烟

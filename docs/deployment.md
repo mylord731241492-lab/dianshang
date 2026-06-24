@@ -28,6 +28,17 @@ npm start
 - 后台：`http://127.0.0.1:3456/admin/login`
 - 管理员：`admin / admin123`
 
+## 两段式部署路线
+
+当前按“先内网测试，再服务器部署”的顺序推进：
+
+| 阶段 | 目标 | 真实服务 | 验收重点 |
+| --- | --- | --- | --- |
+| 内网测试 | 公司内网或单机可访问，前端流程和后台管理可验收 | 默认关闭，New-API 可选 | mock 跑通、SQLite 持久化、后台配置不丢、页面入口可用 |
+| 服务器部署 | 内网测试稳定后迁到正式服务器 | 按需开启 New-API，不默认开启支付/邮件/存储 | `.env` 密钥、Nginx/HTTPS、备份恢复、重启健康检查、访问权限 |
+
+画布当前保持本地优先：浏览器本地项目、用户授权的本地文件夹、JSON 导入/导出。服务器端优先承载用户、后台配置、模板、图库、生成记录和业务接口，不在本阶段强制接管画布本地 JSON。
+
 ## 内网 Docker Compose 部署
 
 当前推荐的 7 月前内网部署方式是轻量 Docker Compose：一个 Node.js 一体服务承载静态前端、`/api/*`、SQLite、uploads 和 logs。New-API/CPA 作为外部服务配置，不在本项目容器里重造。
@@ -86,6 +97,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\verify-internal-dep
 - `scripts\smoke-api.ps1`
 - `scripts\smoke-frontend-routes.ps1`
 - 容器 `restart` 后再次检查健康状态
+
+内网测试阶段允许无 `.env` 或 `.env` 仍为占位值，脚本会警告但继续 mock 验收。服务器正式部署前建议开启严格检查：
+
+```powershell
+$env:REQUIRE_ENV_FILE = "true"
+$env:REQUIRE_PRODUCTION_SECRETS = "true"
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\verify-internal-deploy.ps1"
+```
 
 后台写操作 smoke 默认不会跑。只有在临时库或测试服务器上明确允许时才开启：
 
@@ -185,8 +204,10 @@ server {
 ## 后续维护顺序
 
 1. 稳定前端 1:1 验收。
-2. 将后台设置、API 线路、模型价格、模板工作流持久化到 SQLite。
-3. 拆分 `server.js` 为 Auth/User/Projects/Generation/Template/Admin/Provider/DB 模块。
-4. 增加自动化接口冒烟测试。
-5. 通过 Provider Adapter 对接 New-API，不直接重造 New-API/CPA 已有能力。
-6. 公司多人部署前迁移到 Postgres + Redis + BullMQ。
+2. 内网测试通过 Docker Compose/PM2 跑通，并验证 SQLite、uploads、logs 持久化。
+3. 将后台设置、API 线路、模型价格、模板工作流持久化到 SQLite。
+4. 拆分 `server.js` 为 Auth/User/Projects/Generation/Template/Admin/Provider/DB 模块。
+5. 增加自动化接口冒烟测试。
+6. 通过 Provider Adapter 对接 New-API，不直接重造 New-API/CPA 已有能力。
+7. 服务器部署前补齐 `.env`、Nginx/HTTPS、备份恢复和访问权限。
+8. 公司多人规模化前再迁移到 Postgres + Redis + BullMQ。

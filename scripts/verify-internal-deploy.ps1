@@ -47,11 +47,18 @@ Invoke-Step -Name "docker available" -Script {
 
 Invoke-Step -Name "env file" -Script {
   if (-not (Test-Path ".env")) {
-    throw ".env missing. Copy .env.example to .env and set production secrets before deploying."
+    if ($env:REQUIRE_ENV_FILE -eq "true") {
+      throw ".env missing. Copy .env.example to .env and set production secrets before deploying."
+    }
+    Write-Host "WARN .env missing. Internal mock test can continue with docker-compose.internal.yml defaults."
+    return
   }
   $envText = Get-Content -Encoding UTF8 ".env"
   if ($envText -match "sk-replace-with|replace-with-a-long-random-secret") {
-    Write-Host "WARN .env still contains placeholder values. Mock mode can run, but production secrets are not configured."
+    if ($env:REQUIRE_PRODUCTION_SECRETS -eq "true") {
+      throw ".env still contains placeholder values while REQUIRE_PRODUCTION_SECRETS=true."
+    }
+    Write-Host "WARN .env still contains placeholder values. Mock/internal test can run, but production secrets are not configured."
   }
 }
 

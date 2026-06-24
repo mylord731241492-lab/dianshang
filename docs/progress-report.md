@@ -291,3 +291,16 @@
 - 未完成清单：更多节点类型选中态视觉、画布 JSON 导入/导出、本地文件夹授权、模板/图库继续人工测试。
 - 下一轮建议：你先刷新画布看圆角；如果还有边缘割裂，我继续按截图位置微调。
 - 需要人工介入：肉眼确认当前修复是否符合预期。
+
+## 2026-06-24 画布选中态外层圆角复核进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：根据最新截图复核画布节点圆角；定位剩余割裂来自 Vue Flow 外层节点默认 `8px` 圆角与节点本体 `24px/28px` 圆角不一致；补齐图片节点、文生图节点、图片生成节点外层圆角，不改变 `overflow: visible`，避免连接点和加号被裁掉。
+- 修改文件：`assets/canvas-node-radius-fix.css`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：Docker 重新构建；浏览器打开 `/canvas/project_1782292799148_7xqro748k`，新增文生图测试节点后读取 computed style；请求 `/assets/canvas-node-radius-fix.css`；执行 `node --check server.js`、`node --check assets/home-carousel-inertia.js`、`scripts/smoke-frontend-routes.ps1`、`/api/health`。
+- 验证结果：图片节点外层圆角为 `24px`，文生图外层圆角为 `24px`，图片生成外层圆角为 `28px`；节点外层仍为 `overflow: visible`；Docker 服务 `healthy`，前端路由 smoke 通过，health 返回 `success: true`。
+- 当前完成度：画布约 83%，部署护栏约 92%，前端人工验收继续进行中。
+- 新发现问题：文本节点和视频节点仍保留原设计小圆角；本轮未确认它们是否需要跟随原站扩大圆角。
+- 未完成清单：用户肉眼确认当前截图位置、文本/视频节点视觉一致性、画布 JSON 导入/导出、本地文件夹授权、模板/图库继续人工测试。
+- 下一轮建议：你刷新画布看这两个截图位置；如果视觉 OK，就继续转后台 UI 弹窗/保存回显人工可测。
+- 需要人工介入：确认圆角是否符合你要的 1:1 观感。

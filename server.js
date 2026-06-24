@@ -34,6 +34,10 @@ const AI_PROVIDER_GATEWAY = process.env.AI_PROVIDER_GATEWAY || 'new-api';
 const NEW_API_BASE = process.env.NEW_API_BASE || AI_API_BASE;
 const NEW_API_KEY = process.env.NEW_API_KEY || process.env.AI_API_KEY || AI_TEXT_KEY;
 const PROVIDER_TIMEOUT_MS = Number(process.env.PROVIDER_TIMEOUT_MS || 30000);
+const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : __dirname;
+const DB_PATH = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(DATA_DIR, 'data.db');
+const UPLOAD_DIR = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.join(__dirname, 'uploads');
+const LOG_DIR = process.env.LOG_DIR ? path.resolve(process.env.LOG_DIR) : path.join(__dirname, 'logs');
 const ENABLE_REAL_AI = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_AI || '').toLowerCase());
 const ENABLE_REAL_EMAIL = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_EMAIL || '').toLowerCase());
 const ENABLE_REAL_PAYMENT = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_PAYMENT || '').toLowerCase());
@@ -56,12 +60,14 @@ app.use((req, res, next) => {
 });
 
 // Uploads
-const uploadDir = path.join(__dirname, 'uploads');
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+fs.mkdirSync(LOG_DIR, { recursive: true });
+const uploadDir = UPLOAD_DIR;
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 const upload = multer({ dest: uploadDir, limits: { fileSize: 20 * 1024 * 1024 } });
 
 // Database
-const db = new Database(path.join(__dirname, 'data.db'));
+const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -1332,6 +1338,11 @@ app.get('/api/health', (req, res) => {
     service: 'hjm-mb-clone',
     mode: provider.mode,
     database,
+    paths: {
+      database: DB_PATH,
+      uploads: uploadDir,
+      logs: LOG_DIR
+    },
     providers: {
       ai: provider,
       email: { enabled: ENABLE_REAL_EMAIL },

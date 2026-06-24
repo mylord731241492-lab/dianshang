@@ -28,12 +28,58 @@ npm start
 - 后台：`http://127.0.0.1:3456/admin/login`
 - 管理员：`admin / admin123`
 
+## 内网 Docker Compose 部署
+
+当前推荐的 7 月前内网部署方式是轻量 Docker Compose：一个 Node.js 一体服务承载静态前端、`/api/*`、SQLite、uploads 和 logs。New-API/CPA 作为外部服务配置，不在本项目容器里重造。
+
+首次部署：
+
+```powershell
+$OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+Copy-Item ".env.example" ".env"
+docker compose -f docker-compose.internal.yml config
+docker compose -f docker-compose.internal.yml up --build -d
+```
+
+访问地址：
+
+- 前台：`http://服务器IP:3456/`
+- 后台：`http://服务器IP:3456/admin/login`
+- 健康检查：`http://服务器IP:3456/api/health`
+
+持久化数据：
+
+- `dianshang-data`：SQLite 数据库，容器内路径 `/app/data/data.db`
+- `dianshang-uploads`：用户上传文件，容器内路径 `/app/uploads`
+- `dianshang-logs`：运行日志预留目录，容器内路径 `/app/logs`
+
+常用命令：
+
+```powershell
+docker compose -f docker-compose.internal.yml ps
+docker compose -f docker-compose.internal.yml logs -f app
+docker compose -f docker-compose.internal.yml restart app
+docker compose -f docker-compose.internal.yml down
+```
+
+部署验收：
+
+```powershell
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3456/api/health"
+$env:SMOKE_BASE_URL = "http://127.0.0.1:3456"
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\smoke-api.ps1"
+```
+
 ## 环境变量
 
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
 | `PORT` | `3456` | 本地服务端口 |
 | `JWT_SECRET` | 本地开发默认值 | 生产环境必须改成长随机值 |
+| `DATA_DIR` | `.` | 运行数据目录，Docker 中为 `/app/data` |
+| `DB_PATH` | `./data.db` | SQLite 数据库路径，Docker 中为 `/app/data/data.db` |
+| `UPLOAD_DIR` | `./uploads` | 上传目录，Docker 中为 `/app/uploads` |
+| `LOG_DIR` | `./logs` | 日志目录，Docker 中为 `/app/logs` |
 | `ENABLE_REAL_AI` | `false` | 是否启用真实 AI 调用 |
 | `ENABLE_REAL_EMAIL` | `false` | 是否启用真实邮件 |
 | `ENABLE_REAL_PAYMENT` | `false` | 是否启用真实支付 |

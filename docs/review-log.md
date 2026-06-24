@@ -33,3 +33,17 @@
 - 是否有统一域名和 Nginx/HTTPS 要求。
 - New-API/CPA 是否已部署，或是否需要后续单独编排。
 - 前端 1:1 的页面截图基准和验收优先级。
+
+## 2026-06-24 后台接口 smoke 扩展
+
+### 已验证
+
+- 临时端口 `4568` 使用独立 SQLite 数据库启动成功。
+- 扩展后的 `scripts/smoke-api.ps1` 覆盖后台 users、orders、usage logs、redeem codes、generate tasks、template workflows、settings 和 public routes。
+- 兑换码新增、模板工作流 PUT、settings PATCH 均返回 `success: true`。
+
+### 未覆盖
+
+- 用户删除/恢复/永久匿名化等破坏性后台操作。
+- 订单状态变更、任务取消/删除等需要更细测试数据的写接口。
+- 前端后台页面的可视化和交互验收。

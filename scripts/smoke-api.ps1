@@ -41,13 +41,44 @@ $adminLogin = Invoke-SmokeJson -Method "POST" -Path "/api/admin/login" -Body @{
 $adminHeaders = @{ Authorization = "Bearer $($adminLogin.token)" }
 
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/dashboard" -Headers $adminHeaders | Out-Null
+Invoke-SmokeJson -Method "GET" -Path "/api/admin/dashboard/user-credit-ranking" -Headers $adminHeaders | Out-Null
+Invoke-SmokeJson -Method "GET" -Path "/api/admin/users" -Headers $adminHeaders | Out-Null
+Invoke-SmokeJson -Method "GET" -Path "/api/admin/orders" -Headers $adminHeaders | Out-Null
+Invoke-SmokeJson -Method "GET" -Path "/api/admin/usage-logs" -Headers $adminHeaders | Out-Null
+Invoke-SmokeJson -Method "GET" -Path "/api/admin/redeem-codes" -Headers $adminHeaders | Out-Null
+
+$smokeCode = "SMOKE" + (Get-Date -Format "MMddHHmmss")
+$createdCode = Invoke-SmokeJson -Method "POST" -Path "/api/admin/redeem-codes" -Headers $adminHeaders -Body @{
+  code = $smokeCode
+  amount = 1
+  maxUses = 1
+  enabled = $true
+}
+if (-not $createdCode.success) {
+  throw "Redeem code create failed"
+}
+
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/api-providers" -Headers $adminHeaders | Out-Null
 $providerTest = Invoke-SmokeJson -Method "POST" -Path "/api/admin/api-providers/pub_route_64f93e01e8f3/test" -Headers $adminHeaders
 if (-not $providerTest.success) {
   throw "Provider test failed"
 }
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/model-prices" -Headers $adminHeaders | Out-Null
+Invoke-SmokeJson -Method "GET" -Path "/api/admin/generate-tasks" -Headers $adminHeaders | Out-Null
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/template-workflows" -Headers $adminHeaders | Out-Null
+
+$currentWorkflows = Invoke-SmokeJson -Method "GET" -Path "/api/admin/template-workflows" -Headers $adminHeaders
+$workflowPatch = Invoke-SmokeJson -Method "PUT" -Path "/api/admin/template-workflows" -Headers $adminHeaders -Body @{
+  templates = @($currentWorkflows.items)
+  platforms = @($currentWorkflows.platforms)
+  qualities = @($currentWorkflows.qualities)
+  ratios = @($currentWorkflows.ratios)
+  smokeCheckedAt = (Get-Date).ToUniversalTime().ToString("o")
+}
+if (-not $workflowPatch.success) {
+  throw "Template workflows update failed"
+}
+
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/settings" -Headers $adminHeaders | Out-Null
 
 $patchedSettings = Invoke-SmokeJson -Method "PATCH" -Path "/api/admin/settings" -Headers $adminHeaders -Body @{

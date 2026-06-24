@@ -54,13 +54,24 @@
 }
 
 .canvas-chat-panel {
+  left: 24px !important;
   top: calc(var(--canvas-header-height, 56px) + 40px) !important;
-  height: calc(100vh - var(--canvas-header-height, 56px) - 40px) !important;
-  border-bottom-right-radius: 0 !important;
+  height: calc(100vh - var(--canvas-header-height, 56px) - 62px) !important;
+  border-radius: 24px !important;
+}
+
+/* User center side panel: keep cards untouched, only restore title contrast. */
+aside[class*="max-w-[414px]"][class*="bg-[#f5f6f8]"] :where(.truncate.text-xl.font-black, .text-base.font-black, .text-sm.font-black, .font-black):not(.text-white):not([class*="text-orange"]):not([class*="text-red"]):not([class*="text-emerald"]):not([class*="text-green"]):not([class*="text-indigo"]) {
+  color: #18181b !important;
+}
+
+aside[class*="max-w-[414px]"][class*="bg-[#f5f6f8]"] :where(.font-bold.text-zinc-400, .font-bold.text-slate-400) {
+  color: #9ca3af !important;
 }
 
 @media (max-width: 720px) {
   .canvas-chat-panel {
+    left: 0 !important;
     top: 0 !important;
     height: 100vh !important;
     border-radius: 0 !important;

@@ -308,12 +308,25 @@
 ## 2026-06-24 画布小地图与聊天面板微调进度报告
 
 - 分支：`codex/backend-platform`
-- 完成内容：根据最新截图把右下角小地图从纯白改成暗色半透明玻璃面板；同步覆盖小地图 SVG 遮罩填充；将左侧 Canvas Chat 面板从 `top: 56px` 下移到 `top: 96px`，避免被顶部浮动工具条阴影遮挡；去掉桌面端面板右下角圆角，避免底部露出画布空隙。
+- 完成内容：根据最新截图把右下角小地图从纯白改成暗色半透明玻璃面板；同步覆盖小地图 SVG 遮罩填充；将左侧 Canvas Chat 面板从 `top: 56px` 下移到 `top: 96px`，避免被顶部浮动工具条阴影遮挡；按参考图把面板改为完整浮动卡片，左侧留 `24px`，底部留约 `22px`，四角圆角为 `24px`。
 - 修改文件：`assets/canvas-node-radius-fix.css`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
 - 验证方式：Docker 重新构建；浏览器刷新当前画布并读取 computed style；执行 `node --check server.js`、`node --check assets/home-carousel-inertia.js`、`scripts/smoke-frontend-routes.ps1`、`/api/health`。
-- 验证结果：小地图背景为 `rgba(15, 23, 42, 0.38)`，遮罩为 `rgba(255, 255, 255, 0.14)`；聊天面板位置为 `y=96`，底部贴合视口，右下角圆角为 `0px`；Docker 服务 `healthy`，前端路由 smoke 通过。
+- 验证结果：小地图背景为 `rgba(15, 23, 42, 0.38)`，遮罩为 `rgba(255, 255, 255, 0.14)`；聊天面板位置为 `x=24/y=96`，底部空隙为 `22px`，四角圆角为 `24px`；Docker 服务 `healthy`，前端路由 smoke 通过。
 - 当前完成度：画布约 84%，部署护栏约 92%，前端人工验收继续进行中。
-- 新发现问题：本轮未做移动端画布复核；聊天面板下移在移动端已保持全屏不偏移。
+- 新发现问题：本轮未做移动端画布复核；聊天面板下移和底部留白仅作用于桌面端，移动端仍保持全屏不偏移。
 - 未完成清单：用户肉眼确认当前两处截图、文本/视频节点视觉一致性、画布 JSON 导入/导出、本地文件夹授权、模板/图库继续人工测试。
 - 下一轮建议：你刷新当前画布确认观感；如果 OK，继续后台 UI 弹窗/保存回显人工可测。
-- 需要人工介入：确认小地图透明度和聊天面板下移距离是否合适。
+- 需要人工介入：确认小地图透明度、聊天浮动卡片位置、圆角和底部留白是否合适。
+
+## 2026-06-24 画布用户中心标题颜色修复进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：根据截图修复画布内用户中心侧栏标题过浅问题；确认问题来自侧栏继承浅色文字，而不是卡片结构；只追加侧栏范围内的标题颜色覆盖，保留卡片大小、圆角、阴影和布局不变。
+- 修改文件：`assets/canvas-node-radius-fix.css`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：Docker 重新构建；临时浏览器页打开 `/canvas/project_1782292799148_7xqro748k?fontfix=1` 并点击用户中心；读取 `admin`、`算力余额`、`算力明细`、`兑换码`、`API 线路` 的 computed color；执行 `node --check server.js`、`node --check assets/home-carousel-inertia.js`、`scripts/smoke-frontend-routes.ps1`、`/api/health`。
+- 验证结果：上述标题颜色均为 `rgb(24, 24, 27)`；Docker 服务已重新构建并启动；前端路由 smoke 通过，health 返回 `success: true`、`mode: mock`、`database: ok`。
+- 当前完成度：画布约 85%，用户中心约 70%，部署护栏约 92%。
+- 新发现问题：浏览器临时页可验证文字颜色，但用户当前原页面需要手动刷新后才能看到新 CSS。
+- 未完成清单：用户中心算力明细展开、生成记录、头像保存；画布 JSON 导入/导出；模板/图库继续人工测试。
+- 下一轮建议：你刷新当前画布，先确认用户中心标题颜色；如果 OK，继续后台 UI 保存回显和用户中心明细展开测试。
+- 需要人工介入：刷新浏览器后肉眼确认颜色是否符合你要的统一深色。

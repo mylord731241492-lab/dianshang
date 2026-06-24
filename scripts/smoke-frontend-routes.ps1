@@ -46,6 +46,7 @@ $assetPaths = @(
   "/assets/index-C4xTg-zU.css",
   "/assets/home-carousel-inertia.js",
   "/assets/home-overrides.css",
+  "/assets/canvas-node-radius-fix.css",
   "/logo.png",
   "/templates/covers/main-image.svg"
 )

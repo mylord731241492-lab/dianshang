@@ -278,3 +278,16 @@
 - 未完成清单：后台 UI 人工点击、模板生成闭环人工测试、图库多图/空状态、画布基础操作、用户中心生成记录。
 - 下一轮建议：从后台 UI 点击级验收开始，发现一个修一个。
 - 需要人工介入：你在浏览器里点测并截图反馈；真实 New-API key 和服务器部署信息后续再给。
+
+## 2026-06-24 画布节点圆角修复进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：审查图片节点和文生图节点圆角割裂问题；新增轻量 CSS 修复内部 header/footer 背景圆角，同时保留 Vue Flow 连接点外溢；Docker 重新构建并验证新 CSS 已加载。
+- 修改文件：`index.html`、`assets/canvas-node-radius-fix.css`、`scripts/smoke-frontend-routes.ps1`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：浏览器刷新画布项目；读取 computed style；截图检查选中态图片节点；`docker compose -f docker-compose.internal.yml up --build -d`；`/api/health`；静态资源请求。
+- 验证结果：图片节点 header/footer 圆角生效，文生图 header 圆角生效，连接点未被裁；Docker 服务 `healthy`，`/assets/canvas-node-radius-fix.css` 返回 200。
+- 当前完成度：画布约 82%，部署护栏约 92%，前端人工验收继续进行中。
+- 新发现问题：同类问题可能存在于其他节点类型，需要后续人工截图确认。
+- 未完成清单：更多节点类型选中态视觉、画布 JSON 导入/导出、本地文件夹授权、模板/图库继续人工测试。
+- 下一轮建议：你先刷新画布看圆角；如果还有边缘割裂，我继续按截图位置微调。
+- 需要人工介入：肉眼确认当前修复是否符合预期。

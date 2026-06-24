@@ -332,3 +332,23 @@
 - 浏览器人工视觉验收。
 - Docker 容器启动、重启持久化和容器内 healthcheck。
 - 真实 New-API token 联通。
+
+## 2026-06-24 Docker 启动排障
+
+### 已验证
+
+- Docker CLI、Compose 和 Engine 可用，项目 `docker-compose.internal.yml config` 通过。
+- 官方 `node:20-alpine` 拉取 metadata 时出现 `registry-1.docker.io ... EOF`，属于 Docker Hub 网络/镜像源问题。
+- 使用 `docker.m.daocloud.io/library/node:20-alpine` 可进入构建，但 `better-sqlite3` 在 Alpine/musl 下没有可用预编译包，`npm ci` 触发 `node-gyp`，因缺 Python/编译工具失败。
+- 已将 Dockerfile 默认基础镜像切换为 `node:20-bookworm-slim`，并通过 `NODE_IMAGE` build arg 支持按环境替换镜像源。
+- 本机 Node 服务已启动在 `http://127.0.0.1:3456/`，health 正常，可先进行人工页面验收。
+
+### 结论
+
+- 当前 Docker 未启动成功不是前后端业务代码失败，而是基础镜像拉取和 Alpine 原生依赖编译问题。
+- 不建议在 Dockerfile 里堆 Alpine 编译工具，优先复用 Debian slim + `better-sqlite3` 预编译包，保持镜像简单可维护。
+
+### 未覆盖
+
+- `node:20-bookworm-slim` 镜像完整下载后的容器构建。
+- 容器健康检查和 Docker volume 重启持久化。

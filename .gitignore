@@ -16,6 +16,7 @@ data.db-wal
 
 uploads/
 logs/
+.local-server.pid
 tmp/
 temp/
 .cache/

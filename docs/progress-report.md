@@ -213,3 +213,16 @@
 - 未完成清单：Docker 容器实跑、容器重启持久化、浏览器人工视觉验收、真实 New-API 联通。
 - 下一轮建议：先打开本地服务做人工浏览器验收，确认首页/模板/图库/用户中心/后台 UI 操作，再由人工启动 Docker 验收。
 - 需要人工介入：人工视觉验收和 Docker 手动运行确认。
+
+## 2026-06-24 Docker 启动排障与本机测试服务进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：尝试启动 Docker Compose 供人工测试；定位官方 Docker Hub 拉取 `node:20-alpine` 出现 EOF；将 Dockerfile 改为可配置 `NODE_IMAGE`，并把默认基础镜像改为 `node:20-bookworm-slim`，避免 Alpine/musl 下 `better-sqlite3` 需要现场编译；使用 `docker.m.daocloud.io/library/node:20-alpine` 验证镜像代理可绕过 Docker Hub metadata 问题，但 Alpine 构建因缺 Python/编译工具失败；使用 `bookworm-slim` 镜像代理时下载超时。为不阻塞人工测试，已启动本机 Node mock 服务。
+- 修改文件：`Dockerfile`、`docker-compose.internal.yml`、`.gitignore`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：`docker compose -f docker-compose.internal.yml config`；`docker compose up --build -d`；`Invoke-RestMethod http://127.0.0.1:3456/api/health`。
+- 验证结果：Compose config 通过；Docker 容器未成功启动，当前阻塞在外部基础镜像下载/构建阶段；本机 Node 服务已在 `http://127.0.0.1:3456/` 启动，`/api/health` 返回 `success: true`、`mode: mock`、`database: ok`。
+- 当前完成度：Docker 配置护栏约 82%，Docker 实跑验收仍未完成；本机 mock 人工测试可开始。
+- 新发现问题：Docker Hub 网络不稳定；Alpine 基础镜像不适合当前 `better-sqlite3` 依赖，除非额外安装 Python/make/g++，因此已切换到 Debian slim 默认路线。
+- 未完成清单：Docker `bookworm-slim` 镜像完整下载、容器启动、healthcheck、重启持久化；人工浏览器视觉验收。
+- 下一轮建议：先用当前本机 Node 服务做人工页面验收；Docker 等镜像下载稳定后重试 `NODE_IMAGE=docker.m.daocloud.io/library/node:20-bookworm-slim docker compose -f docker-compose.internal.yml up --build -d`。
+- 需要人工介入：当前请在浏览器测试 `http://127.0.0.1:3456/`；Docker 镜像下载可能需要稳定网络或配置 Docker Desktop 镜像加速。

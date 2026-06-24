@@ -1,1 +1,137 @@
-import{r as g}from"./index-ZrBcanD1.js";const d="ai-canvas-image-history",i=200,l=g([]),o=(a="")=>{const s=String(a||"").trim();return s.startsWith("data:image/png;base64,/uploads/")?s.slice(22):s},c=a=>{const s=o(a);return!!(s&&!s.startsWith("data:")&&!s.startsWith("blob:"))},n=()=>{var a;try{const s=l.value.map(r=>({...r,url:c(r.url)?o(r.url):"",assetId:r.assetId||"",localFileName:r.localFileName||"",assetKind:r.assetKind||"",width:r.width||0,height:r.height||0,requestedSize:r.requestedSize||""}));localStorage.setItem(d,JSON.stringify(s))}catch(s){console.error("Failed to save image history:",s),(a=window.$message)==null||a.warning("图片历史保存失败，可能是浏览器存储空间不足")}},y=()=>{try{const a=localStorage.getItem(d);if(!a)return;const s=JSON.parse(a);l.value=Array.isArray(s)?s.map(r=>({...r,url:o(r==null?void 0:r.url)})).filter(r=>(r==null?void 0:r.url)||(r==null?void 0:r.assetId)||(r==null?void 0:r.localFileName)):[]}catch(a){console.error("Failed to load image history:",a),l.value=[]}},I=a=>{if(!(a!=null&&a.url)&&!(a!=null&&a.assetId)&&!(a!=null&&a.localFileName))return null;const s=o(a.url),r=(a.assetId||a.localFileName)&&!c(s)?"":s,e={id:`history_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,url:r,assetId:a.assetId||"",localFileName:a.localFileName||"",assetKind:a.assetKind||"",label:a.label||"生成图片",prompt:a.prompt||"",model:a.model||"",size:a.size||"",requestedSize:a.requestedSize||a.size||"",width:Number(a.width||a.assetWidth||0)||0,height:Number(a.height||a.assetHeight||0)||0,quality:a.quality||"",clarity:a.clarity||"",nodeId:a.nodeId||"",createdAt:a.createdAt||new Date().toISOString()},u=e.assetId||e.localFileName||e.url;return l.value=[e,...l.value.filter(t=>(t.assetId||t.localFileName||t.url)!==u)].slice(0,i),n(),e},p=a=>{l.value=l.value.filter(s=>s.id!==a),n()},S=()=>{l.value=[],n()};export{I as a,l as b,S as c,y as i,p as r};
+import { r as ref } from "./index-ZrBcanD1.js";
+
+const STORAGE_KEY = "ai-canvas-image-history";
+const MAX_ITEMS = 200;
+const imageHistory = ref([]);
+
+const normalizeUrl = (value = "") => {
+  const url = String(value || "").trim();
+  return url.startsWith("data:image/png;base64,/uploads/") ? url.slice(22) : url;
+};
+
+const canPersistUrl = (value = "") => {
+  const url = normalizeUrl(value);
+  return !!(url && !url.startsWith("data:") && !url.startsWith("blob:"));
+};
+
+const saveImageHistory = () => {
+  try {
+    const rows = imageHistory.value.map((item) => ({
+      ...item,
+      url: canPersistUrl(item.url) ? normalizeUrl(item.url) : "",
+      assetId: item.assetId || "",
+      localFileName: item.localFileName || "",
+      assetKind: item.assetKind || "",
+      width: item.width || 0,
+      height: item.height || 0,
+      requestedSize: item.requestedSize || ""
+    }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+  } catch (error) {
+    console.error("Failed to save image history:", error);
+    window.$message?.warning("图片历史保存失败，可能是浏览器存储空间不足");
+  }
+};
+
+const normalizeServerHistoryItem = (item = {}) => ({
+  id: item.id || `server_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+  url: normalizeUrl(item.url || item.imageUrl || item.resultUrl || item.result_url || ""),
+  assetId: item.assetId || "",
+  localFileName: item.localFileName || "",
+  assetKind: item.assetKind || "generated",
+  label: item.label || "生成图片",
+  prompt: item.prompt || "",
+  model: item.model || item.modelKey || item.model_key || "",
+  size: item.size || item.requestedSize || "",
+  requestedSize: item.requestedSize || item.size || "",
+  width: Number(item.width || 0) || 0,
+  height: Number(item.height || 0) || 0,
+  quality: item.quality || "",
+  clarity: item.clarity || "",
+  nodeId: item.nodeId || "",
+  createdAt: item.createdAt || item.created_at || new Date().toISOString()
+});
+
+const syncServerImageHistory = async () => {
+  try {
+    const token = localStorage.getItem("auth_token");
+    if (!token) return;
+
+    const response = await fetch("/api/user/generations", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) return;
+
+    const payload = await response.json();
+    const rows = Array.isArray(payload.items) ? payload.items : Array.isArray(payload.data) ? payload.data : [];
+    if (!rows.length) return;
+
+    const known = new Set(imageHistory.value.map((item) => item.assetId || item.localFileName || item.url).filter(Boolean));
+    const incoming = rows
+      .map(normalizeServerHistoryItem)
+      .filter((item) => (item.url || item.assetId || item.localFileName) && !known.has(item.assetId || item.localFileName || item.url));
+
+    if (incoming.length) {
+      imageHistory.value = [...incoming, ...imageHistory.value].slice(0, MAX_ITEMS);
+      saveImageHistory();
+    }
+  } catch (error) {
+    console.warn("Failed to sync server image history:", error);
+  }
+};
+
+const initImageHistory = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const rows = JSON.parse(stored);
+      imageHistory.value = Array.isArray(rows)
+        ? rows.map((item) => ({ ...item, url: normalizeUrl(item?.url) })).filter((item) => item?.url || item?.assetId || item?.localFileName)
+        : [];
+    }
+  } catch (error) {
+    console.error("Failed to load image history:", error);
+    imageHistory.value = [];
+  }
+  syncServerImageHistory();
+};
+
+const addImageHistory = (item) => {
+  if (!item?.url && !item?.assetId && !item?.localFileName) return null;
+  const url = normalizeUrl(item.url);
+  const safeUrl = (item.assetId || item.localFileName) && !canPersistUrl(url) ? "" : url;
+  const row = {
+    id: `history_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    url: safeUrl,
+    assetId: item.assetId || "",
+    localFileName: item.localFileName || "",
+    assetKind: item.assetKind || "",
+    label: item.label || "生成图片",
+    prompt: item.prompt || "",
+    model: item.model || "",
+    size: item.size || "",
+    requestedSize: item.requestedSize || item.size || "",
+    width: Number(item.width || item.assetWidth || 0) || 0,
+    height: Number(item.height || item.assetHeight || 0) || 0,
+    quality: item.quality || "",
+    clarity: item.clarity || "",
+    nodeId: item.nodeId || "",
+    createdAt: item.createdAt || new Date().toISOString()
+  };
+  const key = row.assetId || row.localFileName || row.url;
+  imageHistory.value = [row, ...imageHistory.value.filter((existing) => (existing.assetId || existing.localFileName || existing.url) !== key)].slice(0, MAX_ITEMS);
+  saveImageHistory();
+  return row;
+};
+
+const removeImageHistory = (id) => {
+  imageHistory.value = imageHistory.value.filter((item) => item.id !== id);
+  saveImageHistory();
+};
+
+const clearImageHistory = () => {
+  imageHistory.value = [];
+  saveImageHistory();
+};
+
+export { addImageHistory as a, imageHistory as b, clearImageHistory as c, initImageHistory as i, removeImageHistory as r };

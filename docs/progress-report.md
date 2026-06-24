@@ -226,3 +226,16 @@
 - 未完成清单：Docker `bookworm-slim` 镜像完整下载、容器启动、healthcheck、重启持久化；人工浏览器视觉验收。
 - 下一轮建议：先用当前本机 Node 服务做人工页面验收；Docker 等镜像下载稳定后重试 `NODE_IMAGE=docker.m.daocloud.io/library/node:20-bookworm-slim docker compose -f docker-compose.internal.yml up --build -d`。
 - 需要人工介入：当前请在浏览器测试 `http://127.0.0.1:3456/`；Docker 镜像下载可能需要稳定网络或配置 Docker Desktop 镜像加速。
+
+## 2026-06-24 Docker 镜像网络重试进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：按人工测试反馈重新尝试 Docker Compose 启动；先停止本机 Node 测试服务释放 `3456`，分别尝试 `docker.m.daocloud.io/library/node:20-bookworm-slim` 和 `docker.1ms.run/library/node:20-bookworm-slim`；两者均在 metadata/token 阶段 EOF；确认本地 Docker 没有 Node 镜像缓存，容器未启动；已恢复本机 Node 服务供继续测试。
+- 修改文件：`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：`docker compose -f docker-compose.internal.yml up --build -d`、`docker images`、`docker compose ps`、`Invoke-RestMethod http://127.0.0.1:3456/api/health`。
+- 验证结果：Docker 容器仍未启动，阻塞在外部镜像源 EOF；本机 Node 服务恢复成功，`/api/health` 返回 `success: true`、`mode: mock`、`database: ok`。
+- 当前完成度：本机 mock 可测试保持可用；Docker 实跑验收仍阻塞在镜像下载网络。
+- 新发现问题：多个镜像代理源 metadata/token 请求均 EOF，当前不是项目代码或 Compose 配置失败。
+- 未完成清单：Docker Desktop 镜像源稳定后完整构建、容器 healthcheck、volume 重启持久化。
+- 下一轮建议：继续人工页面测试；Docker 需要先解决基础镜像拉取，可以在 Docker Desktop 配置可用 registry mirror 或换稳定网络后重试。
+- 需要人工介入：如必须立刻 Docker，需要你确认可用代理/网络或允许配置 Docker Desktop 镜像加速。

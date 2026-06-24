@@ -352,3 +352,24 @@
 
 - `node:20-bookworm-slim` 镜像完整下载后的容器构建。
 - 容器健康检查和 Docker volume 重启持久化。
+
+## 2026-06-24 Docker 镜像网络重试复核
+
+### 已验证
+
+- 停止本机 Node 服务后，`3456` 已释放，可用于 Docker 容器绑定。
+- `docker.m.daocloud.io/library/node:20-bookworm-slim` 在 metadata 阶段 EOF。
+- `docker.1ms.run/library/node:20-bookworm-slim` 在 anonymous token 阶段 EOF。
+- 本地 `docker images` 为空，没有可复用的 Node 基础镜像缓存。
+- 容器没有启动，`docker compose ps` 为空。
+- 本机 Node 服务已恢复，供人工继续测试。
+
+### 结论
+
+- Docker 当前阻塞条件是外部镜像源网络不可用，不是应用、端口、Compose 或 SQLite 问题。
+- 已保留 `NODE_IMAGE` 可配置能力，后续只需切换到可用镜像源或稳定网络重试。
+
+### 未覆盖
+
+- Docker 容器首次完整构建。
+- Docker volume 持久化和容器重启验收。

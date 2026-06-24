@@ -271,3 +271,24 @@
 - 本地文件夹授权后的真实本地保存流程。
 - 上传素材、连线、生成节点和重新进入同一项目的完整 UI 长流程。
 - Docker 容器真实构建、启动、healthcheck 和重启持久化。
+
+## 2026-06-24 画布示例项目刷新恢复守卫
+
+### 已验证
+
+- 新增 `assets/canvas-project-restore-guard.js`，在主 Vue 模块加载前检查 `ai-canvas-projects-summary` 和旧摘要键。
+- 仅当项目名为 `示例项目` 且 `canvasData.nodes` 缺失或为空时，自动补回 2 个示例节点和 1 条边；不修改普通用户项目。
+- `scripts/verify-canvas-restore-guard.js` 使用 mock `localStorage` 验证：空示例项目会被修复，普通项目保持不变。
+- `scripts/smoke-frontend-routes.ps1` 已覆盖 `/assets/canvas-project-restore-guard.js` 静态资产可访问。
+- `scripts/preflight-check.ps1` 已接入守卫验证。
+
+### 风险与原则
+
+- 该修复复用现有本地项目摘要键和现有示例节点结构，不新增画布状态系统。
+- 不直接重写 `Canvas-B8bY9_QL.js` 大包，降低压缩前端资产误伤风险。
+- 守卫只处理本地摘要层；如果 IndexedDB 中已有真实空项目，仍以用户真实项目为准，不强行覆盖。
+
+### 未覆盖
+
+- 浏览器中刷新同一动态项目后的节点数二次确认。
+- 上传素材、连线、生成节点和重新进入同一项目的完整 UI 长流程。

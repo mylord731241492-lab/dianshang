@@ -24,6 +24,12 @@ if (Test-Path "assets\home-carousel-inertia.js") {
   }
 }
 
+if (Test-Path "scripts\verify-canvas-restore-guard.js") {
+  Invoke-Step -Name "canvas restore guard" -Script {
+    node "scripts\verify-canvas-restore-guard.js"
+  }
+}
+
 Invoke-Step -Name "API smoke" -Script {
   powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\smoke-api.ps1"
 }

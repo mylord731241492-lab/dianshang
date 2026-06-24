@@ -42,6 +42,7 @@ foreach ($route in $routes) {
 
 $assetPaths = @(
   "/assets/index-DglIsp_g.js",
+  "/assets/canvas-project-restore-guard.js",
   "/assets/index-C4xTg-zU.css",
   "/assets/home-carousel-inertia.js",
   "/assets/home-overrides.css",

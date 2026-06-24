@@ -130,12 +130,16 @@ if (-not $closedOrder.success -or $closedOrder.status -ne "closed") {
 $code = "AW" + (Get-Date -Format "MMddHHmmss")
 $createdCode = Invoke-SmokeJson -Method "POST" -Path "/api/admin/redeem-codes" -Headers $adminHeaders -Body @{
   code = $code
-  amount = 9
-  maxUses = 2
-  enabled = $true
+  points = 9
+  totalCount = 2
+  perUserLimit = 1
+  status = "active"
 }
 if (-not $createdCode.success) {
   throw "Redeem code create failed"
+}
+if ($createdCode.points -ne 9 -or $createdCode.totalCount -ne 2) {
+  throw "Redeem code frontend-compatible fields failed"
 }
 $deletedCode = Invoke-SmokeJson -Method "DELETE" -Path "/api/admin/redeem-codes/$code" -Headers $adminHeaders
 if (-not $deletedCode.success) {
@@ -156,6 +160,9 @@ $routeId = $createdRoute.route.id
 if (-not $routeId) {
   throw "API provider create missing id"
 }
+if ($createdRoute.route.displayName -ne "Smoke Route" -or $createdRoute.route.baseUrl -ne "https://new-api.local/v1") {
+  throw "API provider create compatibility fields failed"
+}
 
 $updatedRoute = Invoke-SmokeJson -Method "PUT" -Path "/api/admin/api-providers/$routeId" -Headers $adminHeaders -Body @{
   routeKey = $routeKey
@@ -163,10 +170,14 @@ $updatedRoute = Invoke-SmokeJson -Method "PUT" -Path "/api/admin/api-providers/$
   displayName = "Smoke Route Updated"
   type = "image"
   priority = 5
+  baseUrl = "https://new-api-updated.local/v1"
   enabled = $true
 }
 if (-not $updatedRoute.success) {
   throw "API provider update failed"
+}
+if ($updatedRoute.route.displayName -ne "Smoke Route Updated" -or $updatedRoute.route.baseUrl -ne "https://new-api-updated.local/v1") {
+  throw "API provider update compatibility fields failed"
 }
 
 $routeTest = Invoke-SmokeJson -Method "POST" -Path "/api/admin/api-providers/$routeId/test" -Headers $adminHeaders

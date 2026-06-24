@@ -63,11 +63,11 @@
 | GET/POST/DELETE | `/api/admin/redeem-codes` | local-db | 兑换码管理 |
 | GET/PATCH | `/api/admin/orders` | mock | 订单列表与状态 |
 | GET | `/api/admin/usage-logs` | local-db | 余额/消费日志 |
-| GET/POST/PUT/DELETE | `/api/admin/api-providers` | mock | API 线路配置 |
-| GET/POST/PATCH/DELETE | `/api/admin/model-prices` 和 route models | mock | 模型价格 |
+| GET/POST/PUT/DELETE | `/api/admin/api-providers` | local-db + mock | API 线路配置，兼容 New-API Base URL/displayName |
+| GET/POST/PATCH/DELETE | `/api/admin/model-prices` 和 route models | local-db + mock | 模型价格 |
 | GET/POST/DELETE | `/api/admin/generate-tasks` | local-db + mock | 任务监控 |
-| GET/PUT | `/api/admin/template-workflows` | in-memory | 模板工作流 |
-| GET/PATCH | `/api/admin/settings` | in-memory | 系统设置 |
+| GET/PUT | `/api/admin/template-workflows` | local-db | 模板工作流，当前保存到 `app_state` |
+| GET/PATCH | `/api/admin/settings` | local-db | 系统设置，当前保存到 `app_state` |
 
 ## Workflow
 
@@ -85,4 +85,3 @@ Invoke-RestMethod -Method Get -Uri "http://localhost:3456/api/admin/dashboard" -
 Invoke-RestMethod -Method Get -Uri "http://localhost:3456/api/admin/api-providers" -Headers $headers
 Invoke-RestMethod -Method Get -Uri "http://localhost:3456/api/admin/generate-tasks" -Headers $headers
 ```
-

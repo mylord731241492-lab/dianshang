@@ -204,3 +204,26 @@
 - `docker compose -f docker-compose.internal.yml up --build -d`
 - 容器 restart 后 SQLite volume 持久化。
 - Nginx/HTTPS/域名配置。
+
+## 2026-06-24 后台 UI 写操作与 New-API 配置回显
+
+### 已验证
+
+- 临时端口 `4582` 使用独立 SQLite 数据目录进行浏览器 UI 写操作，不触碰本机正常库。
+- 后台兑换码创建表单的前端字段 `points/totalCount/perUserLimit/status` 已能写入后端，并在表格回显为前端列需要的 `点数/总次数/每人上限/剩余次数/状态`。
+- 后台 API 线路新增已能保留 `displayName/baseUrl/category/apiFormat`，New-API 风格 Base URL 不再被 mock 默认地址覆盖。
+- 模板工作流页点击 `保存配置` 后出现 `模板工作流已保存`。
+- 系统设置页点击 `保存设置` 后出现 `系统设置已保存`。
+- `scripts/smoke-admin-write.ps1` 增加兑换码前端字段和 API 线路 `displayName/baseUrl` 断言。
+
+### 风险与原则
+
+- 本轮仍不接真实 New-API key，不触发外部模型费用；只验证业务平台配置字段可以保存和回显。
+- 继续保留 Express 一体服务 + SQLite + Provider Adapter 的轻量内网路线，不引入 Redis/Worker/Postgres。
+- 写操作 UI 验收应继续使用临时库或测试库，正式库需要人工确认。
+
+### 未覆盖
+
+- 后台 `n-dialog` 创建类弹窗保存成功后不会自动关闭，关闭/取消按钮在本次浏览器自动化中表现不稳定；需要前端 polish 阶段修复。
+- API 线路 `测试连接` 在真实 New-API token 下的联通和错误格式。
+- users/orders/model-prices 的浏览器 UI 写操作全覆盖。

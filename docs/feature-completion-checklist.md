@@ -9,8 +9,8 @@
 | 模板 | 进行中 | 82% | 模板页可加载 10 个模板并切换主图模板；素材槽、提示词输入、反推、生成、任务队列和结果区可见；API smoke 已覆盖模板设置、反推、生成。 | 验证真实上传/粘贴素材后的前端完整生成闭环。 |
 | 图库 | 进行中 | 78% | 首页图库入口已复核，并复用 `/api/user/generations` 同步后端历史；smoke 已覆盖模板生成后图库历史可读。 | 验证多图、删除、保存链接和空状态恢复。 |
 | 用户中心 | 进行中 | 68% | 真实表单登录后用户中心显示用户资料、余额、兑换码和 API 线路。 | 验证算力明细、生成记录和头像设置。 |
-| 后台 | 进行中 | 84% | Dashboard、users、orders、logs、generate-tasks、redeem-codes、API 线路、模型价格、模板工作流、设置已逐页复核；后台写操作 API smoke 已覆盖用户、订单、兑换码、线路、模型、模板工作流和设置。 | 继续后台 UI 点击级写操作验收。 |
+| 后台 | 进行中 | 87% | Dashboard、users、orders、logs、generate-tasks、redeem-codes、API 线路、模型价格、模板工作流、设置已逐页复核；后台写操作 API smoke 已覆盖用户、订单、兑换码、线路、模型、模板工作流和设置；浏览器 UI 已验证兑换码创建、API 线路新增、模板工作流保存和系统设置保存。 | 修复后台保存弹窗不自动关闭/关闭按钮不稳定，再继续 users/orders/model-prices 的 UI 写操作。 |
 | 部署 | 进行中 | 74% | 已新增 Docker 轻量部署骨架、数据卷规则、轻量平台 ADR、统一预检脚本、前端 SPA 路由 smoke、后台写操作 smoke 和服务器部署验收脚本；本机因缺 Docker 未实跑容器。 | 在有 Docker 的机器上验证容器启动、healthcheck、重启持久化。 |
-| New-API | 骨架完成 | 70% | Provider Adapter 默认 New-API，未配置 key 时 mock 回落。 | 使用真实 New-API token 做联通测试。 |
+| New-API | 骨架完成 | 72% | Provider Adapter 默认 New-API，未配置 key 时 mock 回落；后台 API 线路新增已能保留 displayName、Base URL、接口格式等 New-API 配置字段。 | 使用真实 New-API token 做联通测试。 |
 | CPA | 待实现 | 20% | 只作为 New-API 后置渠道写入架构边界，本项目不直接管理。 | 等 New-API 部署后配置渠道。 |
-| 文档审查 | 进行中 | 92% | 已建立进度报告、功能清单、review log、轻量平台 ADR 和每轮推进复核清单；本轮新增内网部署验收脚本与服务器验收记录。 | 每轮推进持续追加，并按 `docs/iteration-review-checklist.md` 收尾。 |
+| 文档审查 | 进行中 | 93% | 已建立进度报告、功能清单、review log、轻量平台 ADR 和每轮推进复核清单；本轮新增后台 UI 写操作验收记录和 New-API 配置字段回显审计。 | 每轮推进持续追加，并按 `docs/iteration-review-checklist.md` 收尾。 |

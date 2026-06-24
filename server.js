@@ -317,7 +317,8 @@ function routePayload(route = RTS[0]) {
   const defaultModel = fmt(defaultRaw, route);
   const id = route.id || route.routeId || route.lineId || route.rk || uid('route_');
   const key = route.rk || route.routeKey || route.lineKey || route.code || id;
-  const name = route.dn || route.name || route.displayName || key;
+  const name = route.name || route.dn || route.displayName || key;
+  const displayName = route.displayName || route.routeDisplayName || route.dn || name;
   return {
     ...route,
     id,
@@ -329,9 +330,9 @@ function routePayload(route = RTS[0]) {
     routeKey: key,
     lineKey: key,
     name,
-    displayName: name,
+    displayName,
     routeName: name,
-    routeDisplayName: name,
+    routeDisplayName: displayName,
     label: name,
     group: kind,
     type: kind,
@@ -1074,18 +1075,37 @@ app.get('/api/admin/redeem-codes', auth, admin, (req, res) => {
     ...r,
     enabled: !!r.enabled,
     amount: r.amount,
+    points: r.amount,
     maxUses: r.max_uses,
-    usedCount: r.used_count
+    totalCount: r.max_uses,
+    perUserLimit: 1,
+    usedCount: r.used_count,
+    remainingCount: Math.max(0, Number(r.max_uses || 0) - Number(r.used_count || 0)),
+    status: r.enabled ? 'active' : 'disabled',
+    expiresAt: ''
   }));
   res.json({ ...pageList(rows, req), codes: rows, success: true });
 });
 app.post('/api/admin/redeem-codes', auth, admin, (req, res) => {
   const code = String(req.body.code || `CODE${Math.random().toString(36).slice(2, 8)}`).toUpperCase();
-  const amount = Number(req.body.amount || 50);
-  const maxUses = Number(req.body.maxUses || req.body.max_uses || 1);
+  const amount = Number(req.body.amount ?? req.body.points ?? 50);
+  const maxUses = Number(req.body.maxUses ?? req.body.max_uses ?? req.body.totalCount ?? 1);
+  const enabled = req.body.enabled !== false && req.body.status !== 'disabled';
   db.prepare('INSERT OR REPLACE INTO redeem_codes (code,amount,max_uses,used_count,enabled) VALUES (?,?,?,?,?)')
-    .run(code, amount, maxUses, 0, req.body.enabled === false ? 0 : 1);
-  res.json({ success: true, code, amount, maxUses });
+    .run(code, amount, maxUses, 0, enabled ? 1 : 0);
+  res.json({
+    success: true,
+    code,
+    amount,
+    points: amount,
+    maxUses,
+    totalCount: maxUses,
+    perUserLimit: Number(req.body.perUserLimit ?? 1),
+    usedCount: 0,
+    remainingCount: maxUses,
+    status: enabled ? 'active' : 'disabled',
+    expiresAt: req.body.expiresAt || ''
+  });
 });
 app.delete('/api/admin/redeem-codes/:code', auth, admin, (req, res) => {
   db.prepare('DELETE FROM redeem_codes WHERE code=?').run(req.params.code);
@@ -1094,7 +1114,7 @@ app.delete('/api/admin/redeem-codes/:code', auth, admin, (req, res) => {
 app.get('/api/admin/api-providers', auth, admin, (req, res) => {
   const rows = filteredRoutes().map(r => ({
     ...r,
-    baseUrl: r.type === 'text' ? 'https://api.flowstudio.local/v1' : 'https://api.hjm.local/v1',
+    baseUrl: r.baseUrl || (r.type === 'text' ? 'https://api.flowstudio.local/v1' : 'https://api.hjm.local/v1'),
     apiKey: 'sk-local-********',
     modelCount: r.models.length,
     supportsChat: r.type === 'text',
@@ -1107,9 +1127,12 @@ app.post('/api/admin/api-providers', auth, admin, (req, res) => {
   const rawRoute = {
     id,
     rk: req.body.routeKey || req.body.code || id,
-    dn: req.body.name || req.body.displayName || '本地线路',
-    cat: req.body.type || req.body.group || 'image',
-    g: req.body.type || req.body.group || 'image',
+    name: req.body.name || req.body.displayName || '本地线路',
+    displayName: req.body.displayName || req.body.name || '本地线路',
+    dn: req.body.displayName || req.body.name || '本地线路',
+    apiFormat: req.body.apiFormat || 'openai',
+    cat: req.body.category || req.body.type || req.body.group || 'image',
+    g: req.body.category || req.body.type || req.body.group || 'image',
     pri: Number(req.body.priority || 1),
     enabled: req.body.enabled !== false,
     status: req.body.status || 'active',
@@ -1131,9 +1154,14 @@ app.put('/api/admin/api-providers/:id', auth, admin, (req, res) => {
       ...req.body,
       id: route.id,
       rk: req.body.routeKey || req.body.code || route.rk,
-      dn: req.body.name || req.body.displayName || route.dn,
-      cat: req.body.type || req.body.group || route.cat,
-      g: req.body.type || req.body.group || route.g,
+      name: req.body.name || route.name || route.dn,
+      displayName: req.body.displayName || route.displayName || route.dn || route.name,
+      dn: req.body.displayName || req.body.name || route.dn,
+      apiFormat: req.body.apiFormat || route.apiFormat || 'openai',
+      cat: req.body.category || req.body.type || req.body.group || route.cat,
+      g: req.body.category || req.body.type || req.body.group || route.g,
+      baseUrl: req.body.baseUrl ?? req.body.apiBase ?? route.baseUrl,
+      apiKey: req.body.apiKey ? 'sk-local-********' : route.apiKey,
       pri: Number(req.body.priority ?? route.pri ?? 0),
       enabled: req.body.enabled !== false
     };

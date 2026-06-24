@@ -9,8 +9,8 @@
 | 模板 | 进行中 | 82% | 模板页可加载 10 个模板并切换主图模板；素材槽、提示词输入、反推、生成、任务队列和结果区可见；API smoke 已覆盖模板设置、反推、生成。 | 验证真实上传/粘贴素材后的前端完整生成闭环。 |
 | 图库 | 进行中 | 78% | 首页图库入口已复核，并复用 `/api/user/generations` 同步后端历史；smoke 已覆盖模板生成后图库历史可读。 | 验证多图、删除、保存链接和空状态恢复。 |
 | 用户中心 | 进行中 | 68% | 真实表单登录后用户中心显示用户资料、余额、兑换码和 API 线路。 | 验证算力明细、生成记录和头像设置。 |
-| 后台 | 进行中 | 76% | Dashboard、users、orders、usage logs、redeem codes、API 线路、模型价格、任务监控、模板工作流、设置已纳入 smoke；真实后台 dashboard 已渲染并显示统计、排行和线路。 | 继续后台子页面视觉和写操作验收。 |
-| 部署 | 进行中 | 65% | 已新增 Docker 轻量部署骨架、数据卷规则、轻量平台 ADR 和统一预检脚本；本机已通过临时端口预检。 | 在有 Docker 的机器上验证容器启动、healthcheck、重启持久化。 |
+| 后台 | 进行中 | 80% | Dashboard、users、orders、logs、generate-tasks、redeem-codes、API 线路、模型价格、模板工作流、设置已逐页复核并纳入 smoke；页面均可渲染。 | 继续后台子页按钮级写操作验收。 |
+| 部署 | 进行中 | 69% | 已新增 Docker 轻量部署骨架、数据卷规则、轻量平台 ADR、统一预检脚本和前端 SPA 路由 smoke；临时端口 preflight 通过。 | 在有 Docker 的机器上验证容器启动、healthcheck、重启持久化。 |
 | New-API | 骨架完成 | 70% | Provider Adapter 默认 New-API，未配置 key 时 mock 回落。 | 使用真实 New-API token 做联通测试。 |
 | CPA | 待实现 | 20% | 只作为 New-API 后置渠道写入架构边界，本项目不直接管理。 | 等 New-API 部署后配置渠道。 |
-| 文档审查 | 进行中 | 88% | 已建立进度报告、功能清单、review log、轻量平台 ADR 和每轮推进复核清单；本轮新增模板/图库 smoke 闭环记录。 | 每轮推进持续追加，并按 `docs/iteration-review-checklist.md` 收尾。 |
+| 文档审查 | 进行中 | 90% | 已建立进度报告、功能清单、review log、轻量平台 ADR 和每轮推进复核清单；本轮新增后台子页与前端路由 smoke 记录。 | 每轮推进持续追加，并按 `docs/iteration-review-checklist.md` 收尾。 |

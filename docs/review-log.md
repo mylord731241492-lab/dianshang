@@ -134,3 +134,27 @@
 - 上传真实图片或模拟文件后的反推按钮前端完整闭环。
 - 模板结果卡片的预览、发送到画布、删除和刷新。
 - 后台 users/orders/logs/api-providers/template-workflows 子页逐页视觉和写操作。
+
+## 2026-06-24 后台子页与前端路由 smoke
+
+### 已验证
+
+- 后台 `dashboard/users/orders/logs/generate-tasks/redeem-codes/api-providers/model-prices/template-workflows/settings` 均可渲染。
+- `orders` 显示订单表格和关闭订单入口。
+- `logs` 显示消费日志筛选和流水表格。
+- `template-workflows` 显示模板列表、模板配置、图片槽、平台和保存配置入口。
+- `settings` 显示注册赠送、云端保存、图片节点工具开关和保存设置入口。
+- 新增 `scripts/smoke-frontend-routes.ps1`，覆盖 SPA 路由 fallback 和核心静态资产。
+- 临时端口 `4577` 的 `scripts/preflight-check.ps1` 已包含 API smoke、前端路由 smoke、health 和 git status，全部通过。
+
+### 风险与原则
+
+- 首次批量读取后台部分页面时曾短暂拿到空文本，增加等待和逐页复核后正常；后续如果用户遇到空白，优先检查懒加载时序、登录态和实际加载资产。
+- 前端路由 smoke 只验证 HTTP 层和 SPA shell/核心资产，不等同视觉 1:1。
+- 继续复用现有后台组件和接口，不新建另一套后台管理系统。
+
+### 未覆盖
+
+- 后台按钮级写操作：API 线路新增/编辑/删除、模型新增、模板工作流保存、系统设置保存。
+- 移动端后台布局。
+- Docker 容器内的同一套前端路由 smoke。

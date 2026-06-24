@@ -28,6 +28,10 @@ Invoke-Step -Name "API smoke" -Script {
   powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\smoke-api.ps1"
 }
 
+Invoke-Step -Name "frontend route smoke" -Script {
+  powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\smoke-frontend-routes.ps1"
+}
+
 Invoke-Step -Name "health check" -Script {
   $baseUrl = $env:SMOKE_BASE_URL
   if (-not $baseUrl) {

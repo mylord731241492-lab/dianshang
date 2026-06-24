@@ -32,6 +32,15 @@ Invoke-Step -Name "frontend route smoke" -Script {
   powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\smoke-frontend-routes.ps1"
 }
 
+if ($env:SMOKE_ALLOW_WRITES -eq "true") {
+  Invoke-Step -Name "admin write smoke" -Script {
+    powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\smoke-admin-write.ps1"
+  }
+} else {
+  Write-Host "== admin write smoke =="
+  Write-Host "Skipped. Set SMOKE_ALLOW_WRITES=true with a disposable database to run it."
+}
+
 Invoke-Step -Name "health check" -Script {
   $baseUrl = $env:SMOKE_BASE_URL
   if (-not $baseUrl) {

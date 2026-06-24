@@ -158,3 +158,27 @@
 - 后台按钮级写操作：API 线路新增/编辑/删除、模型新增、模板工作流保存、系统设置保存。
 - 移动端后台布局。
 - Docker 容器内的同一套前端路由 smoke。
+
+## 2026-06-24 后台写操作 smoke
+
+### 已验证
+
+- `scripts/smoke-admin-write.ps1` 要求 `SMOKE_ALLOW_WRITES=true`，避免默认误跑破坏性写操作。
+- 临时 SQLite 库中验证用户状态、余额调整、安全检查、重置密码、软删除、回收站恢复、永久匿名化。
+- 临时 SQLite 库中验证订单状态 mock patch、兑换码创建删除。
+- 临时 SQLite 库中验证 API 线路新增、编辑、测试连接、拉取模型、设默认、删除。
+- 临时 SQLite 库中验证路线模型新增、编辑、启停、删除。
+- 临时 SQLite 库中验证模板工作流保存和系统设置保存。
+- 默认 `scripts/preflight-check.ps1` 会跳过后台写操作；设置 `SMOKE_ALLOW_WRITES=true` 后完整 preflight 通过。
+
+### 风险与原则
+
+- 写操作 smoke 只应在临时库、测试库或明确允许的环境运行。
+- 不新增后台系统，不重造配置中心；继续复用现有 `/api/admin/*`、SQLite/app_state 和 mock provider 回落。
+- 订单状态接口当前是 mock 返回，不持久化订单状态；如果后续要做真实订单管理，需要独立持久化订单表和支付状态机。
+
+### 未覆盖
+
+- 浏览器 UI 点击级写操作。
+- Docker 容器重启后 API 线路、模型价格、模板工作流、系统设置的持久化验证。
+- New-API 真实网关下的 API 线路测试连接。

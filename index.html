@@ -5,23 +5,39 @@
     <link rel="icon" type="image/svg+xml" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>二蛋</title>
-    <script>
-      // Fix for environments where some libraries try to overwrite window.fetch
-      // and cause "TypeError: Cannot set property fetch of #<Window> which has only a getter"
-      (function() {
-        try {
-          var originalFetch = window.fetch;
-          if (originalFetch) {
-            Object.defineProperty(window, 'fetch', {
-              get: function() { return originalFetch; },
-              set: function() { console.warn('Something tried to overwrite window.fetch - ignored'); },
-              configurable: true
-            });
-          }
-        } catch (e) {
-          console.warn('Could not wrap window.fetch:', e);
-        }
-      })();
+    <script>
+      // Fix for environments where some libraries try to overwrite window.fetch
+      // and cause "TypeError: Cannot set property fetch of #<Window> which has only a getter".
+      // Also downgrade the expected local-folder autosave prompt from error to warning.
+      (function() {
+        try {
+          var originalConsoleError = console.error && console.error.bind(console);
+          if (originalConsoleError && !console.__hjmCanvasSaveGuarded) {
+            console.__hjmCanvasSaveGuarded = true;
+            console.error = function() {
+              var args = Array.prototype.slice.call(arguments);
+              var message = args.map(function(item) {
+                return item && item.message ? item.message : String(item);
+              }).join(' ');
+              if (message.indexOf('Local workflow auto save failed') !== -1 && message.indexOf('请先选择本地保存文件夹') !== -1) {
+                console.warn.apply(console, ['Local workflow auto save skipped:'].concat(args.slice(1)));
+                return;
+              }
+              originalConsoleError.apply(console, arguments);
+            };
+          }
+          var originalFetch = window.fetch;
+          if (originalFetch) {
+            Object.defineProperty(window, 'fetch', {
+              get: function() { return originalFetch; },
+              set: function() { console.warn('Something tried to overwrite window.fetch - ignored'); },
+              configurable: true
+            });
+          }
+        } catch (e) {
+          console.warn('Could not install startup guards:', e);
+        }
+      })();
     </script>
     <script type="module" crossorigin src="/assets/index-DglIsp_g.js"></script>
     <script defer src="/assets/home-carousel-inertia.js"></script>

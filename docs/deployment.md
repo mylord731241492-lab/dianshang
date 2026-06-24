@@ -70,6 +70,30 @@ $env:SMOKE_BASE_URL = "http://127.0.0.1:3456"
 powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\smoke-api.ps1"
 ```
 
+推荐在服务器上跑完整验收脚本：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\verify-internal-deploy.ps1"
+```
+
+该脚本会执行：
+
+- `docker compose -f docker-compose.internal.yml config`
+- `docker compose -f docker-compose.internal.yml up --build -d`
+- `/api/health`
+- `scripts\smoke-api.ps1`
+- `scripts\smoke-frontend-routes.ps1`
+- 容器 `restart` 后再次检查健康状态
+
+后台写操作 smoke 默认不会跑。只有在临时库或测试服务器上明确允许时才开启：
+
+```powershell
+$env:SMOKE_ALLOW_WRITES = "true"
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\verify-internal-deploy.ps1"
+```
+
+不要在正式业务库上随手开启 `SMOKE_ALLOW_WRITES=true`。
+
 ## 环境变量
 
 | 字段 | 默认 | 说明 |

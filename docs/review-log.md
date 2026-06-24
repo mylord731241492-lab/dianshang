@@ -182,3 +182,25 @@
 - 浏览器 UI 点击级写操作。
 - Docker 容器重启后 API 线路、模型价格、模板工作流、系统设置的持久化验证。
 - New-API 真实网关下的 API 线路测试连接。
+
+## 2026-06-24 内网部署验收脚本
+
+### 已验证
+
+- 本机 `docker --version` 不可用，当前无法执行容器构建和 Compose 实跑。
+- `scripts/verify-internal-deploy.ps1` PowerShell 解析检查通过。
+- 临时端口 `4581` 的默认 `scripts/preflight-check.ps1` 通过，覆盖 API smoke、前端路由 smoke、health 和 Git 状态。
+- `docs/deployment.md` 已补充服务器验收脚本、容器 restart 后健康检查、写操作 smoke 安全开关。
+
+### 风险与原则
+
+- 不把未实跑的 Docker 验收记为完成；当前只是把服务器验收工具和操作步骤补齐。
+- New-API/CPA 仍作为外部基础设施复用，本项目容器只承载业务平台和 Provider Adapter。
+- `SMOKE_ALLOW_WRITES=true` 只允许在测试库或临时库使用，不应直接对正式业务库执行。
+
+### 未覆盖
+
+- `docker compose -f docker-compose.internal.yml config`
+- `docker compose -f docker-compose.internal.yml up --build -d`
+- 容器 restart 后 SQLite volume 持久化。
+- Nginx/HTTPS/域名配置。

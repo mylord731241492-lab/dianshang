@@ -265,3 +265,16 @@
 - 未完成清单：Docker 服务人工浏览器完整点击测试、服务器/Nginx/HTTPS 正式部署、真实 New-API 联通、前端 1:1 剩余视觉细节。
 - 下一轮建议：用户先在当前 Docker 服务 `http://127.0.0.1:3456/` 手动测试首页、模板、图库、画布和后台；我根据反馈继续修前端交互或后台接口。
 - 需要人工介入：浏览器人工验收；真实 New-API token 和服务器部署信息后续再提供。
+
+## 2026-06-24 今日人工测试计划落库进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：新增今日人工测试计划文档，明确后台与前端打通到可人工测试；同步功能清单和 review log；继续承诺不扩架构、不接真实 New-API key。
+- 修改文件：`docs/plans/2026-06-24-admin-frontend-manual-test.md`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：`node --check server.js`、`node --check assets/home-carousel-inertia.js`、`scripts/smoke-api.ps1`、`/api/health`、`docker compose ps`、`git status`。
+- 验证结果：全部通过；Docker 服务 `healthy`，`/api/health` 为 mock + database ok；API smoke 覆盖登录、用户、项目、模板生成、图库历史和后台核心接口。
+- 当前完成度：后台约 90%，部署护栏约 92%，前端人工验收进行中。
+- 新发现问题：无新增技术阻塞；下一步主要靠人工点击发现 UI 细节。
+- 未完成清单：后台 UI 人工点击、模板生成闭环人工测试、图库多图/空状态、画布基础操作、用户中心生成记录。
+- 下一轮建议：从后台 UI 点击级验收开始，发现一个修一个。
+- 需要人工介入：你在浏览器里点测并截图反馈；真实 New-API key 和服务器部署信息后续再给。

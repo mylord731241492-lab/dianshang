@@ -9,8 +9,8 @@
 | 模板 | 进行中 | 82% | 模板页可加载 10 个模板并切换主图模板；素材槽、提示词输入、反推、生成、任务队列和结果区可见；API smoke 已覆盖模板设置、反推、生成。 | 验证真实上传/粘贴素材后的前端完整生成闭环。 |
 | 图库 | 进行中 | 78% | 首页图库入口已复核，并复用 `/api/user/generations` 同步后端历史；smoke 已覆盖模板生成后图库历史可读。 | 验证多图、删除、保存链接和空状态恢复。 |
 | 用户中心 | 进行中 | 68% | 真实表单登录后用户中心显示用户资料、余额、兑换码和 API 线路。 | 验证算力明细、生成记录和头像设置。 |
-| 后台 | 进行中 | 90% | Dashboard、users、orders、logs、generate-tasks、redeem-codes、API 线路、模型价格、模板工作流、设置已逐页复核；本轮一次性 SQLite 上后台写操作 smoke 全通过，覆盖用户状态/余额/安全/删除恢复、订单状态、兑换码、线路、模型、模板工作流和设置。 | 继续人工浏览器验收后台 UI 细节，尤其弹窗关闭、表单反馈和移动端布局。 |
+| 后台 | 待复核 | 90% | Dashboard、users、orders、logs、generate-tasks、redeem-codes、API 线路、模型价格、模板工作流、设置已逐页复核；后台写操作 smoke 覆盖用户状态/余额/安全/删除恢复、订单状态、兑换码、线路、模型、模板工作流和设置。 | 今天优先人工浏览器验收后台 UI 细节，尤其弹窗关闭、表单反馈和保存回显。 |
 | 部署 | 待复核 | 92% | Docker CLI/Compose/Engine 已确认可用；使用 `node:20-bookworm` 完成镜像构建并启动容器；`/api/health` 返回 mock、database ok，首页 200；容器重启后 SQLite 表数量保留；当前路线仍是先内网测试、稳定后服务器部署。 | 人工浏览器测试 Docker 服务，后续再做服务器/Nginx/HTTPS 部署演练。 |
 | New-API | 骨架完成 | 72% | Provider Adapter 默认 New-API，未配置 key 时 mock 回落；后台 API 线路新增已能保留 displayName、Base URL、接口格式等 New-API 配置字段。 | 使用真实 New-API token 做联通测试。 |
 | CPA | 待实现 | 20% | 只作为 New-API 后置渠道写入架构边界，本项目不直接管理。 | 等 New-API 部署后配置渠道。 |
-| 文档审查 | 进行中 | 96% | 已建立进度报告、功能清单、review log、轻量平台 ADR 和每轮推进复核清单；本轮新增画布刷新恢复守卫、自动验证脚本和当前缺口记录。 | 每轮推进持续追加，并按 `docs/iteration-review-checklist.md` 收尾。 |
+| 文档审查 | 进行中 | 97% | 已建立进度报告、功能清单、review log、轻量平台 ADR、每轮推进复核清单和今日人工测试计划。 | 每轮推进持续追加，并按 `docs/iteration-review-checklist.md` 收尾。 |

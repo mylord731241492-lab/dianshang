@@ -312,3 +312,23 @@
 
 - 浏览器中刷新同一动态项目后的节点数二次确认。
 - 上传素材、连线、生成节点和重新进入同一项目的完整 UI 长流程。
+
+## 2026-06-24 Docker 前可测试状态复核
+
+### 已验证
+
+- 临时端口 `4594` 使用一次性 SQLite 执行 `scripts/preflight-check.ps1`，Node 语法、API smoke、前端路由 smoke 和 health 全部通过。
+- 临时端口 `4596` 使用一次性 SQLite 执行 `SMOKE_ALLOW_WRITES=true scripts/smoke-admin-write.ps1`，后台写操作全部通过。
+- Docker CLI、Docker Compose 和 Docker Engine 已安装可用；项目 Compose config 已通过。
+
+### 结论
+
+- 当前已经达到 Docker 前的本机 mock 可测试状态。
+- 真实 New-API、邮件、支付、云存储无需现在配置。
+- Docker 容器实跑仍需人工确认后再执行，避免占用端口或影响当前手动测试。
+
+### 未覆盖
+
+- 浏览器人工视觉验收。
+- Docker 容器启动、重启持久化和容器内 healthcheck。
+- 真实 New-API token 联通。

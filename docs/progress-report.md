@@ -200,3 +200,16 @@
 - 未完成清单：浏览器刷新同一动态项目后的节点数二次确认、画布上传素材/连线/保存恢复 UI 长流程、Docker 实机部署与重启持久化、New-API 真实联通、模板真实上传素材生成闭环。
 - 下一轮建议：重新做画布浏览器验证，确认 `/canvas/project_*` 刷新后仍有示例节点；随后继续上传素材、连线和云端保存恢复 UI 长流程。
 - 需要人工介入：本地文件夹授权场景、Docker/内网服务器、New-API token、画布视觉 1:1 人工确认。
+
+## 2026-06-24 Docker 前可测试状态进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：按“先把前后端做到可测试，再由人工 Docker 手测”的节奏，完成本机 mock 模式预检和后台写操作验证；确认当前不需要先接真实 New-API、邮件、支付或云存储。
+- 修改文件：`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：临时端口 `4594` + 一次性 SQLite 执行 `scripts/preflight-check.ps1`；临时端口 `4596` + 一次性 SQLite 执行 `SMOKE_ALLOW_WRITES=true scripts/smoke-admin-write.ps1`。
+- 验证结果：预检通过，覆盖 Node 语法、API smoke、前端路由 smoke、health；后台写操作 smoke 通过，覆盖用户状态/余额/安全/删除恢复、订单状态、兑换码、API 线路、模型、模板工作流和系统设置。
+- 当前完成度：后端可测试护栏约 82%，部署护栏约 80%，前端路由级可测试约 82%。
+- 新发现问题：后台写操作脚本默认安全关闭，必须在一次性数据库上显式设置 `SMOKE_ALLOW_WRITES=true`；这是预期护栏。
+- 未完成清单：Docker 容器实跑、容器重启持久化、浏览器人工视觉验收、真实 New-API 联通。
+- 下一轮建议：先打开本地服务做人工浏览器验收，确认首页/模板/图库/用户中心/后台 UI 操作，再由人工启动 Docker 验收。
+- 需要人工介入：人工视觉验收和 Docker 手动运行确认。

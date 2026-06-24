@@ -34,6 +34,77 @@ if (-not $health.success) {
   throw "Health check failed"
 }
 
+$templateSettings = Invoke-SmokeJson -Method "GET" -Path "/api/template/settings"
+if (-not $templateSettings.templates -or $templateSettings.templates.Count -lt 1) {
+  throw "Template settings missing templates"
+}
+
+$textRoutes = Invoke-SmokeJson -Method "GET" -Path "/api/model-routes?group=text"
+if (-not $textRoutes.items -or $textRoutes.items.Count -lt 1) {
+  throw "Text model routes missing"
+}
+
+$imageRoutes = Invoke-SmokeJson -Method "GET" -Path "/api/model-routes?group=image"
+if (-not $imageRoutes.items -or $imageRoutes.items.Count -lt 1) {
+  throw "Image model routes missing"
+}
+
+$registerEmail = "smoke-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())@local.test"
+$registerUser = "smoke" + (Get-Date -Format "MMddHHmmss")
+$registerCode = Invoke-SmokeJson -Method "POST" -Path "/api/auth/send-email-code" -Body @{
+  email = $registerEmail
+  type = "register"
+}
+if (-not $registerCode.code) {
+  throw "Register email code missing"
+}
+
+$registered = Invoke-SmokeJson -Method "POST" -Path "/api/auth/register" -Body @{
+  username = $registerUser
+  email = $registerEmail
+  password = "test123456"
+  code = $registerCode.code
+}
+if (-not $registered.token) {
+  throw "Register did not return token"
+}
+$userHeaders = @{ Authorization = "Bearer $($registered.token)" }
+
+$profile = Invoke-SmokeJson -Method "GET" -Path "/api/user/profile" -Headers $userHeaders
+if (-not $profile.user) {
+  throw "User profile missing"
+}
+
+$reversePrompt = Invoke-SmokeJson -Method "POST" -Path "/api/template/reverse-prompt" -Headers $userHeaders -Body @{
+  templateType = "main-image"
+  fields = @{
+    userPrompt = "smoke ecommerce hero image, white thermos bottle, clean premium studio lighting"
+  }
+  platform = "JD"
+  ratio = "1:1"
+}
+if (-not $reversePrompt.success -or -not $reversePrompt.suggestions -or $reversePrompt.suggestions.Count -lt 1) {
+  throw "Template reverse prompt failed"
+}
+
+$templateGenerate = Invoke-SmokeJson -Method "POST" -Path "/api/template/generate-image" -Headers $userHeaders -Body @{
+  templateType = "main-image"
+  selectedPrompt = "smoke ecommerce hero image, white thermos bottle, clean premium studio lighting"
+  imageModel = "gpt-image-2"
+  imageCount = 1
+  platform = "JD"
+  ratio = "1:1"
+  quality = "2K"
+}
+if (-not $templateGenerate.success -or -not $templateGenerate.images -or $templateGenerate.images.Count -lt 1) {
+  throw "Template image generation failed"
+}
+
+$generations = Invoke-SmokeJson -Method "GET" -Path "/api/user/generations" -Headers $userHeaders
+if (-not $generations.items -or $generations.items.Count -lt 1) {
+  throw "User generations missing after template generation"
+}
+
 $adminLogin = Invoke-SmokeJson -Method "POST" -Path "/api/admin/login" -Body @{
   username = "admin"
   password = "admin123"

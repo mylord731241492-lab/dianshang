@@ -86,3 +86,30 @@
 - 模板页面前端按钮级生成流程。
 - 多图生成、删除历史、保存链接。
 - 后台子页面真实交互和移动端布局。
+
+## 2026-06-24 轻量平台架构护栏
+
+### 已验证
+
+- 临时端口 `4573` 使用独立 SQLite 数据库启动成功。
+- `scripts/preflight-check.ps1` 已串联 `node --check server.js`、`node --check assets/home-carousel-inertia.js`、`scripts/smoke-api.ps1`、`/api/health` 和 `git status`。
+- 预检通过，`/api/health` 明确返回 mock 模式、New-API 网关配置、CPA 预期后置关系、数据库状态和运行路径。
+
+### 架构结论
+
+- 7 月前继续采用 Express 一体服务 + SQLite + Docker Compose/PM2 的轻量内网平台路线。
+- Postgres、Redis、BullMQ、独立 Worker 暂不进入当前阶段，避免拖慢内网部署。
+- New-API 作为真实 AI 网关首选；CPA 只作为 New-API 后置渠道；本项目不自研 AI 网关和账号池。
+- Open WebUI 暂不纳入核心链路，避免偏离电商画布、模板、图库、后台业务平台定位。
+
+### 风险
+
+- CodeGraph 在 `C:\Users\pc\Desktop\hjm-mb-clone` 未初始化，本轮未使用结构索引。
+- 本机仍无法运行 Docker CLI，Docker Compose 只能保留配置级和文档级验证。
+- 统一预检脚本依赖已有服务可访问；如 3456 被占用或服务未启动，需要先用临时端口启动。
+
+### 未覆盖
+
+- Docker 容器真实启动、健康检查和重启持久化。
+- New-API 真实 token 联通。
+- 前端模板、后台子页、画布长流程的浏览器级复核。

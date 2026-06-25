@@ -798,3 +798,16 @@
 - 未完成清单：后台复杂表单保存后刷新回显继续人工确认；后台移动端表格体验还未做专项；New-API 真实 token 后续接入；服务器 Nginx/HTTPS 部署演练。
 - 下一轮建议：继续做后台保存回显链路，优先系统设置、API 线路、模型价格、模板工作流。
 - 需要人工介入：人工看 10 张 `full-*.png`，确认当前后台工具台风格是否接受。
+
+## 2026-06-25 后台保存刷新回显 UI 验证进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：新增后台保存/刷新回显 UI smoke，覆盖系统设置、API 线路、模型价格、模板工作流四条复杂配置链路。脚本会写入临时配置，打开真实后台页面截图确认刷新后可回显，再自动恢复系统设置、模板工作流，并删除临时 API 线路和模型，避免污染人工测试库；同时把该 smoke 接入 `SMOKE_UI=true` 的预检和 Docker 部署验证链。
+- 修改文件：`scripts/smoke-admin-save-echo-ui.ps1`、`scripts/smoke-admin-save-echo-ui-runner.js`、`scripts/preflight-check.ps1`、`scripts/verify-internal-deploy.ps1`、`docs/design-references/admin-2026-06-25/save-echo-*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `node --check scripts\smoke-admin-save-echo-ui-runner.js`、`scripts\smoke-admin-save-echo-ui.ps1`、`node --check server.js`、`node --check assets\home-carousel-inertia.js`、`scripts\smoke-frontend-routes.ps1`、`scripts\smoke-api.ps1`、`Invoke-RestMethod /api/health`、`docker compose -f docker-compose.internal.yml ps`、`git diff --check`、UTF-8 BOM 检查。
+- 验证结果：后台保存刷新回显 UI smoke 通过，截图已归档：`save-echo-settings-desktop-1440x900.png`、`save-echo-api-provider-desktop-1440x900.png`、`save-echo-model-prices-desktop-1440x900.png`、`save-echo-template-workflows-desktop-1440x900.png`；前端路由 smoke、API smoke、`node --check`、`/api/health`、UTF-8 无 BOM 检查通过；Docker 容器 `dianshang-app` 为 healthy，映射 `3457->3456`；`git diff --check` 仅提示 PowerShell 文件未来可能被 Git 转 CRLF，无空白错误。
+- 当前完成度：首页约 82%，模板约 94%，图库约 96%，用户中心约 93%，画布约 90%，后台约 99%，后端平台护栏约 85%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：Playwright CLI 的 `run-code` 在部分错误下会输出 `### Error` 但进程码仍为 0；本轮新脚本已额外检测该标记，避免误报通过。模板工作流新增未知分类模板不会直接显示，最终改为真实 UI 修改现有模板名并保存回显，再恢复原配置。
+- 未完成清单：后台移动端表格体验还未专项优化；首页/画布移动端专项截图仍待补；New-API 真实 token 后续接入；服务器 Nginx/HTTPS 部署演练。
+- 下一轮建议：继续做后台每页人工视觉细调，重点看图标、按钮字距、表格密度和空状态；随后补首页/画布移动端截图。
+- 需要人工介入：人工确认四张 `save-echo-*.png` 的后台保存回显截图是否接受。

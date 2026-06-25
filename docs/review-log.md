@@ -1089,3 +1089,21 @@
 - 视觉审计能抓基础一致性，但不能替代人工审美判断；仍需要人工确认宽表操作列、按钮密度和列表可读性。
 - 用户管理、API 线路、任务监控仍是宽表结构，若后续觉得操作列拥挤，建议做“更多操作”菜单或详情抽屉。
 - 后台移动端还没有做专项体验优化。
+
+## 2026-06-25 后台保存刷新回显 UI 验证
+
+### 已确认
+
+- 新增 `scripts/smoke-admin-save-echo-ui.ps1` 和 `scripts/smoke-admin-save-echo-ui-runner.js`。
+- 系统设置页已验证：临时修改“新用户注册赠送”数值，打开真实后台页面、点击保存、刷新后仍能回显，然后恢复原设置。
+- API 线路页已验证：临时创建 New-API 风格线路，刷新页面能看到线路名称和 Base URL，截图后删除临时线路。
+- 模型价格页已验证：临时创建模型价格，刷新页面能看到模型名称，截图后删除临时模型。
+- 模板工作流页已验证：通过真实 UI 修改第一个模板名称、点击保存配置、刷新后输入框仍回显，截图后恢复原模板配置。
+- 截图已归档：`save-echo-settings-desktop-1440x900.png`、`save-echo-api-provider-desktop-1440x900.png`、`save-echo-model-prices-desktop-1440x900.png`、`save-echo-template-workflows-desktop-1440x900.png`。
+- 新脚本已接入 `preflight-check.ps1` 和 `verify-internal-deploy.ps1` 的 `SMOKE_UI=true` 分支。
+
+### 需要继续验证
+
+- 这轮覆盖的是桌面后台复杂配置链路；后台移动端表格/弹窗还没有专项优化。
+- Playwright 自动截图能证明打开和回显，但最终视觉舒适度仍需要人工看截图确认。
+- New-API 真实 token 接入后，API 线路“测试连接”和模型同步还需要再做真实网关验收。

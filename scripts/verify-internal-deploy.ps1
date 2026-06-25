@@ -124,6 +124,15 @@ if ($env:SMOKE_ALLOW_WRITES -eq "true") {
 }
 
 if ($env:SMOKE_UI -eq "true") {
+  Invoke-Step -Name "home/canvas UI smoke" -Script {
+    $env:SMOKE_BASE_URL = $baseUrl
+    try {
+      Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-home-canvas-ui.ps1")
+    } finally {
+      Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue
+    }
+  }
+
   Invoke-Step -Name "admin pages UI smoke" -Script {
     $env:SMOKE_BASE_URL = $baseUrl
     try {
@@ -170,7 +179,7 @@ if ($env:SMOKE_UI -eq "true") {
   }
 } else {
   Write-Host "== UI smoke =="
-  Write-Host "Skipped. Set SMOKE_UI=true to run Playwright admin, template, gallery, canvas, and user center checks."
+  Write-Host "Skipped. Set SMOKE_UI=true to run Playwright home/canvas, admin, template, gallery, canvas, and user center checks."
 }
 
 Invoke-Step -Name "restart persistence smoke" -Script {

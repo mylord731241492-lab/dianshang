@@ -466,9 +466,9 @@ app.get('/api/user/models', auth, (req, res) => {
   const rt = routes.find(r=>[r.id,r.rk].includes(rid)) || routes[0] || RTS[0];
   res.json({ success: true, data: (rt&&rt.cat==='text'?TXT:IMG).map(m=>fmt(m, rt)) });
 });
-app.get('/api/user/api-status', auth, (req, res) => {
+app.get('/api/user/api-status', optionalAuth, (req, res) => {
   const rt = routeState()[0] || RTS[0];
-  res.json({ status: 'active', mode: 'auto',
+  res.json({ success: true, status: 'active', mode: 'auto', mock: !req.user,
     provider: { id:rt.id, routeId:rt.id, lineId:rt.id, routeKey:rt.rk, lineKey:rt.rk, name:rt.dn, displayName:rt.dn,
       defaultImageModel:'GPT Image 2', models: IMG.map(m=>fmt(m, rt)), supportsChat:true, supportsImage:true }
   });

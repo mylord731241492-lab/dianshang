@@ -772,3 +772,16 @@
 - 未完成清单：首页/画布主流程继续复核；后台复杂表单保存后刷新回显继续人工确认；New-API 真实 token 后续接入；服务器 Nginx/HTTPS 部署演练。
 - 下一轮建议：继续按后台 10 页截图逐页看标题、图标、按钮和表格密度，优先修肉眼明显问题。
 - 需要人工介入：人工确认新的绿色白字按钮是否比截图里的浅薄荷按钮舒服。
+
+## 2026-06-25 首页/画布入口 UI Smoke 进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：新增首页/画布主流程 UI smoke，自动打开首页检查品牌、Beta、主标题、历史画布、新画布、模板和图库入口，并确认历史画布拖动惯性脚本已 ready；随后打开画布页，确认 Vue Flow 画布、工具栏和节点内容可渲染。修复未登录访问 `/api/user/api-status` 返回 401 的控制台噪声，改为 mock 状态兜底。
+- 修改文件：`scripts/smoke-home-canvas-ui.ps1`、`scripts/smoke-home-canvas-ui-runner.js`、`scripts/preflight-check.ps1`、`scripts/verify-internal-deploy.ps1`、`scripts/smoke-api.ps1`、`server.js`、`docs/design-references/frontend-2026-06-25/home-dashboard-smoke-desktop-1440x900.png`、`docs/design-references/frontend-2026-06-25/canvas-open-smoke-desktop-1440x900.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `scripts\smoke-home-canvas-ui.ps1`、`scripts\smoke-api.ps1`、`scripts\smoke-frontend-routes.ps1`、`node --check server.js`、`node --check assets\home-carousel-inertia.js`、`node --check scripts\smoke-home-canvas-ui-runner.js`；使用 `HOST_PORT=3457` 执行 `scripts\verify-internal-deploy.ps1` 重新构建 Docker。
+- 验证结果：首页/画布 UI smoke 通过：首页 `inertiaReady=1`、历史卡片 1 个；画布 Vue Flow 存在、节点 2 个；console 0 error、badResponses 0；API smoke 已覆盖 public `/api/user/api-status` 和 public `/api/generation/estimate-cost`；Docker `3457` 重新构建后 health、API smoke、前端路由 smoke、restart persistence smoke 均通过。
+- 当前完成度：首页约 82%，模板约 94%，图库约 96%，用户中心约 93%，画布约 90%，后台约 99%，后端平台护栏约 84%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：画布打开时仍会出现本地自动保存提醒，这是本地优先策略下的预期提醒，不是 console error；后续人工测试时需要确认提示文案是否干扰。
+- 未完成清单：后台 10 页继续逐页视觉复核；首页/画布移动端专项截图还需继续补；New-API 真实 token 后续接入；服务器 Nginx/HTTPS 部署演练。
+- 下一轮建议：继续做后台视觉逐页复核，先看 Dashboard、用户、订单、日志的标题、按钮、图标和表格密度。
+- 需要人工介入：人工确认首页和画布两张 smoke 截图是否接受；确认 Docker 继续使用 `3457` 作为本机测试端口。

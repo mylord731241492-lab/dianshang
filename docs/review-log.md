@@ -1056,3 +1056,20 @@
 - 后台 10 页还要继续逐页看标题、图标、按钮、字距、表格密度和空状态。
 - 这次没有做后台整体风格重排，只处理颜色突兀点；后续视觉问题继续按截图逐个收。
 - 新颜色需要人工确认是否比原截图里的浅薄荷按钮舒服。
+
+## 2026-06-25 首页/画布入口 UI Smoke 复核
+
+### 已确认
+
+- 新增 `scripts/smoke-home-canvas-ui.ps1` 和 `scripts/smoke-home-canvas-ui-runner.js`。
+- 首页检查项包含：`电商自动化工作台`、`Beta`、`电商全流程工作台`、`我的历史画布项目`、`新画布`、`模板`、`图库`，并验证 `.history-track` 的 `data-inertia-ready=1`。
+- 画布检查项包含：Vue Flow 容器、工具栏文字、画布节点文字，当前 smoke 打开后可渲染 2 个节点。
+- 本轮修复未登录 `/api/user/api-status` 401，和未登录 `/api/generation/estimate-cost` 一样走 mock 兜底；重跑首页/画布 UI smoke 后 console error 为 0，badResponses 为 0。
+- 新脚本已接入 `preflight-check.ps1` 和 `verify-internal-deploy.ps1` 的 `SMOKE_UI=true` 分支。
+- Docker 已用 `HOST_PORT=3457` 重新构建并跑通部署验证，容器内 API smoke 覆盖 public `/api/user/api-status`。
+
+### 需要继续验证
+
+- 首页移动端和画布移动端还没有纳入这个新 smoke，本轮只覆盖桌面 1440x900。
+- 画布本地自动保存提醒是当前本地优先策略的预期提示，后续需要人工确认是否影响使用感。
+- 后台逐页视觉复核仍要继续，尤其是标题、按钮、图标和表格密度。

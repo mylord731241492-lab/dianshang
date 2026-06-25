@@ -191,6 +191,11 @@ if (-not $publicEstimate.success -or $publicEstimate.totalCost -le 0 -or -not $p
   throw "Public generation estimate cost failed"
 }
 
+$publicApiStatus = Invoke-SmokeJson -Method "GET" -Path "/api/user/api-status"
+if (-not $publicApiStatus.success -or -not $publicApiStatus.provider -or -not $publicApiStatus.mock) {
+  throw "Public API status fallback failed"
+}
+
 $templateGenerate = Invoke-SmokeJson -Method "POST" -Path "/api/template/generate-image" -Headers $userHeaders -Body @{
   templateType = "main-image"
   selectedPrompt = "smoke ecommerce hero image, white thermos bottle, clean premium studio lighting"

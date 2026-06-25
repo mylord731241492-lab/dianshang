@@ -447,3 +447,16 @@
 - 未完成清单：后台删除/恢复确认；兑换码成功/失败提示；首页/画布/用户中心移动端复核；Docker 容器状态复核；New-API 真实 token 后续接入。
 - 下一轮建议：继续后台删除/恢复和用户中心兑换码提示手感；然后做移动端关键页面截图。
 - 需要人工介入：你人工点测后台删除/恢复是否符合预期；打开 Docker Desktop 后复核容器。
+
+## 2026-06-25 后台写入 Disposable Smoke 进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：新增 `scripts/smoke-admin-write-disposable.ps1`，在临时端口、临时 SQLite、临时 uploads/logs 下运行后台写入 smoke，并自动设置 `SMOKE_ALLOW_WRITES=true`；跑完停止临时服务并清理临时目录，避免污染当前 `3456` 人工测试数据。
+- 修改文件：`scripts/smoke-admin-write-disposable.ps1`、`docs/plans/2026-06-25-admin-frontend-backend-manual-test.md`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-admin-write-disposable.ps1`。
+- 验证结果：临时库后台写入 smoke 通过，覆盖管理员登录、注册测试用户、用户禁用、余额调整、安全检查、重置密码、软删除、回收站恢复、永久匿名化、订单关闭、兑换码创建/删除、API 线路创建/更新/测试/拉模型/设默认/删除、线路模型创建/更新/禁用/删除、模板工作流保存、系统设置保存。
+- 当前完成度：首页约 74%，模板约 91%，图库约 88%，用户中心约 86%，后台约 97%，后端平台护栏约 82%，测试护栏约 90%，部署护栏约 92%。
+- 新发现问题：后台删除/恢复的后端路径已经有一次性库保护验证，但前端确认弹窗和手感仍需要人工点测；原 `scripts/smoke-admin-write.ps1` 仍保持默认拒绝写入，避免误跑当前人工库。
+- 未完成清单：后台删除/恢复前端确认弹窗；兑换码成功/失败提示；移动端关键页面截图；Docker 容器状态复核；New-API 真实 token 后续接入。
+- 下一轮建议：用内置浏览器补后台删除/恢复前端确认弹窗截图，随后补用户中心兑换码成功/失败提示。
+- 需要人工介入：打开 Docker Desktop 后复核容器；人工确认后台删除/恢复交互是否符合预期。

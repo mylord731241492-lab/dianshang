@@ -42,6 +42,8 @@ node --check assets/home-carousel-inertia.js
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-frontend-routes.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-api.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-api-disposable.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-admin-write-disposable.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-admin-ui.ps1
 Invoke-RestMethod http://127.0.0.1:3456/api/health
 docker compose -f docker-compose.internal.yml ps
 git status --short --branch
@@ -63,5 +65,6 @@ git status --short --branch
 - 已完成：模板反推接口补齐 `rawText/prompts` 兼容字段，接口层可返回 3 条提示词。
 - 已完成：模板真实上传素材后的 UI 闭环已用 Playwright 验证，能上传 2 张素材、反推 3 条提示词、生成 1 张 mock 结果并写入图库历史。
 - 已完成：后台内置浏览器 10 页截图复核；后台 UI smoke 已覆盖系统设置保存、API 线路新增弹窗、兑换码创建弹窗、模板工作流保存。
-- 进行中：后台删除/恢复确认仍需人工逐页点测。
+- 已完成：新增后台写入 disposable smoke，在临时 SQLite 中验证用户软删除、回收站恢复、永久匿名化、兑换码增删、API 线路/模型增删、模板工作流和系统设置保存。
+- 进行中：后台删除/恢复的前端确认弹窗仍需人工逐页点测。
 - 待复核：Docker Desktop 打开后执行 `docker compose -f docker-compose.internal.yml ps`。

@@ -175,6 +175,13 @@ $reversePrompt = Invoke-SmokeJson -Method "POST" -Path "/api/template/reverse-pr
 if (-not $reversePrompt.success -or -not $reversePrompt.suggestions -or $reversePrompt.suggestions.Count -lt 1) {
   throw "Template reverse prompt failed"
 }
+if (-not $reversePrompt.rawText -or -not $reversePrompt.prompts -or $reversePrompt.prompts.Count -lt 1) {
+  throw "Template reverse prompt compatibility fields missing"
+}
+$firstReversePrompt = @($reversePrompt.prompts)[0]
+if (-not $firstReversePrompt.text -or -not $firstReversePrompt.prompt -or -not $firstReversePrompt.label) {
+  throw "Template reverse prompt item shape incompatible"
+}
 
 $templateGenerate = Invoke-SmokeJson -Method "POST" -Path "/api/template/generate-image" -Headers $userHeaders -Body @{
   templateType = "main-image"

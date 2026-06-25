@@ -421,3 +421,16 @@
 - 未完成清单：模板真实上传后生成闭环；兑换码成功/失败提示；后台弹窗关闭、删除/恢复确认；Docker 容器状态在 Docker Desktop 打开后复核。
 - 下一轮建议：优先用人工或浏览器文件选择器完成模板“上传素材 -> 反推提示词 -> 生成图片 -> 图库历史”闭环；随后继续后台保存/弹窗手感逐页点测。
 - 需要人工介入：你手动上传一张图片到模板页看提示词卡片是否出现；打开 Docker Desktop 后我再复核 compose 容器。
+
+## 2026-06-25 模板真实上传生成闭环进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：补强 `scripts/smoke-api.ps1`，增加 `/api/template/reverse-prompt` 的 `rawText/prompts` 兼容字段断言；使用独立 Playwright CLI 会话验证模板页真实文件上传，完成“上传参考图 + 产品图 -> 反推 3 条提示词 -> 生成 1 张 mock 图片 -> 写入图库历史”的闭环；归档模板完整生成截图。
+- 修改文件：`scripts/smoke-api.ps1`、`docs/design-references/frontend-2026-06-25/template-upload-generate-complete-desktop-1440x900.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `scripts/smoke-api-disposable.ps1`；Playwright CLI 打开 `/template-image`，上传 `logo.png` 到参考图和产品图槽位，填写提示词，点击 `反推提示词` 和 `生成图片`；读取 Playwright requests、console、页面 snapshot；调用 `/api/user/generations` 确认生成历史；执行固定 Node/前端路由/API/health/Docker 状态检查。
+- 验证结果：上传后页面显示参考图 `1/12`、产品图 `1/12`、生成设置 `2 张素材`；反推后显示 `提示词选择 3 条` 且请求 `/api/template/reverse-prompt` 为 200；生成后页面显示 `已完成`、`当前 1 张`、`1 个已完成`，请求 `/api/template/generate-image` 为 200；`/api/user/generations` 最新记录为本次生成的 mock 图片；Playwright console 无 warning/error；`node --check`、前端路由 smoke、当前服务 API smoke、disposable API smoke 和 `/api/health` 均通过；Docker Desktop daemon 未运行，`docker compose ps` 仍报找不到 `dockerDesktopLinuxEngine` 管道。
+- 当前完成度：首页约 74%，模板约 91%，图库约 88%，用户中心约 86%，后台约 95%，后端平台护栏约 81%，测试护栏约 86%，部署护栏约 92%。
+- 新发现问题：独立 Playwright 会话里 `auth_user` 被 PowerShell 引号转义影响，顶部仍显示 `登录`，但 `auth_token` 有效，接口调用和生成闭环不受影响；这说明后续 CLI 自动化需要专门写一个小脚本处理登录态，避免命令行引号问题。
+- 未完成清单：后台弹窗关闭、删除/恢复确认；兑换码成功/失败提示；首页/画布/用户中心移动端复核；Docker 容器状态在 Docker Desktop 打开后复核。
+- 下一轮建议：先做后台保存/弹窗逐页手感复核，再补兑换码提示和移动端关键页面截图。
+- 需要人工介入：你用真实浏览器再点一次模板上传生成手感；打开 Docker Desktop 后我复核 compose 容器。

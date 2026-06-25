@@ -6,7 +6,7 @@ Set-Location $root
 
 $session = $env:SMOKE_GALLERY_UI_SESSION
 if (-not $session) {
-  $session = "gallery-ui-smoke"
+  $session = "gallery-ui-smoke-" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 }
 
 function Invoke-PlaywrightCli {

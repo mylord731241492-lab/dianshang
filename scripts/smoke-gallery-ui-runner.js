@@ -146,6 +146,27 @@ async page => {
       throw new Error(`expected 2 copied links, got ${copiedLinks.length}`);
     }
 
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(baseUrl + '/?gallery-smoke=mobile-multi');
+    await page.waitForLoadState('load');
+    await page.waitForTimeout(700);
+    const mobileGalleryButton = page.getByRole('button', { name: '图库' });
+    if (await mobileGalleryButton.count() !== 1) {
+      throw new Error('mobile gallery button missing');
+    }
+    await mobileGalleryButton.click();
+    await page.waitForTimeout(900);
+    const mobileMultiText = await page.locator('body').innerText();
+    if (!mobileMultiText.includes('图片生成历史') || !mobileMultiText.includes('共 2 张')) {
+      throw new Error('mobile gallery multi state missing');
+    }
+    await page.screenshot({
+      path: 'docs/design-references/mobile-2026-06-25/gallery-multi-mobile-390x844.png',
+      fullPage: false
+    });
+
     const deleteCheck = await page.evaluate(async ({ token, ids }) => {
       const deleted = [];
       for (const id of ids) {
@@ -183,6 +204,34 @@ async page => {
     });
     if (!emptyState.text.includes('图片生成历史') || !emptyState.text.includes('共 0 张') || emptyState.imageCount !== 0) {
       throw new Error(`gallery empty state missing after deleting generated records: ${JSON.stringify(emptyState)}`);
+    }
+    await page.screenshot({
+      path: 'docs/design-references/mobile-2026-06-25/gallery-empty-mobile-390x844.png',
+      fullPage: false
+    });
+
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(baseUrl + '/?gallery-smoke=desktop-empty');
+    await page.waitForLoadState('load');
+    await page.waitForTimeout(700);
+    const desktopGalleryButton = page.getByRole('button', { name: '图库' });
+    if (await desktopGalleryButton.count() !== 1) {
+      throw new Error('desktop gallery button missing after mobile check');
+    }
+    await desktopGalleryButton.click();
+    await page.waitForTimeout(900);
+    const desktopEmptyState = await page.evaluate(() => {
+      const dialog = Array.from(document.querySelectorAll('.n-modal, [role="dialog"], body'))
+        .find((item) => (item.innerText || '').includes('图片生成历史'));
+      return {
+        text: dialog ? dialog.innerText : document.body.innerText,
+        imageCount: dialog ? dialog.querySelectorAll('article img').length : document.querySelectorAll('article img').length
+      };
+    });
+    if (!desktopEmptyState.text.includes('图片生成历史') || !desktopEmptyState.text.includes('共 0 张') || desktopEmptyState.imageCount !== 0) {
+      throw new Error(`desktop gallery empty state missing after mobile check: ${JSON.stringify(desktopEmptyState)}`);
     }
     await page.screenshot({
       path: `${screenshotDir}/gallery-empty-state-desktop-1440x900.png`,

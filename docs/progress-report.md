@@ -512,3 +512,16 @@
 - 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；移动端图库多图/空状态可后续补截图；后台移动端表格是否卡片化待人工确认。
 - 下一轮建议：继续补移动端图库 smoke，或打开 Docker Desktop 后先完成容器复核。
 - 需要人工介入：打开 Docker Desktop 后复核容器；人工确认图库空状态视觉是否先接受。
+
+## 2026-06-25 移动端图库入口与截图 Smoke 进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：补齐首页移动端图库入口；在 `gallery-persistence-bridge.js` 增加只在移动端首页显示的轻量图库按钮和弹窗，复用 `/api/user/generations` 后端历史，不影响桌面原图库弹层；扩展图库 UI smoke，覆盖桌面多图、移动端多图、移动端空状态和桌面空状态。
+- 修改文件：`assets/gallery-persistence-bridge.js`、`scripts/smoke-gallery-ui.ps1`、`scripts/smoke-gallery-ui-runner.js`、`docs/design-references/mobile-2026-06-25/gallery-multi-mobile-390x844.png`、`docs/design-references/mobile-2026-06-25/gallery-empty-mobile-390x844.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `scripts\smoke-gallery-ui.ps1`；人工查看 `gallery-multi-mobile-390x844.png` 和 `gallery-empty-mobile-390x844.png`；执行 JS 语法检查和固定路由/API 验证。
+- 验证结果：390x844 下首页出现 `图库` 入口；点击后移动端弹窗显示 `图片生成历史`、`共 2 张` 和图片卡片；删除后重新打开显示 `共 0 张` 和 `还没有图片生成历史`；桌面图库路径仍通过。
+- 当前完成度：首页约 79%，模板约 92%，图库约 94%，用户中心约 88%，后台约 99%，后端平台护栏约 82%，测试护栏约 97%，部署护栏约 92%。
+- 新发现问题：移动端图库入口是轻量桥接按钮，视觉可测但还不是原站级底部导航；后续如追 1:1，可再统一移动端导航体系。
+- 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；后台移动端表格是否卡片化待人工确认；画布 JSON 导入/导出长流程。
+- 下一轮建议：打开 Docker Desktop 后优先完成容器复核；或继续补画布 JSON 导入/导出 smoke。
+- 需要人工介入：打开 Docker Desktop 后复核容器；人工确认移动端图库入口位置是否接受。

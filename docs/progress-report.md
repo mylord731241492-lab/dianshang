@@ -32,6 +32,19 @@
 - 下一轮建议：继续做前端画布 JSON 导入/导出人工验收证据，或把后台复杂表单保存反馈继续打磨。
 - 需要人工介入：请人工浏览 `docs/design-references/admin-2026-06-25/full-*.png` 做最终视觉判断；真实 New-API token 和服务器信息后续再提供。
 
+## 2026-06-25 画布 JSON 导入与保存恢复证据进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：新增画布 JSON UI smoke，验证 `/api/workflows/:id/save-json` 可保存 2 节点 1 连线 JSON，`/api/user/projects/:id` 可读取同一份数据；浏览器打开 `/canvas/:id` 后通过真实隐藏文件输入导入 `.workflow.json`，前端渲染 2 个节点和连线，并归档桌面截图。
+- 修改文件：`scripts/smoke-canvas-json-ui.ps1`、`scripts/smoke-canvas-json-ui-runner.js`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：`node --check scripts/smoke-canvas-json-ui-runner.js`、`node --check server.js`、`node --check assets/home-carousel-inertia.js`、`node scripts/verify-canvas-restore-guard.js`、`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-canvas-json-ui.ps1`、`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-frontend-routes.ps1`、`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-api-disposable.ps1`、`Invoke-RestMethod http://127.0.0.1:3456/api/health`、`docker compose -f docker-compose.internal.yml ps`。
+- 验证结果：画布 JSON smoke 返回 `ok: true`，后端保存/读取为 `nodes: 2`、`edges: 1`；前端导入后 `hasVueFlow: true`、`nodeCount: 2`、console `0 errors`；截图归档到 `docs/design-references/frontend-2026-06-25/canvas-json-smoke-desktop-1440x900.png`；临时项目已自动删除，第一次失败残留的 `canvas_json_smoke_*` 项目也已清理，`/api/health` 项目数回到 3；前端路由 smoke 和 disposable API smoke 通过；Docker `ps` 因 Docker Desktop daemon 未运行失败，未声明容器状态已复核。
+- 当前完成度：画布约 88%，后端平台护栏约 82%，测试护栏约 99%。
+- 新发现问题：直接打开 `/canvas/:id` 不会自动从后端项目数据恢复节点，当前可测路径是本地 JSON 导入；这符合当前“画布走本地，到时候自己 JSON 导入”的阶段策略，但后续若要云端项目恢复，需要单独补前端加载逻辑；本机 Docker Desktop daemon 当前未启动。
+- 未完成清单：真实本地文件夹授权保存、移动端画布长流程、云端项目自动恢复、真实 New-API 生图后回写画布。
+- 下一轮建议：继续补模板/图库/画布的人工可测清单，或开始后台复杂表单保存回显细节。
+- 需要人工介入：本地文件夹授权必须人工在浏览器点选；画布节点视觉和拖拽手感仍需人工确认。
+
 ## 2026-06-24 本轮进度报告
 
 - 分支：`codex/backend-platform`

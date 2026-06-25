@@ -39,6 +39,31 @@
 - 保存类复杂弹窗关闭/回显的全量人工点测。
 - 服务器部署后的远程浏览器截图。
 
+## 2026-06-25 画布 JSON 导入与保存恢复复核
+
+### 已验证
+
+- `scripts/smoke-canvas-json-ui.ps1` 已跑通。
+- 通过 `/api/workflows/:id/save-json` 保存临时画布 JSON，内容为 2 个节点、1 条连线。
+- 通过 `/api/user/projects/:id` 读取确认 JSON 未丢字段。
+- 浏览器打开 `/canvas/:id` 后，用页面隐藏 JSON 文件 input 导入 `.workflow.json`，模拟真实本地文件导入。
+- 前端导入后 `hasVueFlow: true`、`nodeCount: 2`、console `0 errors`。
+- 截图归档：`docs/design-references/frontend-2026-06-25/canvas-json-smoke-desktop-1440x900.png`。
+- smoke 结束后自动删除临时项目，避免污染当前人工测试库。
+- 第一次失败残留的 `canvas_json_smoke_*` 临时项目已按前缀清理，`/api/health` 项目数回到 3。
+- `node --check server.js`、`node --check assets/home-carousel-inertia.js`、前端路由 smoke 和 disposable API smoke 均通过。
+
+### 结论
+
+- 当前阶段“画布走本地，到时候自己 JSON 导入”的策略是可测的：JSON 文件导入路径已经能渲染节点。
+- 后端 `/api/workflows/:id/save-json` 可作为后续云端保存兼容接口继续保留。
+
+### 风险
+
+- 直接打开 `/canvas/:id` 目前不会自动从服务端项目 JSON 恢复节点；当前证据证明的是本地 JSON 文件导入，而不是云端项目自动恢复。
+- 本地文件夹授权保存必须由人工在浏览器里选择目录，自动化只能覆盖无授权时的提示和 JSON 导入。
+- `docker compose -f docker-compose.internal.yml ps` 因 Docker Desktop daemon 未运行失败，本轮不把容器状态算作已复核。
+
 ## 2026-06-24
 
 ### 已审查结论

@@ -5,7 +5,7 @@
 | 模块 | 状态 | 完成度 | 说明 | 下一步 |
 | --- | --- | --- | --- | --- |
 | 首页 | 待复核 | 79% | 已做首页标题、白色玻璃感、阴影和拖动手感修复；移动端标题字号已修，390 宽不再把“工作台”拆成单字；本轮补移动端图库入口；首页桌面和移动截图已归档。 | 继续人工确认移动端首屏观感、底部生成按钮露出比例和图库入口位置。 |
-| 画布 | 待复核 | 85% | 基础画布、工具栏和项目页可打开；当前策略明确为本地优先；已修复图片节点、文生图节点和图片生成节点外层/内层圆角不一致；小地图已改半透明，Canvas Chat 已下移避开顶部工具条；用户中心侧栏标题颜色已统一为深色。 | 继续人工验收 JSON 导入/导出、本地文件夹授权、文本/视频节点视觉一致性和更多节点选中态。 |
+| 画布 | 待复核 | 88% | 基础画布、工具栏和项目页可打开；当前策略明确为本地优先；新增 `scripts/smoke-canvas-json-ui.ps1`，已验证后端保存/读取 2 节点 1 连线 JSON，并通过真实 `.workflow.json` 文件输入导入到前端，画布渲染 2 个节点且 console 0 error；已修复图片节点、文生图节点和图片生成节点外层/内层圆角不一致；小地图已改半透明，Canvas Chat 已下移避开顶部工具条；用户中心侧栏标题颜色已统一为深色。 | 继续人工验收本地文件夹授权保存、文本/视频节点视觉一致性和更多节点选中态；如后续要云端项目自动恢复，再补前端加载逻辑。 |
 | 模板 | 待复核 | 92% | 模板页可加载 10 个模板并切换主图模板；素材槽、提示词输入、反推、生成、任务队列和结果区可见；反推接口已补齐 `rawText/prompts` 兼容字段；独立 Playwright 已验证上传 2 张图片后反推 3 条提示词、生成 1 张 mock 结果，并写入 `/api/user/generations`；移动端模板页截图已归档。 | 你再人工点一次上传/生成手感；后续接 New-API 后复测真实生图。 |
 | 图库 | 待复核 | 94% | 首页和模板页图库入口已截图复核，并复用 `/api/user/generations` 同步后端历史；图库删除已从前端临时移除改为后端持久删除，刷新后不会复活；保存链接和保存全部链接已可复制到剪贴板；图库 UI smoke 已覆盖桌面 2 张 mock 图片展示、保存全部链接复制 2 行、删除后 `共 0 张` 空状态；本轮补移动端图库入口和 390x844 多图/空状态截图。 | 你人工确认图库空状态和移动端入口视觉；后续如追 1:1 可统一移动端导航。 |
 | 用户中心 | 待复核 | 88% | 真实表单登录后用户中心显示用户资料、余额、兑换码和 API 线路；画布内用户中心侧栏标题颜色已统一；独立用户中心 `/user/records` 已补真实生成记录和余额流水，`/user/redeem` 已补后端兑换提交入口；头像随机保存和头像文件上传均已验证会写回后端 profile；新增兑换码 UI smoke，已验证错误码红色提示和有效码绿色成功提示。 | 继续验证移动端排版和更多真实用户数据。 |
@@ -13,5 +13,5 @@
 | 部署 | 待复核 | 92% | Docker CLI/Compose/Engine 已确认可用；使用 `node:20-bookworm` 完成镜像构建并启动容器；`/api/health` 返回 mock、database ok，首页 200；容器重启后 SQLite 表数量保留；当前路线仍是先内网测试、稳定后服务器部署。 | 人工浏览器测试 Docker 服务，后续再做服务器/Nginx/HTTPS 部署演练。 |
 | New-API | 骨架完成 | 72% | Provider Adapter 默认 New-API，未配置 key 时 mock 回落；后台 API 线路新增已能保留 displayName、Base URL、接口格式等 New-API 配置字段。 | 使用真实 New-API token 做联通测试。 |
 | CPA | 待实现 | 20% | 只作为 New-API 后置渠道写入架构边界，本项目不直接管理。 | 等 New-API 部署后配置渠道。 |
-| 测试护栏 | 进行中 | 98% | 已有前端路由 smoke、API smoke、后台 UI smoke；新增 `scripts/smoke-admin-pages-ui.ps1` 覆盖后台 10 页截图和标题校验；新增 `scripts/smoke-api-disposable.ps1`，可用临时端口和一次性 SQLite 跑完整 API smoke，避免污染人工测试库；新增 `scripts/smoke-admin-write-disposable.ps1`，安全覆盖后台删除/恢复/增删改写入；新增用户中心兑换码 UI smoke、后台删除/恢复 UI smoke、移动端截图 smoke 和图库 UI smoke；图库 UI smoke 覆盖桌面/移动端多图、保存全部链接和空状态恢复。 | 后续把 Docker 验证和更多移动端交互接入统一 preflight；Playwright 截图脚本保持串行或拆不同 session。 |
+| 测试护栏 | 进行中 | 99% | 已有前端路由 smoke、API smoke、后台 UI smoke；新增 `scripts/smoke-admin-pages-ui.ps1` 覆盖后台 10 页截图和标题校验；新增 `scripts/smoke-canvas-json-ui.ps1` 覆盖画布 JSON 后端保存/读取和前端真实文件导入渲染；新增 `scripts/smoke-api-disposable.ps1`，可用临时端口和一次性 SQLite 跑完整 API smoke，避免污染人工测试库；新增 `scripts/smoke-admin-write-disposable.ps1`，安全覆盖后台删除/恢复/增删改写入；新增用户中心兑换码 UI smoke、后台删除/恢复 UI smoke、移动端截图 smoke 和图库 UI smoke；图库 UI smoke 覆盖桌面/移动端多图、保存全部链接和空状态恢复。 | 后续把 Docker 验证和更多移动端交互接入统一 preflight；Playwright 截图脚本保持串行或拆不同 session。 |
 | 文档审查 | 进行中 | 99% | 已建立进度报告、功能清单、review log、轻量平台 ADR、每轮推进复核清单；已新增 2026-06-25 前后端与后台视觉人工可测计划，并归档后台与前端截图；本轮追加后台截图复跑、表格视觉修复和内置浏览器抽查记录。 | 每轮推进持续追加，并按 `docs/iteration-review-checklist.md` 收尾。 |

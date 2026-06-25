@@ -100,6 +100,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\verify-internal-dep
 - `scripts\smoke-frontend-routes.ps1`
 - 容器 `restart` 后再次检查健康状态
 
+如需同时复核后台截图和画布 JSON 导入，可开启 Playwright UI smoke：
+
+```powershell
+$env:SMOKE_UI = "true"
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\verify-internal-deploy.ps1"
+Remove-Item Env:\SMOKE_UI -ErrorAction SilentlyContinue
+```
+
+`SMOKE_UI=true` 会额外执行：
+
+- `scripts\smoke-admin-pages-ui.ps1`：自动登录后台，逐页截图 Dashboard、用户、订单、日志、兑换码、API 线路、模型价格、任务监控、模板工作流和系统设置。
+- `scripts\smoke-canvas-json-ui.ps1`：验证画布 JSON 后端保存/读取，并通过真实 `.workflow.json` 文件输入导入到前端画布。
+
+UI smoke 需要当前机器能运行 Playwright CLI 和浏览器环境；内网服务器没有桌面环境时，可先跳过，改在本地浏览器访问服务器地址后单独设置 `SMOKE_BASE_URL` 执行。
+
 内网测试阶段允许无 `.env` 或 `.env` 仍为占位值，脚本会警告但继续 mock 验收。服务器正式部署前建议开启严格检查：
 
 ```powershell
@@ -116,6 +131,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\verify-internal-dep
 ```
 
 不要在正式业务库上随手开启 `SMOKE_ALLOW_WRITES=true`。
+
+本地统一预检也支持同样的 UI 开关：
+
+```powershell
+$env:SMOKE_UI = "true"
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\preflight-check.ps1"
+Remove-Item Env:\SMOKE_UI -ErrorAction SilentlyContinue
+```
+
+本地 `scripts\preflight-check.ps1` 默认使用 `scripts\smoke-api-disposable.ps1` 启动一次性 SQLite 服务跑 API smoke，避免污染当前人工测试库。如确实要验证当前已启动服务的真实数据库，可显式开启：
+
+```powershell
+$env:SMOKE_USE_CURRENT_API = "true"
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\preflight-check.ps1"
+Remove-Item Env:\SMOKE_USE_CURRENT_API -ErrorAction SilentlyContinue
+```
 
 ## 环境变量
 

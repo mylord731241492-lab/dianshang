@@ -64,6 +64,26 @@
 - 本地文件夹授权保存必须由人工在浏览器里选择目录，自动化只能覆盖无授权时的提示和 JSON 导入。
 - `docker compose -f docker-compose.internal.yml ps` 因 Docker Desktop daemon 未运行失败，本轮不把容器状态算作已复核。
 
+## 2026-06-25 统一预检与 UI smoke 护栏复核
+
+### 已验证
+
+- `scripts/preflight-check.ps1` 默认 API smoke 已改为 `scripts/smoke-api-disposable.ps1`，不再默认污染当前人工测试库。
+- `SMOKE_UI=true` 已接入后台全页截图 smoke 和画布 JSON 导入 smoke。
+- `scripts/preflight-check.ps1` 和 `scripts/verify-internal-deploy.ps1` 已增加 native 命令退出码检查，避免子脚本失败后父脚本继续显示通过。
+- `SMOKE_UI=true` 的统一预检已通过，覆盖 Node 静态检查、disposable API smoke、前端路由 smoke、后台 10 页截图、画布 JSON 导入、health 和 git status。
+- health 前后保持 `users: 22`、`projects: 3`、`redeem_codes: 10`，确认本轮更新后的默认预检不再增加当前库测试数据。
+
+### 新发现问题
+
+- 旧版 preflight 调用子 PowerShell 脚本后没有检查 `$LASTEXITCODE`，曾出现 canvas UI smoke 失败但父脚本继续打印 `Preflight checks passed`；该问题已修复。
+- Playwright 连续跑多个 session 时，`open` 后 5 秒偶尔不够，已调整为 8 秒等待。
+
+### 未覆盖
+
+- Docker Desktop daemon 当前未运行，`docker compose -f docker-compose.internal.yml ps` 仍失败；容器状态本轮不算已复核。
+- 服务器无桌面环境时，`SMOKE_UI=true` 需要在本地浏览器机器上设置 `SMOKE_BASE_URL` 指向服务器地址再跑。
+
 ## 2026-06-24
 
 ### 已审查结论

@@ -20,7 +20,8 @@
 ## 3. 后端验证
 
 - 运行 `node --check server.js`。
-- 运行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-api.ps1`。
+- 本地默认运行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-api-disposable.ps1`，避免污染人工测试库。
+- 只有需要验证当前已启动服务真实数据时，才设置 `SMOKE_USE_CURRENT_API=true` 运行 `scripts\preflight-check.ps1`。
 - 检查 `/api/health` 返回 JSON，且包含数据库、provider、mock/real、运行路径。
 - 如修改 `assets/home-carousel-inertia.js`，运行 `node --check assets/home-carousel-inertia.js`。
 - 如修改其他打包 JS，针对修改文件运行 `node --check`。
@@ -32,6 +33,7 @@
 - Console 不能出现新的关键错误。
 - 修改首页、模板、图库、画布、后台时，更新功能完成清单。
 - 视觉 1:1 无法自动确认时，明确标记为需要人工确认。
+- 需要后台逐页截图或画布 JSON 导入证据时，设置 `SMOKE_UI=true` 运行 `scripts\preflight-check.ps1`；默认预检跳过 UI smoke，避免每次都启动浏览器。
 
 ## 5. 部署验收
 
@@ -45,6 +47,7 @@ Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3456/api/health"
 ```
 
 - 容器重启后确认 SQLite 数据、uploads、logs 不丢。
+- 需要部署后视觉/画布增强验收时，设置 `SMOKE_UI=true` 运行 `scripts\verify-internal-deploy.ps1`；服务器无浏览器环境时，在本地设置 `SMOKE_BASE_URL=http://服务器IP:3456` 单独运行 UI smoke。
 
 ## 6. 文档同步
 

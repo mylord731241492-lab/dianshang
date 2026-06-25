@@ -45,6 +45,19 @@
 - 下一轮建议：继续补模板/图库/画布的人工可测清单，或开始后台复杂表单保存回显细节。
 - 需要人工介入：本地文件夹授权必须人工在浏览器点选；画布节点视觉和拖拽手感仍需人工确认。
 
+## 2026-06-25 统一预检与 UI smoke 护栏进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：把后台全页截图 smoke 和画布 JSON 导入 smoke 接入统一预检开关；`scripts\preflight-check.ps1` 新增 `SMOKE_UI=true` 可选 UI 验收，默认 API smoke 改为 disposable 一次性 SQLite，避免污染当前人工测试库；修复 PowerShell 父脚本不检查子脚本/native 命令退出码的问题，确保任一 smoke 失败时预检真实失败；部署验收脚本同步增加 native 退出码检查。
+- 修改文件：`scripts/preflight-check.ps1`、`scripts/verify-internal-deploy.ps1`、`scripts/smoke-admin-pages-ui.ps1`、`scripts/smoke-admin-pages-ui-runner.js`、`scripts/smoke-canvas-json-ui.ps1`、`scripts/smoke-canvas-json-ui-runner.js`、`docs/deployment.md`、`docs/iteration-review-checklist.md`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：PowerShell Parser 解析 `preflight/verify-internal-deploy/admin-pages-ui/canvas-json-ui`；`node --check scripts/smoke-admin-pages-ui-runner.js`；`node --check scripts/smoke-canvas-json-ui-runner.js`；设置 `SMOKE_UI=true` 执行 `scripts\preflight-check.ps1`；执行 `docker compose -f docker-compose.internal.yml ps`。
+- 验证结果：`SMOKE_UI=true` 统一预检通过，覆盖 Node 静态检查、disposable API smoke、前端路由 smoke、后台 10 页截图 smoke、画布 JSON 导入 smoke、health 和 git status；health 前后保持 `users: 22`、`projects: 3`、`redeem_codes: 10`，确认默认 preflight 不再污染当前库；Docker `ps` 因 Docker Desktop daemon 未运行失败，未声明容器状态已复核。
+- 当前完成度：测试护栏约 99%，部署护栏约 93%，后台约 99%，画布约 88%。
+- 新发现问题：旧版 `preflight-check.ps1` 调 PowerShell 子脚本时没有检查 `$LASTEXITCODE`，可能出现子脚本失败但父脚本继续打印通过；已修复。
+- 未完成清单：Docker Desktop/服务器容器状态复核、服务器 Nginx/HTTPS、真实 New-API 联通、本地文件夹授权保存人工测试。
+- 下一轮建议：继续做后台复杂表单保存回显人工点测，或在 Docker daemon 启动后运行 `scripts\verify-internal-deploy.ps1`。
+- 需要人工介入：启动 Docker Desktop 或在服务器执行 Docker 验收；提供真实 New-API token 后再做真实网关联通。
+
 ## 2026-06-24 本轮进度报告
 
 - 分支：`codex/backend-platform`

@@ -50,6 +50,6 @@ function Invoke-PlaywrightCli {
 Write-Host "Running canvas JSON UI smoke with Playwright session: $session"
 $openArgs = @("--yes", "--package", "@playwright/cli", "playwright-cli", "--session", $session, "open", "$baseUrl/canvas?canvas-json-smoke=open")
 Start-Process -FilePath "npx.cmd" -ArgumentList $openArgs -WorkingDirectory $root -WindowStyle Hidden | Out-Null
-Start-Sleep -Seconds 3
+Start-Sleep -Seconds 8
 Invoke-PlaywrightCli -Step "run-code" -Arguments @("--yes", "--package", "@playwright/cli", "playwright-cli", "--session", $session, "run-code", "--filename", $runnerScript)
 Write-Host "Canvas JSON UI smoke checks passed for $baseUrl"

@@ -47,6 +47,6 @@ function Invoke-PlaywrightCli {
 Write-Host "Running full admin page screenshots with Playwright session: $session"
 $openArgs = @("--yes", "--package", "@playwright/cli", "playwright-cli", "--session", $session, "open", "$baseUrl/admin/login?admin-pages-smoke=open")
 Start-Process -FilePath "npx.cmd" -ArgumentList $openArgs -WorkingDirectory $root -WindowStyle Hidden | Out-Null
-Start-Sleep -Seconds 3
+Start-Sleep -Seconds 8
 Invoke-PlaywrightCli -Step "run-code" -Arguments @("--yes", "--package", "@playwright/cli", "playwright-cli", "--session", $session, "run-code", "--filename", $runnerScript)
 Write-Host "Full admin page screenshots passed for $baseUrl"

@@ -1,5 +1,6 @@
 async page => {
-  const baseUrl = 'http://127.0.0.1:3456';
+  const originMatch = String(page.url()).match(/^(https?:\/\/[^/]+)/);
+  const baseUrl = originMatch ? originMatch[1] : 'http://127.0.0.1:3456';
   const screenshotDir = 'docs/design-references/admin-2026-06-25';
   const results = [];
 

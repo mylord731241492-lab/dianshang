@@ -21,6 +21,18 @@ function Invoke-Step {
   & $Script
 }
 
+function Invoke-NativeCommand {
+  param(
+    [Parameter(Mandatory=$true)][string]$FilePath,
+    [string[]]$Arguments = @()
+  )
+
+  & $FilePath @Arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "$FilePath failed with exit code $LASTEXITCODE"
+  }
+}
+
 function Wait-Health {
   param(
     [Parameter(Mandatory=$true)][string]$Url,
@@ -41,8 +53,8 @@ function Wait-Health {
 }
 
 Invoke-Step -Name "docker available" -Script {
-  docker --version
-  docker compose version
+  Invoke-NativeCommand -FilePath "docker" -Arguments @("--version")
+  Invoke-NativeCommand -FilePath "docker" -Arguments @("compose", "version")
 }
 
 Invoke-Step -Name "env file" -Script {
@@ -63,11 +75,11 @@ Invoke-Step -Name "env file" -Script {
 }
 
 Invoke-Step -Name "compose config" -Script {
-  docker compose -f $composeFile config
+  Invoke-NativeCommand -FilePath "docker" -Arguments @("compose", "-f", $composeFile, "config")
 }
 
 Invoke-Step -Name "compose up" -Script {
-  docker compose -f $composeFile up --build -d
+  Invoke-NativeCommand -FilePath "docker" -Arguments @("compose", "-f", $composeFile, "up", "--build", "-d")
 }
 
 Invoke-Step -Name "health" -Script {
@@ -78,7 +90,7 @@ Invoke-Step -Name "health" -Script {
 Invoke-Step -Name "API smoke" -Script {
   $env:SMOKE_BASE_URL = $baseUrl
   try {
-    powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\smoke-api.ps1"
+    Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-api.ps1")
   } finally {
     Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue
   }
@@ -87,7 +99,7 @@ Invoke-Step -Name "API smoke" -Script {
 Invoke-Step -Name "frontend route smoke" -Script {
   $env:SMOKE_BASE_URL = $baseUrl
   try {
-    powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\smoke-frontend-routes.ps1"
+    Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-frontend-routes.ps1")
   } finally {
     Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue
   }
@@ -97,7 +109,7 @@ if ($env:SMOKE_ALLOW_WRITES -eq "true") {
   Invoke-Step -Name "admin write smoke" -Script {
     $env:SMOKE_BASE_URL = $baseUrl
     try {
-      powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\smoke-admin-write.ps1"
+      Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-admin-write.ps1")
     } finally {
       Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue
     }
@@ -107,8 +119,31 @@ if ($env:SMOKE_ALLOW_WRITES -eq "true") {
   Write-Host "Skipped. Set SMOKE_ALLOW_WRITES=true only on a disposable test database."
 }
 
+if ($env:SMOKE_UI -eq "true") {
+  Invoke-Step -Name "admin pages UI smoke" -Script {
+    $env:SMOKE_BASE_URL = $baseUrl
+    try {
+      Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-admin-pages-ui.ps1")
+    } finally {
+      Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue
+    }
+  }
+
+  Invoke-Step -Name "canvas JSON UI smoke" -Script {
+    $env:SMOKE_BASE_URL = $baseUrl
+    try {
+      Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-canvas-json-ui.ps1")
+    } finally {
+      Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue
+    }
+  }
+} else {
+  Write-Host "== UI smoke =="
+  Write-Host "Skipped. Set SMOKE_UI=true to run Playwright admin screenshots and canvas JSON import checks."
+}
+
 Invoke-Step -Name "restart persistence smoke" -Script {
-  docker compose -f $composeFile restart app
+  Invoke-NativeCommand -FilePath "docker" -Arguments @("compose", "-f", $composeFile, "restart", "app")
   $health = Wait-Health -Url $baseUrl
   if ($health.database -ne "ok") {
     throw "Database unhealthy after restart"
@@ -117,7 +152,7 @@ Invoke-Step -Name "restart persistence smoke" -Script {
 }
 
 Invoke-Step -Name "compose ps" -Script {
-  docker compose -f $composeFile ps
+  Invoke-NativeCommand -FilePath "docker" -Arguments @("compose", "-f", $composeFile, "ps")
 }
 
 Write-Host "Internal deployment verification passed for $baseUrl"

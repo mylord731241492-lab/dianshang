@@ -395,3 +395,16 @@
 - 未完成清单：图库保存链接、多图和空状态；模板真实上传素材闭环；用户中心头像保存；后台弹窗和保存回显继续人工点测；Docker Desktop 打开后的容器复核。
 - 下一轮建议：继续审计图库 `保存链接` 和模板上传生成闭环；如果你想保留批量清空，也需要增加二次确认和后端批量删除接口。
 - 需要人工介入：人工点测图库保存链接和是否需要支持“清空”持久删除。
+
+## 2026-06-25 图库保存链接与头像保存复核进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：审计图库 `保存链接`、`保存全部链接` 和用户中心头像设置；补强图库桥接脚本，让单张保存复制当前图片链接，保存全部复制弹层内全部图片链接；验证用户中心随机头像按钮会调用后端头像接口并写回 profile。
+- 修改文件：`assets/gallery-persistence-bridge.js`、`docs/design-references/frontend-2026-06-25/gallery-save-link-audit-desktop-1440x900.png`、`docs/design-references/frontend-2026-06-25/gallery-save-link-fixed-desktop-1440x900.png`、`docs/design-references/frontend-2026-06-25/user-avatar-audit-desktop-1440x900.png`、`docs/design-references/frontend-2026-06-25/user-avatar-random-desktop-1440x900.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：浏览器登录后打开首页图库，点击单张 `保存链接` 并读取剪贴板；点击 `保存全部链接` 并读取剪贴板行数；打开 `/user/center` 点击随机头像，前后请求 `/api/user/profile` 对比 `avatarUrl`。
+- 验证结果：单张保存复制到图片 URL；保存全部复制 `3` 条图片链接；头像从 `/avatars/avatar-vip.svg` 写回为 `/avatars/avatar-2d.svg`；浏览器 console 无页面错误。
+- 当前完成度：图库约 88%，用户中心约 82%，前端人工验收约 86%，后端平台护栏约 80%。
+- 新发现问题：图库 `保存链接` 在 headless 浏览器复制到的是实际图片源，可能是本地 mock SVG 或外部 placeholder 链接，后续服务器部署时需确认图片 URL 可公网/内网访问；头像上传文件入口还未实测。
+- 未完成清单：图库空状态恢复；模板真实上传素材闭环；用户中心头像上传；兑换码成功/失败提示；后台弹窗和保存回显继续人工点测；Docker Desktop 打开后的容器复核。
+- 下一轮建议：继续模板真实上传生成闭环，随后补用户中心头像上传和兑换码提示手感。
+- 需要人工介入：人工确认复制出来的链接形式是否符合你的实际保存习惯；打开 Docker Desktop 后复核容器。

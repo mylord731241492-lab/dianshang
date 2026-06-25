@@ -4,9 +4,19 @@ $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = [System
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
+$baseUrl = $env:SMOKE_BASE_URL
+if (-not $baseUrl) {
+  $baseUrl = "http://127.0.0.1:3456"
+}
+
+$health = Invoke-RestMethod "$baseUrl/api/health"
+if (-not $health.success) {
+  throw "App health check failed for $baseUrl"
+}
+
 $session = $env:SMOKE_MOBILE_UI_SESSION
 if (-not $session) {
-  $session = "admin-ui-smoke"
+  $session = "mobile-ui-smoke-" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 }
 
 $screenshotDir = Join-Path $root "docs\design-references\mobile-2026-06-25"
@@ -41,5 +51,8 @@ function Invoke-PlaywrightCli {
 $runnerScript = Join-Path $PSScriptRoot "smoke-mobile-ui-runner.js"
 
 Write-Host "Running mobile UI screenshot smoke checks with Playwright session: $session"
+$openArgs = @("--yes", "--package", "@playwright/cli", "playwright-cli", "--session", $session, "open", "$baseUrl/?mobile-smoke=open")
+Start-Process -FilePath "npx.cmd" -ArgumentList $openArgs -WorkingDirectory $root -WindowStyle Hidden | Out-Null
+Start-Sleep -Seconds 6
 Invoke-PlaywrightCli -Step "run-code" -Arguments @("--yes", "--package", "@playwright/cli", "playwright-cli", "--session", $session, "run-code", "--filename", $runnerScript)
-Write-Host "Mobile UI screenshot smoke checks passed"
+Write-Host "Mobile UI screenshot smoke checks passed for $baseUrl"

@@ -811,3 +811,16 @@
 - 未完成清单：后台移动端表格体验还未专项优化；首页/画布移动端专项截图仍待补；New-API 真实 token 后续接入；服务器 Nginx/HTTPS 部署演练。
 - 下一轮建议：继续做后台每页人工视觉细调，重点看图标、按钮字距、表格密度和空状态；随后补首页/画布移动端截图。
 - 需要人工介入：人工确认四张 `save-echo-*.png` 的后台保存回显截图是否接受。
+
+## 2026-06-25 移动端主流程 UI Smoke 加固进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：加固 `scripts/smoke-mobile-ui.ps1` 与 runner，支持 `SMOKE_BASE_URL`，会自动打开 Playwright session，不再依赖已有浏览器状态；移动端 390x844 覆盖首页、模板、画布、用户兑换码、后台 Dashboard、后台 API 线路、后台模板工作流；新增横向溢出、首页标题拆字、画布 Vue Flow 节点、console error 和 4xx/5xx 响应检查；并把移动端 smoke 接入 `SMOKE_UI=true` 的预检和 Docker 部署验证链。
+- 修改文件：`scripts/smoke-mobile-ui.ps1`、`scripts/smoke-mobile-ui-runner.js`、`scripts/preflight-check.ps1`、`scripts/verify-internal-deploy.ps1`、`docs/design-references/mobile-2026-06-25/*-mobile-390x844.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `node --check scripts\smoke-mobile-ui-runner.js`、`scripts\smoke-mobile-ui.ps1`、`node --check server.js`、`node --check assets\home-carousel-inertia.js`、`scripts\smoke-frontend-routes.ps1`、`scripts\smoke-api.ps1`、`Invoke-RestMethod /api/health`、`docker compose -f docker-compose.internal.yml ps`、`git diff --check`、UTF-8 BOM 检查。
+- 验证结果：移动端 UI smoke 通过，7 个页面均无 404/500、无 console error、无 bad response；首页 `horizontalOverflow=0` 且标题未拆字；画布移动端 Vue Flow 存在且节点数为 2；Docker 容器 `dianshang-app` 为 healthy，映射 `3457->3456`；`git diff --check` 仅提示 PowerShell/JS 文件未来可能被 Git 转 CRLF，无空白错误。
+- 当前完成度：首页约 84%，模板约 95%，图库约 96%，用户中心约 94%，画布约 91%，后台约 99%，后端平台护栏约 85%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：移动端后台页面能打开且无横向溢出，但后台复杂表格在 390 宽下仍偏“能用优先”，不是最终移动端精修形态。
+- 未完成清单：后台移动端表格/弹窗体验还未专项卡片化；New-API 真实 token 后续接入；服务器 Nginx/HTTPS 部署演练。
+- 下一轮建议：继续后台逐页视觉细调，优先查看截图里的图标大小、按钮字距、表格密度和空状态。
+- 需要人工介入：人工查看 `docs/design-references/mobile-2026-06-25/` 的最新 390x844 截图，确认移动端主流程是否接受。

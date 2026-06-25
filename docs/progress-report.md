@@ -486,3 +486,16 @@
 - 未完成清单：Dashboard 右侧排行表宽度细化；后台移动端表格密度继续优化；Docker 容器状态复核；New-API 真实 token 后续接入。
 - 下一轮建议：细化后台 Dashboard 排行表和移动端表格密度，或打开 Docker Desktop 后先完成容器复核。
 - 需要人工介入：打开 Docker Desktop 后复核容器；人工确认移动端首页、模板、画布和后台表格观感是否接受。
+
+## 2026-06-25 后台截图复跑与表格视觉修复进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：确认 Codex 内置浏览器和 Playwright CLI 都可用于后台验收；重新跑通后台主交互截图、后台删除/恢复截图和移动端截图；修复后台 Dashboard 右侧用户消费排行表被全局表格宽度裁切的问题；优化移动端后台表格密度；修复后台删除/恢复 UI smoke 因列表刷新导致按钮 DOM 替换后点击不稳定的问题。
+- 修改文件：`assets/admin-visual-polish.css`、`scripts/smoke-admin-delete-ui-runner.js`、`docs/design-references/admin-2026-06-25/*.png`、`docs/design-references/mobile-2026-06-25/*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `scripts\smoke-admin-ui.ps1`、`scripts\smoke-admin-delete-ui.ps1`、`scripts\smoke-mobile-ui.ps1`；使用内置浏览器打开 `/admin/dashboard` 和 `/admin/api-providers` 抽查 DOM、按钮尺寸、表格宽度和 console error。
+- 验证结果：后台主截图通过，覆盖 Dashboard、系统设置保存、API 线路新增弹窗、兑换码创建弹窗、模板工作流保存；后台删除/恢复截图通过，覆盖删除确认、回收站行和恢复成功；移动端 7 页截图通过；内置浏览器抽查 API 线路页 console error 为 0；Dashboard 用户排行表已不再被右侧裁切。
+- 当前完成度：首页约 78%，模板约 92%，图库约 88%，用户中心约 88%，后台约 99%，后端平台护栏约 82%，测试护栏约 95%，部署护栏约 92%。
+- 新发现问题：移动端后台表格仍是横向表格形态，已经比之前可读，但如果追更高体验，后续可以单独做移动端卡片化；Playwright 脚本不能并行复用同一个 session，否则会互相抢页面，需要后续保持串行或使用不同 session。
+- 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；图库多图和空状态恢复；后台移动端是否卡片化待人工确认。
+- 下一轮建议：先让你人工看后台截图和移动端截图；如果视觉接受，继续补图库多图/空状态和 Docker 容器复核。
+- 需要人工介入：打开 Docker Desktop 后复核容器；人工确认后台移动端表格是否先接受横向滚动方案。

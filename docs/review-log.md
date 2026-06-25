@@ -673,3 +673,20 @@
 
 - 后台移动端表格信息密度仍偏高，API 线路页默认只露出前两列，需要后续看是否做移动端专门卡片化。
 - 画布移动端本地保存提示会占据顶部空间，这是当前本地画布策略带来的提示，不属于本轮错误。
+
+## 2026-06-25 后台截图复跑与 Dashboard 表格复核
+
+### 已确认
+
+- 已重新跑通 `scripts/smoke-admin-ui.ps1`，后台主截图覆盖 Dashboard、系统设置、API 线路弹窗、兑换码弹窗和模板工作流。
+- 已重新跑通 `scripts/smoke-admin-delete-ui.ps1`，后台删除确认、回收站行和恢复完成截图均已归档。
+- 已重新跑通 `scripts/smoke-mobile-ui.ps1`，移动端首页、模板、画布、用户兑换码、后台 Dashboard、API 线路、模板工作流均非空白。
+- 已用 Codex 内置浏览器打开 `/admin/dashboard` 和 `/admin/api-providers` 抽查，API 线路页 console error 为 0。
+- Dashboard 右侧用户消费排行表原先被全局 `min-width: 980px` 撑宽裁切，本轮已改为随容器收缩，截图中最后使用列不再被直接裁掉。
+- 删除/恢复 UI smoke 失败原因是表格刷新导致按钮 DOM 在点击前被替换，已改为按当前 DOM 行查找按钮并立即点击，复跑通过。
+
+### 需要继续验证
+
+- 移动端后台表格仍采用横向表格方案，已经更紧凑，但是否需要卡片化要等人工看图决定。
+- Playwright CLI 截图脚本不能并行复用同一个 session；后续自动化应串行执行，或显式拆不同 session。
+- Docker Desktop daemon 当前仍需人工打开后再复核容器状态。

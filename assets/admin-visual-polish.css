@@ -44,7 +44,9 @@ div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] [class*="rounded-3xl"][class
 div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] table {
   border-collapse: separate;
   border-spacing: 0;
-  min-width: 980px !important;
+  min-width: min(980px, 100%) !important;
+  table-layout: fixed;
+  width: 100%;
 }
 
 div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] thead tr {
@@ -74,6 +76,10 @@ div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td {
 
 div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td:last-child {
   max-width: none;
+  min-width: auto;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td:last-child:has(button) {
   min-width: 220px;
 }
 
@@ -133,7 +139,23 @@ div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] div[class*="flex"][class*="f
 }
 
 @media (max-width: 720px) {
+  div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] table {
+    min-width: 760px !important;
+    table-layout: auto;
+  }
+
+  div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] th {
+    padding: 9px 10px !important;
+    font-size: 11px !important;
+  }
+
   div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td {
-    max-width: 220px;
+    max-width: 180px;
+    padding: 11px 10px !important;
+    font-size: 12px;
+  }
+
+  div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] tbody tr {
+    height: 50px !important;
   }
 }

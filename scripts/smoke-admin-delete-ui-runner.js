@@ -69,11 +69,16 @@ async page => {
       fullPage: false
     });
 
-    const deleteButton = userRow.getByRole('button', { name: '删除' });
-    if (await deleteButton.count() !== 1) {
-      throw new Error('delete button missing for created user');
-    }
-    await deleteButton.click();
+    await page.evaluate((targetUsername) => {
+      const row = Array.from(document.querySelectorAll('tr')).find((item) => item.innerText.includes(targetUsername));
+      const button = row && Array.from(row.querySelectorAll('button')).find((item) => {
+        return item.title === '删除' || item.innerText.trim().includes('删除');
+      });
+      if (!button) {
+        throw new Error('delete button missing for created user');
+      }
+      button.click();
+    }, setup.username);
     await page.waitForTimeout(500);
 
     const deleteModal = page.getByText('确认删除用户', { exact: true });
@@ -111,11 +116,16 @@ async page => {
       fullPage: false
     });
 
-    const restoreButton = recycleRow.getByRole('button', { name: '恢复' });
-    if (await restoreButton.count() !== 1) {
-      throw new Error('restore button missing for deleted user');
-    }
-    await restoreButton.click();
+    await page.evaluate((targetUsername) => {
+      const row = Array.from(document.querySelectorAll('tr')).find((item) => item.innerText.includes(targetUsername));
+      const button = row && Array.from(row.querySelectorAll('button')).find((item) => {
+        return item.title === '恢复' || item.innerText.trim().includes('恢复');
+      });
+      if (!button) {
+        throw new Error('restore button missing for deleted user');
+      }
+      button.click();
+    }, setup.username);
     await page.waitForTimeout(1000);
     const recycleText = await page.locator('body').innerText();
     if (recycleText.includes(setup.username)) {

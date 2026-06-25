@@ -1233,7 +1233,24 @@ app.post('/api/admin/api-providers/:id/set-default', auth, admin, (req, res) => 
 });
 app.get('/api/admin/model-prices', auth, admin, (req, res) => {
   const rows = modelPriceRows();
-  res.json({ success: true, ...pageList(rows, req), models: rows, prices: rows });
+  const routes = filteredRoutes().map(route => ({
+    ...route,
+    models: rows.filter(row => row.routeId === route.id)
+  }));
+  const payload = pageList(routes, req);
+  res.json({
+    success: true,
+    ...payload,
+    routes,
+    providers: routes,
+    list: routes,
+    data: routes,
+    items: routes,
+    models: rows,
+    prices: rows,
+    rows,
+    totalModels: rows.length
+  });
 });
 app.post('/api/admin/routes/:id/models', auth, admin, (req, res) => {
   const route = findRouteByAnyId(req.params.id);

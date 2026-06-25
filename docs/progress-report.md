@@ -343,3 +343,16 @@
 - 未完成清单：Docker Desktop 当前需重新确认运行状态；后台保存类操作仍需你手动点测；前端首页、模板、图库、画布、用户中心还需要继续逐页人工反馈。
 - 下一轮建议：你从后台 10 页按按钮/弹窗/保存回显测试；我继续修真实点击中发现的问题，然后再转模板/图库闭环。
 - 需要人工介入：打开 Docker Desktop 后复核容器状态；人工点测后台保存、删除、弹窗关闭和前端主流程。
+
+## 2026-06-25 后台保存回显与模型价格筛选修复进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：使用临时端口和一次性 SQLite 数据库执行 `scripts/smoke-admin-write.ps1`，覆盖后台用户状态/余额/安全/重置/删除恢复、订单状态、兑换码、API 线路、模型价格、模板工作流、系统设置写入链路；修复 `/api/admin/model-prices` 返回结构，让前端筛选读取线路分组，模型行继续通过 `models/prices/rows` 返回；重新归档模型价格页截图。
+- 修改文件：`server.js`、`docs/design-references/admin-2026-06-25/model-prices-desktop-1440x900.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：临时服务 `http://127.0.0.1:4594` + `SMOKE_ALLOW_WRITES=true` 跑 `scripts/smoke-admin-write.ps1`；本机服务检查 `/api/admin/model-prices`；Edge 截图复核 `/admin/model-prices`；执行 `node --check server.js`、`node --check assets/home-carousel-inertia.js`、`scripts/smoke-frontend-routes.ps1`、`scripts/smoke-api.ps1`、`/api/health`、`docker compose ps`。
+- 验证结果：后台写入 smoke 通过且未污染当前 3456 数据库；`/api/admin/model-prices` 现在返回 `6` 条线路分组和 `37` 条模型行；模型价格页筛选按钮只剩 `全部模型、6789、comfly-google、comfly-openai-plus、RK、哈吉米、flowstudio`；固定 Node/前端路由/API/health 验证通过；Docker Desktop 未启动，`docker compose ps` 仍无法连接 daemon。
+- 当前完成度：后台约 94%，后端平台护栏约 76%，前端人工验收约 81%，部署护栏约 92%。
+- 新发现问题：常规 `scripts/smoke-api.ps1` 会在当前本地库留下测试用户、生成记录和兑换码；后续建议给它也增加一次性数据库运行模式，减少人工测试数据干扰。
+- 未完成清单：Docker Desktop 打开后的容器复核；后台弹窗/保存按钮人工点击；模板真实上传闭环、图库删除/保存、用户中心明细/头像。
+- 下一轮建议：优先把 `smoke-api` 改成可选临时库运行，随后继续模板/图库/用户中心人工闭环。
+- 需要人工介入：打开 Docker Desktop 后让我复核；人工点测后台和前端主流程。

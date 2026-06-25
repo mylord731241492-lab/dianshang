@@ -824,3 +824,16 @@
 - 未完成清单：后台移动端表格/弹窗体验还未专项卡片化；New-API 真实 token 后续接入；服务器 Nginx/HTTPS 部署演练。
 - 下一轮建议：继续后台逐页视觉细调，优先查看截图里的图标大小、按钮字距、表格密度和空状态。
 - 需要人工介入：人工查看 `docs/design-references/mobile-2026-06-25/` 的最新 390x844 截图，确认移动端主流程是否接受。
+
+## 2026-06-25 后台移动端按钮与宽表视觉微调进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：根据最新移动端后台截图，修复顶部操作按钮在 390 宽度下把“返回前台”拆成竖字的问题；后台移动端表格最小宽度从 760px 调整为 820px，并把 sticky 操作列从 226px 收窄到 188px，减少 API 线路等宽表右侧按钮对内容区的压迫。只改后台移动端 CSS，不改页面结构，不影响首页、模板、画布卡片。
+- 修改文件：`assets/admin-visual-polish.css`、`docs/design-references/mobile-2026-06-25/admin-*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `scripts\smoke-mobile-ui.ps1`、`node --check scripts\smoke-mobile-ui-runner.js`、`node --check server.js`、`node --check assets\home-carousel-inertia.js`、`scripts\smoke-frontend-routes.ps1`、`scripts\smoke-api.ps1`、`Invoke-RestMethod /api/health`、`docker compose -f docker-compose.internal.yml ps`、`git diff --check`、UTF-8 BOM 检查；并人工查看 `admin-dashboard-mobile-390x844.png`、`admin-api-providers-mobile-390x844.png`、`admin-template-workflows-mobile-390x844.png`。
+- 验证结果：移动端 smoke 通过，7 个页面均无 404/500、无 console error、无 bad response；后台顶部“刷新 / 返回前台 / 退出”在移动端横向显示；API 线路移动端操作列更紧凑；Docker 容器 `dianshang-app` 仍为 healthy。
+- 当前完成度：首页约 84%，模板约 95%，图库约 96%，用户中心约 94%，画布约 91%，后台约 99%，后端平台护栏约 85%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：后台移动端宽表仍是横向滚动策略，不是最终手机端卡片化设计；现阶段符合“内网人工可测”。
+- 未完成清单：New-API 真实 token 后续接入；服务器 Nginx/HTTPS 部署演练；后台移动端如要正式给手机高频使用，后续再做卡片化。
+- 下一轮建议：继续后台桌面 10 页逐页视觉细调，或进入 New-API mock/real 切换文档和测试护栏。
+- 需要人工介入：人工确认三张后台移动端截图是否接受。

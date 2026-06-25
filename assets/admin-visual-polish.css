@@ -224,8 +224,21 @@ div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] div[class*="flex"][class*="f
 }
 
 @media (max-width: 720px) {
+  div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] button {
+    white-space: nowrap !important;
+    word-break: keep-all !important;
+  }
+
+  div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] header button,
+  div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] main > div:first-child button {
+    min-width: 48px;
+    padding-left: 11px !important;
+    padding-right: 11px !important;
+    line-height: 1.15 !important;
+  }
+
   div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] table {
-    min-width: 760px !important;
+    min-width: 820px !important;
     table-layout: auto;
   }
 
@@ -242,5 +255,22 @@ div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] div[class*="flex"][class*="f
 
   div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] tbody tr {
     height: 50px !important;
+  }
+
+  div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td:last-child:has(button) {
+    min-width: 188px;
+    width: 188px;
+  }
+
+  div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td:last-child div[class*="flex"][class*="flex-wrap"] {
+    max-width: 188px;
+    gap: 4px !important;
+  }
+
+  div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] table button {
+    min-width: 50px;
+    padding-left: 7px !important;
+    padding-right: 7px !important;
+    font-size: 10.5px !important;
   }
 }

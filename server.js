@@ -120,6 +120,13 @@ function auth(req, res, next) {
   try { req.user = jwt.verify(a.split(' ')[1], JWT_SECRET); next(); }
   catch (e) { res.status(401).json({ success: false, code: 'AUTH_INVALID', message: 'Token 无效或已过期' }); }
 }
+function optionalAuth(req, res, next) {
+  const a = req.headers.authorization;
+  if (!a || !a.startsWith('Bearer ')) return next();
+  try { req.user = jwt.verify(a.split(' ')[1], JWT_SECRET); }
+  catch (e) { req.user = null; }
+  next();
+}
 function admin(req, res, next) {
   if (req.user.role !== 'admin') return res.status(403).json({ success: false, code: 'ADMIN_REQUIRED', message: '需要管理员权限' });
   next();
@@ -538,16 +545,24 @@ app.use('/uploads', express.static(uploadDir));
 // ===================== AI GENERATION =====================
 const fetch = (...args) => import('node-fetch').then(({default:f})=>f(...args));
 
-app.post('/api/generation/estimate-cost', auth, (req, res) => {
-  const modelKey = req.body.modelKey || req.body.model || req.body.realName || req.body.realModelName || req.body.imageModelKey || '';
-  const imageCount = req.body.imageCount || req.body.count || req.body.n || 1;
-  if (!modelKey) return res.status(400).json({ message: '请选择模型' });
+app.post('/api/generation/estimate-cost', optionalAuth, (req, res) => {
+  const modelKey = req.body.modelKey || req.body.model || req.body.realName || req.body.realModelName || req.body.imageModelKey || IMG[0].k;
+  const imageCount = Number(req.body.imageCount || req.body.count || req.body.n || 1) || 1;
   const all = [...IMG, ...TXT];
   const m = all.find(x=>x.k===modelKey) || all.find(x=>modelKey.startsWith(x.k)) || IMG[0];
   const cost = m ? m.p : 15;
   const cnt = imageCount || 1;
-  const u = db.prepare('SELECT balance FROM users WHERE id=?').get(req.user.userId);
-  res.json({ estimatedCost: cost, totalCost: cost*cnt, credits: cost*cnt, costPoints: cost*cnt, available: u.balance });
+  const u = req.user?.userId ? db.prepare('SELECT balance FROM users WHERE id=?').get(req.user.userId) : null;
+  const totalCost = cost * cnt;
+  res.json({
+    success: true,
+    estimatedCost: cost,
+    totalCost,
+    credits: totalCost,
+    costPoints: totalCost,
+    available: u ? u.balance : 999999,
+    mock: !req.user
+  });
 });
 
 app.get('/api/mock-image/:id.svg', (req, res) => {

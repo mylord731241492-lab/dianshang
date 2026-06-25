@@ -759,3 +759,16 @@
 - 未完成清单：真实服务器 Nginx/HTTPS 部署演练；New-API 真实 token 后续接入；公网或公司内网多机访问需要按实际 IP/防火墙再测。
 - 下一轮建议：在当前容器 `http://127.0.0.1:3457/` 上做一次人工浏览；之后继续首页/画布主流程审查。
 - 需要人工介入：人工确认是否保留本机 Node 3456 + Docker 3457 的双运行方式。
+
+## 2026-06-25 后台主按钮清新绿色回调进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：按人工反馈把后台主按钮从偏亮、偏糖果感的薄荷绿回调为前台同系的清新 emerald 绿白搭配；只调整按钮颜色、边框和轻阴影，不改卡片结构、圆角、高度和后台布局。同时保留未登录成本预估接口的 mock 回落修复，避免首页未登录时 `/api/generation/estimate-cost` 返回 401。
+- 修改文件：`assets/admin-visual-polish.css`、`server.js`、`scripts/smoke-api.ps1`、`docs/design-references/admin-2026-06-25/admin-ui-smoke-*.png`、`docs/design-references/admin-2026-06-25/settings-save-button-fresh-green-desktop-1440x900.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：Playwright 跑 `scripts\smoke-admin-ui.ps1`；单独读取 `/admin/settings` 的 `保存设置` 按钮 computed style 并截图；执行 `node --check server.js`、`node --check assets\home-carousel-inertia.js`。
+- 验证结果：后台 UI smoke 通过；`保存设置` 背景为 `rgb(16, 185, 129)`，文字为 `rgb(255, 255, 255)`，边框为 `rgba(16, 185, 129, 0.9)`，阴影为轻量 `rgba(16, 185, 129, 0.18)`；截图 `settings-save-button-fresh-green-desktop-1440x900.png` 已归档。
+- 当前完成度：首页约 79%，模板约 94%，图库约 96%，用户中心约 93%，后台约 99%，后端平台护栏约 83%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：当前只是按钮颜色统一，后台每页标题、图标、按钮字距、排版仍需要继续逐页截图复核。
+- 未完成清单：首页/画布主流程继续复核；后台复杂表单保存后刷新回显继续人工确认；New-API 真实 token 后续接入；服务器 Nginx/HTTPS 部署演练。
+- 下一轮建议：继续按后台 10 页截图逐页看标题、图标、按钮和表格密度，优先修肉眼明显问题。
+- 需要人工介入：人工确认新的绿色白字按钮是否比截图里的浅薄荷按钮舒服。

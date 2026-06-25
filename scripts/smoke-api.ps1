@@ -183,6 +183,14 @@ if (-not $firstReversePrompt.text -or -not $firstReversePrompt.prompt -or -not $
   throw "Template reverse prompt item shape incompatible"
 }
 
+$publicEstimate = Invoke-SmokeJson -Method "POST" -Path "/api/generation/estimate-cost" -Body @{
+  model = "gpt-image-2"
+  imageCount = 2
+}
+if (-not $publicEstimate.success -or $publicEstimate.totalCost -le 0 -or -not $publicEstimate.mock) {
+  throw "Public generation estimate cost failed"
+}
+
 $templateGenerate = Invoke-SmokeJson -Method "POST" -Path "/api/template/generate-image" -Headers $userHeaders -Body @{
   templateType = "main-image"
   selectedPrompt = "smoke ecommerce hero image, white thermos bottle, clean premium studio lighting"

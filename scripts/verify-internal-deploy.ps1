@@ -5,11 +5,14 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 $composeFile = "docker-compose.internal.yml"
-$port = $env:PORT
-if (-not $port) {
-  $port = "3456"
+$hostPort = $env:HOST_PORT
+if (-not $hostPort) {
+  $hostPort = $env:PORT
 }
-$baseUrl = "http://127.0.0.1:$port"
+if (-not $hostPort) {
+  $hostPort = "3456"
+}
+$baseUrl = "http://127.0.0.1:$hostPort"
 
 function Invoke-Step {
   param(
@@ -130,6 +133,24 @@ if ($env:SMOKE_UI -eq "true") {
     }
   }
 
+  Invoke-Step -Name "template UI smoke" -Script {
+    $env:SMOKE_BASE_URL = $baseUrl
+    try {
+      Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-template-ui.ps1")
+    } finally {
+      Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue
+    }
+  }
+
+  Invoke-Step -Name "gallery UI smoke" -Script {
+    $env:SMOKE_BASE_URL = $baseUrl
+    try {
+      Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-gallery-ui.ps1")
+    } finally {
+      Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue
+    }
+  }
+
   Invoke-Step -Name "canvas JSON UI smoke" -Script {
     $env:SMOKE_BASE_URL = $baseUrl
     try {
@@ -149,7 +170,7 @@ if ($env:SMOKE_UI -eq "true") {
   }
 } else {
   Write-Host "== UI smoke =="
-  Write-Host "Skipped. Set SMOKE_UI=true to run Playwright admin screenshots, canvas JSON import, and user center layout checks."
+  Write-Host "Skipped. Set SMOKE_UI=true to run Playwright admin, template, gallery, canvas, and user center checks."
 }
 
 Invoke-Step -Name "restart persistence smoke" -Script {

@@ -82,6 +82,14 @@ if ($env:SMOKE_UI -eq "true") {
     Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-admin-pages-ui.ps1")
   }
 
+  Invoke-Step -Name "template UI smoke" -Script {
+    Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-template-ui.ps1")
+  }
+
+  Invoke-Step -Name "gallery UI smoke" -Script {
+    Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-gallery-ui.ps1")
+  }
+
   Invoke-Step -Name "canvas JSON UI smoke" -Script {
     Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-canvas-json-ui.ps1")
   }
@@ -91,7 +99,7 @@ if ($env:SMOKE_UI -eq "true") {
   }
 } else {
   Write-Host "== UI smoke =="
-  Write-Host "Skipped. Set SMOKE_UI=true to run Playwright admin screenshots, canvas JSON import, and user center layout checks."
+  Write-Host "Skipped. Set SMOKE_UI=true to run Playwright admin, template, gallery, canvas, and user center checks."
 }
 
 Invoke-Step -Name "health check" -Script {

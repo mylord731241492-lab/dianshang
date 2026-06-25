@@ -29,7 +29,7 @@ services:
       AI_IMAGE_MODEL: ${AI_IMAGE_MODEL:-gpt-image-2}
       AI_TEXT_MODEL: ${AI_TEXT_MODEL:-gpt-5.5}
     ports:
-      - "${PORT:-3456}:3456"
+      - "${HOST_PORT:-3456}:${PORT:-3456}"
     volumes:
       - dianshang-data:/app/data
       - dianshang-uploads:/app/uploads

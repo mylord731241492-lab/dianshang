@@ -1008,3 +1008,34 @@
 
 - 删除确认和回收站恢复已经可测；后续仍需人工确认交互文案和按钮危险色是否符合预期。
 - Docker 容器状态仍依赖 Docker Desktop Engine，当前不能把部署验证标为完成。
+
+## 2026-06-25 模板/图库主流程 UI 复核
+
+### 已确认
+
+- 新增 `scripts/smoke-template-ui.ps1` 和 `scripts/smoke-template-ui-runner.js`。
+- 模板 UI smoke 已覆盖：选中“一键主图反推复刻”、上传参考设计图、上传产品素材图、反推提示词、生成 mock 图片、确认生成记录写入 `/api/user/generations`。
+- 模板流程截图已归档：`template-main-image-selected-desktop-1440x900.png`、`template-uploaded-desktop-1440x900.png`、`template-reverse-prompts-desktop-1440x900.png`、`template-generate-result-desktop-1440x900.png`。
+- 图库 UI smoke 已重跑通过，覆盖桌面 2 张生成历史、保存全部链接复制 2 行、移动端 2 张生成历史、删除后桌面/移动端空状态。
+- `preflight-check.ps1` 的 `SMOKE_UI=true` 分支已加入模板 UI smoke 和图库 UI smoke，后续一轮 UI 预检会覆盖这两条主流程。
+
+### 需要继续验证
+
+- 模板页真实 New-API 接入后，提示词结构和生成结果耗时需要重新校准。
+- 当前模板 UI smoke 使用 `logo.png` 作为测试素材，适合验证链路，不代表真实商品图视觉质量。
+- 你需要人工看模板上传/反推/生成截图，确认布局和手感是否接受。
+
+## 2026-06-25 Docker HOST_PORT 部署复核
+
+### 已确认
+
+- Docker Desktop Engine 已可用，`docker info` 正常返回 Server 信息。
+- 默认 `3456` 端口被本地 Node 服务占用时，Docker 直接启动会报端口绑定失败。
+- 已新增 `HOST_PORT`：宿主机端口可设为 `3457`，容器内部仍保持 `PORT=3456`。
+- 使用 `HOST_PORT=3457` 完整执行 `scripts\verify-internal-deploy.ps1` 通过：compose config、build、up、health、API smoke、前端路由 smoke、restart persistence smoke、compose ps。
+- 最终容器状态为 healthy，映射 `0.0.0.0:3457->3456/tcp`。
+
+### 需要继续验证
+
+- 服务器部署时建议只使用一个正式端口，避免 Node 本地服务和 Docker 同时抢端口。
+- 公司内网访问需要按实际服务器 IP、防火墙入站规则和路由策略再测。

@@ -62,6 +62,17 @@ Docker 默认使用 `node:20-bookworm`。项目依赖 `better-sqlite3`，在 `no
 - 后台：`http://服务器IP:3456/admin/login`
 - 健康检查：`http://服务器IP:3456/api/health`
 
+如果本机 `3456` 已经被 `npm start` 或本地 Node 服务占用，可以只改宿主机端口，不改容器内部端口：
+
+```powershell
+$env:HOST_PORT = "3457"
+docker compose -f docker-compose.internal.yml up --build -d
+Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3457/api/health"
+Remove-Item Env:\HOST_PORT -ErrorAction SilentlyContinue
+```
+
+此时容器内部仍监听 `3456`，宿主机访问 `3457`。
+
 持久化数据：
 
 - `dianshang-data`：SQLite 数据库，容器内路径 `/app/data/data.db`
@@ -166,7 +177,8 @@ Remove-Item Env:\SMOKE_PERSISTENCE -ErrorAction SilentlyContinue
 
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
-| `PORT` | `3456` | 本地服务端口 |
+| `PORT` | `3456` | Node 应用监听端口；Docker 容器内默认也是 `3456` |
+| `HOST_PORT` | `3456` | Docker 宿主机映射端口；本机已有 Node 占用 `3456` 时可设为 `3457` |
 | `JWT_SECRET` | 本地开发默认值 | 生产环境必须改成长随机值 |
 | `DATA_DIR` | `.` | 运行数据目录，Docker 中为 `/app/data` |
 | `DB_PATH` | `./data.db` | SQLite 数据库路径，Docker 中为 `/app/data/data.db` |

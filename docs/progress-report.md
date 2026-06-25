@@ -733,3 +733,29 @@
 - 未完成清单：复杂后台表单保存后刷新回显继续人工复核；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
 - 下一轮建议：继续复核前端模板/图库主流程，或在 Docker Desktop 可用后执行完整内网容器验证。
 - 需要人工介入：启动 Docker Desktop 后再跑完整容器验证；人工确认回收站删除/恢复体验是否接受。
+
+## 2026-06-25 模板/图库主流程 UI 复核进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：继续推进“前端和后端都达到人工可测”。新增 `scripts/smoke-template-ui.ps1` 和 `scripts/smoke-template-ui-runner.js`，覆盖模板页选中“一键主图反推复刻”、上传参考图/产品图、反推 3 条提示词、生成 1 张 mock 结果并确认写入生成历史；同时重跑图库 UI smoke，覆盖桌面图库 2 张、多图复制、移动端多图、删除后空状态。
+- 修改文件：`scripts/smoke-template-ui.ps1`、`scripts/smoke-template-ui-runner.js`、`scripts/preflight-check.ps1`、`docs/design-references/frontend-2026-06-25/template-*.png`、`docs/design-references/frontend-2026-06-25/gallery-*.png`、`docs/design-references/mobile-2026-06-25/gallery-*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `scripts\smoke-template-ui.ps1` 和 `scripts\smoke-gallery-ui.ps1`；模板脚本第一次因断言文案过死误报，页面实际已显示 `3 条` 提示词，随后修正为识别 `提示词选择 / 3 条 / 查看提示词` 并重跑通过。
+- 验证结果：模板 UI smoke 通过，返回 `ok=true`、`imageCount=3`、`generationCount=1`；图库 UI smoke 通过，返回 `ok=true`、`generated=2`、`copiedLinks=2`；`SMOKE_UI=true` 的预检分支已接入模板和图库 UI smoke。
+- 当前完成度：首页约 79%，模板约 94%，图库约 96%，用户中心约 93%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：模板 UI smoke 依赖当前 mock 反推文案包含 `3 条`；后续接 New-API 后需要重新校准真实模型返回的提示词结构。
+- 未完成清单：真实服务器 Nginx/HTTPS 部署演练；New-API 真实 token 后续接入；模板真实外部生图接入后的再验收。
+- 下一轮建议：继续复核首页/画布主流程，或在当前 Docker `http://127.0.0.1:3457/` 上做人工浏览。
+- 需要人工介入：人工确认模板上传/反推/生成截图是否接受；确认本机是否保留 Node 3456 + Docker 3457 双运行方式。
+
+## 2026-06-25 Docker 内网验证与端口护栏进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：Docker Desktop Engine 已可用；首次直接跑 `3456` 失败，原因是本地 Node 服务占用端口。本轮把 Docker Compose 增加 `HOST_PORT` 宿主机端口映射，保持容器内部 `PORT=3456` 不变；使用 `HOST_PORT=3457` 完整跑通内网部署验证。
+- 修改文件：`docker-compose.internal.yml`、`.env.example`、`scripts/verify-internal-deploy.ps1`、`docs/deployment.md`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `$env:HOST_PORT='3457'; powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-internal-deploy.ps1`，随后执行 `docker compose -f docker-compose.internal.yml ps`。
+- 验证结果：Docker 29.5.3、Compose v5.1.4 可用；镜像 build 成功；容器 `dianshang-app` 通过 `http://127.0.0.1:3457/api/health`；容器内 API smoke 和前端路由 smoke 通过；容器 restart 后数据库仍为 `ok`；最终容器状态为 `Up ... (healthy)`，端口映射 `0.0.0.0:3457->3456/tcp`。
+- 当前完成度：首页约 79%，模板约 94%，图库约 96%，用户中心约 93%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：本机如果同时跑 Node 和 Docker，默认 `3456` 会冲突；已通过 `HOST_PORT` 解决。
+- 未完成清单：真实服务器 Nginx/HTTPS 部署演练；New-API 真实 token 后续接入；公网或公司内网多机访问需要按实际 IP/防火墙再测。
+- 下一轮建议：在当前容器 `http://127.0.0.1:3457/` 上做一次人工浏览；之后继续首页/画布主流程审查。
+- 需要人工介入：人工确认是否保留本机 Node 3456 + Docker 3457 的双运行方式。

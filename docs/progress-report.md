@@ -499,3 +499,16 @@
 - 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；图库多图和空状态恢复；后台移动端是否卡片化待人工确认。
 - 下一轮建议：先让你人工看后台截图和移动端截图；如果视觉接受，继续补图库多图/空状态和 Docker 容器复核。
 - 需要人工介入：打开 Docker Desktop 后复核容器；人工确认后台移动端表格是否先接受横向滚动方案。
+
+## 2026-06-25 图库多图与空状态 Smoke 进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：新增图库 UI smoke，自动注册临时用户、生成 2 张 mock 图片、打开首页图库、验证多图展示、验证 `保存全部链接` 写入 2 条链接、删除后重新打开图库验证 `共 0 张` 空状态；修复图库历史模块登录态下只追加后端记录、不清理本地旧生成记录的问题，避免后端删除后刷新仍复活旧图。
+- 修改文件：`assets/imageHistory-CG2zEefe.js`、`assets/imageHistory-s5iwPTNE.js`、`scripts/smoke-gallery-ui.ps1`、`scripts/smoke-gallery-ui-runner.js`、`docs/design-references/frontend-2026-06-25/gallery-multi-state-desktop-1440x900.png`、`docs/design-references/frontend-2026-06-25/gallery-empty-state-desktop-1440x900.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `scripts\smoke-gallery-ui.ps1`；人工查看 `gallery-multi-state-desktop-1440x900.png` 和 `gallery-empty-state-desktop-1440x900.png`；执行相关 JS 语法检查。
+- 验证结果：图库弹窗多图状态显示 `共 2 张`，两张图片卡片可见；`保存全部链接` 捕获到 2 条链接；删除后 API 记录为 0，重新打开图库显示 `共 0 张` 和 `还没有图片生成历史`；临时用户在 smoke 结束后清理。
+- 当前完成度：首页约 78%，模板约 92%，图库约 92%，用户中心约 88%，后台约 99%，后端平台护栏约 82%，测试护栏约 96%，部署护栏约 92%。
+- 新发现问题：图库空状态弹窗宽度和按钮仍沿用原站弹窗结构，功能可测；如果后续要追更细视觉，可再统一空状态图标和按钮禁用态。
+- 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；移动端图库多图/空状态可后续补截图；后台移动端表格是否卡片化待人工确认。
+- 下一轮建议：继续补移动端图库 smoke，或打开 Docker Desktop 后先完成容器复核。
+- 需要人工介入：打开 Docker Desktop 后复核容器；人工确认图库空状态视觉是否先接受。

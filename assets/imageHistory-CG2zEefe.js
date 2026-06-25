@@ -1,128 +1,140 @@
-import{r as g}from"./index-DglIsp_g.js";
+import { r as ref } from "./index-DglIsp_g.js";
 
-const d="ai-canvas-image-history";
-const i=200;
-const l=g([]);
+const STORAGE_KEY = "ai-canvas-image-history";
+const MAX_ITEMS = 200;
+const imageHistory = ref([]);
 
-const o=(a="")=>{
-  const s=String(a||"").trim();
-  return s.startsWith("data:image/png;base64,/uploads/")?s.slice(22):s;
+const normalizeUrl = (value = "") => {
+  const url = String(value || "").trim();
+  return url.startsWith("data:image/png;base64,/uploads/") ? url.slice(22) : url;
 };
 
-const c=a=>{
-  const s=o(a);
-  return!!(s&&!s.startsWith("data:")&&!s.startsWith("blob:"));
+const canPersistUrl = (value = "") => {
+  const url = normalizeUrl(value);
+  return !!(url && !url.startsWith("data:") && !url.startsWith("blob:"));
 };
 
-const n=()=>{
-  var a;
-  try{
-    const s=l.value.map(r=>({
-      ...r,
-      url:c(r.url)?o(r.url):"",
-      assetId:r.assetId||"",
-      localFileName:r.localFileName||"",
-      assetKind:r.assetKind||"",
-      width:r.width||0,
-      height:r.height||0,
-      requestedSize:r.requestedSize||""
+const isLocalOnlyHistoryItem = (item = {}) => {
+  if (item.assetId || item.localFileName) return true;
+  if (item.assetKind && item.assetKind !== "generated") return true;
+  return false;
+};
+
+const saveImageHistory = () => {
+  try {
+    const rows = imageHistory.value.map((item) => ({
+      ...item,
+      url: canPersistUrl(item.url) ? normalizeUrl(item.url) : "",
+      assetId: item.assetId || "",
+      localFileName: item.localFileName || "",
+      assetKind: item.assetKind || "",
+      width: item.width || 0,
+      height: item.height || 0,
+      requestedSize: item.requestedSize || ""
     }));
-    localStorage.setItem(d,JSON.stringify(s));
-  }catch(s){
-    console.error("Failed to save image history:",s);
-    (a=window.$message)==null||a.warning("图片历史保存失败，可能是浏览器存储空间不足");
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+  } catch (error) {
+    console.error("Failed to save image history:", error);
+    window.$message?.warning("图片历史保存失败，可能是浏览器存储空间不足");
   }
 };
 
-const b=a=>({
-  id:a.id||`server_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
-  url:o(a.url||a.imageUrl||a.resultUrl||a.result_url||""),
-  assetId:a.assetId||"",
-  localFileName:a.localFileName||"",
-  assetKind:a.assetKind||"generated",
-  label:a.label||"生成图片",
-  prompt:a.prompt||"",
-  model:a.model||a.modelKey||a.model_key||"",
-  size:a.size||a.requestedSize||"",
-  requestedSize:a.requestedSize||a.size||"",
-  width:Number(a.width||0)||0,
-  height:Number(a.height||0)||0,
-  quality:a.quality||"",
-  clarity:a.clarity||"",
-  nodeId:a.nodeId||"",
-  createdAt:a.createdAt||a.created_at||new Date().toISOString()
+const normalizeServerHistoryItem = (item = {}) => ({
+  id: item.id || `server_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+  url: normalizeUrl(item.url || item.imageUrl || item.resultUrl || item.result_url || ""),
+  assetId: item.assetId || "",
+  localFileName: item.localFileName || "",
+  assetKind: "generated",
+  label: item.label || "生成图片",
+  prompt: item.prompt || "",
+  model: item.model || item.modelKey || item.model_key || "",
+  size: item.size || item.requestedSize || "",
+  requestedSize: item.requestedSize || item.size || "",
+  width: Number(item.width || 0) || 0,
+  height: Number(item.height || 0) || 0,
+  quality: item.quality || "",
+  clarity: item.clarity || "",
+  nodeId: item.nodeId || "",
+  serverSynced: true,
+  createdAt: item.createdAt || item.created_at || new Date().toISOString()
 });
 
-const v=async()=>{
-  try{
-    const t=localStorage.getItem("auth_token");
-    if(!t)return;
-    const s=await fetch("/api/user/generations",{headers:{Authorization:`Bearer ${t}`}});
-    if(!s.ok)return;
-    const r=await s.json();
-    const e=Array.isArray(r.items)?r.items:Array.isArray(r.data)?r.data:[];
-    if(!e.length)return;
-    const u=new Set(l.value.map(t=>t.assetId||t.localFileName||t.url).filter(Boolean));
-    const h=e.map(b).filter(t=>(t.url||t.assetId||t.localFileName)&&!u.has(t.assetId||t.localFileName||t.url));
-    if(h.length){
-      l.value=[...h,...l.value].slice(0,i);
-      n();
-    }
-  }catch(a){
-    console.warn("Failed to sync server image history:",a);
+const syncServerImageHistory = async () => {
+  try {
+    const token = localStorage.getItem("auth_token");
+    if (!token) return;
+
+    const response = await fetch("/api/user/generations", {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) return;
+
+    const payload = await response.json();
+    const rows = Array.isArray(payload.items) ? payload.items : Array.isArray(payload.data) ? payload.data : [];
+    const serverItems = rows
+      .map(normalizeServerHistoryItem)
+      .filter((item) => item.url || item.assetId || item.localFileName);
+    const localOnly = imageHistory.value.filter(isLocalOnlyHistoryItem);
+
+    imageHistory.value = [...serverItems, ...localOnly].slice(0, MAX_ITEMS);
+    saveImageHistory();
+  } catch (error) {
+    console.warn("Failed to sync server image history:", error);
   }
 };
 
-const y=()=>{
-  try{
-    const a=localStorage.getItem(d);
-    if(a){
-      const s=JSON.parse(a);
-      l.value=Array.isArray(s)?s.map(r=>({...r,url:o(r==null?void 0:r.url)})).filter(r=>(r==null?void 0:r.url)||(r==null?void 0:r.assetId)||(r==null?void 0:r.localFileName)):[];
+const initImageHistory = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const rows = JSON.parse(stored);
+      imageHistory.value = Array.isArray(rows)
+        ? rows.map((item) => ({ ...item, url: normalizeUrl(item?.url) })).filter((item) => item?.url || item?.assetId || item?.localFileName)
+        : [];
     }
-  }catch(a){
-    console.error("Failed to load image history:",a);
-    l.value=[];
+  } catch (error) {
+    console.error("Failed to load image history:", error);
+    imageHistory.value = [];
   }
-  v();
+  syncServerImageHistory();
 };
 
-const I=a=>{
-  if(!(a!=null&&a.url)&&!(a!=null&&a.assetId)&&!(a!=null&&a.localFileName))return null;
-  const s=o(a.url);
-  const r=(a.assetId||a.localFileName)&&!c(s)?"":s;
-  const e={
-    id:`history_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
-    url:r,
-    assetId:a.assetId||"",
-    localFileName:a.localFileName||"",
-    assetKind:a.assetKind||"",
-    label:a.label||"生成图片",
-    prompt:a.prompt||"",
-    model:a.model||"",
-    size:a.size||"",
-    requestedSize:a.requestedSize||a.size||"",
-    width:Number(a.width||a.assetWidth||0)||0,
-    height:Number(a.height||a.assetHeight||0)||0,
-    quality:a.quality||"",
-    clarity:a.clarity||"",
-    nodeId:a.nodeId||"",
-    createdAt:a.createdAt||new Date().toISOString()
+const addImageHistory = (item) => {
+  if (!item?.url && !item?.assetId && !item?.localFileName) return null;
+  const url = normalizeUrl(item.url);
+  const safeUrl = (item.assetId || item.localFileName) && !canPersistUrl(url) ? "" : url;
+  const row = {
+    id: `history_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    url: safeUrl,
+    assetId: item.assetId || "",
+    localFileName: item.localFileName || "",
+    assetKind: item.assetKind || "",
+    label: item.label || "生成图片",
+    prompt: item.prompt || "",
+    model: item.model || "",
+    size: item.size || "",
+    requestedSize: item.requestedSize || item.size || "",
+    width: Number(item.width || item.assetWidth || 0) || 0,
+    height: Number(item.height || item.assetHeight || 0) || 0,
+    quality: item.quality || "",
+    clarity: item.clarity || "",
+    nodeId: item.nodeId || "",
+    createdAt: item.createdAt || new Date().toISOString()
   };
-  const u=e.assetId||e.localFileName||e.url;
-  l.value=[e,...l.value.filter(t=>(t.assetId||t.localFileName||t.url)!==u)].slice(0,i);
-  n();
-  return e;
+  const key = row.assetId || row.localFileName || row.url;
+  imageHistory.value = [row, ...imageHistory.value.filter((existing) => (existing.assetId || existing.localFileName || existing.url) !== key)].slice(0, MAX_ITEMS);
+  saveImageHistory();
+  return row;
 };
 
-const p=a=>{
-  l.value=l.value.filter(s=>s.id!==a);
-  n();
+const removeImageHistory = (id) => {
+  imageHistory.value = imageHistory.value.filter((item) => item.id !== id);
+  saveImageHistory();
 };
 
-const S=()=>{
-  l.value=[];
-  n();
+const clearImageHistory = () => {
+  imageHistory.value = [];
+  saveImageHistory();
 };
 
-export{I as a,l as b,S as c,y as i,p as r};
+export { addImageHistory as a, imageHistory as b, clearImageHistory as c, initImageHistory as i, removeImageHistory as r };

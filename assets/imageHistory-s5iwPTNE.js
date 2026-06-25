@@ -14,6 +14,12 @@ const canPersistUrl = (value = "") => {
   return !!(url && !url.startsWith("data:") && !url.startsWith("blob:"));
 };
 
+const isLocalOnlyHistoryItem = (item = {}) => {
+  if (item.assetId || item.localFileName) return true;
+  if (item.assetKind && item.assetKind !== "generated") return true;
+  return false;
+};
+
 const saveImageHistory = () => {
   try {
     const rows = imageHistory.value.map((item) => ({
@@ -38,7 +44,7 @@ const normalizeServerHistoryItem = (item = {}) => ({
   url: normalizeUrl(item.url || item.imageUrl || item.resultUrl || item.result_url || ""),
   assetId: item.assetId || "",
   localFileName: item.localFileName || "",
-  assetKind: item.assetKind || "generated",
+  assetKind: "generated",
   label: item.label || "生成图片",
   prompt: item.prompt || "",
   model: item.model || item.modelKey || item.model_key || "",
@@ -49,6 +55,7 @@ const normalizeServerHistoryItem = (item = {}) => ({
   quality: item.quality || "",
   clarity: item.clarity || "",
   nodeId: item.nodeId || "",
+  serverSynced: true,
   createdAt: item.createdAt || item.created_at || new Date().toISOString()
 });
 
@@ -64,17 +71,13 @@ const syncServerImageHistory = async () => {
 
     const payload = await response.json();
     const rows = Array.isArray(payload.items) ? payload.items : Array.isArray(payload.data) ? payload.data : [];
-    if (!rows.length) return;
-
-    const known = new Set(imageHistory.value.map((item) => item.assetId || item.localFileName || item.url).filter(Boolean));
-    const incoming = rows
+    const serverItems = rows
       .map(normalizeServerHistoryItem)
-      .filter((item) => (item.url || item.assetId || item.localFileName) && !known.has(item.assetId || item.localFileName || item.url));
+      .filter((item) => item.url || item.assetId || item.localFileName);
+    const localOnly = imageHistory.value.filter(isLocalOnlyHistoryItem);
 
-    if (incoming.length) {
-      imageHistory.value = [...incoming, ...imageHistory.value].slice(0, MAX_ITEMS);
-      saveImageHistory();
-    }
+    imageHistory.value = [...serverItems, ...localOnly].slice(0, MAX_ITEMS);
+    saveImageHistory();
   } catch (error) {
     console.warn("Failed to sync server image history:", error);
   }

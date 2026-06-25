@@ -11,6 +11,34 @@
 - 下一轮优先级。
 - 优先复用已有接口、成熟开源项目和当前技术栈能力，不重复造轮子；新增能力前先确认是否已有 New-API、CPA、Docker Compose、现有 `/api/*` 或前端模块可复用。
 
+## 2026-06-25 后台全页面截图复跑
+
+### 已验证
+
+- 使用自带 Playwright CLI 跑通 `scripts/smoke-admin-pages-ui.ps1`。
+- 自动登录后台后逐页打开并截图：Dashboard、用户、订单、日志、兑换码、API 线路、模型价格、任务监控、模板工作流、系统设置。
+- 截图归档：`docs/design-references/admin-2026-06-25/full-*-desktop-1440x900.png`。
+- 每页都校验了关键标题；结果均为 `ok: true`，未出现 404/500。
+- 自动采集到的后台顶部标题颜色为 `rgb(2, 6, 23)`，字重 `900`，标题不再是浅灰。
+- `node --check server.js`、`node --check assets/home-carousel-inertia.js`、前端路由 smoke 和 disposable API smoke 均通过。
+
+### 视觉结论
+
+- Dashboard、模板工作流、模型价格、用户管理抽查截图可进入人工测试。
+- 图标线宽、按钮字距、表格密度和卡片间距整体保持工具台风格。
+- 用户管理和模型价格页操作按钮较多，但当前没有把页面挤爆；后续如追更高完成度，可单独压缩操作列或做二级菜单。
+
+### 新发现问题
+
+- 首次新增截图脚本时缺少 Playwright `open` session 步骤，已补齐并复跑通过。
+- `docker compose -f docker-compose.internal.yml ps` 因 Docker Desktop daemon 未运行失败，本轮不把容器状态算作已复核。
+
+### 未覆盖
+
+- 后台移动端卡片化体验。
+- 保存类复杂弹窗关闭/回显的全量人工点测。
+- 服务器部署后的远程浏览器截图。
+
 ## 2026-06-24
 
 ### 已审查结论

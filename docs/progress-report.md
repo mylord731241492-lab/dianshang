@@ -19,6 +19,19 @@
 - 需要人工介入：
 ```
 
+## 2026-06-25 后台全页面截图复跑进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：承认并修正后台截图复核不足的问题；新增后台全页面 Playwright 截图脚本，自动登录后台并逐页打开 Dashboard、用户、订单、日志、兑换码、API 线路、模型价格、任务监控、模板工作流、系统设置；每页校验关键标题、不出现 404/500，并归档 1440x900 桌面截图。
+- 修改文件：`scripts/smoke-admin-pages-ui.ps1`、`scripts/smoke-admin-pages-ui-runner.js`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：`node --check scripts/smoke-admin-pages-ui-runner.js`、`node --check server.js`、`node --check assets/home-carousel-inertia.js`、`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-admin-pages-ui.ps1`、`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-frontend-routes.ps1`、`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-api-disposable.ps1`、`Invoke-RestMethod http://127.0.0.1:3456/api/health`、`docker compose -f docker-compose.internal.yml ps`。
+- 验证结果：后台 10 页截图全部生成到 `docs/design-references/admin-2026-06-25/full-*-desktop-1440x900.png`；脚本返回所有页面 `ok: true`；每页后台顶部标题颜色为 `rgb(2, 6, 23)`、字重 `900`；前端路由 smoke 和 disposable API smoke 通过；健康检查返回 mock/database ok；Docker `ps` 因 Docker Desktop daemon 未运行失败，未声明容器状态已复核。
+- 当前完成度：后台约 99%，测试护栏约 98%，文档审查约 99%。
+- 新发现问题：用户管理和模型价格页按钮数量较多，当前能测能用但后续可继续优化操作列密度；脚本第一次运行缺少 Playwright `open` 步骤，已补齐；本机 Docker Desktop daemon 当前未启动。
+- 未完成清单：后台移动端卡片化优化、复杂表单保存后自动关闭/回显体验、服务器 Docker/Nginx/HTTPS 正式部署、真实 New-API 联通。
+- 下一轮建议：继续做前端画布 JSON 导入/导出人工验收证据，或把后台复杂表单保存反馈继续打磨。
+- 需要人工介入：请人工浏览 `docs/design-references/admin-2026-06-25/full-*.png` 做最终视觉判断；真实 New-API token 和服务器信息后续再提供。
+
 ## 2026-06-24 本轮进度报告
 
 - 分支：`codex/backend-platform`

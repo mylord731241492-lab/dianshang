@@ -642,3 +642,16 @@
 - 未完成清单：启动 Docker Desktop 后重新执行 `scripts\verify-internal-deploy.ps1`；New-API 真实 token 后续接入；后台多操作菜单化；后台移动端表格是否卡片化待人工确认。
 - 下一轮建议：你打开 Docker Desktop 后，我优先跑完整 Docker 内网部署验证；如果暂时不跑 Docker，则继续前端主流程人工测试修复。
 - 需要人工介入：打开 Docker Desktop，等待 Engine running；人工看一眼后台 10 张 `manual-audit` 截图是否接受。
+
+## 2026-06-25 后台主按钮颜色修复进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：根据截图反馈修复后台系统设置页 `保存设置`、`保存工具设置` 等 Naive primary 按钮颜色；从亮薄荷绿黑字改为深墨绿色白字，hover、pressed、focus、边框和阴影统一到后台工具台风格；只改后台作用域 CSS，不影响画布卡片结构和首页/模板页。
+- 修改文件：`assets/admin-visual-polish.css`、`docs/design-references/admin-2026-06-25/settings-button-color-fix-desktop-1440x900.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：内置浏览器打开 `/admin/settings`，读取 `保存设置` 和 `保存工具设置` 的 computed style，并截图归档；执行 `scripts\smoke-frontend-routes.ps1`、`node --check server.js`、`node --check assets\home-carousel-inertia.js`、`Invoke-RestMethod http://127.0.0.1:3456/api/health`。
+- 验证结果：按钮文字颜色为 `rgb(255, 255, 255)`，边框为 `rgba(15, 118, 110, 0.95)`，截图 `settings-button-color-fix-desktop-1440x900.png` 已归档；基础前端路由和健康检查继续通过。
+- 当前完成度：首页约 79%，模板约 92%，图库约 94%，用户中心约 93%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 93%。
+- 新发现问题：Naive UI primary 按钮 computed `background-color` 读取为透明，实际背景来自按钮内部样式层；已通过截图和文字/边框/阴影验证视觉生效。
+- 未完成清单：后台更多页面继续逐页肉眼优化；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
+- 下一轮建议：继续按截图逐页看后台按钮和表格细节，优先修肉眼突兀的颜色、行高和标题层级。
+- 需要人工介入：你确认新的深墨绿色按钮是否接受。

@@ -131,6 +131,35 @@ div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] button {
   letter-spacing: 0;
 }
 
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] .n-button.n-button--primary-type {
+  --n-color: #0f766e !important;
+  --n-color-hover: #115e59 !important;
+  --n-color-pressed: #134e4a !important;
+  --n-color-focus: #0f766e !important;
+  --n-border: 1px solid rgba(15, 118, 110, 0.95) !important;
+  --n-border-hover: 1px solid rgba(17, 94, 89, 0.98) !important;
+  --n-border-pressed: 1px solid rgba(19, 78, 74, 1) !important;
+  --n-border-focus: 1px solid rgba(15, 118, 110, 0.98) !important;
+  --n-text-color: #ffffff !important;
+  --n-text-color-hover: #ffffff !important;
+  --n-text-color-pressed: #ffffff !important;
+  --n-text-color-focus: #ffffff !important;
+  background: linear-gradient(180deg, #148176 0%, #0f6f67 100%) !important;
+  border: 1px solid rgba(15, 118, 110, 0.95) !important;
+  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  font-weight: 900 !important;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] .n-button.n-button--primary-type:hover {
+  background: linear-gradient(180deg, #0f766e 0%, #115e59 100%) !important;
+  box-shadow: 0 12px 26px rgba(15, 118, 110, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] .n-button.n-button--primary-type .n-button__content {
+  color: #ffffff !important;
+}
+
 div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] table button {
   min-height: 28px;
   padding-left: 10px !important;

@@ -903,3 +903,17 @@
 - 人工查看 10 张后台 `manual-audit` 截图，重点看标题、图标、按钮、字距、表格密度和卡片间距是否接受。
 - 打开 Docker Desktop 并等待 Engine running 后，重新执行 `scripts\verify-internal-deploy.ps1`。
 - 只有完整通过后，才能把部署护栏从 `待复核` 改为 `完成`。
+
+## 2026-06-25 后台主按钮颜色复核
+
+### 已确认
+
+- 系统设置页 `保存设置` 原样式为 Naive UI 默认亮薄荷绿：`rgb(99, 226, 183)`，文字为黑色，和后台工具台风格不统一。
+- 已在 `assets/admin-visual-polish.css` 的后台作用域中覆盖 `.n-button.n-button--primary-type`。
+- 新样式使用深墨绿主色、白色文字、低饱和边框和轻阴影，避免继续出现荧光薄荷绿。
+- 内置浏览器已归档截图：`docs/design-references/admin-2026-06-25/settings-button-color-fix-desktop-1440x900.png`。
+
+### 需要继续验证
+
+- 你人工确认新的深墨绿色按钮是否符合预期。
+- 继续按后台页面截图审查其他明显突兀的颜色、按钮密度和标题层级。

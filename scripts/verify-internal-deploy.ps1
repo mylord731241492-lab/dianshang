@@ -55,6 +55,7 @@ function Wait-Health {
 Invoke-Step -Name "docker available" -Script {
   Invoke-NativeCommand -FilePath "docker" -Arguments @("--version")
   Invoke-NativeCommand -FilePath "docker" -Arguments @("compose", "version")
+  Invoke-NativeCommand -FilePath "docker" -Arguments @("info")
 }
 
 Invoke-Step -Name "env file" -Script {

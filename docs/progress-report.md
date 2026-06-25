@@ -629,3 +629,16 @@
 - 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；后台多操作菜单化；后台移动端表格是否卡片化待人工确认。
 - 下一轮建议：继续人工点测首页、模板、图库、画布、用户中心主流程；如果 Docker Desktop 已打开，优先跑容器复核。
 - 需要人工介入：确认默认首字母头像视觉是否接受；打开 Docker Desktop 后复核容器。
+
+## 2026-06-25 内置浏览器后台截图与 Docker daemon 复核进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：使用内置浏览器重新登录后台并逐页打开 Dashboard、用户、订单、日志、兑换码、API 线路、模型价格、任务监控、模板工作流、系统设置，生成 10 张 `manual-audit-*.png` 桌面截图；同时复核 Docker 内网部署验证脚本，增加 `docker info` 检查，使 Docker Desktop daemon 未启动时能在第一阶段明确失败。
+- 修改文件：`scripts/verify-internal-deploy.ps1`、`docs/deployment.md`、`docs/design-references/admin-2026-06-25/manual-audit-*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：内置浏览器 1440x900 逐页截图；执行 `docker --version`、`docker compose version`、`docker compose -f docker-compose.internal.yml ps`、`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify-internal-deploy.ps1`。
+- 验证结果：后台 10 页均生成截图，页面非空白、非 404，console error 为 0；兑换码页文本检测命中 `500`，需人工看图确认是积分数值不是错误页；`docker --version` 返回 29.5.3，`docker compose version` 返回 v5.1.4；`verify-internal-deploy.ps1` 在 `docker available` 阶段输出 Client 信息后，Server 连接失败：`failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine`，结论是 Docker CLI/Compose 可用，但 Docker Desktop daemon 未运行。
+- 当前完成度：首页约 79%，模板约 92%，图库约 94%，用户中心约 93%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 93%。
+- 新发现问题：当前机器 Docker Desktop Engine 未启动，无法执行镜像构建、容器启动、重启持久化复核；后台兑换码页的自动文本检测需要人工看图确认。
+- 未完成清单：启动 Docker Desktop 后重新执行 `scripts\verify-internal-deploy.ps1`；New-API 真实 token 后续接入；后台多操作菜单化；后台移动端表格是否卡片化待人工确认。
+- 下一轮建议：你打开 Docker Desktop 后，我优先跑完整 Docker 内网部署验证；如果暂时不跑 Docker，则继续前端主流程人工测试修复。
+- 需要人工介入：打开 Docker Desktop，等待 Engine running；人工看一眼后台 10 张 `manual-audit` 截图是否接受。

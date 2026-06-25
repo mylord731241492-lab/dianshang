@@ -884,3 +884,22 @@
 ### 需要继续验证
 
 - 当前是首字母兜底，足够人工测试；若要更接近品牌视觉，可后续换成固定默认头像图片。
+
+## 2026-06-25 内置浏览器后台截图与 Docker daemon 复核
+
+### 已确认
+
+- 已使用内置浏览器登录后台，并生成 10 张桌面截图：`manual-audit-dashboard/users/orders/logs/redeem-codes/api-providers/model-prices/generate-tasks/template-workflows/settings-desktop-1440x900.png`。
+- 10 个后台页面均非空白、非 404，浏览器 console error 为 0。
+- 自动文本检测在兑换码页命中 `500`，从页面业务上看大概率是积分数值，需要人工看图确认，不按真实 500 错误处理。
+- `docker --version` 可用，版本为 29.5.3。
+- `docker compose version` 可用，版本为 v5.1.4。
+- `scripts\verify-internal-deploy.ps1` 已增加 `docker info`，现在会在 `docker available` 阶段提前检查 Docker Server。
+- 当前失败信息为：`failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine`。
+- 结论：Docker CLI/Compose 已安装，Docker Desktop daemon 未运行；不是项目代码或镜像配置本身失败。
+
+### 需要继续验证
+
+- 人工查看 10 张后台 `manual-audit` 截图，重点看标题、图标、按钮、字距、表格密度和卡片间距是否接受。
+- 打开 Docker Desktop 并等待 Engine running 后，重新执行 `scripts\verify-internal-deploy.ps1`。
+- 只有完整通过后，才能把部署护栏从 `待复核` 改为 `完成`。

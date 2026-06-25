@@ -93,6 +93,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\verify-internal-dep
 
 该脚本会执行：
 
+- `docker --version`、`docker compose version`、`docker info`
 - `docker compose -f docker-compose.internal.yml config`
 - `docker compose -f docker-compose.internal.yml up --build -d`
 - `/api/health`
@@ -132,6 +133,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\verify-internal-dep
 ```
 
 不要在正式业务库上随手开启 `SMOKE_ALLOW_WRITES=true`。
+
+如果 `docker --version` 和 `docker compose version` 正常，但 `docker info` 或 `docker compose ... ps` 报 `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine`，说明 Docker CLI/Compose 已安装，Docker Desktop Engine 没有启动。先打开 Docker Desktop，等待 Engine running 后再重新执行验证脚本。
 
 本地统一预检也支持同样的 UI 开关：
 

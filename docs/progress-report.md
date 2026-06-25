@@ -681,3 +681,16 @@
 - 未完成清单：后台其他页面继续逐页肉眼复核；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
 - 下一轮建议：继续看订单、日志、任务监控的表格密度和状态色，优先修一眼突兀的问题。
 - 需要人工介入：人工确认 API 线路/模型价格当前宽表可接受。
+
+## 2026-06-25 后台任务监控操作按钮修复进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：复核订单、消费日志、任务监控三页；订单和消费日志当前可测，任务监控右侧操作列存在明显视觉问题：`详情`、`删除记录` 被拉成 197px 长条按钮，并且 sticky 操作列背景半透明导致参数/时间文字透出。本轮将后台表格竖排操作按钮改为内容宽度右对齐，并把 sticky 操作列背景改为纯白。
+- 修改文件：`assets/admin-visual-polish.css`、`docs/design-references/admin-2026-06-25/generate-tasks-action-buttons-polish-desktop-1440x900.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：Playwright 打开 `/admin/generate-tasks`，读取操作列宽度、背景色、按钮宽高，并截图归档；执行 `scripts\smoke-frontend-routes.ps1`、`node --check server.js`、`node --check assets\home-carousel-inertia.js`、`Invoke-RestMethod http://127.0.0.1:3456/api/health`。
+- 验证结果：任务监控操作列宽度为 226px，背景为 `rgb(255, 255, 255)`；`详情` 按钮宽度 58px，高度 26px；`删除记录` 按钮宽度 60px，高度 26px；截图 `generate-tasks-action-buttons-polish-desktop-1440x900.png` 已归档。
+- 当前完成度：首页约 79%，模板约 92%，图库约 94%，用户中心约 93%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 93%。
+- 新发现问题：任务监控仍是宽表，参数/时间列在 1440 宽度下依赖横向滚动；现阶段已消除最明显的按钮长条和透字问题。
+- 未完成清单：后台其他页面继续逐页肉眼复核；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
+- 下一轮建议：继续看兑换码、模板工作流和系统设置的弹窗/保存回显视觉，优先修肉眼突兀的问题。
+- 需要人工介入：确认任务监控右侧操作按钮现在是否接受。

@@ -93,7 +93,7 @@ div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td:last-child:has(button) {
   right: 0;
   z-index: 2;
   overflow: visible;
-  background: rgba(255, 255, 255, 0.96);
+  background: #ffffff;
   border-left: 1px solid rgba(226, 232, 240, 0.72);
   box-shadow: -6px 0 14px rgba(248, 250, 252, 0.58);
 }
@@ -105,6 +105,12 @@ div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td:last-child div[class*="fl
   width: 100%;
   max-width: 226px;
   gap: 5px !important;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td:last-child div[class*="flex"][class*="flex-col"][class*="gap-2"] {
+  align-items: flex-end !important;
+  gap: 6px !important;
+  width: 100%;
 }
 
 div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td div[class*="whitespace-normal"] {
@@ -169,6 +175,12 @@ div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] table button {
   border-radius: 9px !important;
   font-size: 11px !important;
   font-weight: 900 !important;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] table button.admin-ghost,
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] table button.admin-danger {
+  width: auto !important;
+  min-width: 58px;
 }
 
 div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] button svg {

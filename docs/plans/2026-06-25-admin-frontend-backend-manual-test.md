@@ -46,6 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-admin-write-di
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-admin-ui.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-admin-delete-ui.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-user-redeem-ui.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-mobile-ui.ps1
 Invoke-RestMethod http://127.0.0.1:3456/api/health
 docker compose -f docker-compose.internal.yml ps
 git status --short --branch
@@ -70,5 +71,6 @@ git status --short --branch
 - 已完成：新增后台写入 disposable smoke，在临时 SQLite 中验证用户软删除、回收站恢复、永久匿名化、兑换码增删、API 线路/模型增删、模板工作流和系统设置保存。
 - 已完成：用户中心兑换码 UI smoke，已验证错误码提示和成功兑换提示并截图。
 - 已完成：后台用户删除/恢复 UI smoke，已验证删除确认弹窗、回收站行和恢复成功并截图。
-- 进行中：移动端关键页面和复杂后台表单回显仍需继续复核。
+- 已完成：移动端关键页面截图 smoke，覆盖首页、模板、画布、用户中心兑换码、后台 Dashboard/API 线路/模板工作流；已修复首页移动端标题断行。
+- 进行中：复杂后台表单回显和移动端表格密度仍需继续复核。
 - 待复核：Docker Desktop 打开后执行 `docker compose -f docker-compose.internal.yml ps`。

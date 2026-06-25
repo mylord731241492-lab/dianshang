@@ -473,3 +473,16 @@
 - 未完成清单：移动端关键页面截图；Dashboard 排行表宽度细化；Docker 容器状态复核；New-API 真实 token 后续接入。
 - 下一轮建议：继续移动端首页/模板/用户中心/后台截图复核，随后补 Dashboard 表格宽度细化。
 - 需要人工介入：打开 Docker Desktop 后复核容器；人工确认用户中心兑换码和后台删除恢复手感是否符合预期。
+
+## 2026-06-25 移动端关键页面截图 Smoke 进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：新增 `scripts/smoke-mobile-ui.ps1` 和 runner，使用 390x844 视口截图复核首页、模板、画布、用户中心兑换码、后台 Dashboard、后台 API 线路、后台模板工作流；修复首页移动端标题字号，避免 `电商全流程工作台` 在 390 宽下断成单字。
+- 修改文件：`assets/home-overrides.css`、`scripts/smoke-mobile-ui.ps1`、`scripts/smoke-mobile-ui-runner.js`、`docs/design-references/mobile-2026-06-25/*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`、`docs/plans/2026-06-25-admin-frontend-backend-manual-test.md`
+- 验证方式：执行 `scripts\smoke-mobile-ui.ps1`；人工查看 `home-mobile-390x844.png`、`template-image-mobile-390x844.png`、`canvas-mobile-390x844.png`、`admin-dashboard-mobile-390x844.png`、`admin-api-providers-mobile-390x844.png`、`user-redeem-mobile-390x844.png`。
+- 验证结果：移动端 7 个关键页面均非空白、非 404、非 500；首页标题已单行显示；模板页、画布页、用户中心兑换码、后台 Dashboard/API 线路/模板工作流均可见核心内容。
+- 当前完成度：首页约 78%，模板约 92%，图库约 88%，用户中心约 88%，后台约 98%，后端平台护栏约 82%，测试护栏约 94%，部署护栏约 92%。
+- 新发现问题：后台移动端表格仍偏密，API 线路页默认只露出前两列，需要横向滚动；画布移动端会显示本地保存提示，属于当前“画布走本地”的既定策略。
+- 未完成清单：Dashboard 右侧排行表宽度细化；后台移动端表格密度继续优化；Docker 容器状态复核；New-API 真实 token 后续接入。
+- 下一轮建议：细化后台 Dashboard 排行表和移动端表格密度，或打开 Docker Desktop 后先完成容器复核。
+- 需要人工介入：打开 Docker Desktop 后复核容器；人工确认移动端首页、模板、画布和后台表格观感是否接受。

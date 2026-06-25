@@ -562,3 +562,19 @@
 - 头像上传文件入口还未用真实图片文件点测。
 - 复制出来的图片 URL 可能是本地 mock SVG 或外部 placeholder，服务器部署后需要确认访问路径是否符合内网使用习惯。
 - 图库 `清空` 仍保持前端行为，未接后端批量删除。
+
+## 2026-06-25 模板反推兼容与后台视觉复核
+
+### 已确认
+
+- `/api/template/reverse-prompt` 原来只返回 `rawPrompt/suggestions`，打包前端反推逻辑读取的是 `rawText/prompts`，导致接口 200 但页面仍显示 `提示词选择 0 条`。
+- 已补齐 `rawText`、`prompts`、`items/list/data`，同时保留 `rawPrompt/suggestions`，避免影响现有 smoke 和后续兼容。
+- 后台 10 个页面已重新截图归档：Dashboard、用户、订单、日志、兑换码、API 线路、模型价格、任务监控、模板工作流、系统设置。
+- `redeem-codes` 页面自动文本检查出现 `has500=true` 是因为页面包含 `500` 点数文本，不是 HTTP 500 或页面错误。
+- 后台视觉补丁继续限制在 `assets/admin-visual-polish.css`，未触碰前台画布卡片和模板结构。
+
+### 需要继续验证
+
+- 模板页完整 UI 闭环仍需真实上传素材后确认：提示词卡片出现、生成按钮调用 `/api/template/generate-image`、结果写入图库历史。
+- Dashboard 右侧排行表在 1440 宽度下仍偏挤，后续可针对该半宽卡片做单独表格布局优化。
+- 后台保存/删除/弹窗关闭仍需人工逐页点测，当前 smoke 已覆盖接口写入，但没有完全覆盖交互手感。

@@ -742,8 +742,36 @@ app.post('/api/template/reverse-prompt', auth, async (req, res) => {
     { id: 'mock_reverse_a', title: '高转化主图', label: '高转化主图', prompt, text: prompt, negativePrompt: '模糊，变形，水印，低清晰度，多余文字', ratio, selected: true, styleTags: ['电商', '主图', '高清'] },
     { id: 'mock_reverse_b', title: '场景氛围图', label: '场景氛围图', prompt: `${base}，加入自然使用场景，柔和光线，画面高级，适合详情页展示`, text: `${base}，加入自然使用场景，柔和光线，画面高级，适合详情页展示`, negativePrompt: '杂乱背景，人物畸形，品牌错字，水印', ratio, selected: false, styleTags: ['场景', '氛围'] },
     { id: 'mock_reverse_c', title: '极简白底图', label: '极简白底图', prompt: `${base}，纯白背景，产品居中，边缘锐利，干净阴影，专业棚拍`, text: `${base}，纯白背景，产品居中，边缘锐利，干净阴影，专业棚拍`, negativePrompt: '脏污背景，过曝，模糊，压缩噪点', ratio, selected: false, styleTags: ['白底', '棚拍'] }
-  ];
-  res.json({ success: true, mock: true, prompt, rawPrompt: prompt, suggestions });
+  ].map((item, index) => ({
+    ...item,
+    id: item.id || `mock_reverse_${index + 1}`,
+    title: item.title || item.label || `提示词 ${index + 1}`,
+    label: item.label || item.title || `提示词 ${index + 1}`,
+    prompt: item.prompt || item.text || '',
+    text: item.text || item.prompt || '',
+    negativePrompt: item.negativePrompt || '',
+    negative_prompt: item.negativePrompt || '',
+    ratio: item.ratio || ratio,
+    styleTags: item.styleTags || [],
+    style_tags: item.styleTags || [],
+    referenceImageIndex: index,
+    reference_image_index: index,
+    selected: index === 0
+  }));
+  res.json({
+    success: true,
+    mock: true,
+    prompt,
+    text: prompt,
+    rawPrompt: prompt,
+    rawText: prompt,
+    templateTaskId: uid('reverse_'),
+    suggestions,
+    prompts: suggestions,
+    items: suggestions,
+    list: suggestions,
+    data: suggestions
+  });
 });
 
 app.get('/api/user/generations', auth, (req, res) => {

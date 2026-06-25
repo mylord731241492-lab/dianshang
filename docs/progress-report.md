@@ -408,3 +408,16 @@
 - 未完成清单：图库空状态恢复；模板真实上传素材闭环；用户中心头像上传；兑换码成功/失败提示；后台弹窗和保存回显继续人工点测；Docker Desktop 打开后的容器复核。
 - 下一轮建议：继续模板真实上传生成闭环，随后补用户中心头像上传和兑换码提示手感。
 - 需要人工介入：人工确认复制出来的链接形式是否符合你的实际保存习惯；打开 Docker Desktop 后复核容器。
+
+## 2026-06-25 模板反推兼容与后台视觉复核进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：补齐 `/api/template/reverse-prompt` 的打包前端兼容字段，新增 `rawText`、`prompts`、`items/list/data` 等别名，保留原有 `rawPrompt/suggestions`；重新归档后台 10 个页面桌面截图；对后台视觉补丁做小幅收敛，统一图标线宽、标题字重、按钮图标尺寸、表格密度，并把后台表格最小宽度从 `1180px` 调整为 `980px` 以适配 1440 桌面复核。
+- 修改文件：`server.js`、`assets/admin-visual-polish.css`、`docs/api-contracts.md`、`docs/design-references/admin-2026-06-25/*.png`、`docs/design-references/frontend-2026-06-25/*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：浏览器访问并截图 `/admin/dashboard`、`/admin/users`、`/admin/orders`、`/admin/logs`、`/admin/redeem-codes`、`/admin/api-providers`、`/admin/model-prices`、`/admin/generate-tasks`、`/admin/template-workflows`、`/admin/settings`；接口调用 `/api/template/reverse-prompt` 检查 `rawText/prompts`；复核 `/api/health`；执行固定 Node/API/前端 smoke 验证；执行 `docker compose -f docker-compose.internal.yml ps`。
+- 验证结果：后台 10 页均非空白、非 404；复核截图已写入 `docs/design-references/admin-2026-06-25/`，Dashboard/API 线路/模板工作流已二次截图；模板反推接口已返回 `3` 条 prompt，并同时包含 `rawText` 与 `prompts`；`node --check`、前端路由 smoke、当前服务 API smoke、disposable API smoke、`/api/health` 均通过；Docker Desktop daemon 未运行，`docker compose ps` 报找不到 `dockerDesktopLinuxEngine` 管道。
+- 当前完成度：首页约 74%，模板约 86%，图库约 88%，用户中心约 86%，后台约 95%，后端平台护栏约 81%，测试护栏约 84%，部署护栏约 92%。
+- 新发现问题：模板页前端仍要求真实素材上传后才会显示提示词卡片；浏览器自动化的隐藏 file input 需要继续用标准文件选择器验证，当前接口层已修但完整上传生成 UI 闭环还要继续点测。Dashboard 右侧排行表在 1440 截图下仍略宽，已记录为后续视觉细化项。
+- 未完成清单：模板真实上传后生成闭环；兑换码成功/失败提示；后台弹窗关闭、删除/恢复确认；Docker 容器状态在 Docker Desktop 打开后复核。
+- 下一轮建议：优先用人工或浏览器文件选择器完成模板“上传素材 -> 反推提示词 -> 生成图片 -> 图库历史”闭环；随后继续后台保存/弹窗手感逐页点测。
+- 需要人工介入：你手动上传一张图片到模板页看提示词卡片是否出现；打开 Docker Desktop 后我再复核 compose 容器。

@@ -48,7 +48,7 @@
 | POST | `/api/generation/estimate-cost` | mock | 估算点数 |
 | POST | `/api/generate/tasks` | mock + local-db | 创建完成态生成任务，写 `generations` |
 | GET | `/api/generate/tasks/:id` | mock | 查询内存任务 |
-| POST | `/api/template/reverse-prompt` | mock | 返回提示词建议 |
+| POST | `/api/template/reverse-prompt` | mock | 返回提示词建议；兼容 `rawText/rawPrompt`、`prompts/suggestions/items/list/data` |
 | POST | `/api/template/generate-image` | mock + local-db | 返回本地 SVG 图并写历史 |
 | POST | `/api/chat/completions` | mock / real-provider-ready | 默认 mock；仅 `ENABLE_REAL_AI=true` 且 key 有效时调用真实接口 |
 | GET | `/api/mock-image/:id.svg` | mock | 本地占位图 |

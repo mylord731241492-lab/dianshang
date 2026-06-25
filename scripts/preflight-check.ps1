@@ -85,9 +85,13 @@ if ($env:SMOKE_UI -eq "true") {
   Invoke-Step -Name "canvas JSON UI smoke" -Script {
     Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-canvas-json-ui.ps1")
   }
+
+  Invoke-Step -Name "user center layout UI smoke" -Script {
+    Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-user-center-layout-ui.ps1")
+  }
 } else {
   Write-Host "== UI smoke =="
-  Write-Host "Skipped. Set SMOKE_UI=true to run Playwright admin screenshots and canvas JSON import checks."
+  Write-Host "Skipped. Set SMOKE_UI=true to run Playwright admin screenshots, canvas JSON import, and user center layout checks."
 }
 
 Invoke-Step -Name "health check" -Script {

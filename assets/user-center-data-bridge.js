@@ -128,6 +128,32 @@
       background: #fef2f2;
       color: #dc2626;
     }
+    @media (min-width: 960px) {
+      body.uc-user-page #app .mx-auto.flex.h-full {
+        border-left: 0 !important;
+        border-right: 0 !important;
+        max-width: 980px !important;
+      }
+      body.uc-user-page #app main.flex-1 {
+        align-content: start;
+        display: grid !important;
+        gap: 16px;
+        grid-template-columns: minmax(0, 1fr) minmax(360px, 0.95fr);
+        padding-left: 24px !important;
+        padding-right: 24px !important;
+      }
+      body.uc-user-page #app main.flex-1 > section {
+        margin: 0 !important;
+      }
+      body.uc-user-page #app main.flex-1 > section:first-child {
+        grid-column: 1 / -1;
+      }
+      body.uc-user-page #app footer.sticky {
+        border-radius: 24px 24px 0 0;
+        margin-left: 24px;
+        margin-right: 24px;
+      }
+    }
   `;
 
   function ensureStyle() {
@@ -320,6 +346,7 @@
   async function render() {
     if (rendering) return;
     const path = window.location.pathname;
+    document.body.classList.toggle("uc-user-page", path.startsWith("/user/"));
     if (!path.startsWith("/user/")) {
       removeBridge();
       return;
@@ -359,6 +386,12 @@
   });
   window.addEventListener("popstate", schedule);
   window.addEventListener("DOMContentLoaded", schedule);
+  document.addEventListener("error", (event) => {
+    if (!window.location.pathname.startsWith("/user/")) return;
+    const target = event.target;
+    if (!target || target.tagName !== "IMG") return;
+    target.style.visibility = "hidden";
+  }, true);
 
   const app = document.getElementById("app");
   if (app) {

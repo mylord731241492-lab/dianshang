@@ -137,9 +137,18 @@ if ($env:SMOKE_UI -eq "true") {
       Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue
     }
   }
+
+  Invoke-Step -Name "user center layout UI smoke" -Script {
+    $env:SMOKE_BASE_URL = $baseUrl
+    try {
+      Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-user-center-layout-ui.ps1")
+    } finally {
+      Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue
+    }
+  }
 } else {
   Write-Host "== UI smoke =="
-  Write-Host "Skipped. Set SMOKE_UI=true to run Playwright admin screenshots and canvas JSON import checks."
+  Write-Host "Skipped. Set SMOKE_UI=true to run Playwright admin screenshots, canvas JSON import, and user center layout checks."
 }
 
 Invoke-Step -Name "restart persistence smoke" -Script {

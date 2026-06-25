@@ -855,3 +855,19 @@
 
 - 多操作按钮完整可见后，用户管理/API 线路行高会增加；如果人工看图觉得偏松，下一轮应改成“更多操作”菜单或详情抽屉。
 - `docker compose -f docker-compose.internal.yml ps` 当前失败，原因是 Docker Desktop daemon 未运行，需要启动 Docker Desktop 后复核容器。
+
+## 2026-06-25 用户中心桌面布局复核
+
+### 已确认
+
+- 用户中心原始打包页桌面端仍使用 `max-w-[430px]` 手机壳布局，人工测试时显得过窄。
+- 已在 `user-center-data-bridge.js` 对 `/user/*` 页面增加桌面端布局补丁：960px 以上使用 980px 外壳和两栏 grid，移动端不触发。
+- 已增加用户页头像破图兜底，坏图会隐藏，避免显示浏览器破图标。
+- 新增 `scripts/smoke-user-center-layout-ui.ps1` 和 runner，覆盖 `/user/center`、`/user/records`、`/user/redeem` 桌面截图，以及 `/user/center` 移动端截图。
+- 已将用户中心布局 smoke 接入 `SMOKE_UI=true` 的 `preflight-check.ps1` 和 `verify-internal-deploy.ps1`。
+- `SMOKE_UI=true scripts\preflight-check.ps1` 已通过，覆盖后台截图、画布 JSON 导入和用户中心布局。
+
+### 需要继续验证
+
+- 目前头像兜底是隐藏坏图，视觉上是空头像底色；如果需要更精致，下一轮补文字头像或固定默认头像资源。
+- 用户中心桌面两栏已可测，但是否接近目标站观感仍需人工确认。

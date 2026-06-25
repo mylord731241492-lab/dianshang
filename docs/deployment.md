@@ -112,6 +112,7 @@ Remove-Item Env:\SMOKE_UI -ErrorAction SilentlyContinue
 
 - `scripts\smoke-admin-pages-ui.ps1`：自动登录后台，逐页截图 Dashboard、用户、订单、日志、兑换码、API 线路、模型价格、任务监控、模板工作流和系统设置。
 - `scripts\smoke-canvas-json-ui.ps1`：验证画布 JSON 后端保存/读取，并通过真实 `.workflow.json` 文件输入导入到前端画布。
+- `scripts\smoke-user-center-layout-ui.ps1`：验证用户中心桌面端 980px 两栏布局、记录/兑换桥接和移动端单栏不被破坏。
 
 UI smoke 需要当前机器能运行 Playwright CLI 和浏览器环境；内网服务器没有桌面环境时，可先跳过，改在本地浏览器访问服务器地址后单独设置 `SMOKE_BASE_URL` 执行。
 

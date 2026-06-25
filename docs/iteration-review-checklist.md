@@ -34,7 +34,7 @@
 - Console 不能出现新的关键错误。
 - 修改首页、模板、图库、画布、后台时，更新功能完成清单。
 - 视觉 1:1 无法自动确认时，明确标记为需要人工确认。
-- 需要后台逐页截图或画布 JSON 导入证据时，设置 `SMOKE_UI=true` 运行 `scripts\preflight-check.ps1`；默认预检跳过 UI smoke，避免每次都启动浏览器。
+- 需要后台逐页截图、画布 JSON 导入或用户中心桌面/移动布局证据时，设置 `SMOKE_UI=true` 运行 `scripts\preflight-check.ps1`；默认预检跳过 UI smoke，避免每次都启动浏览器。
 
 ## 5. 部署验收
 

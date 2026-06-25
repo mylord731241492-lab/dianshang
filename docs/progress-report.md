@@ -603,3 +603,16 @@
 - 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；后台多操作菜单化；后台移动端表格是否卡片化待人工确认。
 - 下一轮建议：先让你人工看后台截图，如果接受则进入前端主流程人工测试；如果觉得行高偏大，再优先做后台“更多操作”菜单。
 - 需要人工介入：打开 Docker Desktop 后复核容器；人工确认后台多按钮表格当前行高是否接受。
+
+## 2026-06-25 用户中心桌面布局与 UI 预检进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：修复用户中心桌面端仍是窄手机壳的问题；在 `/user/*` 桌面视口启用 980px 两栏工作台布局，移动端保持原 390px 单栏；增加头像破图兜底，避免人工测试时出现浏览器破图标；新增用户中心布局 UI smoke，并接入 `SMOKE_UI=true` 预检。
+- 修改文件：`assets/user-center-data-bridge.js`、`scripts/smoke-user-center-layout-ui.ps1`、`scripts/smoke-user-center-layout-ui-runner.js`、`scripts/preflight-check.ps1`、`scripts/verify-internal-deploy.ps1`、`docs/deployment.md`、`docs/iteration-review-checklist.md`、`docs/design-references/frontend-2026-06-25/user-center-desktop-1440x900.png`、`docs/design-references/frontend-2026-06-25/user-records-bridge-desktop-1440x900.png`、`docs/design-references/frontend-2026-06-25/user-redeem-bridge-desktop-1440x900.png`、`docs/design-references/mobile-2026-06-25/user-center-mobile-390x844.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `node --check assets\user-center-data-bridge.js`、`node --check scripts\smoke-user-center-layout-ui-runner.js`、`scripts\smoke-user-center-layout-ui.ps1`、`SMOKE_UI=true scripts\preflight-check.ps1`。
+- 验证结果：用户中心布局 smoke 通过；桌面 `/user/center`、`/user/records`、`/user/redeem` 外壳宽度为 980px 且主区域为 grid 两栏；移动端 `/user/center` 外壳宽度为 390px 且仍为单栏；`SMOKE_UI=true` 预检通过，覆盖后台 10 页截图、画布 JSON 导入和用户中心布局。
+- 当前完成度：首页约 79%，模板约 92%，图库约 94%，用户中心约 92%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 93%。
+- 新发现问题：用户中心桌面已可测，但头像兜底目前是隐藏坏图，若要更精致可后续补文字头像或默认图；`SMOKE_UI=true` 会更新截图文件，运行时应避免和其他 Playwright session 并行抢页面。
+- 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；用户中心默认头像视觉；后台多操作菜单化；后台移动端表格是否卡片化待人工确认。
+- 下一轮建议：继续人工点测首页、模板、图库、画布、用户中心主流程；如果 Docker Desktop 已打开，优先跑容器复核。
+- 需要人工介入：确认用户中心桌面两栏布局是否接受；打开 Docker Desktop 后复核容器。

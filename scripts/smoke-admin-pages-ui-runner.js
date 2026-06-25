@@ -53,22 +53,84 @@ async page => {
     }
 
     const metrics = await page.evaluate(() => {
+      const isVisible = (el) => {
+        const rect = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      };
       const title = document.querySelector('header div.text-lg');
       const buttons = Array.from(document.querySelectorAll('button'));
+      const visibleButtons = buttons.filter(isVisible);
       const svgCount = document.querySelectorAll('svg').length;
       const tableCount = document.querySelectorAll('table').length;
       const cardCount = document.querySelectorAll('[class*="rounded-3xl"][class*="bg-white"]').length;
       const titleStyle = title ? getComputedStyle(title) : null;
+      const buttonRects = visibleButtons.map((button) => {
+        const rect = button.getBoundingClientRect();
+        const style = getComputedStyle(button);
+        return {
+          text: (button.innerText || button.getAttribute('title') || '').trim().slice(0, 16),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          color: style.color,
+          background: style.backgroundColor,
+          borderColor: style.borderColor
+        };
+      });
+      const rowHeights = Array.from(document.querySelectorAll('tbody tr'))
+        .filter(isVisible)
+        .slice(0, 8)
+        .map((row) => Math.round(row.getBoundingClientRect().height));
+      const actionCells = Array.from(document.querySelectorAll('td:last-child'))
+        .filter((cell) => cell.querySelector('button') && isVisible(cell))
+        .slice(0, 8)
+        .map((cell) => {
+          const rect = cell.getBoundingClientRect();
+          const style = getComputedStyle(cell);
+          return {
+            width: Math.round(rect.width),
+            background: style.backgroundColor,
+            position: style.position
+          };
+        });
+      const oldMintButtons = buttonRects.filter((button) => {
+        return button.background.includes('94, 223') || button.background.includes('92, 221');
+      });
       return {
         title: title ? title.textContent.trim() : '',
         titleColor: titleStyle ? titleStyle.color : '',
         titleWeight: titleStyle ? titleStyle.fontWeight : '',
         buttonCount: buttons.length,
+        visibleButtonCount: visibleButtons.length,
+        buttonSamples: buttonRects.slice(0, 12),
+        rowHeights,
+        actionCells,
+        oldMintButtonCount: oldMintButtons.length,
         svgCount,
         tableCount,
         cardCount
       };
     });
+
+    const issues = [];
+    if (!metrics.title || !/^rgb\((2, 6, 23|15, 23, 42)\)$/.test(metrics.titleColor)) {
+      issues.push(`title color is not dark enough: ${metrics.titleColor || 'missing'}`);
+    }
+    if (Number(metrics.titleWeight) < 800) {
+      issues.push(`title weight too light: ${metrics.titleWeight}`);
+    }
+    if (metrics.oldMintButtonCount > 0) {
+      issues.push(`old mint buttons detected: ${metrics.oldMintButtonCount}`);
+    }
+    if (metrics.rowHeights.some((height) => height > 92)) {
+      issues.push(`table row too tall: ${metrics.rowHeights.join(',')}`);
+    }
+    if (metrics.actionCells.some((cell) => cell.position === 'sticky' && cell.width > 245)) {
+      issues.push(`sticky action column too wide: ${JSON.stringify(metrics.actionCells)}`);
+    }
+    if (issues.length > 0) {
+      throw new Error(`${item.slug} visual audit failed: ${issues.join('; ')}`);
+    }
 
     await page.screenshot({
       path: `${screenshotDir}/full-${item.slug}-desktop-1440x900.png`,

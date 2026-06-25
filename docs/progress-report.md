@@ -785,3 +785,16 @@
 - 未完成清单：后台 10 页继续逐页视觉复核；首页/画布移动端专项截图还需继续补；New-API 真实 token 后续接入；服务器 Nginx/HTTPS 部署演练。
 - 下一轮建议：继续做后台视觉逐页复核，先看 Dashboard、用户、订单、日志的标题、按钮、图标和表格密度。
 - 需要人工介入：人工确认首页和画布两张 smoke 截图是否接受；确认 Docker 继续使用 `3457` 作为本机测试端口。
+
+## 2026-06-25 后台 10 页视觉审计护栏进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：重跑后台 10 页桌面截图：Dashboard、用户、订单、日志、兑换码、API 线路、模型价格、任务监控、模板工作流、系统设置；增强 `scripts/smoke-admin-pages-ui-runner.js`，让后台截图不只检查页面打开，还自动审计标题颜色/字重、旧薄荷按钮残留、表格行高、sticky 操作列宽度和按钮样本。
+- 修改文件：`scripts/smoke-admin-pages-ui-runner.js`、`docs/design-references/admin-2026-06-25/full-*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `node --check scripts\smoke-admin-pages-ui-runner.js` 和 `scripts\smoke-admin-pages-ui.ps1`。
+- 验证结果：后台 10 页截图全部通过；标题颜色均为深色 `rgb(2, 6, 23)`，标题字重均为 `900`；旧薄荷按钮残留为 0；表格行高最大 85px，未超过 92px；sticky 操作列宽度为 226px，未超过 245px；页面均非 404/500。
+- 当前完成度：首页约 82%，模板约 94%，图库约 96%，用户中心约 93%，画布约 90%，后台约 99%，后端平台护栏约 84%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：用户管理、API 线路、任务监控这类宽表仍依赖横向滚动和固定操作列；目前可测，后续如追更高体验，建议改成“更多操作”菜单或详情抽屉。
+- 未完成清单：后台复杂表单保存后刷新回显继续人工确认；后台移动端表格体验还未做专项；New-API 真实 token 后续接入；服务器 Nginx/HTTPS 部署演练。
+- 下一轮建议：继续做后台保存回显链路，优先系统设置、API 线路、模型价格、模板工作流。
+- 需要人工介入：人工看 10 张 `full-*.png`，确认当前后台工具台风格是否接受。

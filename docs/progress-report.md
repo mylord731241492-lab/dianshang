@@ -720,3 +720,16 @@
 - 未完成清单：复杂后台表单保存回显继续人工复核；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
 - 下一轮建议：继续复核系统设置保存提示、后台删除确认弹窗和前端模板/图库主流程。
 - 需要人工介入：人工确认当前弹窗绿色按钮是否接受；启动 Docker Desktop 后再跑完整容器验证。
+
+## 2026-06-25 后台删除/回收站 UI 复核进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：继续推进后台人工可测目标；运行后台 UI 保存流程和用户删除/恢复流程。发现 `smoke-admin-delete-ui` 在回收站页面存在等待和计数过严导致的误报，实际页面能显示已删除用户。本轮加固脚本：等待回收站行真实出现，恢复后等待行消失；同时把 `/admin/recycle-bin` 加入前端路由 smoke。
+- 修改文件：`scripts/smoke-admin-delete-ui-runner.js`、`scripts/smoke-frontend-routes.ps1`、`docs/design-references/admin-2026-06-25/admin-ui-smoke-*.png`、`docs/design-references/admin-2026-06-25/admin-user-delete-*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `scripts\smoke-admin-ui.ps1`、`scripts\smoke-admin-delete-ui.ps1`、`scripts\smoke-frontend-routes.ps1`、`scripts\smoke-api.ps1`、`node --check server.js`、`node --check assets\home-carousel-inertia.js`、`/api/health`、`git diff --check`、UTF-8 BOM 检查和 `docker compose -f docker-compose.internal.yml ps`。
+- 验证结果：后台 UI smoke 通过，覆盖 Dashboard、系统设置保存、API 线路新增弹窗、兑换码创建弹窗、模板工作流保存；后台删除/恢复 UI smoke 通过，覆盖临时用户创建、删除确认弹窗、进入回收站、恢复用户并清理；前端路由 smoke 新增 `/admin/recycle-bin` 后通过；API smoke、`node --check`、`/api/health`、`git diff --check`、UTF-8 无 BOM 检查通过；`docker compose ps` 仍无法连接 Docker Desktop Engine。
+- 当前完成度：首页约 79%，模板约 92%，图库约 94%，用户中心约 93%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 93%。
+- 新发现问题：删除确认流程本身可跑通，主要问题是测试脚本等待太短；Docker Desktop Engine 当前仍未复核。
+- 未完成清单：复杂后台表单保存后刷新回显继续人工复核；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
+- 下一轮建议：继续复核前端模板/图库主流程，或在 Docker Desktop 可用后执行完整内网容器验证。
+- 需要人工介入：启动 Docker Desktop 后再跑完整容器验证；人工确认回收站删除/恢复体验是否接受。

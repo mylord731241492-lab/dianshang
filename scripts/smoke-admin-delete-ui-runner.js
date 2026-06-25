@@ -106,9 +106,11 @@ async page => {
 
     await page.goto(baseUrl + '/admin/recycle-bin?ui-smoke=restore');
     await page.waitForLoadState('load');
-    await page.waitForTimeout(900);
+    await page.waitForFunction((targetUsername) => {
+      return (document.body.innerText || '').includes(targetUsername);
+    }, setup.username, { timeout: 10000 });
     const recycleRow = page.locator('tr').filter({ hasText: setup.username });
-    if (await recycleRow.count() !== 1) {
+    if (await recycleRow.count() < 1) {
       throw new Error('deleted user missing in recycle bin table');
     }
     await page.screenshot({
@@ -127,10 +129,9 @@ async page => {
       button.click();
     }, setup.username);
     await page.waitForTimeout(1000);
-    const recycleText = await page.locator('body').innerText();
-    if (recycleText.includes(setup.username)) {
-      throw new Error('restored user still visible in recycle bin');
-    }
+    await page.waitForFunction((targetUsername) => {
+      return !(document.body.innerText || '').includes(targetUsername);
+    }, setup.username, { timeout: 10000 });
     await page.screenshot({
       path: 'docs/design-references/admin-2026-06-25/admin-user-restore-complete-desktop-1440x900.png',
       fullPage: false

@@ -993,3 +993,18 @@
 
 - 弹窗内部主按钮仍使用 Naive 默认绿，和外层后台主按钮不是完全同一个渐变；目前视觉方向一致，后续可按人工反馈统一到同一套按钮 token。
 - 继续验证系统设置保存提示、兑换码删除确认和 API 线路保存回显。
+
+## 2026-06-25 后台删除/回收站 UI 复核
+
+### 已确认
+
+- `smoke-admin-ui.ps1` 通过，系统设置保存点击、API 线路弹窗、兑换码弹窗和模板工作流保存点击均可执行。
+- `smoke-admin-delete-ui.ps1` 初次失败点是回收站页面行等待和计数过严；诊断显示前端回收站实际能显示刚删除的用户。
+- 已加固 `smoke-admin-delete-ui-runner.js`：进入回收站后等待目标用户名出现，匹配行数改为至少 1；恢复后等待目标用户名消失。
+- 已把 `/admin/recycle-bin` 加入 `smoke-frontend-routes.ps1`，后续前端路由 smoke 会覆盖回收站入口。
+- 重跑后删除/恢复 UI smoke 通过，截图已刷新：`admin-user-delete-target-desktop-1440x900.png`、`admin-user-delete-confirm-desktop-1440x900.png`、`admin-user-recycle-row-desktop-1440x900.png`、`admin-user-restore-complete-desktop-1440x900.png`。
+
+### 需要继续验证
+
+- 删除确认和回收站恢复已经可测；后续仍需人工确认交互文案和按钮危险色是否符合预期。
+- Docker 容器状态仍依赖 Docker Desktop Engine，当前不能把部署验证标为完成。

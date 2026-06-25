@@ -16,6 +16,7 @@ $routes = @(
   "/admin/login",
   "/admin/dashboard",
   "/admin/users",
+  "/admin/recycle-bin",
   "/admin/orders",
   "/admin/logs",
   "/admin/generate-tasks",

@@ -1138,3 +1138,18 @@
 
 - 当前仍不是后台移动端正式卡片化方案，只是内网人工测试阶段的视觉压迫修复。
 - 用户管理、订单、日志、任务监控等更多后台宽表移动端截图后续可继续专项抽查。
+
+## 2026-06-25 New-API/CPA Provider 护栏
+
+### 已确认
+
+- 新增 `scripts/smoke-provider-guard.ps1`。
+- `/api/health` 当前返回 `providers.ai.gateway = new-api`，并声明 `routesThroughNewApi=true`、`cpaExpectedBehindNewApi=true`。
+- 当前未启用真实 AI，Provider guard 验证后台 API 线路测试返回 `mock:true`。
+- 当前未启用真实 AI，Provider guard 验证 `/api/chat/completions` 返回本地 mock 响应。
+- 脚本已接入 `preflight-check.ps1` 和 `verify-internal-deploy.ps1`，以后默认预检会检查无 key mock 回落护栏。
+
+### 需要继续验证
+
+- 真实 New-API 地址和 token 还没有配置，真实网关联通测试未执行。
+- CPA 只作为 New-API 后置渠道，本项目不保存 CPA 账号池凭据；CPA 是否可用需要在 New-API 后台单独验证。

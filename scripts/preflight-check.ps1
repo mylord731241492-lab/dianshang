@@ -59,6 +59,10 @@ Invoke-Step -Name "frontend route smoke" -Script {
   Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-frontend-routes.ps1")
 }
 
+Invoke-Step -Name "provider guard smoke" -Script {
+  Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-provider-guard.ps1")
+}
+
 if ($env:SMOKE_ALLOW_WRITES -eq "true") {
   Invoke-Step -Name "admin write smoke" -Script {
     Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-admin-write.ps1")

@@ -837,3 +837,16 @@
 - 未完成清单：New-API 真实 token 后续接入；服务器 Nginx/HTTPS 部署演练；后台移动端如要正式给手机高频使用，后续再做卡片化。
 - 下一轮建议：继续后台桌面 10 页逐页视觉细调，或进入 New-API mock/real 切换文档和测试护栏。
 - 需要人工介入：人工确认三张后台移动端截图是否接受。
+
+## 2026-06-25 New-API/CPA Provider 护栏进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：新增 `scripts/smoke-provider-guard.ps1`，验证本项目 Provider Adapter 默认走 New-API 边界，并在未启用真实 AI 或缺少有效 key 时保持 mock 回落；脚本检查 `/api/health` 的 `gateway=new-api`、`routesThroughNewApi=true`、`cpaExpectedBehindNewApi=true`，并验证后台 API 线路测试与 `/api/chat/completions` 在 mock 模式下不会调用真实外部服务。已接入 `preflight-check.ps1` 和 `verify-internal-deploy.ps1` 默认验证链。
+- 修改文件：`scripts/smoke-provider-guard.ps1`、`scripts/preflight-check.ps1`、`scripts/verify-internal-deploy.ps1`、`docs/deployment.md`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `scripts\smoke-provider-guard.ps1`、`node --check server.js`、`node --check assets\home-carousel-inertia.js`。
+- 验证结果：Provider guard 通过：`gateway=new-api`，当前为 mock 模式，后台线路测试返回 `mock:true`，`/api/chat/completions` 返回本地 mock 响应；没有真实 New-API key 时不会误打外部服务。
+- 当前完成度：首页约 84%，模板约 95%，图库约 96%，用户中心约 94%，画布约 91%，后台约 99%，后端平台护栏约 86%，New-API 骨架约 78%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：真实 New-API token 尚未配置，脚本当前只证明 mock 回落安全；真实联通仍需你后续提供 `.env` 配置和 New-API 可访问地址。
+- 未完成清单：New-API 真实 token 联通测试；服务器 Nginx/HTTPS 部署演练；真实模型返回结构接入后的模板/图库再验收。
+- 下一轮建议：补服务器部署前检查脚本或 New-API 真实联通测试说明，等你给 token 后再跑真实连接。
+- 需要人工介入：后续真实 New-API 地址、token、模型白名单和 CPA 后置渠道由你配置，不会提交到 Git。

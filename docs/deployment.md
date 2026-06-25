@@ -94,6 +94,7 @@ docker compose -f docker-compose.internal.yml down
 Invoke-RestMethod -Method Get -Uri "http://127.0.0.1:3456/api/health"
 $env:SMOKE_BASE_URL = "http://127.0.0.1:3456"
 powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\smoke-api.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\smoke-provider-guard.ps1"
 ```
 
 推荐在服务器上跑完整验收脚本：
@@ -110,6 +111,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\verify-internal-dep
 - `/api/health`
 - `scripts\smoke-api.ps1`
 - `scripts\smoke-frontend-routes.ps1`
+- `scripts\smoke-provider-guard.ps1`
 - 容器 `restart` 后再次检查健康状态
 
 如需同时复核后台截图和画布 JSON 导入，可开启 Playwright UI smoke：
@@ -208,6 +210,22 @@ NEW_API_KEY=sk-your-new-api-token
 ```
 
 未配置 `ENABLE_REAL_AI=true` 或未提供有效 `NEW_API_KEY` 时，Provider Adapter 必须保持 mock 模式。
+
+部署前后可以用 provider guard 验证 New-API/CPA 边界没有被误打开：
+
+```powershell
+$env:SMOKE_BASE_URL = "http://127.0.0.1:3456"
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\smoke-provider-guard.ps1"
+Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue
+```
+
+该脚本会检查：
+
+- `/api/health` 中 `providers.ai.gateway` 必须为 `new-api`。
+- `/api/health` 必须标明 `routesThroughNewApi=true`、`cpaExpectedBehindNewApi=true`。
+- 未启用真实 AI 或 key 缺失时，后台 API 线路测试必须返回 `mock:true`。
+- 未启用真实 AI 或 key 缺失时，`/api/chat/completions` 必须返回本地 mock 响应。
+- 如果已明确配置真实 New-API 且 `/api/health` 显示 `real-provider-ready`，脚本不会主动发真实模型请求，避免误扣费。
 
 ## 健康检查
 

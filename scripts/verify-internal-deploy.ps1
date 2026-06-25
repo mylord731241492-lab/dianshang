@@ -109,6 +109,15 @@ Invoke-Step -Name "frontend route smoke" -Script {
   }
 }
 
+Invoke-Step -Name "provider guard smoke" -Script {
+  $env:SMOKE_BASE_URL = $baseUrl
+  try {
+    Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-provider-guard.ps1")
+  } finally {
+    Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue
+  }
+}
+
 if ($env:SMOKE_ALLOW_WRITES -eq "true") {
   Invoke-Step -Name "admin write smoke" -Script {
     $env:SMOKE_BASE_URL = $baseUrl

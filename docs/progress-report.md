@@ -889,3 +889,29 @@
 - 未完成清单：在 Packy/New-API 后台给 `codex` 分组配置可用生图渠道，或换一个有生图权限/分组的 key；配置完成后重新测试 `/api/generate/tasks` 和画布节点。
 - 下一轮建议：先在 New-API/Packy 后台处理“分组 codex + gpt-image-2 生图渠道”问题；若模型名不同，把 `.env` 的 `AI_IMAGE_MODEL` 改成后台实际可用的生图模型名。
 - 需要人工介入：New-API/Packy 后台渠道、分组、模型权限需要你登录后台处理；真实生图测试可能产生费用。
+
+## 2026-06-25 画布生图模型类型保护进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：复核画布生图模型选择链路。确认 `/api/model-routes?group=image` 返回的是图片模型，`/api/model-routes?group=text` 返回的是文本模型；但后端图片生成入口此前没有强制校验模型类型，若前端误传文本模型，可能会拿文本模型去请求图片接口。本轮新增 `resolveImageModelKey` 和 `looksLikeImageModel`，让 `/api/generate/tasks` 与 `/api/template/generate-image` 只使用图片模型；前端误传 `gpt-5.5` 时自动回落到 `AI_IMAGE_MODEL` 或默认图片模型。
+- 修改文件：`server.js`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：执行 `node --check server.js`；重启本地 Node；故意向 `/api/generate/tasks` 传入 `model=gpt-5.5`。
+- 验证结果：语法检查通过；故意传文本模型后，后端实际回落到 `gpt-image-2`，上游返回仍为 `分组 codex 下模型 gpt-image-2 无可用渠道`，证明不再拿文本模型去打生图接口。额外测试 `gemini-3-pro-image-preview` 时，上游返回 `当前令牌未覆盖供应商 Google（已选分组=[codex mimo-officially]）`，说明 Packy token/分组仍未覆盖对应供应商。
+- 当前完成度：首页约 84%，模板约 95%，图库约 96%，用户中心约 94%，画布约 93%，后台约 99%，后端平台护栏约 88%，New-API 骨架约 87%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：本地画布模型列表不是文本/图片混用，但“线路/分组选择”并不会自动改变 Packy token 的上游分组权限；Packy 仍按 token 覆盖的分组和供应商判断。
+- 未完成清单：Packy/New-API 后台需要给当前 token 开通可用生图供应商和模型渠道；或改用已覆盖对应供应商/分组的 token。
+- 下一轮建议：先在 Packy 后台确认当前 token 覆盖的供应商和分组；如果可用模型不是 `gpt-image-2`，把 `.env` 的 `AI_IMAGE_MODEL` 改为真实可用模型，再复测画布节点。
+- 需要人工介入：Packy/New-API 的 token 分组、供应商覆盖和渠道配置需要你登录后台确认。
+
+## 2026-06-25 真实生图联通成功进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：用户把 key 换成生图可用 key 后，重启本地 Node 并重新测试 New-API/Packy 生图链路；补充 `makeTaskResponse` 的 `modelKey/model` 兼容字段，避免任务响应顶层模型字段为空。
+- 修改文件：`server.js`、`docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md`
+- 验证方式：读取 `/api/health`；读取 Packy `/v1/models`；调用 `/api/generate/tasks`，模型 `gpt-image-2`，并请求返回的 `/api/proxy-image?...`。
+- 验证结果：`/api/health` 显示 `enabled=true`、`mode=real-provider-ready`；Packy `/v1/models` 返回 `gemini-3.1-flash-image-preview`、`gemini-3-pro-image-preview`、`gpt-image-2`；`/api/generate/tasks` 返回 `success=true`、`mock=false`、`status=success`，结果图走 `/api/proxy-image`，HTTP 200。
+- 当前完成度：首页约 84%，模板约 95%，图库约 96%，用户中心约 94%，画布约 94%，后台约 99%，后端平台护栏约 89%，New-API 骨架约 90%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：真实生图已通，但 Docker Desktop 仍需重启并重建容器；本轮成功基于本地 Node `3456`。
+- 未完成清单：在浏览器画布节点上人工点一次生成，确认 UI 节点出图、图库历史和余额流水；模板页真实生图也需要点测。
+- 下一轮建议：先在画布页面用当前 `GPT Image 2（6789）` 点一次生成；若 UI 仍报错，再看浏览器 console/network。
+- 需要人工介入：真实生图会消耗额度，人工点测时注意成本。

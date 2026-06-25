@@ -1203,3 +1203,32 @@
 - 需要在 Packy/New-API 后台给 `codex` 分组配置可用的 `gpt-image-2` 生图渠道，或更换有生图权限的 key/分组。
 - 如果 Packy 后台实际生图模型名不是 `gpt-image-2`，需要同步修改 `.env` 的 `AI_IMAGE_MODEL`。
 - Docker Desktop 仍需人工重启后重建容器，当前本地 Node `3456` 是真实联通测试依据。
+
+## 2026-06-25 画布生图模型类型保护
+
+### 已确认
+
+- `/api/model-routes?group=image` 返回图片线路和图片模型，`/api/model-routes?group=text` 返回文本线路和文本模型。
+- 画布后端图片生成入口已新增模型类型保护：如果请求误传 `gpt-5.5` 这类文本模型，后端会回落到 `AI_IMAGE_MODEL` 或默认图片模型，不再拿文本模型请求 `/images/generations`。
+- 验证时故意传 `model=gpt-5.5`，后端实际请求回落到 `gpt-image-2`，说明保护生效。
+
+### 需要继续验证
+
+- Packy token/分组仍是真实阻塞点：`gpt-image-2` 返回 `分组 codex 下模型 gpt-image-2 无可用渠道`。
+- `gemini-3-pro-image-preview` 返回 `当前令牌未覆盖供应商 Google（已选分组=[codex mimo-officially]）`。
+- 需要人工在 Packy/New-API 后台确认 token 所属分组、供应商覆盖和生图渠道。
+
+## 2026-06-25 真实生图联通成功
+
+### 已确认
+
+- 用户更换生图可用 key 后，Packy `/v1/models` 可见 `gpt-image-2`。
+- `/api/generate/tasks` 使用 `gpt-image-2` 已真实返回图片：`success=true`、`mock=false`、`providerMode=real-provider-ready`。
+- 上游远程图已通过 `/api/proxy-image` 转为本地同源地址，代理请求返回 HTTP 200。
+- 任务响应已补顶层 `modelKey/model` 字段，便于前端和日志展示。
+
+### 需要继续验证
+
+- 浏览器画布节点真实点击生成尚待人工确认。
+- 模板页真实生图尚待人工确认。
+- Docker Desktop 仍需重启后重建容器，本轮真实生图成功基于本地 Node `3456`。

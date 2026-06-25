@@ -765,6 +765,8 @@ function makeTaskResponse(task) {
     status: task.status,
     progress: task.progress,
     prompt: task.prompt,
+    modelKey: task.modelKey,
+    model: task.modelKey,
     resultImages: task.images,
     images: task.images,
     costPoints: task.cost,
@@ -802,8 +804,21 @@ function pickImageModel(body = {}) {
     'gpt-image-2'
   ).trim();
 }
+function looksLikeImageModel(model = '') {
+  const value = String(model || '').trim().toLowerCase();
+  return !!value && !TXT.some(item => item.k.toLowerCase() === value) && (
+    IMG.some(item => item.k.toLowerCase() === value) ||
+    /image|img|banana|gemini.*flash|gemini.*preview/i.test(value)
+  );
+}
+function resolveImageModelKey(body = {}) {
+  const requested = pickImageModel(body);
+  if (looksLikeImageModel(requested)) return requested;
+  if (looksLikeImageModel(AI_IMAGE_MODEL)) return AI_IMAGE_MODEL;
+  return IMG[0].k;
+}
 function createCompletedTask(req, source = {}) {
-  const modelKey = source.modelKey || source.model || pickImageModel(req.body);
+  const modelKey = source.modelKey || source.model || resolveImageModelKey(req.body);
   const imageCount = Math.max(1, Math.min(Number(source.imageCount || req.body.imageCount || req.body.n || 1) || 1, 4));
   const prompt = source.prompt || pickTemplatePrompt(req.body);
   const m = [...IMG, ...TXT].find(x => x.k === modelKey) || IMG[0];
@@ -835,7 +850,7 @@ function createCompletedTask(req, source = {}) {
 
 app.post('/api/generate/tasks', auth, async (req, res) => {
   const prompt = req.body.prompt || req.body.selectedPrompt || '';
-  const modelKey = req.body.modelKey || req.body.model || 'gpt-image-2';
+  const modelKey = resolveImageModelKey(req.body);
   if (!prompt && !Array.isArray(req.body.referenceImages) && !Array.isArray(req.body.images)) {
     return res.status(400).json({ message: '请输入提示词或上传参考图' });
   }
@@ -868,7 +883,7 @@ app.get('/api/generate/tasks/:id', auth, (req, res) => {
 
 app.post('/api/template/generate-image', auth, async (req, res) => {
   const prompt = pickTemplatePrompt(req.body);
-  const modelKey = pickImageModel(req.body);
+  const modelKey = resolveImageModelKey(req.body);
   const imageCount = Number(req.body.imageCount || req.body.count || req.body.n || 1);
   const negativePrompt = req.body.negativePrompt || '';
   if (!prompt) return res.status(400).json({ message: '请输入提示词' });

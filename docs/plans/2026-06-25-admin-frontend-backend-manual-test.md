@@ -44,6 +44,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-api.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-api-disposable.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-admin-write-disposable.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-admin-ui.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-admin-delete-ui.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-user-redeem-ui.ps1
 Invoke-RestMethod http://127.0.0.1:3456/api/health
 docker compose -f docker-compose.internal.yml ps
 git status --short --branch
@@ -66,5 +68,7 @@ git status --short --branch
 - 已完成：模板真实上传素材后的 UI 闭环已用 Playwright 验证，能上传 2 张素材、反推 3 条提示词、生成 1 张 mock 结果并写入图库历史。
 - 已完成：后台内置浏览器 10 页截图复核；后台 UI smoke 已覆盖系统设置保存、API 线路新增弹窗、兑换码创建弹窗、模板工作流保存。
 - 已完成：新增后台写入 disposable smoke，在临时 SQLite 中验证用户软删除、回收站恢复、永久匿名化、兑换码增删、API 线路/模型增删、模板工作流和系统设置保存。
-- 进行中：后台删除/恢复的前端确认弹窗仍需人工逐页点测。
+- 已完成：用户中心兑换码 UI smoke，已验证错误码提示和成功兑换提示并截图。
+- 已完成：后台用户删除/恢复 UI smoke，已验证删除确认弹窗、回收站行和恢复成功并截图。
+- 进行中：移动端关键页面和复杂后台表单回显仍需继续复核。
 - 待复核：Docker Desktop 打开后执行 `docker compose -f docker-compose.internal.yml ps`。

@@ -460,3 +460,16 @@
 - 未完成清单：后台删除/恢复前端确认弹窗；兑换码成功/失败提示；移动端关键页面截图；Docker 容器状态复核；New-API 真实 token 后续接入。
 - 下一轮建议：用内置浏览器补后台删除/恢复前端确认弹窗截图，随后补用户中心兑换码成功/失败提示。
 - 需要人工介入：打开 Docker Desktop 后复核容器；人工确认后台删除/恢复交互是否符合预期。
+
+## 2026-06-25 用户中心兑换码与后台删除恢复 UI Smoke 进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：新增用户中心兑换码 UI smoke，自动创建一次性兑换码，验证 `/user/redeem` 错误码红色提示和有效码绿色成功提示，并截图归档；新增后台删除/恢复 UI smoke，自动创建临时用户，验证删除确认弹窗、回收站行、恢复成功提示，并在结束后清理临时用户。
+- 修改文件：`scripts/smoke-user-redeem-ui.ps1`、`scripts/smoke-user-redeem-ui-runner.js`、`scripts/smoke-admin-delete-ui.ps1`、`scripts/smoke-admin-delete-ui-runner.js`、`docs/design-references/frontend-2026-06-25/*.png`、`docs/design-references/admin-2026-06-25/*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`、`docs/plans/2026-06-25-admin-frontend-backend-manual-test.md`
+- 验证方式：执行 `scripts\smoke-user-redeem-ui.ps1` 和 `scripts\smoke-admin-delete-ui.ps1`；人工查看截图 `user-redeem-invalid/success`、`admin-user-delete-confirm`、`admin-user-recycle-row`、`admin-user-restore-complete`。
+- 验证结果：用户中心兑换码错误提示显示 `兑换码不存在`，成功提示显示 `兑换成功，增加 3 算力`；后台删除确认弹窗可见管理员密码和删除原因，确认后用户进入回收站，点击恢复后显示 `用户已恢复` 且回收站为空；临时用户最终通过 API 清理。
+- 当前完成度：首页约 74%，模板约 91%，图库约 88%，用户中心约 88%，后台约 98%，后端平台护栏约 82%，测试护栏约 92%，部署护栏约 92%。
+- 新发现问题：用户中心桌面仍是窄移动式容器，可测但不是最终 1:1 桌面布局；后台用户列表在 1440 视口下操作列较密，仍可后续细化。
+- 未完成清单：移动端关键页面截图；Dashboard 排行表宽度细化；Docker 容器状态复核；New-API 真实 token 后续接入。
+- 下一轮建议：继续移动端首页/模板/用户中心/后台截图复核，随后补 Dashboard 表格宽度细化。
+- 需要人工介入：打开 Docker Desktop 后复核容器；人工确认用户中心兑换码和后台删除恢复手感是否符合预期。

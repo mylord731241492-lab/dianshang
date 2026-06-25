@@ -933,13 +933,21 @@ app.get('/api/admin/dashboard', auth, admin, (req, res) => {
   const modelUsageList = db.prepare(`
     SELECT model_key as modelKey, COUNT(*) as usageCount, COALESCE(SUM(cost),0) as totalCredits
     FROM generations GROUP BY model_key ORDER BY totalCredits DESC
-  `).all().map(row => ({
-    ...row,
-    model: row.modelKey,
-    modelName: row.modelKey || 'mock',
-    totalCount: row.usageCount,
-    points: row.totalCredits
-  }));
+  `).all().map(row => {
+    const usageCount = Number(row.usageCount || 0);
+    const totalCreditsForModel = Number(row.totalCredits || 0);
+    const percent = totalCost > 0 ? Math.round(totalCreditsForModel / totalCost * 100) : 0;
+    return {
+      ...row,
+      usageCount,
+      totalCredits: totalCreditsForModel,
+      model: row.modelKey,
+      modelName: row.modelKey || 'mock',
+      totalCount: usageCount,
+      points: totalCreditsForModel,
+      percent
+    };
+  });
   const rankingList = db.prepare(`
     SELECT u.id as userId, u.username, u.email, COUNT(g.id) as usageCount, COALESCE(SUM(g.cost),0) as totalCredits,
       MAX(g.created_at) as lastUsedAt
@@ -967,11 +975,21 @@ app.get('/api/admin/dashboard', auth, admin, (req, res) => {
     routeCount: routeState().length,
     modelCount: IMG.length + TXT.length
   };
+  const dashboardStats = {
+    ...stats,
+    userTotal: totalUsers,
+    usersTotal: totalUsers,
+    totalUserCount: totalUsers,
+    todayUserCount: totalUsers,
+    generationTotal: totalGenerations,
+    consumedPoints: totalCost,
+    consumedCredits: totalCost
+  };
   res.json({
     success: true,
-    summary: stats,
-    stats,
-    cards: stats,
+    summary: dashboardStats,
+    stats: dashboardStats,
+    cards: dashboardStats,
     recentTasks: generationRows(8),
     routes: filteredRoutes(),
     modelPrices: modelPriceRows().slice(0, 12),

@@ -330,3 +330,16 @@
 - 未完成清单：用户中心算力明细展开、生成记录、头像保存；画布 JSON 导入/导出；模板/图库继续人工测试。
 - 下一轮建议：你刷新当前画布，先确认用户中心标题颜色；如果 OK，继续后台 UI 保存回显和用户中心明细展开测试。
 - 需要人工介入：刷新浏览器后肉眼确认颜色是否符合你要的统一深色。
+
+## 2026-06-25 后台视觉与前后端人工可测进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：新增今日目标计划文档；归档后台 10 个页面桌面截图；补齐 Dashboard 前端所需的 `userTotal` 等兼容字段；为模型使用统计补 `percent`，修复模型占比只显示 `%` 的问题；新增后台视觉补丁，统一卡片阴影、表格密度、标题字距、按钮密度；修复 API 线路操作列竖排撑高和任务监控提示词竖排问题。
+- 修改文件：`server.js`、`index.html`、`assets/admin-visual-polish.css`、`docs/plans/2026-06-25-admin-frontend-backend-manual-test.md`、`docs/design-references/admin-2026-06-25/*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：后台登录接口注入登录态后访问并截图 `/admin/dashboard`、`/admin/users`、`/admin/orders`、`/admin/logs`、`/admin/redeem-codes`、`/admin/api-providers`、`/admin/model-prices`、`/admin/generate-tasks`、`/admin/template-workflows`、`/admin/settings`；读取表格行高；调用 `/api/admin/dashboard` 检查 `userTotal` 与 `modelUsage.list[].percent`；执行 `node --check server.js`、`node --check assets/home-carousel-inertia.js`、`scripts/smoke-frontend-routes.ps1`、`scripts/smoke-api.ps1`、`/api/health`、`docker compose ps`。
+- 验证结果：10 个后台页面均非空白；Dashboard 用户总数显示为 `1`，模型占比显示 `79% / 21%`；API 线路首行行高从约 `226px` 降到 `58px`；任务监控首行从约 `348px` 降到 `92px`，提示词改为单行省略；`node --check`、前端路由 smoke、API smoke、`/api/health` 均通过；Docker Desktop 当前未启动，`docker compose ps` 无法连接 daemon，需用户打开 Docker 后复核。
+- 当前完成度：后台约 93%，后端平台护栏约 74%，前端人工验收约 80%，部署护栏约 92%。
+- 新发现问题：本机启动日志在 PowerShell 读取时中文有乱码；模型价格页线路筛选项仍有重复，当前先作为数据/前端状态待优化项，不阻塞人工测试。
+- 未完成清单：Docker Desktop 当前需重新确认运行状态；后台保存类操作仍需你手动点测；前端首页、模板、图库、画布、用户中心还需要继续逐页人工反馈。
+- 下一轮建议：你从后台 10 页按按钮/弹窗/保存回显测试；我继续修真实点击中发现的问题，然后再转模板/图库闭环。
+- 需要人工介入：打开 Docker Desktop 后复核容器状态；人工点测后台保存、删除、弹窗关闭和前端主流程。

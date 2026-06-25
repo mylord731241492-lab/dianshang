@@ -1,0 +1,121 @@
+/*
+ * Admin visual polish for the bundled backend shell.
+ * Scoped to the admin layout root so canvas/template/home overrides stay untouched.
+ */
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] {
+  --admin-ink: #0f172a;
+  --admin-muted: #64748b;
+  --admin-soft: #f8fafc;
+  --admin-line: rgba(226, 232, 240, 0.82);
+  letter-spacing: 0;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] main {
+  background:
+    radial-gradient(circle at 82% 8%, rgba(16, 185, 129, 0.08), transparent 28%),
+    linear-gradient(180deg, #f7faf9 0%, #f4f8f6 100%);
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] h1,
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] h2,
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] h3 {
+  color: var(--admin-ink);
+  letter-spacing: 0;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] [class*="rounded-3xl"][class*="bg-white"] {
+  border: 1px solid rgba(226, 232, 240, 0.72);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.045) !important;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] table {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 1180px !important;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] thead tr {
+  background: var(--admin-soft);
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] th {
+  padding: 12px 16px !important;
+  color: var(--admin-muted) !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td {
+  max-width: 280px;
+  padding: 14px 16px !important;
+  color: #334155;
+  font-size: 13px;
+  line-height: 1.45 !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td:last-child {
+  max-width: none;
+  min-width: 260px;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td:last-child div[class*="flex"][class*="flex-wrap"] {
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  width: max-content;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td div[class*="whitespace-normal"] {
+  max-width: 280px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap !important;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] tbody tr {
+  height: 58px !important;
+  transition: background-color 0.16s ease;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] tbody tr:hover {
+  background: rgba(240, 253, 244, 0.66);
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] input,
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] select,
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] textarea {
+  letter-spacing: 0;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] button {
+  letter-spacing: 0;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] table button {
+  min-height: 28px;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  border-radius: 10px !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] div[class*="flex"][class*="flex-wrap"][class*="gap-2"] {
+  row-gap: 8px !important;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] div[class*="flex"][class*="flex-wrap"][class*="gap-2"] button {
+  min-height: 32px;
+  line-height: 1;
+}
+
+@media (max-width: 720px) {
+  div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] td {
+    max-width: 220px;
+  }
+}

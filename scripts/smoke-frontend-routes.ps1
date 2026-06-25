@@ -45,6 +45,8 @@ $assetPaths = @(
   "/assets/canvas-project-restore-guard.js",
   "/assets/index-C4xTg-zU.css",
   "/assets/home-carousel-inertia.js",
+  "/assets/user-center-data-bridge.js",
+  "/assets/gallery-persistence-bridge.js",
   "/assets/home-overrides.css",
   "/assets/canvas-node-radius-fix.css",
   "/logo.png",

@@ -769,6 +769,43 @@ app.get('/api/user/generations', auth, (req, res) => {
   res.json({ items, data: items, success: true });
 });
 
+app.delete('/api/user/generations/:id', auth, (req, res) => {
+  const id = String(req.params.id || '').trim();
+  if (!id) return res.status(400).json({ success: false, message: '缺少生成记录 ID', code: 'GENERATION_ID_REQUIRED' });
+  const result = db.prepare('DELETE FROM generations WHERE id=? AND user_id=?').run(id, req.user.userId);
+  res.json({
+    success: true,
+    deleted: result.changes > 0,
+    deletedCount: result.changes,
+    id
+  });
+});
+
+app.delete('/api/user/generations', auth, (req, res) => {
+  const resultUrl = String(req.body?.resultUrl || req.body?.url || req.query?.resultUrl || req.query?.url || '').trim();
+  const prompt = String(req.body?.prompt || req.query?.prompt || '').trim();
+  if (!resultUrl && !prompt) {
+    return res.status(400).json({ success: false, message: '缺少生成记录链接或提示词', code: 'GENERATION_MATCH_REQUIRED' });
+  }
+
+  let result;
+  if (resultUrl) {
+    result = db.prepare('DELETE FROM generations WHERE user_id=? AND result_url=?').run(req.user.userId, resultUrl);
+  }
+  if ((!result || result.changes === 0) && prompt) {
+    result = db.prepare('DELETE FROM generations WHERE id IN (SELECT id FROM generations WHERE user_id=? AND prompt=? ORDER BY created_at DESC LIMIT 1)').run(req.user.userId, prompt);
+  }
+
+  const deletedCount = result ? result.changes : 0;
+  res.json({
+    success: true,
+    deleted: deletedCount > 0,
+    deletedCount,
+    resultUrl,
+    prompt
+  });
+});
+
 app.post('/api/chat/completions', auth, async (req, res) => {
   const { messages } = req.body;
   if (!messages) return res.status(400).json({ message: '缺少 messages' });

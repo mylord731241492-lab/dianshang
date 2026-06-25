@@ -194,6 +194,12 @@ if (-not $generations.items -or $generations.items.Count -lt 1) {
   throw "User generations missing after template generation"
 }
 
+$generatedId = $generations.items[0].id
+$deletedGeneration = Invoke-SmokeJson -Method "DELETE" -Path "/api/user/generations/$generatedId" -Headers $userHeaders
+if (-not $deletedGeneration.success -or -not $deletedGeneration.deleted) {
+  throw "User generation delete failed"
+}
+
 $adminLogin = Invoke-SmokeJson -Method "POST" -Path "/api/admin/login" -Body @{
   username = "admin"
   password = "admin123"

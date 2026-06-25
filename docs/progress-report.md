@@ -382,3 +382,16 @@
 - 未完成清单：Docker Desktop 打开后的容器复核；用户中心头像保存；图库删除/保存链接；模板真实上传素材后的完整闭环；后台弹窗和保存回显继续人工点测。
 - 下一轮建议：先让你从 `/user/records`、`/user/redeem`、图库、模板工作区人工点一遍；发现真实问题后我继续小补丁修复，再转后台每页按钮/弹窗手感优化。
 - 需要人工介入：打开 Docker Desktop 后复核容器；人工测试兑换码成功/失败、图库删除/保存、模板上传和后台保存按钮。
+
+## 2026-06-25 图库删除持久化进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：审计首页图库弹层按钮，确认原 `删除` 只会前端临时移除，刷新后记录恢复；新增 `/api/user/generations/:id` 和 `/api/user/generations` 删除接口；新增图库持久化桥接脚本，在图库弹层点击 `删除` 时根据图片链接/提示词同步删除后端记录；更新 API smoke 覆盖生成历史删除。
+- 修改文件：`server.js`、`index.html`、`assets/gallery-persistence-bridge.js`、`scripts/smoke-api.ps1`、`docs/api-contracts.md`、`docs/design-references/frontend-2026-06-25/gallery-delete-persistent-desktop-1440x900.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：浏览器登录后打开首页图库，记录删除前后 API 数量和页面数量，刷新后再次打开图库；执行 `node --check server.js`、`node --check assets/gallery-persistence-bridge.js`、`node --check assets/user-center-data-bridge.js`、`scripts/smoke-api-disposable.ps1`。
+- 验证结果：删除前 API 为 `4` 条、页面显示 `共 4 张`；点击删除后 API 为 `3` 条、页面显示 `共 3 张`；刷新后仍显示 `共 3 张`；浏览器 console 无页面错误；disposable API smoke 已通过并包含 `DELETE /api/user/generations/:id`。
+- 当前完成度：图库约 84%，前端人工验收约 84%，后端平台护栏约 80%，测试护栏约 84%。
+- 新发现问题：`保存链接` 仍需人工确认剪贴板/本地文件夹提示是否符合预期；`清空` 目前未做后端批量清空，暂不作为本轮默认行为，避免误删全部生成历史。
+- 未完成清单：图库保存链接、多图和空状态；模板真实上传素材闭环；用户中心头像保存；后台弹窗和保存回显继续人工点测；Docker Desktop 打开后的容器复核。
+- 下一轮建议：继续审计图库 `保存链接` 和模板上传生成闭环；如果你想保留批量清空，也需要增加二次确认和后端批量删除接口。
+- 需要人工介入：人工点测图库保存链接和是否需要支持“清空”持久删除。

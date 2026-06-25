@@ -434,3 +434,16 @@
 - 未完成清单：后台弹窗关闭、删除/恢复确认；兑换码成功/失败提示；首页/画布/用户中心移动端复核；Docker 容器状态在 Docker Desktop 打开后复核。
 - 下一轮建议：先做后台保存/弹窗逐页手感复核，再补兑换码提示和移动端关键页面截图。
 - 需要人工介入：你用真实浏览器再点一次模板上传生成手感；打开 Docker Desktop 后我复核 compose 容器。
+
+## 2026-06-25 后台内置浏览器截图与交互 Smoke 进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：使用 Codex 内置浏览器重新归档后台 10 个页面桌面截图；新增后台 UI smoke 脚本和 runner，自动登录管理员、访问 Dashboard/系统设置/API 线路/兑换码/模板工作流，验证保存按钮、弹窗打开和关键表单可见，并归档交互截图。
+- 修改文件：`scripts/smoke-admin-ui.ps1`、`scripts/smoke-admin-ui-runner.js`、`docs/design-references/admin-2026-06-25/*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`、`docs/plans/2026-06-25-admin-frontend-backend-manual-test.md`
+- 验证方式：内置浏览器截图 `/admin/dashboard`、`/admin/users`、`/admin/orders`、`/admin/logs`、`/admin/redeem-codes`、`/admin/api-providers`、`/admin/model-prices`、`/admin/generate-tasks`、`/admin/template-workflows`、`/admin/settings`；执行 `scripts/smoke-admin-ui.ps1`。
+- 验证结果：后台 10 页均非空白、非 404、非 500；`scripts/smoke-admin-ui.ps1` 通过，验证系统设置保存、API 线路新增弹窗、兑换码创建弹窗、模板工作流保存，并生成 5 张交互截图；API 线路和兑换码弹窗视觉可读，按钮层级清晰。
+- 当前完成度：首页约 74%，模板约 91%，图库约 88%，用户中心约 86%，后台约 96%，后端平台护栏约 81%，测试护栏约 88%，部署护栏约 92%。
+- 新发现问题：后台整体可测，但 Dashboard 右侧排行表在 1440 截图下仍略挤；后台删除/恢复确认还没全部纳入自动化；Docker Desktop 当前仍需打开后复核 compose 状态。
+- 未完成清单：后台删除/恢复确认；兑换码成功/失败提示；首页/画布/用户中心移动端复核；Docker 容器状态复核；New-API 真实 token 后续接入。
+- 下一轮建议：继续后台删除/恢复和用户中心兑换码提示手感；然后做移动端关键页面截图。
+- 需要人工介入：你人工点测后台删除/恢复是否符合预期；打开 Docker Desktop 后复核容器。

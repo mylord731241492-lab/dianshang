@@ -598,3 +598,27 @@
 - Playwright CLI 登录态目前只写入 `auth_token`，顶部仍显示 `登录`，但接口调用已通过；后续如果要长期自动化，应写专用脚本处理 `auth_user` JSON 引号。
 - 1440 截图中上传素材预览区域显示了 `logo.png` 文件名，生成结果本身正常；需要你在真实浏览器里确认这是测试素材/截图加载问题，还是预览卡片需要继续修。
 - 模板页“进画布”按钮、下载文件名和批量生成还未作为本轮重点验证。
+
+## 2026-06-25 后台内置浏览器截图与交互 Smoke 复核
+
+### 已确认
+
+- 已使用内置浏览器归档后台 10 页截图：Dashboard、用户、订单、日志、兑换码、API 线路、模型价格、任务监控、模板工作流、系统设置。
+- 页面均能打开，未出现空白、404 或 500。
+- 新增 `scripts/smoke-admin-ui.ps1` 与 `scripts/smoke-admin-ui-runner.js`，通过浏览器内登录后验证关键后台交互。
+- 已验证 `系统设置 -> 保存设置` 有成功提示。
+- 已验证 `API 线路管理 -> 新增线路` 弹窗能打开，且包含 Base URL、API Key、接口路径等字段。
+- 已验证 `兑换码管理 -> 创建兑换码` 弹窗能打开，且包含兑换码、点数、次数、过期时间等字段。
+- 已验证 `模板工作流 -> 保存配置` 可点击，页面不报错。
+- 已归档交互截图：
+  - `admin-ui-smoke-dashboard-desktop-1440x900.png`
+  - `admin-ui-smoke-settings-desktop-1440x900.png`
+  - `admin-ui-smoke-api-provider-modal-desktop-1440x900.png`
+  - `admin-ui-smoke-redeem-modal-desktop-1440x900.png`
+  - `admin-ui-smoke-template-workflows-desktop-1440x900.png`
+
+### 需要继续验证
+
+- 后台删除/恢复确认还没有全部纳入自动化。
+- Dashboard 用户排行表在 1440 视口下仍偏宽，后续可单独做表格列压缩。
+- 后台视觉这轮只做复核和护栏，没有再改动已确认的画布卡片布局。

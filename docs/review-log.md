@@ -910,10 +910,10 @@
 
 - 系统设置页 `保存设置` 原样式为 Naive UI 默认亮薄荷绿：`rgb(99, 226, 183)`，文字为黑色，和后台工具台风格不统一。
 - 已在 `assets/admin-visual-polish.css` 的后台作用域中覆盖 `.n-button.n-button--primary-type`。
-- 新样式使用深墨绿主色、白色文字、低饱和边框和轻阴影，避免继续出现荧光薄荷绿。
-- 内置浏览器已归档截图：`docs/design-references/admin-2026-06-25/settings-button-color-fix-desktop-1440x900.png`。
+- 新样式使用清新 emerald 绿主色、白色文字、低饱和边框和轻阴影，避免继续出现荧光薄荷绿，同时不压成黑绿。
+- 内置浏览器已归档截图：`docs/design-references/admin-2026-06-25/settings-button-fresh-green-desktop-1440x900.png`。
 
 ### 需要继续验证
 
-- 你人工确认新的深墨绿色按钮是否符合预期。
+- 你人工确认新的清新绿色按钮是否符合预期。
 - 继续按后台页面截图审查其他明显突兀的颜色、按钮密度和标题层级。

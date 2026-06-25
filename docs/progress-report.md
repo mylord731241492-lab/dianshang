@@ -369,3 +369,16 @@
 - 未完成清单：Docker Desktop 打开后的容器复核；模板真实上传闭环、图库删除/保存、用户中心明细/头像；后台人工弹窗点击。
 - 下一轮建议：继续模板/图库/用户中心人工闭环，或打开 Docker 后先补容器健康复核。
 - 需要人工介入：打开 Docker Desktop 后让我复核；人工点测前端主流程。
+
+## 2026-06-25 前端主流程与用户中心真实数据桥接进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：归档首页、首页图库、模板页、模板图库、模板工作区、用户中心、用户中心算力明细、兑换码、API 线路等前端桌面截图；确认用户中心 `/user/records` 和 `/user/redeem` 原来是打包前端写死的占位文案；新增轻量桥接脚本，只在用户中心记录页和兑换页运行，从现有后端读取真实生成记录、余额流水，并提供兑换码提交入口；不改画布卡片结构。
+- 修改文件：`index.html`、`assets/user-center-data-bridge.js`、`docs/plans/2026-06-25-admin-frontend-backend-manual-test.md`、`docs/design-references/frontend-2026-06-25/*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：浏览器注入管理员登录态后访问 `/user/records` 与 `/user/redeem` 并截图；检查页面文本包含 `真实记录`、`生成 N · 流水 N`、`兑换码提交`、`已接后端`；执行 `node --check server.js`、`node --check assets/home-carousel-inertia.js`、`node --check assets/user-center-data-bridge.js`、`scripts/smoke-frontend-routes.ps1`、`scripts/smoke-api-disposable.ps1`、`/api/health`、`docker compose ps`。
+- 验证结果：用户中心记录页和兑换页桥接内容可见，浏览器 console 无页面错误；前端路由 smoke 通过；disposable API smoke 完整通过，覆盖登录、项目、模板生成、图库历史和后台接口；`/api/health` 返回 `success: true`、`mode: mock`、`database: ok`；Docker Desktop 当前未启动，`docker compose ps` 仍无法连接 daemon。
+- 当前完成度：首页约 74%，模板约 82%，图库约 80%，用户中心约 78%，后台约 94%，后端平台护栏约 78%，部署护栏约 92%。
+- 新发现问题：用户中心桌面端仍是窄移动式容器，不影响测试，但后续要做 1:1 桌面视觉时需要单独优化；兑换码接口可提交，成功/失败提示仍需你人工点一次确认手感。
+- 未完成清单：Docker Desktop 打开后的容器复核；用户中心头像保存；图库删除/保存链接；模板真实上传素材后的完整闭环；后台弹窗和保存回显继续人工点测。
+- 下一轮建议：先让你从 `/user/records`、`/user/redeem`、图库、模板工作区人工点一遍；发现真实问题后我继续小补丁修复，再转后台每页按钮/弹窗手感优化。
+- 需要人工介入：打开 Docker Desktop 后复核容器；人工测试兑换码成功/失败、图库删除/保存、模板上传和后台保存按钮。

@@ -33,6 +33,8 @@ async page => {
         shellWidth: shellRect ? Math.round(shellRect.width) : 0,
         mainDisplay: mainStyle ? mainStyle.display : '',
         mainColumns: mainStyle ? mainStyle.gridTemplateColumns : '',
+        brokenImages: Array.from(document.images).filter(image => image.complete && image.naturalWidth === 0).length,
+        avatarFallbacks: document.querySelectorAll('.uc-avatar-fallback').length,
         text: document.body.innerText
       };
     });
@@ -79,6 +81,9 @@ async page => {
     if (metrics.mainDisplay !== 'grid') {
       throw new Error(`${item.name} desktop main did not become grid layout`);
     }
+    if (metrics.brokenImages > 0 && metrics.avatarFallbacks < 1) {
+      throw new Error(`${item.name} has broken images without avatar fallback`);
+    }
     await page.screenshot({ path: item.screenshot, fullPage: false });
     results.push({ page: item.name, viewport: 'desktop', ok: true, metrics });
   }
@@ -93,6 +98,9 @@ async page => {
   }
   if (mobileMetrics.shellWidth > 430) {
     throw new Error(`mobile user center shell became too wide: ${mobileMetrics.shellWidth}`);
+  }
+  if (mobileMetrics.brokenImages > 0 && mobileMetrics.avatarFallbacks < 1) {
+    throw new Error('mobile user center has broken images without avatar fallback');
   }
   await page.screenshot({
     path: 'docs/design-references/mobile-2026-06-25/user-center-mobile-390x844.png',

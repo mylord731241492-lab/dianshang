@@ -616,3 +616,16 @@
 - 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；用户中心默认头像视觉；后台多操作菜单化；后台移动端表格是否卡片化待人工确认。
 - 下一轮建议：继续人工点测首页、模板、图库、画布、用户中心主流程；如果 Docker Desktop 已打开，优先跑容器复核。
 - 需要人工介入：确认用户中心桌面两栏布局是否接受；打开 Docker Desktop 后复核容器。
+
+## 2026-06-25 用户中心默认头像兜底进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：把用户中心头像破图兜底从“隐藏坏图”升级为默认文字头像；当头像图片加载失败时，自动显示用户首字母，例如 `admin` 显示 `A`，桌面和移动端一致。
+- 修改文件：`assets/user-center-data-bridge.js`、`scripts/smoke-user-center-layout-ui-runner.js`、`docs/design-references/frontend-2026-06-25/user-center-desktop-1440x900.png`、`docs/design-references/mobile-2026-06-25/user-center-mobile-390x844.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `node --check assets\user-center-data-bridge.js`、`node --check scripts\smoke-user-center-layout-ui-runner.js`、`scripts\smoke-user-center-layout-ui.ps1`，并人工查看桌面和移动端截图。
+- 验证结果：用户中心布局 smoke 通过；检测到 broken image 时 `avatarFallbacks=1`；桌面和移动端截图均显示默认首字母头像，不再出现浏览器破图标或空白头像。
+- 当前完成度：首页约 79%，模板约 92%，图库约 94%，用户中心约 93%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 93%。
+- 新发现问题：默认头像已可测；后续如果追品牌一致性，可以换成统一头像素材或用户上传默认图。
+- 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；后台多操作菜单化；后台移动端表格是否卡片化待人工确认。
+- 下一轮建议：继续人工点测首页、模板、图库、画布、用户中心主流程；如果 Docker Desktop 已打开，优先跑容器复核。
+- 需要人工介入：确认默认首字母头像视觉是否接受；打开 Docker Desktop 后复核容器。

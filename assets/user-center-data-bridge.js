@@ -128,6 +128,22 @@
       background: #fef2f2;
       color: #dc2626;
     }
+    body.uc-user-page .uc-avatar-fallback-shell {
+      position: relative;
+    }
+    body.uc-user-page .uc-avatar-fallback {
+      align-items: center;
+      background: linear-gradient(135deg, #fff7ed, #ffedd5);
+      border-radius: inherit;
+      color: #f97316;
+      display: flex;
+      font-size: 18px;
+      font-weight: 900;
+      inset: 0;
+      justify-content: center;
+      position: absolute;
+      text-transform: uppercase;
+    }
     @media (min-width: 960px) {
       body.uc-user-page #app .mx-auto.flex.h-full {
         border-left: 0 !important;
@@ -219,6 +235,17 @@
 
   function mainEl() {
     return document.querySelector("main.flex-1") || document.querySelector("main");
+  }
+
+  function currentUserInitial() {
+    try {
+      const raw = localStorage.getItem("auth_user");
+      const user = raw ? JSON.parse(raw) : null;
+      const name = String((user && (user.username || user.email)) || "U").trim();
+      return name ? name[0] : "U";
+    } catch {
+      return "U";
+    }
   }
 
   function rowsHtml(rows, type) {
@@ -390,7 +417,19 @@
     if (!window.location.pathname.startsWith("/user/")) return;
     const target = event.target;
     if (!target || target.tagName !== "IMG") return;
-    target.style.visibility = "hidden";
+    const shell = target.parentElement;
+    if (!shell) {
+      target.style.visibility = "hidden";
+      return;
+    }
+    target.style.display = "none";
+    shell.classList.add("uc-avatar-fallback-shell");
+    if (!shell.querySelector(".uc-avatar-fallback")) {
+      const fallback = document.createElement("span");
+      fallback.className = "uc-avatar-fallback";
+      fallback.textContent = currentUserInitial();
+      shell.appendChild(fallback);
+    }
   }, true);
 
   const app = document.getElementById("app");

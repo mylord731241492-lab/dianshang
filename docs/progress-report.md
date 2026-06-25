@@ -876,3 +876,16 @@
 - 未完成清单：真实 New-API 生图联通测试；真实返回图片经过代理后的画布显示截图；模板反推仍是 mock，后续接文本 provider。
 - 下一轮建议：你确认要真实试跑时，在 `.env` 加 `ENABLE_REAL_AI=true` 后重启本地 Node，我再跑一次 `/api/health` 和真实生图接口；如果上游模型名或 endpoint 不兼容，再按 New-API 返回错误微调。Docker 侧先重启 Docker Desktop，再重建 `3457` 容器。
 - 需要人工介入：真实调用可能产生费用，`ENABLE_REAL_AI=true` 需要你手动开启；真实 key 不提交 Git。Docker Desktop 需要人工重启一次以清掉 metadata.db 写入异常。
+
+## 2026-06-25 New-API 真实联通测试进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：用户在 `.env` 末尾加入 `ENABLE_REAL_AI=true` 后，重启本地 Node 并确认真实 Provider 开关生效；将本地 `.env` 的 API Base 从 `https://www.packyapi.com` 调整为 `https://www.packyapi.com/v1`，因为根路径返回网页 HTML，不是 API JSON；修复 `callProviderChat`，避免 Provider 返回 HTML 200 时被误判为“连接正常”。
+- 修改文件：`server.js`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：读取 `/api/health`；后台 API 线路测试 `/api/admin/api-providers/:id/test`；调用 `/api/generate/tasks` 测试真实生图；执行 `node --check server.js`。
+- 验证结果：`/api/health` 已显示 `enabled=true`、`mode=real-provider-ready`、`baseUrl=https://www.packyapi.com/v1`；后台文本 ping 通过，New-API 网关连接正常，延迟约 3.9 秒；真实生图未通过，上游返回：`分组 codex 下模型 gpt-image-2 无可用渠道（distributor）`；`node --check server.js` 通过。
+- 当前完成度：首页约 84%，模板约 95%，图库约 96%，用户中心约 94%，画布约 92%，后台约 99%，后端平台护栏约 88%，New-API 骨架约 86%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：Packy/New-API token 所属 `codex` 分组没有可用的 `gpt-image-2` 生图渠道；这是上游 New-API/渠道配置问题，不是本地前端或本地后端接口未接通。Docker Desktop 仍需重启后再重建容器。
+- 未完成清单：在 Packy/New-API 后台给 `codex` 分组配置可用生图渠道，或换一个有生图权限/分组的 key；配置完成后重新测试 `/api/generate/tasks` 和画布节点。
+- 下一轮建议：先在 New-API/Packy 后台处理“分组 codex + gpt-image-2 生图渠道”问题；若模型名不同，把 `.env` 的 `AI_IMAGE_MODEL` 改成后台实际可用的生图模型名。
+- 需要人工介入：New-API/Packy 后台渠道、分组、模型权限需要你登录后台处理；真实生图测试可能产生费用。

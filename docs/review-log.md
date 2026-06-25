@@ -1187,3 +1187,19 @@
 - 真实 New-API 的 `/images/generations` 返回结构、模型名和尺寸参数还需要一次实测；如果 New-API 使用自定义 endpoint，需要继续调整 Provider Adapter。
 - 模板反推仍是 mock 文案，后续需要接 `/chat/completions` 或专门的反推 workflow。
 - Docker Desktop 需要人工重启后再重建容器，确认 `docker compose ps` 可用，以及 `http://127.0.0.1:3457/api/proxy-image` 不再是 404。
+
+## 2026-06-25 New-API 真实联通测试
+
+### 已确认
+
+- `.env` 加入 `ENABLE_REAL_AI=true` 并重启本地 Node 后，`/api/health` 已显示真实模式：`enabled=true`、`mode=real-provider-ready`。
+- Packy API 根路径 `https://www.packyapi.com` 返回网页 HTML，不是 OpenAI-compatible API JSON；正确 Base URL 已确认为 `https://www.packyapi.com/v1`。
+- 后台 API 线路测试已通过真实文本 ping：`New-API 网关连接正常`，延迟约 3.9 秒。
+- `server.js` 已修复 HTML 200 误判问题：如果 `/chat/completions` 没有返回 `choices`，会返回 `PROVIDER_CHAT_BAD_RESPONSE`。
+
+### 需要继续验证
+
+- 真实生图仍未通过，上游返回：`分组 codex 下模型 gpt-image-2 无可用渠道（distributor）`。
+- 需要在 Packy/New-API 后台给 `codex` 分组配置可用的 `gpt-image-2` 生图渠道，或更换有生图权限的 key/分组。
+- 如果 Packy 后台实际生图模型名不是 `gpt-image-2`，需要同步修改 `.env` 的 `AI_IMAGE_MODEL`。
+- Docker Desktop 仍需人工重启后重建容器，当前本地 Node `3456` 是真实联通测试依据。

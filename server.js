@@ -283,7 +283,10 @@ async function callProviderChat(messages, options = {}) {
       body: JSON.stringify({ model, messages, stream: false }),
       signal: controller.signal
     });
-    const data = await resp.json().catch(() => ({}));
+    const contentType = resp.headers.get('content-type') || '';
+    const data = contentType.toLowerCase().includes('application/json')
+      ? await resp.json().catch(() => ({}))
+      : {};
     if (!resp.ok) {
       return {
         success: false,
@@ -292,6 +295,17 @@ async function callProviderChat(messages, options = {}) {
         provider: status,
         upstreamStatus: resp.status,
         upstream: data
+      };
+    }
+    if (!Array.isArray(data.choices)) {
+      return {
+        success: false,
+        code: 'PROVIDER_CHAT_BAD_RESPONSE',
+        message: contentType.toLowerCase().includes('text/html')
+          ? 'Provider 返回了网页 HTML，请检查 Base URL 是否需要加 /v1'
+          : 'Provider 没有返回 OpenAI-compatible choices',
+        provider: status,
+        upstreamStatus: resp.status
       };
     }
     return { success: true, provider: status, ...data };

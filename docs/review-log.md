@@ -84,6 +84,29 @@
 - Docker Desktop daemon 当前未运行，`docker compose -f docker-compose.internal.yml ps` 仍失败；容器状态本轮不算已复核。
 - 服务器无桌面环境时，`SMOKE_UI=true` 需要在本地浏览器机器上设置 `SMOKE_BASE_URL` 指向服务器地址再跑。
 
+## 2026-06-25 后台配置重启持久化复核
+
+### 已验证
+
+- 新增 `scripts/smoke-admin-persistence-disposable.ps1`，使用临时 SQLite 和临时运行目录，不污染当前人工测试库。
+- 脚本会写入后台 settings、API 线路、模型价格和模板工作流。
+- 写入后停止 Node 进程并用同一临时数据库重启服务。
+- 重启后读取确认：
+  - `settings.persistenceSmokeAt/defaultCredits` 存在。
+  - 新增 API 线路和 `baseUrl` 存在。
+  - 新增模型价格和 `pricePoints` 存在。
+  - 模板工作流 `persistenceSmokeAt` 存在。
+- `preflight-check.ps1` 已新增 `SMOKE_PERSISTENCE=true` 可选入口。
+
+### 结论
+
+- 当前 SQLite `app_state` 对后台 settings、API 线路、模型价格、模板工作流具备重启持久化能力。
+
+### 未覆盖
+
+- Docker volume 层面的容器重启持久化仍需 Docker daemon 或服务器环境验证。
+- 生产迁移到独立业务表仍是后续维护项，不影响当前内网轻量版测试。
+
 ## 2026-06-24
 
 ### 已审查结论

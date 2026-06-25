@@ -22,6 +22,7 @@
 - 运行 `node --check server.js`。
 - 本地默认运行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/smoke-api-disposable.ps1`，避免污染人工测试库。
 - 只有需要验证当前已启动服务真实数据时，才设置 `SMOKE_USE_CURRENT_API=true` 运行 `scripts\preflight-check.ps1`。
+- 修改后台 settings、API 线路、模型价格或模板工作流时，设置 `SMOKE_PERSISTENCE=true` 运行 `scripts\preflight-check.ps1`，确认重启后配置不丢。
 - 检查 `/api/health` 返回 JSON，且包含数据库、provider、mock/real、运行路径。
 - 如修改 `assets/home-carousel-inertia.js`，运行 `node --check assets/home-carousel-inertia.js`。
 - 如修改其他打包 JS，针对修改文件运行 `node --check`。

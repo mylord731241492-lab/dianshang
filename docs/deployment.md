@@ -148,6 +148,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\preflight-check.ps1
 Remove-Item Env:\SMOKE_USE_CURRENT_API -ErrorAction SilentlyContinue
 ```
 
+如需验证后台配置在重启后不丢，可开启一次性持久化 smoke：
+
+```powershell
+$env:SMOKE_PERSISTENCE = "true"
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\preflight-check.ps1"
+Remove-Item Env:\SMOKE_PERSISTENCE -ErrorAction SilentlyContinue
+```
+
+该检查会启动一次性 SQLite 服务，写入后台 settings、API 线路、模型价格和模板工作流，停止并重启服务后再读取确认，不会污染当前人工测试库。
+
 ## 环境变量
 
 | 字段 | 默认 | 说明 |

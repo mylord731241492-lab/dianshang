@@ -58,6 +58,19 @@
 - 下一轮建议：继续做后台复杂表单保存回显人工点测，或在 Docker daemon 启动后运行 `scripts\verify-internal-deploy.ps1`。
 - 需要人工介入：启动 Docker Desktop 或在服务器执行 Docker 验收；提供真实 New-API token 后再做真实网关联通。
 
+## 2026-06-25 后台配置重启持久化进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：新增 `scripts/smoke-admin-persistence-disposable.ps1`，使用一次性 SQLite 启动服务，写入后台 settings、API 线路、模型价格和模板工作流，停止并重启服务后再次读取断言；`preflight-check.ps1` 新增 `SMOKE_PERSISTENCE=true` 可选入口。
+- 修改文件：`scripts/smoke-admin-persistence-disposable.ps1`、`scripts/preflight-check.ps1`、`docs/deployment.md`、`docs/iteration-review-checklist.md`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：PowerShell Parser 解析 `scripts\smoke-admin-persistence-disposable.ps1` 和 `scripts\preflight-check.ps1`；执行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-admin-persistence-disposable.ps1`。
+- 验证结果：持久化 smoke 通过；重启后 `settings.persistenceSmokeAt/defaultCredits`、新增 API 线路 `baseUrl`、新增模型价格 `pricePoints`、模板工作流 `persistenceSmokeAt` 均可读回；测试使用临时目录，未污染当前人工测试库。
+- 当前完成度：后端平台护栏约 84%，部署护栏约 94%，测试护栏约 99%。
+- 新发现问题：无新的业务缺口；该检查需要启动临时 Node 服务，日常可选，改后台配置或部署前建议开启。
+- 未完成清单：Docker daemon 启动后的容器级持久化复核、真实 New-API 联通、服务器 Nginx/HTTPS。
+- 下一轮建议：把后台复杂表单保存回显继续做 UI 级验证，或 Docker 启动后跑 `scripts\verify-internal-deploy.ps1`。
+- 需要人工介入：启动 Docker Desktop 或提供服务器环境；真实 New-API token 后续人工配置。
+
 ## 2026-06-24 本轮进度报告
 
 - 分支：`codex/backend-platform`

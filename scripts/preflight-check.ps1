@@ -68,6 +68,15 @@ if ($env:SMOKE_ALLOW_WRITES -eq "true") {
   Write-Host "Skipped. Set SMOKE_ALLOW_WRITES=true with a disposable database to run it."
 }
 
+if ($env:SMOKE_PERSISTENCE -eq "true") {
+  Invoke-Step -Name "admin persistence smoke" -Script {
+    Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-admin-persistence-disposable.ps1")
+  }
+} else {
+  Write-Host "== admin persistence smoke =="
+  Write-Host "Skipped. Set SMOKE_PERSISTENCE=true to verify settings/providers/model prices/template workflows after restart."
+}
+
 if ($env:SMOKE_UI -eq "true") {
   Invoke-Step -Name "admin pages UI smoke" -Script {
     Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-admin-pages-ui.ps1")

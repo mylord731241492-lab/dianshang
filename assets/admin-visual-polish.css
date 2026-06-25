@@ -135,6 +135,10 @@ div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] textarea {
   letter-spacing: 0;
 }
 
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] input[type="checkbox"] {
+  accent-color: #10b981;
+}
+
 div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] button {
   letter-spacing: 0;
 }
@@ -166,6 +170,28 @@ div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] .n-button.n-button--primary-
 
 div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] .n-button.n-button--primary-type .n-button__content {
   color: #ffffff !important;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] button[class*="bg-orange-500"] {
+  background: linear-gradient(180deg, #18c48c 0%, #0aa875 100%) !important;
+  border: 1px solid rgba(16, 185, 129, 0.95) !important;
+  box-shadow: 0 10px 22px rgba(16, 185, 129, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] button[class*="bg-orange-500"]:hover {
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%) !important;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] button[class*="bg-orange-50"][class*="text-orange-600"] {
+  background: rgba(236, 253, 245, 0.88) !important;
+  color: #047857 !important;
+}
+
+div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] button[class*="border-orange-200"][class*="bg-orange-50"] {
+  background: rgba(236, 253, 245, 0.92) !important;
+  border-color: rgba(16, 185, 129, 0.34) !important;
+  color: #047857 !important;
 }
 
 div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] table button {

@@ -694,3 +694,16 @@
 - 未完成清单：后台其他页面继续逐页肉眼复核；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
 - 下一轮建议：继续看兑换码、模板工作流和系统设置的弹窗/保存回显视觉，优先修肉眼突兀的问题。
 - 需要人工介入：确认任务监控右侧操作按钮现在是否接受。
+
+## 2026-06-25 后台模板工作流绿色统一进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：复核兑换码、API 线路弹窗和模板工作流；兑换码/API 线路弹窗主按钮已是绿色白字，模板工作流页仍残留橙色主按钮、橙色选中模板卡和橙色 checkbox。本轮将模板工作流页 `新增`、`保存配置`、`新增图片槽`、`新增字段`、`生成预览`、选中模板卡和后台 checkbox 统一为清新 emerald 绿，保持后台整体颜色一致。
+- 修改文件：`assets/admin-visual-polish.css`、`docs/design-references/admin-2026-06-25/template-workflows-green-actions-desktop-1440x900.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：内置浏览器打开 `/admin/template-workflows`，读取按钮颜色、checkbox accent-color，并截图归档；执行 `scripts\smoke-frontend-routes.ps1`、`node --check server.js`、`node --check assets\home-carousel-inertia.js`、`Invoke-RestMethod http://127.0.0.1:3456/api/health`。
+- 验证结果：`保存配置` 文字为白色，边框为 `rgba(16, 185, 129, 0.95)`；checkbox accent-color 为 `rgb(16, 185, 129)`；页面按钮未再检测到 `rgb(249, 115, 22)` 橙色背景；截图 `template-workflows-green-actions-desktop-1440x900.png` 已归档。
+- 当前完成度：首页约 79%，模板约 92%，图库约 94%，用户中心约 93%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 93%。
+- 新发现问题：模板工作流页面还有较长配置表单，整体可测；后续重点应放在保存回显、弹窗和移动端可读性。
+- 未完成清单：后台弹窗保存回显继续人工复核；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
+- 下一轮建议：继续看兑换码创建/删除弹窗、API 线路保存回显和系统设置保存提示。
+- 需要人工介入：确认模板工作流绿色统一后的观感是否接受。

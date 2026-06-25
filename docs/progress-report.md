@@ -850,3 +850,16 @@
 - 未完成清单：New-API 真实 token 联通测试；服务器 Nginx/HTTPS 部署演练；真实模型返回结构接入后的模板/图库再验收。
 - 下一轮建议：补服务器部署前检查脚本或 New-API 真实联通测试说明，等你给 token 后再跑真实连接。
 - 需要人工介入：后续真实 New-API 地址、token、模型白名单和 CPA 后置渠道由你配置，不会提交到 Git。
+
+## 2026-06-25 API 线路弹窗可读性修复进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：修复后台“编辑 API 线路”弹窗看不懂的问题。新增 `assets/admin-api-form-labels.js`，在 API 线路新增/编辑弹窗打开时自动给 18 个字段补充中文字段名和说明，包括 Base URL、API Key、默认聊天模型、默认生图模型、线路倍率、默认线路等；同时在 `assets/admin-visual-polish.css` 中补字段标签样式，让标签为深灰、说明为浅灰，避免只有一堆白色输入框。
+- 修改文件：`assets/admin-api-form-labels.js`、`assets/admin-visual-polish.css`、`index.html`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：Playwright 打开 `/admin/api-providers` 并点击首个 `编辑`，读取弹窗内 `.admin-api-field-label`；执行 `node --check assets\admin-api-form-labels.js`、`node --check server.js`、`scripts\smoke-frontend-routes.ps1`。
+- 验证结果：弹窗识别到 18 个字段标签，包含 `Base URL *`、`API Key`、`默认聊天模型`、`默认生图模型` 等；JS 语法检查、后端语法检查和前端路由 smoke 均通过。后续如需截图，可重新打开弹窗确认深色标签。
+- 当前完成度：首页约 84%，模板约 95%，图库约 96%，用户中心约 94%，画布约 91%，后台约 99%，后端平台护栏约 86%，New-API 骨架约 79%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：原打包前端的 API 线路弹窗没有字段 label，只依赖 placeholder；有值后用户无法判断字段含义。
+- 未完成清单：用户手动填入真实 New-API 配置后，需要继续补真实 `/api/template/reverse-prompt` 和 `/api/template/generate-image` 调用链。
+- 下一轮建议：等你填好一个 New-API 线路后，先测后台“测试连接”和 `/api/chat/completions`，再补模板反推/生图真实调用。
+- 需要人工介入：真实 New-API Base URL、API Key、默认模型名由你手动填写，不会提交到 Git。

@@ -223,6 +223,38 @@ div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] div[class*="flex"][class*="f
   line-height: 1;
 }
 
+.admin-api-field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.admin-api-field-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-api-field-label {
+  color: #334155;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.admin-api-field-hint {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.admin-api-field-wrap > input,
+.admin-api-field-wrap > select,
+.admin-api-field-wrap > textarea,
+.admin-api-field-wrap > .admin-input {
+  width: 100% !important;
+}
+
 @media (max-width: 720px) {
   div[class*="bg-[#f4f8f6]"][class*="text-slate-950"] button {
     white-space: nowrap !important;

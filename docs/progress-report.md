@@ -668,3 +668,16 @@
 - 未完成清单：后台其他宽表继续逐页肉眼复核；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
 - 下一轮建议：继续复核 API 线路和模型价格两张宽表，优先处理遮挡、按钮密度和标题层级。
 - 需要人工介入：确认用户管理操作列现在是否接受。
+
+## 2026-06-25 后台 API 线路与模型价格宽表复核进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：继续按后台截图逐页复核，重新打开 `/admin/api-providers` 和 `/admin/model-prices`；确认上一轮 sticky 操作列和按钮密度修复已覆盖到 API 线路、模型价格两张宽表；归档新的宽表截图，作为后续人工对比证据。
+- 修改文件：`docs/design-references/admin-2026-06-25/api-providers-action-column-polish-desktop-1440x900.png`、`docs/design-references/admin-2026-06-25/model-prices-action-column-polish-desktop-1440x900.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：内置浏览器分别打开 `/admin/api-providers`、`/admin/model-prices`，读取操作列 computed style、按钮数量、高度和表头字段，并截图归档；执行 `scripts\smoke-frontend-routes.ps1`、`Invoke-RestMethod http://127.0.0.1:3456/api/health`。
+- 验证结果：两页操作列宽度均为 226px，阴影均为 `rgba(248, 250, 252, 0.58) -6px 0px 14px`，按钮高度均为 26px；两页均非 404/500；截图已归档。
+- 当前完成度：首页约 79%，模板约 92%，图库约 94%，用户中心约 93%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 93%。
+- 新发现问题：API 线路是超宽表，右侧 `API Key`、默认模型、最后拉取等字段在 1440 宽度下仍依赖横向滚动；现阶段可人工测试，但后续若追更舒服的后台体验，应做列显隐、详情抽屉或更多操作菜单。
+- 未完成清单：后台其他页面继续逐页肉眼复核；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
+- 下一轮建议：继续看订单、日志、任务监控的表格密度和状态色，优先修一眼突兀的问题。
+- 需要人工介入：人工确认 API 线路/模型价格当前宽表可接受。

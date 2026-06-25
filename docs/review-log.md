@@ -824,3 +824,19 @@
 
 - 这是轻量补入口，不是完整重做移动端导航；后续如追 1:1，需要把首页、模板、图库移动端导航体系一起统一。
 - 移动端保存到本地文件夹能力仍依赖浏览器权限，当前 smoke 只覆盖复制链接。
+
+## 2026-06-25 后台全页截图复跑复核
+
+### 已确认
+
+- 已使用 Playwright 重新执行 `scripts/smoke-admin-pages-ui.ps1`。
+- 后台 10 个页面全部返回 `ok:true`，包含 Dashboard、用户、订单、日志、兑换码、API 线路、模型价格、任务监控、模板工作流、系统设置。
+- 截图目录：`docs/design-references/admin-2026-06-25/`。
+- 截图文件：`full-dashboard-desktop-1440x900.png`、`full-users-desktop-1440x900.png`、`full-orders-desktop-1440x900.png`、`full-logs-desktop-1440x900.png`、`full-redeem-codes-desktop-1440x900.png`、`full-api-providers-desktop-1440x900.png`、`full-model-prices-desktop-1440x900.png`、`full-generate-tasks-desktop-1440x900.png`、`full-template-workflows-desktop-1440x900.png`、`full-settings-desktop-1440x900.png`。
+- 脚本已读取标题样式：标题颜色统一为 `rgb(2, 6, 23)`，标题字重统一为 `900`。
+- 当前截图 smoke 未发现 404、500 或空白页。
+
+### 需要继续验证
+
+- 需要人工看图判断后台标题、按钮、图标、字距、表格密度是否达到“工具台”观感。
+- 后台移动端表格目前仍是横向表格方案，是否卡片化等人工确认后再做。

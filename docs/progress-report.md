@@ -577,3 +577,16 @@
 - 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；后台移动端表格是否卡片化待人工确认；画布 JSON 导入/导出长流程。
 - 下一轮建议：打开 Docker Desktop 后优先完成容器复核；或继续补画布 JSON 导入/导出 smoke。
 - 需要人工介入：打开 Docker Desktop 后复核容器；人工确认移动端图库入口位置是否接受。
+
+## 2026-06-25 后台全页截图复跑进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：回应“后台截图未跑通”的复核要求，使用 Playwright 重新跑通后台 10 个页面桌面截图：Dashboard、用户、订单、日志、兑换码、API 线路、模型价格、任务监控、模板工作流、系统设置。
+- 修改文件：`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：执行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-admin-pages-ui.ps1`。
+- 验证结果：10 个后台页面全部 `ok:true`；截图已写入 `docs/design-references/admin-2026-06-25/full-*.png`；脚本读取到标题颜色统一为 `rgb(2, 6, 23)`，标题字重统一为 `900`；当前页面未出现 404/500。
+- 当前完成度：首页约 79%，模板约 92%，图库约 94%，用户中心约 88%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 93%。
+- 新发现问题：后台截图能自动跑通，但视觉是否“完全舒服”仍要人工看图确认；移动端后台表格是否卡片化仍待决定。
+- 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；后台移动端表格是否卡片化待人工确认。
+- 下一轮建议：继续用内置浏览器/Playwright 逐页看后台截图，优先修标题、按钮、图标、字距和表格密度中肉眼最明显的问题。
+- 需要人工介入：你人工看一遍 `docs/design-references/admin-2026-06-25/full-*.png`，确认后台视觉先按当前版本进入人工测试。

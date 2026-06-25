@@ -209,7 +209,7 @@ function providerStatus() {
   const gateway = String(AI_PROVIDER_GATEWAY || 'new-api').toLowerCase();
   const baseUrl = gateway === 'new-api' ? NEW_API_BASE : AI_API_BASE;
   const textKey = gateway === 'new-api' ? NEW_API_KEY : AI_TEXT_KEY;
-  const imageKey = gateway === 'new-api' ? NEW_API_KEY : AI_IMAGE_KEY;
+  const imageKey = gateway === 'new-api' ? (hasConfiguredSecret(NEW_API_KEY) ? NEW_API_KEY : AI_IMAGE_KEY) : AI_IMAGE_KEY;
   const enabled = ENABLE_REAL_AI && hasConfiguredSecret(textKey) && !!baseUrl;
   return {
     gateway,
@@ -224,6 +224,22 @@ function providerStatus() {
     routesThroughNewApi: gateway === 'new-api',
     cpaExpectedBehindNewApi: gateway === 'new-api'
   };
+}
+
+function providerAuthKey(kind = 'text') {
+  const status = providerStatus();
+  if (status.gateway !== 'new-api') return kind === 'image' ? AI_IMAGE_KEY : AI_TEXT_KEY;
+  if (hasConfiguredSecret(NEW_API_KEY)) return NEW_API_KEY;
+  return kind === 'image' ? AI_IMAGE_KEY : AI_TEXT_KEY;
+}
+
+function providerImageSize(value = '') {
+  const raw = String(value || '').trim();
+  if (/^\d+x\d+$/i.test(raw)) return raw.toLowerCase();
+  const ratio = raw.replace(':', 'x');
+  if (ratio === '9x16') return '1024x1792';
+  if (ratio === '16x9') return '1792x1024';
+  return '1024x1024';
 }
 
 function mockChatCompletion(messages = [], model = AI_TEXT_MODEL) {
@@ -262,7 +278,7 @@ async function callProviderChat(messages, options = {}) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${status.gateway === 'new-api' ? NEW_API_KEY : AI_TEXT_KEY}`
+        'Authorization': `Bearer ${providerAuthKey('text')}`
       },
       body: JSON.stringify({ model, messages, stream: false }),
       signal: controller.signal
@@ -284,6 +300,86 @@ async function callProviderChat(messages, options = {}) {
       success: false,
       code: error.name === 'AbortError' ? 'PROVIDER_TIMEOUT' : 'PROVIDER_REQUEST_FAILED',
       message: error.name === 'AbortError' ? 'AI Provider 请求超时' : `AI Provider 调用失败: ${error.message}`,
+      provider: status
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function callProviderImageGeneration(prompt, options = {}) {
+  const status = providerStatus();
+  const model = options.model || options.modelKey || AI_IMAGE_MODEL;
+  const count = Math.max(1, Math.min(Number(options.n || options.count || options.imageCount || 1) || 1, 4));
+  if (!status.enabled) {
+    return {
+      success: true,
+      mock: true,
+      provider: status,
+      images: Array.from({ length: count }, (_, i) => ({ url: placeholderUrl(`${prompt} ${i + 1}`) }))
+    };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), status.timeoutMs);
+  try {
+    const resp = await fetch(`${status.baseUrl.replace(/\/$/, '')}/images/generations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${providerAuthKey('image')}`
+      },
+      body: JSON.stringify({
+        model,
+        prompt,
+        n: count,
+        size: providerImageSize(options.size || options.ratio || options.aspectRatio),
+        quality: options.quality || undefined,
+        response_format: 'url'
+      }),
+      signal: controller.signal
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      return {
+        success: false,
+        code: 'PROVIDER_IMAGE_FAILED',
+        message: data.message || data.error?.message || `Provider returned ${resp.status}`,
+        provider: status,
+        upstreamStatus: resp.status,
+        upstream: data
+      };
+    }
+    const rawImages = Array.isArray(data.data)
+      ? data.data
+      : Array.isArray(data.images)
+        ? data.images
+        : Array.isArray(data.results)
+          ? data.results
+          : [];
+    const images = rawImages
+      .map((item, index) => {
+        const raw = item && typeof item === 'object' ? item : { url: item };
+        return raw.url || raw.imageUrl || raw.image_url || raw.b64_json || raw.b64Json
+          ? { ...raw, index }
+          : null;
+      })
+      .filter(Boolean);
+    if (!images.length) {
+      return {
+        success: false,
+        code: 'PROVIDER_IMAGE_EMPTY',
+        message: 'Provider 没有返回有效图片',
+        provider: status,
+        upstream: data
+      };
+    }
+    return { success: true, mock: false, provider: status, images, upstream: data };
+  } catch (err) {
+    return {
+      success: false,
+      code: err.name === 'AbortError' ? 'PROVIDER_IMAGE_TIMEOUT' : 'PROVIDER_IMAGE_ERROR',
+      message: err.name === 'AbortError' ? 'Provider 图片生成超时' : (err.message || 'Provider 图片生成失败'),
       provider: status
     };
   } finally {
@@ -597,16 +693,56 @@ app.get('/api/mock-image/:id.svg', (req, res) => {
 </svg>`);
 });
 
+app.get('/api/proxy-image', async (req, res) => {
+  const rawUrl = String(req.query.url || '').trim();
+  if (!/^https?:\/\//i.test(rawUrl)) {
+    return res.status(400).json({ success: false, code: 'IMAGE_PROXY_BAD_URL', message: '图片地址无效' });
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const upstream = await fetch(rawUrl, {
+      headers: { 'User-Agent': 'hjm-mb-clone/1.0' },
+      signal: controller.signal
+    });
+    if (!upstream.ok) {
+      return res.status(502).json({ success: false, code: 'IMAGE_PROXY_UPSTREAM_FAILED', message: `图片代理读取失败：${upstream.status}` });
+    }
+    const contentType = upstream.headers.get('content-type') || 'image/png';
+    if (!contentType.toLowerCase().startsWith('image/')) {
+      return res.status(415).json({ success: false, code: 'IMAGE_PROXY_NOT_IMAGE', message: '上游地址不是图片内容' });
+    }
+    const arrayBuffer = await upstream.arrayBuffer();
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(arrayBuffer));
+  } catch (err) {
+    res.status(502).json({
+      success: false,
+      code: err.name === 'AbortError' ? 'IMAGE_PROXY_TIMEOUT' : 'IMAGE_PROXY_ERROR',
+      message: err.name === 'AbortError' ? '图片代理读取超时' : (err.message || '图片代理读取失败')
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+});
+
 function placeholderUrl(prompt = '') {
   const text = encodeURIComponent(String(prompt || 'HJM AI').slice(0, 80));
   const id = crypto.createHash('md5').update(String(prompt || 'HJM AI')).digest('hex').slice(0, 12);
   return `/api/mock-image/${id}.svg?text=${text}`;
 }
+function imageDisplayUrl(url = '') {
+  const value = String(url || '').trim();
+  if (/^https?:\/\//i.test(value)) return `/api/proxy-image?url=${encodeURIComponent(value)}`;
+  return value;
+}
 function normalizeTaskImage(item, idx, taskId) {
   const raw = item && typeof item === 'object' ? item : { url: item };
   const url = raw.url || raw.imageUrl || raw.image_url || raw.b64_json || raw.b64Json || placeholderUrl(taskId);
-  const finalUrl = /^data:image\//i.test(url) || /^https?:\/\//i.test(url) || url.startsWith('/') ? url : `data:image/png;base64,${url}`;
-  return { id: raw.id || `${taskId}_${idx}`, url: finalUrl, imageUrl: finalUrl, preview: finalUrl };
+  const normalizedUrl = /^data:image\//i.test(url) || /^https?:\/\//i.test(url) || url.startsWith('/') ? url : `data:image/png;base64,${url}`;
+  const finalUrl = imageDisplayUrl(normalizedUrl);
+  return { id: raw.id || `${taskId}_${idx}`, url: finalUrl, imageUrl: finalUrl, preview: finalUrl, originalUrl: normalizedUrl };
 }
 function makeTaskResponse(task) {
   return {
@@ -694,12 +830,21 @@ app.post('/api/generate/tasks', auth, async (req, res) => {
   const imageCount = Math.max(1, Math.min(Number(req.body.imageCount || req.body.n || 1) || 1, 4));
   const total = (m ? m.p : 15) * imageCount;
   if (u.balance < total) return res.status(400).json({ message: `算力不足，需要 ${total}，当前 ${u.balance}` });
-  const task = createCompletedTask(req, { prompt, modelKey, imageCount });
+  const providerResult = await callProviderImageGeneration(prompt, { ...req.body, model: modelKey, n: imageCount });
+  if (!providerResult.success) {
+    return res.status(502).json({
+      success: false,
+      code: providerResult.code || 'PROVIDER_IMAGE_FAILED',
+      message: providerResult.message || '图片生成接口调用失败',
+      provider: providerResult.provider
+    });
+  }
+  const task = createCompletedTask(req, { prompt, modelKey, imageCount, results: providerResult.images });
   const nb = u.balance - total;
   db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
   db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
     .run(u.id,'generation',-total,u.balance,nb,`生成任务: ${modelKey} x${imageCount}`);
-  res.json(makeTaskResponse(task));
+  res.json({ success: true, mock: !!providerResult.mock, provider: providerResult.provider, ...makeTaskResponse(task) });
 });
 app.get('/api/generate/tasks/:id', auth, (req, res) => {
   const task = tasks.get(req.params.id);
@@ -724,16 +869,26 @@ app.post('/api/template/generate-image', auth, async (req, res) => {
   const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.userId);
   if (u.balance < total) return res.status(400).json({ message: `算力不足，需要 ${total}，当前 ${u.balance}` });
 
+  const fullPrompt = `${prompt}${negativePrompt ? '，避免：' + negativePrompt : ''}`;
+  const providerResult = await callProviderImageGeneration(fullPrompt, { ...req.body, model: modelKey, n: cnt });
+  if (!providerResult.success) {
+    return res.status(502).json({
+      success: false,
+      code: providerResult.code || 'PROVIDER_IMAGE_FAILED',
+      message: providerResult.message || '图片生成接口调用失败',
+      provider: providerResult.provider
+    });
+  }
+
+  const results = providerResult.images;
+  const task = createCompletedTask(req, { prompt: fullPrompt, modelKey, imageCount: cnt, results });
   const nb = u.balance - total;
   db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
   db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)').run(u.id,'generation',-total,u.balance,nb,`AI生图: ${modelKey} x${cnt}`);
-
-  const fullPrompt = `${prompt}${negativePrompt ? '，避免：' + negativePrompt : ''}`;
-  const results = Array.from({ length: cnt }, (_, i) => ({ url: placeholderUrl(`${fullPrompt} ${i + 1}`), index: i }));
-  const task = createCompletedTask(req, { prompt: fullPrompt, modelKey, imageCount: cnt, results });
   res.json({
     success: true,
-    mock: true,
+    mock: !!providerResult.mock,
+    provider: providerResult.provider,
     results: task.images,
     resultImages: task.images,
     images: task.images,

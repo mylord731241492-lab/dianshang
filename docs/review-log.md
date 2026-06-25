@@ -1167,3 +1167,23 @@
 
 - 用户手动填真实 New-API 线路后，需要继续测后台“测试连接”。
 - 模板反推和模板生图当前仍是 mock 逻辑，真实 New-API 连通后需要继续补这两条业务调用链。
+
+## 2026-06-25 画布生图接通排查
+
+### 已确认
+
+- 本地服务重启后，`.env` 中的 key 已被识别：`/api/health` 返回 `textKeyConfigured=true`、`imageKeyConfigured=true`。
+- 当前仍是 mock 模式：`/api/health` 返回 `providers.ai.enabled=false`，原因是 `.env` 没有启用 `ENABLE_REAL_AI=true`。
+- `/api/generate/tasks` 已改为真实启用时调用 Provider Adapter 的图片生成；未启用时继续 mock。
+- `/api/template/generate-image` 已改为真实启用时调用 Provider Adapter 的图片生成；未启用时继续 mock。
+- 新增 `/api/proxy-image`，用于把上游远程图片转为本地同源地址，降低画布本地素材保存时的跨域 `Failed to fetch`。
+- 已验证 mock 模式下画布生图和模板生图都返回 `success=true`、`mock=true`，返回的 `/api/mock-image/*.svg` 可 200 打开。
+- 本地 Node `3456` 已运行本轮代码；Docker `3457` 重建时 Docker Desktop 报 `metadata.db: input/output error`，旧容器仍 healthy，但 `/api/proxy-image` 返回 404，说明容器尚未更新到本轮代码。
+
+### 需要继续验证
+
+- 真实 New-API 尚未启用，不应声称真实生图已跑通。
+- 开启真实调用需要人工在 `.env` 加 `ENABLE_REAL_AI=true` 并重启服务；这可能产生费用。
+- 真实 New-API 的 `/images/generations` 返回结构、模型名和尺寸参数还需要一次实测；如果 New-API 使用自定义 endpoint，需要继续调整 Provider Adapter。
+- 模板反推仍是 mock 文案，后续需要接 `/chat/completions` 或专门的反推 workflow。
+- Docker Desktop 需要人工重启后再重建容器，确认 `http://127.0.0.1:3457/api/proxy-image` 不再是 404。

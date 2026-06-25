@@ -655,3 +655,16 @@
 - 未完成清单：后台更多页面继续逐页肉眼优化；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
 - 下一轮建议：继续按截图逐页看后台按钮和表格细节，优先修肉眼突兀的颜色、行高和标题层级。
 - 需要人工介入：你确认新的清新绿色按钮是否接受。
+
+## 2026-06-25 后台用户表格操作列修复进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：根据后台用户管理截图继续做视觉复核；修复右侧 sticky 操作列白色遮罩过重、割裂日期列的问题；把操作列宽度从 240px 收到 226px，阴影从大片白雾改为轻边线和小阴影，同时把表格按钮高度从 28px 压到 26px，减少多按钮行高压力。
+- 修改文件：`assets/admin-visual-polish.css`、`docs/design-references/admin-2026-06-25/users-action-column-polish-desktop-1440x900.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：内置浏览器打开 `/admin/users`，读取首个操作列 computed style，并截图归档；执行 `scripts\smoke-frontend-routes.ps1`、`node --check server.js`、`node --check assets\home-carousel-inertia.js`、`Invoke-RestMethod http://127.0.0.1:3456/api/health`。
+- 验证结果：操作列宽度为 226px，阴影为 `rgba(248, 250, 252, 0.58) -6px 0px 14px`，按钮高度为 26px；截图 `users-action-column-polish-desktop-1440x900.png` 已归档；基础路由和健康检查通过。
+- 当前完成度：首页约 79%，模板约 92%，图库约 94%，用户中心约 93%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 93%。
+- 新发现问题：用户管理仍是宽表，注册时间/最后登录等列会因为信息密度被截断；现阶段先保证可人工测试，后续如要更舒服，应把多操作收进“更多”菜单或详情抽屉。
+- 未完成清单：后台其他宽表继续逐页肉眼复核；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
+- 下一轮建议：继续复核 API 线路和模型价格两张宽表，优先处理遮挡、按钮密度和标题层级。
+- 需要人工介入：确认用户管理操作列现在是否接受。

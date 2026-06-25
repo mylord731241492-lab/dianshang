@@ -707,3 +707,16 @@
 - 未完成清单：后台弹窗保存回显继续人工复核；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
 - 下一轮建议：继续看兑换码创建/删除弹窗、API 线路保存回显和系统设置保存提示。
 - 需要人工介入：确认模板工作流绿色统一后的观感是否接受。
+
+## 2026-06-25 后台弹窗绿色按钮复核进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：继续按“前后端都可人工测试”的今日目标推进；不改画布卡片结构，只复核后台弹窗按钮颜色。使用 Playwright 打开兑换码创建弹窗和 API 线路新增弹窗，确认主按钮已是清新绿色白字，并归档两张最新截图。
+- 修改文件：`docs/design-references/admin-2026-06-25/redeem-modal-green-review-desktop-1440x900.png`、`docs/design-references/admin-2026-06-25/api-provider-modal-green-review-desktop-1440x900.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：Playwright 登录后台，分别打开 `/admin/redeem-codes` 的创建兑换码弹窗、`/admin/api-providers` 的新增线路弹窗，读取按钮 computed style 并截图归档；执行 `node --check server.js`、`node --check assets\home-carousel-inertia.js`、`scripts\smoke-frontend-routes.ps1`、`scripts\smoke-api.ps1`、`/api/health`、`git diff --check`、UTF-8 BOM 检查和 `docker compose -f docker-compose.internal.yml ps`。
+- 验证结果：兑换码弹窗存在且无致命错误文本，`创建` 按钮颜色为白色、背景为 `rgb(24, 160, 88)`；页面顶部 `创建兑换码` 按钮为白字、背景 `rgb(5, 150, 105)`；API 线路弹窗存在且无致命错误文本，`保存` 按钮颜色为白色、背景为 `rgb(24, 160, 88)`；`node --check`、前端路由 smoke、API smoke、`/api/health`、`git diff --check` 和 UTF-8 无 BOM 检查通过；`docker compose ps` 仍无法连接 Docker Desktop Engine：`open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified`。
+- 当前完成度：首页约 79%，模板约 92%，图库约 94%，用户中心约 93%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 93%。
+- 新发现问题：弹窗内部 Naive primary 仍使用默认绿 `rgb(24, 160, 88)`，已经比原亮薄荷绿清爽；如果后续要求完全一致，可以再把弹窗内部也统一到外层按钮的 emerald 渐变。Docker Desktop Engine 当前未运行，容器状态仍待复核。
+- 未完成清单：复杂后台表单保存回显继续人工复核；Docker Desktop Engine 启动后的容器复核；New-API 真实 token 后续接入。
+- 下一轮建议：继续复核系统设置保存提示、后台删除确认弹窗和前端模板/图库主流程。
+- 需要人工介入：人工确认当前弹窗绿色按钮是否接受；启动 Docker Desktop 后再跑完整容器验证。

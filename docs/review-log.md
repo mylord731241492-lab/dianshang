@@ -499,3 +499,17 @@
 
 - `scripts/smoke-api.ps1` 仍会在当前本地库留下测试用户、生成记录和兑换码；建议下一轮改成可选临时库模式。
 - Docker Desktop 未启动时无法验证 compose 容器状态，仍需用户打开后复核。
+
+## 2026-06-25 Disposable API Smoke 护栏复核
+
+### 已确认
+
+- 新增 `scripts/smoke-api-disposable.ps1`，通过临时端口和临时 SQLite 数据库运行完整 API smoke。
+- 脚本会继承原有 `scripts/smoke-api.ps1` 的覆盖范围，避免重复维护两套断言。
+- 首次验证发现临时 DB 文件可能在 Node 退出后短暂被占用；已增加 `Wait-Process` 和清理重试。
+- 最终验证通过，退出码为 `0`，没有继续写入当前 `3456` 人工测试数据库。
+
+### 需要继续验证
+
+- Docker Desktop 未启动，容器状态仍无法复核。
+- 后续如果要验证当前真实服务写入，仍可直接运行原 `scripts/smoke-api.ps1`；日常提交前建议优先用 disposable 脚本。

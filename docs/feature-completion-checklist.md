@@ -13,4 +13,5 @@
 | 部署 | 待复核 | 92% | Docker CLI/Compose/Engine 已确认可用；使用 `node:20-bookworm` 完成镜像构建并启动容器；`/api/health` 返回 mock、database ok，首页 200；容器重启后 SQLite 表数量保留；当前路线仍是先内网测试、稳定后服务器部署。 | 人工浏览器测试 Docker 服务，后续再做服务器/Nginx/HTTPS 部署演练。 |
 | New-API | 骨架完成 | 72% | Provider Adapter 默认 New-API，未配置 key 时 mock 回落；后台 API 线路新增已能保留 displayName、Base URL、接口格式等 New-API 配置字段。 | 使用真实 New-API token 做联通测试。 |
 | CPA | 待实现 | 20% | 只作为 New-API 后置渠道写入架构边界，本项目不直接管理。 | 等 New-API 部署后配置渠道。 |
-| 文档审查 | 进行中 | 98% | 已建立进度报告、功能清单、review log、轻量平台 ADR、每轮推进复核清单；已新增 2026-06-25 前后端与后台视觉人工可测计划，并归档后台截图；本轮追加后台保存回显和模型价格筛选修复记录。 | 每轮推进持续追加，并按 `docs/iteration-review-checklist.md` 收尾。 |
+| 测试护栏 | 进行中 | 82% | 已有前端路由 smoke、API smoke、后台写入 smoke；新增 `scripts/smoke-api-disposable.ps1`，可用临时端口和一次性 SQLite 跑完整 API smoke，避免污染人工测试库。 | 后续把 Docker 验证、截图验证和前端交互验证继续接入统一 preflight。 |
+| 文档审查 | 进行中 | 98% | 已建立进度报告、功能清单、review log、轻量平台 ADR、每轮推进复核清单；已新增 2026-06-25 前后端与后台视觉人工可测计划，并归档后台截图；本轮追加后台保存回显、模型价格筛选和 disposable smoke 护栏记录。 | 每轮推进持续追加，并按 `docs/iteration-review-checklist.md` 收尾。 |

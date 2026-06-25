@@ -41,6 +41,7 @@ node --check server.js
 node --check assets/home-carousel-inertia.js
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-frontend-routes.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-api.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-api-disposable.ps1
 Invoke-RestMethod http://127.0.0.1:3456/api/health
 docker compose -f docker-compose.internal.yml ps
 git status --short --branch

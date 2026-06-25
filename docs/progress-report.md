@@ -356,3 +356,16 @@
 - 未完成清单：Docker Desktop 打开后的容器复核；后台弹窗/保存按钮人工点击；模板真实上传闭环、图库删除/保存、用户中心明细/头像。
 - 下一轮建议：优先把 `smoke-api` 改成可选临时库运行，随后继续模板/图库/用户中心人工闭环。
 - 需要人工介入：打开 Docker Desktop 后让我复核；人工点测后台和前端主流程。
+
+## 2026-06-25 API Smoke 一次性数据库护栏进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：新增 `scripts/smoke-api-disposable.ps1`，自动用临时端口、临时 `DATA_DIR/DB_PATH/UPLOAD_DIR/LOG_DIR` 启动一次性 Node 服务，调用原有 `scripts/smoke-api.ps1`，跑完停止服务并清理临时目录；计划文档增加该验证命令。
+- 修改文件：`scripts/smoke-api-disposable.ps1`、`docs/plans/2026-06-25-admin-frontend-backend-manual-test.md`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `scripts/smoke-api-disposable.ps1`；执行 `node --check server.js`、`node --check assets/home-carousel-inertia.js`、`scripts/smoke-frontend-routes.ps1`、`/api/health`、`docker compose ps`、`git status`。
+- 验证结果：disposable API smoke 完整通过，覆盖登录、注册、项目保存、模板反推/生成、图库历史、后台 dashboard/users/orders/logs/redeem/api-providers/model-prices/generate-tasks/template-workflows/settings；本轮不再污染当前 `3456` 人工测试数据库；Node 检查、前端路由 smoke、health 均通过；Docker Desktop 未启动，`docker compose ps` 仍无法连接 daemon。
+- 当前完成度：后台约 94%，测试护栏约 82%，前端人工验收约 81%，部署护栏约 92%。
+- 新发现问题：旧版 `scripts/smoke-api.ps1` 仍会直接写当前目标服务；后续固定验证建议默认用 disposable 包装脚本，只有明确要测试当前服务写入时再用原脚本。
+- 未完成清单：Docker Desktop 打开后的容器复核；模板真实上传闭环、图库删除/保存、用户中心明细/头像；后台人工弹窗点击。
+- 下一轮建议：继续模板/图库/用户中心人工闭环，或打开 Docker 后先补容器健康复核。
+- 需要人工介入：打开 Docker Desktop 后让我复核；人工点测前端主流程。

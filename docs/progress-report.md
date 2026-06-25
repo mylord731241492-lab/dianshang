@@ -590,3 +590,16 @@
 - 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；后台移动端表格是否卡片化待人工确认。
 - 下一轮建议：继续用内置浏览器/Playwright 逐页看后台截图，优先修标题、按钮、图标、字距和表格密度中肉眼最明显的问题。
 - 需要人工介入：你人工看一遍 `docs/design-references/admin-2026-06-25/full-*.png`，确认后台视觉先按当前版本进入人工测试。
+
+## 2026-06-25 后台操作列视觉优化进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：逐页查看后台截图后，修复用户管理、API 线路、模型价格等宽表右侧操作按钮被挤出画面的问题；后台含表格卡片增加横向滚动保护，操作列固定在右侧并允许按钮在列内换行，避免人工测试时看不到关键操作。
+- 修改文件：`assets/admin-visual-polish.css`、`docs/design-references/admin-2026-06-25/full-*.png`、`docs/progress-report.md`、`docs/feature-completion-checklist.md`、`docs/review-log.md`
+- 验证方式：执行 `scripts\smoke-admin-pages-ui.ps1`、`scripts\smoke-frontend-routes.ps1`、`scripts\smoke-api.ps1`、`node --check server.js`、`node --check assets\home-carousel-inertia.js`、`Invoke-RestMethod http://127.0.0.1:3456/api/health`、`docker compose -f docker-compose.internal.yml ps`。
+- 验证结果：后台 10 页截图全部 `ok:true`；前端路由 smoke 通过；API smoke 通过；`/api/health` 返回 `success:true`、`mode:mock`、`database:ok`；两个 JS 语法检查通过；Docker 检查失败，原因是 Docker Desktop daemon 未运行。
+- 当前完成度：首页约 79%，模板约 92%，图库约 94%，用户中心约 88%，后台约 99%，后端平台护栏约 82%，测试护栏约 99%，部署护栏约 93%。
+- 新发现问题：操作列完整性已改善，但用户管理/API 线路这类多按钮表格行高会增加；如果后续追更精细体验，应把多操作收进“更多”菜单或详情抽屉。
+- 未完成清单：Docker 容器状态复核；New-API 真实 token 后续接入；后台多操作菜单化；后台移动端表格是否卡片化待人工确认。
+- 下一轮建议：先让你人工看后台截图，如果接受则进入前端主流程人工测试；如果觉得行高偏大，再优先做后台“更多操作”菜单。
+- 需要人工介入：打开 Docker Desktop 后复核容器；人工确认后台多按钮表格当前行高是否接受。

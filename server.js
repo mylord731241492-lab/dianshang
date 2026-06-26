@@ -34,6 +34,7 @@ const AI_PROVIDER_GATEWAY = process.env.AI_PROVIDER_GATEWAY || 'new-api';
 const NEW_API_BASE = process.env.NEW_API_BASE || AI_API_BASE;
 const NEW_API_KEY = process.env.NEW_API_KEY || process.env.AI_API_KEY || AI_TEXT_KEY;
 const PROVIDER_TIMEOUT_MS = Number(process.env.PROVIDER_TIMEOUT_MS || 30000);
+const IMAGE_PROVIDER_TIMEOUT_MS = Number(process.env.IMAGE_PROVIDER_TIMEOUT_MS || process.env.PROVIDER_IMAGE_TIMEOUT_MS || 180000);
 const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : __dirname;
 const DB_PATH = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(DATA_DIR, 'data.db');
 const UPLOAD_DIR = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.join(__dirname, 'uploads');
@@ -217,6 +218,7 @@ function providerStatus() {
     mode: enabled ? 'real-provider-ready' : 'mock',
     baseUrl,
     timeoutMs: PROVIDER_TIMEOUT_MS,
+    imageTimeoutMs: IMAGE_PROVIDER_TIMEOUT_MS,
     textModel: AI_TEXT_MODEL,
     imageModel: AI_IMAGE_MODEL,
     textKeyConfigured: hasConfiguredSecret(textKey),
@@ -335,7 +337,7 @@ async function callProviderImageGeneration(prompt, options = {}) {
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), status.timeoutMs);
+  const timer = setTimeout(() => controller.abort(), status.imageTimeoutMs || status.timeoutMs);
   try {
     const resp = await fetch(`${status.baseUrl.replace(/\/$/, '')}/images/generations`, {
       method: 'POST',
@@ -348,8 +350,7 @@ async function callProviderImageGeneration(prompt, options = {}) {
         prompt,
         n: count,
         size: providerImageSize(options.size || options.ratio || options.aspectRatio),
-        quality: options.quality || undefined,
-        response_format: 'url'
+        quality: options.quality || undefined
       }),
       signal: controller.signal
     });

@@ -1232,3 +1232,17 @@
 - 浏览器画布节点真实点击生成尚待人工确认。
 - 模板页真实生图尚待人工确认。
 - Docker Desktop 仍需重启后重建容器，本轮真实生图成功基于本地 Node `3456`。
+
+## 2026-06-25 Packy 生图参数兼容
+
+### 已确认
+
+- Packy `/images/generations` 不接受 `response_format` 参数，画布错误 `Unknown parameter: 'response_format'` 来自这里。
+- 移除 `response_format` 后，真实 `gpt-image-2` 生图成功。
+- 图片生成耗时约 27 秒，本轮将图片超时独立设置为 180 秒，文本请求仍保持 30 秒。
+- 返回的远程结果图经 `/api/proxy-image` 代理后 HTTP 200。
+
+### 需要继续验证
+
+- 前端画布节点真实点击后是否等待足够久。
+- 模板页真实生图是否复用同一条兼容路径。

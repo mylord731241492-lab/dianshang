@@ -915,3 +915,16 @@
 - 未完成清单：在浏览器画布节点上人工点一次生成，确认 UI 节点出图、图库历史和余额流水；模板页真实生图也需要点测。
 - 下一轮建议：先在画布页面用当前 `GPT Image 2（6789）` 点一次生成；若 UI 仍报错，再看浏览器 console/network。
 - 需要人工介入：真实生图会消耗额度，人工点测时注意成本。
+
+## 2026-06-25 Packy 生图参数兼容修复进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：根据画布截图里的 `Unknown parameter: 'response_format'`，移除 `/images/generations` 请求体中的 `response_format` 参数；同时将图片生成超时从文本默认 30 秒独立提升到 180 秒，保留文本请求 30 秒不变。
+- 修改文件：`server.js`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：重启本地 Node；读取 `/api/health` 确认 `imageTimeoutMs=180000`；调用 `/api/generate/tasks` 使用 `gpt-image-2` 真实生图，并请求返回的 `/api/proxy-image?...`。
+- 验证结果：`/api/health` 显示 `enabled=true`、`mode=real-provider-ready`、`imageTimeoutMs=180000`；真实生图约 27 秒返回 `success=true`、`mock=false`、`model=gpt-image-2`，结果图代理 HTTP 200。
+- 当前完成度：首页约 84%，模板约 95%，图库约 96%，用户中心约 94%，画布约 95%，后台约 99%，后端平台护栏约 90%，New-API 骨架约 92%，测试护栏约 99%，部署护栏约 96%。
+- 新发现问题：真实生图耗时明显高于 30 秒，前端画布节点需要允许等待，不应按文本请求超时判断失败。
+- 未完成清单：浏览器画布节点真实点击生成还需人工复核；模板页真实生图还需点测；Docker 容器仍需重建。
+- 下一轮建议：你在画布里点一次生成；如果仍显示错误，优先看前端节点自己的等待/轮询/保存逻辑。
+- 需要人工介入：真实生图会消耗额度。

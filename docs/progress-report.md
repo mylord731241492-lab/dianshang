@@ -1750,3 +1750,11 @@
 - 覆盖范围：Canvas Chat 对话 Agent、快速生图 `/api/generate/tasks`、模板生图 `/api/template/generate-image`、图片工具局部修改/消除/文字编辑/扩图、后台 API Provider 图片线路测试均纳入同一套适配器。
 - 追加守护：新增 `scripts/check-packy-gpt-image-adapter-coverage.js`，静态检查已知 GPT Image 2 入口必须调用统一适配器，并禁止绕过适配器直接请求 Packy 图片端点；该检查已接入 `scripts/smoke-backend-canvas-boundary.ps1`。
 - 边界：不改 Provider 配置，不触发真实 GPT Image 2 付费测试；后续新增 GPT Image 2 入口时必须同步补覆盖脚本。
+
+## 2026-06-30 Canvas Chat 对话 Agent GPT 5.5 文本抽取再修复
+
+- 触发背景：用户在对话模式提交“把图1的主图改为1:2详情页”后，前端仍提示 “GPT 5.5 未返回可用的生图提示词”，说明分析阶段成功返回对象后仍未抽取到可用文本。
+- 定位结论：前一版抽取已覆盖常见 `choices[].message.content` 和 `output[].content`，但仍遗漏 `data.choices`、`response.output`、`text.value`、`reasoning_content` 以及顶层 `final_prompt/finalPrompt` 等上游包裹形态。
+- 完成内容：`normalizeProviderContentText` 增加对 `output/outputs/choices/text/value/answer/reasoning_content/final_prompt/image_prompt/prompt` 等字段的递归识别；`imageToolOutputText` 也把顶层 prompt 字段纳入第一轮抽取。
+- 追加守护：新增 `scripts/check-provider-text-extraction.js`，直接从 `server.js` 抽取真实文本解析函数，覆盖 5 种 Provider 响应结构，防止 GPT 5.5 有文本却被判空；该检查已接入 `scripts/smoke-backend-canvas-boundary.ps1`。
+- 边界：不改 GPT 5.5 请求模型和 Provider 配置，不触发真实付费调用；若上游确实返回完全空文本，仍按分析失败处理。

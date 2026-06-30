@@ -1590,18 +1590,44 @@ function normalizeProviderContentText(content, depth = 0) {
   const direct = firstString(
     content.output_text,
     content.outputText,
+    content.finalPrompt,
+    content.final_prompt,
+    content.imagePrompt,
+    content.image_prompt,
+    content.prompt,
+    content.answer,
+    content.response_text,
+    content.responseText,
+    content.result_text,
+    content.resultText,
+    content.reasoning_content,
+    content.reasoningContent,
     content.text,
     content.value,
     content.content
   );
   if (direct) return direct.trim();
   const nested = [
+    content.output,
+    content.outputs,
+    content.choices,
     content.message,
     content.delta,
     content.content,
+    content.text,
+    content.value,
+    content.answer,
     content.data,
     content.result,
-    content.response
+    content.response,
+    content.finalPrompt,
+    content.final_prompt,
+    content.imagePrompt,
+    content.image_prompt,
+    content.prompt,
+    content.reasoning,
+    content.reasoning_content,
+    content.reasoningContent
   ];
   for (const item of nested) {
     const text = normalizeProviderContentText(item, depth + 1);
@@ -1614,6 +1640,18 @@ function imageToolOutputText(data = {}) {
   const direct = normalizeProviderContentText({
     output_text: data.output_text,
     outputText: data.outputText,
+    finalPrompt: data.finalPrompt,
+    final_prompt: data.final_prompt,
+    imagePrompt: data.imagePrompt,
+    image_prompt: data.image_prompt,
+    prompt: data.prompt,
+    answer: data.answer,
+    response_text: data.response_text,
+    responseText: data.responseText,
+    result_text: data.result_text,
+    resultText: data.resultText,
+    reasoning_content: data.reasoning_content,
+    reasoningContent: data.reasoningContent,
     text: data.text,
     content: data.content
   });

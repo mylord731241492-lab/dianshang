@@ -185,3 +185,9 @@
 - 对话 Agent、快速生图、模板生图、图片工具和后台 Provider 测试已纳入统一适配器覆盖。
 - 图生图 / 编辑默认发送 `input_fidelity=high`，同时继承统一尺寸、质量、输出格式、`response_format=url` 和上游 `n=1` 准则。
 - 新增 `scripts/check-packy-gpt-image-adapter-coverage.js` 并接入 backend/canvas boundary smoke，防止当前已知入口绕过统一适配器。
+
+## 2026-06-30 Canvas Chat GPT 5.5 文本抽取清单追加
+
+- 对话 Agent 分析阶段的文本抽取已支持更多 Provider 响应包裹：`data.choices`、`response.output`、`text.value`、`reasoning_content`、顶层 `final_prompt/finalPrompt`。
+- 新增 `scripts/check-provider-text-extraction.js`，用真实 `server.js` 函数验证 GPT 5.5 有文本时不会被误判为空。
+- 该检查已接入 `scripts/smoke-backend-canvas-boundary.ps1`，后续后端/旧画布边界验证会自动覆盖。

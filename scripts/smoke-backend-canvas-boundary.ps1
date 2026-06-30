@@ -85,6 +85,7 @@ function Assert-Includes {
 try {
   node (Join-Path $repoRoot "scripts\check-packy-gpt-image-size.js") | Write-Host
   node (Join-Path $repoRoot "scripts\check-packy-gpt-image-adapter-coverage.js") | Write-Host
+  node (Join-Path $repoRoot "scripts\check-provider-text-extraction.js") | Write-Host
 
   $env:PORT = "$port"
   $env:DATA_DIR = $dataDir

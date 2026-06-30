@@ -2475,3 +2475,16 @@
 
 - 后续新增任何 GPT Image 2 入口时，必须把该入口加入覆盖脚本；否则静态检查只能覆盖当前已知入口。
 - 真实 Provider 对多参考图字段名 `image[]`、`input_fidelity=high` 的实际兼容性仍需在用户确认额度后点测。
+
+## 2026-06-30 Canvas Chat 对话 Agent GPT 5.5 文本抽取复核
+
+### 已确认
+
+- 用户截图里的失败点发生在分析阶段：后端未拿到 `finalPrompt`，因此不会进入 GPT Image 2 生图阶段。
+- 已增强文本抽取函数，支持从 `data.choices`、`response.output`、`text.value`、`reasoning_content`、顶层 `final_prompt/finalPrompt` 等结构中取出 GPT 5.5 文本。
+- 新增回归脚本 `scripts/check-provider-text-extraction.js`，直接抽取 `server.js` 中的真实函数运行 5 个样例，避免解析代码再次漂移。
+
+### 需要继续验证
+
+- 当前修复未触发真实 GPT 5.5 调用；用户刷新并重新提交后，应确认对话卡片能进入“正在生成图片...”阶段。
+- 如果仍失败，需要查看真实上游响应体字段名，再把该结构加入抽取回归样例。

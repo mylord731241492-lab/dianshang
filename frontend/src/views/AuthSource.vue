@@ -88,7 +88,7 @@ async function sendCode() {
 <template>
   <main class="auth-source-shell">
     <section class="auth-card">
-      <RouterLink to="/" class="auth-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+      <RouterLink to="/" class="auth-back"><ArrowLeft :size="16" />返回首页</RouterLink>
       <div class="auth-mark">
         <LogIn v-if="isLogin" :size="26" />
         <UserPlus v-else :size="26" />

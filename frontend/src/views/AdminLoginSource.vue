@@ -47,7 +47,7 @@ async function submit() {
 <template>
   <main class="admin-login-shell">
     <section class="admin-login-card">
-      <RouterLink to="/" class="auth-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+      <RouterLink to="/" class="auth-back"><ArrowLeft :size="16" />返回首页</RouterLink>
       <div class="admin-login-mark">
         <ShieldCheck :size="28" />
       </div>

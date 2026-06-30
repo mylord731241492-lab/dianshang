@@ -299,7 +299,7 @@ onMounted(loadSettings);
     <section class="admin-source-main">
       <header class="admin-source-topbar">
         <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
           <p class="eyebrow">System Settings</p>
           <h1>系统设置</h1>
           <span>保存试点版：开放基础设置和图片工具线路、模型、提示词模板配置。</span>

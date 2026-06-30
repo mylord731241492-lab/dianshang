@@ -104,7 +104,7 @@ onMounted(loadGallery);
 <template>
   <main class="gallery-source-shell">
     <header class="gallery-topbar">
-      <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+      <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回首页</RouterLink>
       <div>
         <p class="eyebrow">Gallery</p>
         <h1>图库历史</h1>

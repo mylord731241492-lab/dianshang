@@ -155,7 +155,7 @@ onMounted(loadOrders);
     <section class="admin-source-main">
       <header class="admin-source-topbar">
         <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
           <p class="eyebrow">Orders</p>
           <h1>订单管理</h1>
           <span>只读迁移版：查看订单号、用户、金额、算力、支付方式和时间，不执行改状态、退款或补单。</span>

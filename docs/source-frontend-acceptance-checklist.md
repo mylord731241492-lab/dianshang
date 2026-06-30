@@ -40,7 +40,7 @@ git -C "F:\dianshang" diff --check
 ## 当前已源码化入口
 
 - 首页：`/`
-- 旧画布入口壳：`/canvas`
+- 旧画布直跳入口：`/canvas`
 - 模板生图：`/template-image`
 - 图库：`/gallery`
 - 登录/注册：`/login`、`/register`
@@ -48,19 +48,21 @@ git -C "F:\dianshang" diff --check
 - 生成记录：`/user/records`
 - 兑换码：`/user/redeem`
 - 后台登录：`/admin/login`
-- 后台只读页：`/admin/dashboard`、`/admin/users`、`/admin/recycle-bin`、`/admin/orders`、`/admin/logs`、`/admin/generate-tasks`、`/admin/redeem-codes`、`/admin/api-providers`、`/admin/model-prices`、`/admin/template-workflows`、`/admin/settings`
+- 后台只读页：`/admin/dashboard`、`/admin/users`、`/admin/recycle-bin`、`/admin/orders`、`/admin/logs`、`/admin/generate-tasks`、`/admin/redeem-codes`、`/admin/model-prices`、`/admin/template-workflows`
+- 后台写入试点页：`/admin/api-providers`、`/admin/settings`
 
 ## 可直接跑通的功能
 
 使用默认账号 `admin / admin123` 验收：
 
 - 登录后进入图库，确认历史记录可加载。
-- 首页迁移索引显示 `21 / 0 / 21`。
+- 首页显示旧站工作台导航、生成面板和历史画布项目区。
 - 用户中心能读取用户资料、余额流水和 API 状态。
 - 生成记录和兑换码页面能打开，兑换码页面只填写不提交。
 - 模板页能加载模板、素材槽、线路、模型、比例和清晰度。
-- 后台 Dashboard、用户、订单、日志、任务、兑换码、线路、模型价格、模板工作流、回收站、系统设置都能只读搜索和刷新。
-- 系统设置页已进入保存试点：可编辑站点名称、注册开关、模板生图、图库历史、Mock 模式、默认算力和上传上限；人工测试保存前必须记录原值，保存后再改回原值。
+- 后台 Dashboard、用户、订单、日志、任务、兑换码、模型价格、模板工作流和回收站都能只读搜索和刷新。
+- API 线路页已进入写入试点：可查看官方双线路、编辑旧后台字段、保存回显和 API Key 掩码；真实测试连接、拉模型、写入真实 Key 或删除正式线路前必须确认。
+- 系统设置页已进入保存试点：可编辑基础设置和图片工具线路、模型、提示词模板；人工测试保存前必须记录原值，保存后再改回原值。
 - 390px 移动端关键页无横向溢出。
 
 ## 暂不自动执行的功能
@@ -76,14 +78,14 @@ git -C "F:\dianshang" diff --check
 - 回收站恢复或永久删除。
 - 订单状态修改、退款、补单。
 - 任务取消或删除。
-- API 线路新增、测试、保存、删除、设默认、拉模型。
+- API 线路真实测试连接、拉模型、写入真实 Key 或删除正式线路。
 - 模型价格新增、保存、删除。
 - 模板工作流保存、新增、删除和字段编辑。
-- 系统设置的复杂配置保存，包括图片工具、线路、模型、模板工作流联动配置。
+- 系统设置中会影响真实业务流量、真实模型调用或大范围功能开关的配置变更。
 
 ## 下一阶段验收顺序
 
 1. 先跑完整源码前端 smoke，确认页面层没有退化。
-2. 人工验收系统设置保存试点，按原值记录、保存、刷新回显、恢复原值的顺序执行。
-3. 写入试点通过后，再迁移后台 API 线路、模型价格和模板工作流这三类复杂写入。
-4. 最后接入真实 New-API 生图、模板反推、画布节点生成和图库回写。
+2. 人工验收系统设置和 API 线路两个写入试点，按原值记录、保存、刷新回显、恢复原值的顺序执行。
+3. 写入试点通过后，再评估模型价格和模板工作流这两类复杂写入。
+4. 最后在确认额度后接入真实 New-API 生图、模板反推、画布节点生成和图库回写。

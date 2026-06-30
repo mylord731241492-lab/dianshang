@@ -142,7 +142,7 @@ onMounted(loadUsers);
     <section class="admin-source-main">
       <header class="admin-source-topbar">
         <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
           <p class="eyebrow">Admin Users</p>
           <h1>用户管理</h1>
           <span>只读迁移版：查询账户、角色、状态和余额，不执行删除、改余额或重置密码。</span>

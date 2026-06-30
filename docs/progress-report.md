@@ -1631,3 +1631,23 @@
 - 完成内容：新增 `frontend/src/components/AdminSourceSidebar.vue` 作为源码后台共用侧栏，统一 11 个入口：控制台、用户、回收站、订单、消费日志、任务监控、兑换码、API 线路、模型价格、模板工作流、系统设置；11 个 `Admin*Source.vue` 页面均改为使用该组件。`server.js` 将已源码化后台路径统一返回 `frontend/dist/index.html`，旧入口桥接脚本也扩展到全部后台源码页。
 - 构建结果：`frontend/dist` 已重新构建，源码入口 bundle 更新为 `assets/index-Cr_6CD7V.js`，并生成共用侧栏 chunk。
 - 验证结果：`node --check server.js`、`node --check assets/admin-api-source-route-bridge.js`、`node scripts/check-source-frontend-routes.js`、`npm run typecheck`、`npm run build` 均通过；服务重启后直接打开 `/admin/api-providers`、`/admin/orders`、`/admin/settings`、`/admin/template-workflows` 都加载源码后台，侧栏均为 11 个入口且高亮当前页面。
+
+## 2026-06-30 日志扫描与路线图对齐进度报告
+
+- 触发背景：用户要求“扫描日志，展开工作”。本轮先读取 `logs/`、`docs/progress-report.md`、`docs/review-log.md` 和 `docs/progress-maintainability-audit-2026-06-30.md`，确认最近工作停在后台源码侧栏统一、API 线路源码页接管、首页工作台和旧画布直跳 smoke 加固。
+- 扫描结论：`logs/manual-gen-frontend-err.log` 中的 Vite `F:\dianshang\assets\home-product-workbench.png` 越界报错已是历史问题，当前 `HomeWorkbench.vue` 使用 `frontend/src/assets/home-product-workbench.png`；真正落后的状态是路线图、验收清单和 README 仍保留“首页迁移索引”“旧画布入口壳”“API 线路只读”等旧描述。
+- 完成内容：更新 `frontend/src/config/frontendMigration.ts`、`docs/frontend-migration-roadmap.md`、`docs/source-frontend-acceptance-checklist.md` 和 `README.md`，将 `/canvas` 描述为直跳旧画布运行时，将 `/admin/api-providers` 标记为写入试点，将 `/admin/settings` 描述为基础设置与图片工具配置保存试点，并同步后台共用侧栏状态。
+- Smoke 加固：完整源码前端 UI smoke 首次复跑暴露两个问题：任务监控脚本固定搜索 `simple` 会把当前真实任务列表筛空；移动端用户管理页存在 65px 横向溢出。已将任务监控 smoke 改为从首条真实任务提取 ID/模型/提示词作为搜索词，并补移动端后台面板、工具栏控件和分页的宽度收敛规则。
+- 边界：本轮只做日志扫描后的文档与迁移索引对齐，不触发真实 Provider、不写真实 Key、不点击测试连接、不删除生产数据、不继续扩大旧画布打包资产修改面。
+- 验证方式：`npm.cmd run check:routes --prefix "F:\dianshang\frontend"`；`npm.cmd run typecheck --prefix "F:\dianshang\frontend"`；`node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`；`npm.cmd run build --prefix "F:\dianshang\frontend"`；`git -C "F:\dianshang" diff --check`；触达文本文件 BOM 检查。
+- 验证结果：CodeGraph 索引健康；路由维护检查通过，仍为 `21/21 source routes`；前端类型检查通过；smoke runner 语法检查通过；完整源码前端 UI smoke 通过，注册临时账号已清理，旧站首页工作台、旧画布直跳、后台源码页、移动端后台 11 页横向溢出均验证通过；前端构建通过；`diff --check` 通过，仅有既有 Git CRLF 提示；本轮触达文本文件 BOM 均为 false。
+
+## 2026-06-30 后端与旧画布边界护栏进度报告
+
+- 触发背景：用户要求先把旧画布和后端做好，用户继续做业务 debug。本轮选择低风险护栏切片，不拆 `server.js`、不改旧画布运行逻辑、不触发真实 Provider。
+- 完成内容：新增 `scripts/smoke-backend-canvas-boundary.ps1`，使用临时 SQLite、临时 uploads 和临时日志目录启动一次 disposable 后端，并强制设置 `ENABLE_REAL_AI/EMAIL/PAYMENT/STORAGE=false`。脚本验证 `/canvas` 返回旧画布入口 HTML，关键旧画布资产 `canvas-performance-mode`、`canvas-image-node-polish`、`admin-api-source-route-bridge`、两个 Canvas bundle 和旧入口 bundle 均 HTTP 200。
+- 后端边界：脚本验证 `/api/settings/canvas-storage` 公开配置形态；未登录访问 `/api/image-tools/settings`、`/tasks/:id`、`/outpaint`、`/reverse-prompt`、`/inpaint`、`/erase` 和 `/api/upload/image` 均为 `401` 而非 `404`；管理员登录后 `/api/image-tools/settings` 返回 outpaint/reversePrompt 已启用，同时 `upscale/removeBg` 保持禁用；管理员无文件上传 `/api/upload/image` 返回 `400`，确认路由存在但不写文件。
+- 预检接入：`scripts/preflight-check.ps1` 默认加入 `backend/canvas boundary smoke`，让后端和旧画布入口在常规预检里一起守住。
+- 文档同步：更新 `docs/canvas-migration-checklist.md` 中过期的旧 `LegacyCanvasRedirect.vue` 文件名，改为当前 `CanvasLegacySource.vue` 直跳旧画布运行时；README 后端/旧资产维护命令加入新 smoke 和画布资产静态校验。
+- 验证方式：`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-backend-canvas-boundary.ps1"`；`node --check "F:\dianshang\server.js"`；`node "F:\dianshang\scripts\verify-canvas-performance-assets.js"`；默认预检；`git -C "F:\dianshang" diff --check`；触达文件 BOM 检查。
+- 验证结果：新边界 smoke 单独通过；默认 `scripts/preflight-check.ps1` 通过，包含 `node --check server.js`、画布性能资产静态校验、新增 backend/canvas boundary smoke、disposable API smoke、前端路由 smoke、Provider guard 和当前服务 health；Provider guard 识别当前真实 Provider ready 后跳过 mock route/chat 调用，未触发外部付费请求。

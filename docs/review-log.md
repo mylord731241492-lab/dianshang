@@ -2270,3 +2270,31 @@
 ### 需要继续验证
 
 - 其它后台页如用户、回收站、任务监控、消费日志、兑换码、模型价格可按同一方式继续人工点一遍，主要风险是个别页面接口数据为空或权限提示，不是侧栏同步问题。
+
+## 2026-06-30 日志扫描与路线图对齐复核
+
+### 已确认
+
+- CodeGraph 索引健康：103 个文件、10640 个节点、21982 条边，可继续用于结构性定位。
+- `logs/manual-gen-frontend-err.log` 里的 Vite 资产越界错误已经被当前源码修正；`HomeWorkbench.vue` 现在从 `frontend/src/assets/home-product-workbench.png` 加载图片，不再引用工程外 `F:\dianshang\assets`。
+- 维护审计指出的文档滞后成立：`docs/frontend-migration-roadmap.md` 和 `docs/source-frontend-acceptance-checklist.md` 仍把 API 线路写成纯只读，并保留首页迁移索引、旧画布入口壳等旧表述。
+- 已将路线图、验收清单、README 和迁移索引同步到当前事实：旧站首页工作台、`/canvas` 直跳旧画布运行时、后台 11 页共用侧栏、`/admin/settings` 与 `/admin/api-providers` 为写入试点。
+- 完整源码前端 UI smoke 首次复跑发现脚本固定搜索 `simple` 会使当前任务监控列表筛空；已改为从首条真实任务提取搜索词，避免测试数据变化导致误报。
+- 完整源码前端 UI smoke 随后发现移动端用户管理页横向溢出 65px；已在移动端后台布局中收敛面板、工具栏控件和分页宽度，复跑后移动端后台 11 页横向溢出均为 0。
+
+### 需要继续验证
+
+- 后续可按路线图建议人工点一轮后台 11 页，重点看共用侧栏、写入试点提示和真实浏览器观感。
+
+## 2026-06-30 后端与旧画布边界护栏复核
+
+### 已确认
+
+- 本轮没有拆分 `server.js`，也没有修改旧 Canvas bundle 逻辑；只新增后端/旧画布边界 smoke 和维护文档。
+- `scripts/smoke-backend-canvas-boundary.ps1` 使用 disposable 数据目录和禁用真实外部能力的环境启动后端，避免污染当前生产测试库或触发上游。
+- 新 smoke 覆盖旧画布入口 HTML、性能层、图片节点 polish、源码后台桥接脚本、两个旧 Canvas bundle、canvas storage 配置、image-tools 路由 auth 边界和上传入口 auth/400 边界。
+- `upscale` 和 `removeBg` 在 `/api/image-tools/settings` 中仍保持 `enabled:false`，防止未确认 Provider 能力前被误认为已接入。
+
+### 需要继续验证
+
+- 后续如果继续改 image-tools 真实提交链路，需要在用户确认额度后另行做登录态人工点测；当前 smoke 只验证边界，不触发真实生成。

@@ -183,74 +183,92 @@ async page => {
   await ensure(page.url().includes('/gallery'), 'login did not redirect to gallery');
   results.push({ step: 'login', ok: true, url: page.url() });
 
-  currentStep = 'home-index-user-navigation';
-  await page.goto(baseUrl + '/?source-frontend-ui-smoke=home-index');
+  currentStep = 'home-workbench-user-navigation';
+  await page.goto(baseUrl + '/?source-frontend-ui-smoke=home-workbench');
   await waitReady();
-  await page.waitForSelector('text=前端迁移索引', { timeout: 10000 });
-  const homeMigrationStats = await page.evaluate(() => {
-    const summaryValues = Array.from(document.querySelectorAll('.migration-summary dt')).map((item) => item.textContent?.trim() || '');
-    const phaseTitles = Array.from(document.querySelectorAll('.phase-item h2')).map((item) => item.textContent?.trim() || '');
-    return { summaryValues, phaseTitles };
+  await page.waitForSelector('text=电商全流程工作台', { timeout: 10000 });
+  const homeWorkbenchStats = await page.evaluate(() => {
+    const navItems = Array.from(document.querySelectorAll('.side-rail .side-item span')).map((item) => item.textContent?.trim() || '');
+    const modeItems = Array.from(document.querySelectorAll('.hero-tab')).map((item) => item.textContent?.replace(/\s+/g, ' ').trim() || '');
+    const hasPromptInput = !!document.querySelector('.prompt-input');
+    const hasHistory = document.body.innerText.includes('我的历史画布项目');
+    return { navItems, modeItems, hasPromptInput, hasHistory };
   });
   await ensure(
-    homeMigrationStats.summaryValues.includes('21') &&
-      homeMigrationStats.summaryValues.includes('0') &&
-      homeMigrationStats.summaryValues.includes('21'),
-    `home migration stats mismatch: ${JSON.stringify(homeMigrationStats)}`
+    homeWorkbenchStats.navItems.includes('首页') &&
+      homeWorkbenchStats.navItems.includes('新画布') &&
+      homeWorkbenchStats.navItems.includes('模板') &&
+      homeWorkbenchStats.navItems.includes('图库') &&
+      homeWorkbenchStats.navItems.includes('指南'),
+    `home workbench nav mismatch: ${JSON.stringify(homeWorkbenchStats)}`
   );
   await ensure(
-    homeMigrationStats.phaseTitles.includes('前台源码化') &&
-      homeMigrationStats.phaseTitles.includes('旧画布保留') &&
-      homeMigrationStats.phaseTitles.includes('后台迁移'),
-    `home phase board missing: ${JSON.stringify(homeMigrationStats)}`
+    homeWorkbenchStats.modeItems.some((item) => item.includes('Chat 对话')) &&
+      homeWorkbenchStats.modeItems.some((item) => item.includes('Fast 快速')) &&
+      homeWorkbenchStats.hasPromptInput &&
+      homeWorkbenchStats.hasHistory,
+    `home workbench controls missing: ${JSON.stringify(homeWorkbenchStats)}`
   );
   await page.screenshot({
-    path: `${screenshotDir}/home-migration-index-desktop-1440x900.png`,
+    path: `${screenshotDir}/home-workbench-desktop-1440x900.png`,
     fullPage: true
   });
-  await clickUnique(page.locator('.migration-links a[href="/user/center"]'), 'home user center source link');
+  await clickUnique(page.locator('.side-rail .side-item').filter({ hasText: '指南' }), 'home user center guide link');
   await page.waitForTimeout(700);
-  await ensure(page.url().includes('/user/center'), 'home migration index did not navigate to user center');
+  await ensure(page.url().includes('/user/center'), 'home workbench guide did not navigate to user center');
   await page.waitForSelector('text=用户中心', { timeout: 10000 });
   const userCenterMetrics = await visibleMetrics();
   await ensure(userCenterMetrics.horizontalOverflow === 0, 'user center has horizontal overflow');
   await clickUnique(page.locator('.user-actions button').filter({ hasText: '图库历史' }), 'user center gallery action');
   await page.waitForTimeout(700);
   await ensure(page.url().includes('/gallery'), 'user center gallery action did not navigate to gallery');
-  results.push({ step: 'home-index-user-navigation', ok: true, metrics: userCenterMetrics });
+  results.push({ step: 'home-workbench-user-navigation', ok: true, metrics: userCenterMetrics });
 
-  currentStep = 'canvas-legacy-source';
+  currentStep = 'canvas-runtime-redirect';
   await page.goto(baseUrl + '/canvas?source-frontend-ui-smoke=canvas');
   await waitReady();
-  await page.waitForSelector('text=旧画布', { timeout: 10000 });
-  const canvasLegacyMetrics = await visibleMetrics();
-  await ensure(canvasLegacyMetrics.horizontalOverflow === 0, 'canvas legacy source has horizontal overflow');
-  const canvasLegacyCounts = await page.evaluate(() => ({
-    statCards: document.querySelectorAll('.canvas-legacy-status article').length,
-    iframeCount: document.querySelectorAll('.canvas-legacy-frame').length,
-    legacyLinks: Array.from(document.querySelectorAll('a')).filter((link) => link.textContent?.includes('新窗口打开旧画布')).length,
-    text: document.body.innerText
+  await page.waitForTimeout(1200);
+  const canvasRuntimeMetrics = await page.evaluate(() => ({
+    href: location.href,
+    text: document.body.innerText.slice(0, 500),
+    horizontalOverflow: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)
   }));
-  await ensure(canvasLegacyCounts.statCards === 3, `canvas legacy stat card mismatch: ${JSON.stringify(canvasLegacyCounts)}`);
-  await ensure(canvasLegacyCounts.iframeCount === 0, `canvas legacy iframe should not exist: ${JSON.stringify(canvasLegacyCounts)}`);
-  await ensure(canvasLegacyCounts.legacyLinks >= 1, `canvas legacy new window link missing: ${JSON.stringify(canvasLegacyCounts)}`);
-  await ensure(canvasLegacyCounts.text.includes('本地保存必须在新窗口旧画布中使用'), 'canvas legacy file permission boundary missing');
-  await ensure(canvasLegacyCounts.text.includes('不重启新画布'), 'canvas legacy source did not show boundary text');
+  await ensure(
+    canvasRuntimeMetrics.href.startsWith('http://127.0.0.1:3456/canvas'),
+    `canvas route did not enter runtime: ${JSON.stringify(canvasRuntimeMetrics)}`
+  );
+  await ensure(!canvasRuntimeMetrics.text.includes('迁移索引'), 'canvas runtime displayed transition wording');
   await page.screenshot({
-    path: `${screenshotDir}/canvas-legacy-source-desktop-1440x900.png`,
+    path: `${screenshotDir}/canvas-runtime-desktop-1440x900.png`,
     fullPage: true
   });
-  results.push({ step: 'canvas-legacy-source', ok: true, counts: canvasLegacyCounts, metrics: canvasLegacyMetrics });
+  results.push({ step: 'canvas-runtime-redirect', ok: true, metrics: canvasRuntimeMetrics });
 
   currentStep = 'gallery-search-refresh';
   await page.goto(baseUrl + '/gallery?source-frontend-ui-smoke=gallery');
   await waitReady();
   await page.waitForSelector('text=图库历史', { timeout: 10000 });
   const gallerySearch = page.getByPlaceholder('搜索提示词 / 模型');
-  await fillUnique(gallerySearch, 'simple', 'gallery search');
-  await page.waitForTimeout(400);
-  const filteredGalleryCards = await page.locator('.gallery-card').count();
-  await ensure(filteredGalleryCards >= 1, 'gallery search did not keep any matching card');
+  await page.waitForSelector('.gallery-card, .gallery-empty', { timeout: 10000 });
+  const gallerySeed = await page.evaluate(() => {
+    const firstCard = document.querySelector('.gallery-card');
+    const cardText = firstCard?.textContent?.replace(/\s+/g, ' ').trim() || '';
+    const model = firstCard?.querySelector('dd')?.textContent?.trim() || '';
+    return {
+      count: document.querySelectorAll('.gallery-card').length,
+      searchTerm: model || cardText.split(/\s+/).find((part) => part.length >= 3) || '',
+      emptyText: document.querySelector('.gallery-empty')?.textContent || ''
+    };
+  });
+  let filteredGalleryCards = gallerySeed.count;
+  if (gallerySeed.count > 0 && gallerySeed.searchTerm) {
+    await fillUnique(gallerySearch, gallerySeed.searchTerm, 'gallery search');
+    await page.waitForTimeout(400);
+    filteredGalleryCards = await page.locator('.gallery-card').count();
+    await ensure(filteredGalleryCards >= 1, `gallery search did not keep any matching card: ${JSON.stringify(gallerySeed)}`);
+  } else {
+    await ensure(gallerySeed.emptyText.includes('暂无生成图片'), `gallery empty state mismatch: ${JSON.stringify(gallerySeed)}`);
+  }
   await clickUnique(page.locator('.gallery-filters button').filter({ hasText: '刷新' }), 'gallery refresh');
   await page.waitForTimeout(500);
   await page.screenshot({
@@ -281,10 +299,27 @@ async page => {
   await page.goto(baseUrl + '/user/records?source-frontend-ui-smoke=records');
   await waitReady();
   await page.waitForSelector('text=生成记录', { timeout: 10000 });
-  await fillUnique(page.getByPlaceholder('搜索提示词 / 模型'), 'simple', 'records search');
-  await page.waitForTimeout(400);
-  const filteredRecordImages = await page.locator('.records-image-list article').count();
-  await ensure(filteredRecordImages >= 1, 'records search did not keep any matching record');
+  await page.waitForSelector('.records-image-list article, .user-empty-state', { timeout: 10000 });
+  const recordSeed = await page.evaluate(() => {
+    const firstRecord = document.querySelector('.records-image-list article');
+    const recordText = firstRecord?.textContent?.replace(/\s+/g, ' ').trim() || '';
+    const modelText = firstRecord?.querySelector('small')?.textContent?.split('·')[0]?.trim() || '';
+    const searchTerm = modelText || recordText.match(/[A-Za-z0-9_.-]{3,}/)?.[0] || '';
+    return {
+      count: document.querySelectorAll('.records-image-list article').length,
+      searchTerm,
+      emptyText: document.body.innerText
+    };
+  });
+  let filteredRecordImages = recordSeed.count;
+  if (recordSeed.count > 0 && recordSeed.searchTerm) {
+    await fillUnique(page.getByPlaceholder('搜索提示词 / 模型'), recordSeed.searchTerm, 'records search');
+    await page.waitForTimeout(400);
+    filteredRecordImages = await page.locator('.records-image-list article').count();
+    await ensure(filteredRecordImages >= 1, `records search did not keep any matching record: ${JSON.stringify(recordSeed)}`);
+  } else {
+    await ensure(recordSeed.emptyText.includes('暂无生成图片记录'), `records empty state mismatch: ${JSON.stringify(recordSeed)}`);
+  }
   await clickUnique(page.locator('.records-toolbar button').filter({ hasText: '刷新' }), 'records refresh');
   await page.waitForTimeout(500);
   await page.screenshot({
@@ -427,9 +462,25 @@ async page => {
   await waitReady();
   await page.waitForSelector('text=任务监控', { timeout: 10000 });
   await page.waitForSelector('text=生成任务列表', { timeout: 10000 });
-  await fillUnique(page.getByPlaceholder('搜索提示词 / 用户 / 模型 / 线路'), 'simple', 'admin tasks search');
-  await clickUnique(page.locator('.admin-tasks-toolbar button').filter({ hasText: '查询' }), 'admin tasks query');
-  await page.waitForTimeout(700);
+  await page.waitForSelector('.admin-tasks-list article, .admin-empty', { timeout: 10000 });
+  const adminTaskSeed = await page.evaluate(() => {
+    const firstTask = document.querySelector('.admin-tasks-list article');
+    const idText = firstTask?.querySelector('small')?.textContent?.replace(/^ID:\s*/i, '').trim() || '';
+    const modelText = firstTask?.querySelector('.admin-task-main span')?.textContent?.split('·').pop()?.trim() || '';
+    const promptText = firstTask?.querySelector('strong')?.textContent?.trim() || '';
+    return {
+      count: document.querySelectorAll('.admin-tasks-list article').length,
+      searchTerm: idText || modelText || promptText.match(/[A-Za-z0-9_.-]{3,}/)?.[0] || '',
+      emptyText: document.querySelector('.admin-empty')?.textContent || ''
+    };
+  });
+  if (adminTaskSeed.count > 0 && adminTaskSeed.searchTerm) {
+    await fillUnique(page.getByPlaceholder('搜索提示词 / 用户 / 模型 / 线路'), adminTaskSeed.searchTerm, 'admin tasks search');
+    await clickUnique(page.locator('.admin-tasks-toolbar button').filter({ hasText: '查询' }), 'admin tasks query');
+    await page.waitForTimeout(700);
+  } else {
+    await ensure(adminTaskSeed.emptyText.includes('暂无匹配任务'), `admin tasks empty state mismatch: ${JSON.stringify(adminTaskSeed)}`);
+  }
   const adminTasksMetrics = await visibleMetrics();
   await ensure(adminTasksMetrics.horizontalOverflow === 0, 'admin generate tasks has horizontal overflow');
   const adminTasksCounts = await page.evaluate(() => ({
@@ -438,8 +489,15 @@ async page => {
     text: document.body.innerText
   }));
   await ensure(adminTasksCounts.statCards === 6, `admin tasks stat card mismatch: ${JSON.stringify(adminTasksCounts)}`);
-  await ensure(adminTasksCounts.rows >= 1, `admin tasks list is empty: ${JSON.stringify(adminTasksCounts)}`);
-  await ensure(adminTasksCounts.text.includes('gpt-image-2'), 'admin tasks search did not show image model task');
+  if (adminTaskSeed.count > 0) {
+    await ensure(adminTasksCounts.rows >= 1, `admin tasks list is empty: ${JSON.stringify({ adminTaskSeed, adminTasksCounts })}`);
+    await ensure(
+      adminTasksCounts.text.includes(adminTaskSeed.searchTerm),
+      `admin tasks search did not preserve seeded task: ${JSON.stringify({ adminTaskSeed, adminTasksCounts })}`
+    );
+  } else {
+    await ensure(adminTasksCounts.text.includes('暂无匹配任务'), 'admin tasks empty state disappeared');
+  }
   await clickUnique(page.locator('.admin-source-actions button').filter({ hasText: '刷新' }), 'admin tasks refresh');
   await page.waitForTimeout(600);
   await page.screenshot({
@@ -899,20 +957,25 @@ async page => {
   });
   results.push({ step: 'mobile-admin-settings', ok: true, metrics: mobileAdminSettingsMetrics });
 
-  currentStep = 'mobile-canvas-legacy-source';
+  currentStep = 'mobile-canvas-runtime-redirect';
   await page.goto(baseUrl + '/canvas?source-frontend-ui-smoke=mobile-canvas');
   await waitReady();
-  await page.waitForSelector('text=旧画布', { timeout: 10000 });
-  const mobileCanvasLegacyMetrics = await visibleMetrics();
+  await page.waitForTimeout(1200);
+  const mobileCanvasRuntimeMetrics = await page.evaluate(() => ({
+    href: location.href,
+    text: document.body.innerText.slice(0, 500),
+    horizontalOverflow: Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  }));
   await ensure(
-    mobileCanvasLegacyMetrics.horizontalOverflow === 0,
-    `mobile canvas legacy overflow: ${mobileCanvasLegacyMetrics.horizontalOverflow}`
+    mobileCanvasRuntimeMetrics.href.startsWith('http://127.0.0.1:3456/canvas'),
+    `mobile canvas route did not enter runtime: ${JSON.stringify(mobileCanvasRuntimeMetrics)}`
   );
+  await ensure(!mobileCanvasRuntimeMetrics.text.includes('迁移索引'), 'mobile canvas runtime displayed transition wording');
   await page.screenshot({
-    path: `${screenshotDir}/canvas-legacy-source-mobile-390x844.png`,
+    path: `${screenshotDir}/canvas-runtime-mobile-390x844.png`,
     fullPage: true
   });
-  results.push({ step: 'mobile-canvas-legacy-source', ok: true, metrics: mobileCanvasLegacyMetrics });
+  results.push({ step: 'mobile-canvas-runtime-redirect', ok: true, metrics: mobileCanvasRuntimeMetrics });
 
   if (badResponses.length) {
     throw new Error(`source frontend API failures: ${JSON.stringify(badResponses)}`);

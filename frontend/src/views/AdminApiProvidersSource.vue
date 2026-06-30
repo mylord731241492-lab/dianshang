@@ -580,7 +580,7 @@ onMounted(loadProviders);
     <section class="admin-source-main">
       <header class="admin-source-topbar">
         <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
           <p class="eyebrow">API Providers</p>
           <h1>API 线路管理</h1>
           <span>统一配置第三方 API 线路、Key、接口格式和默认模型；字段按旧 HJM 后台恢复。</span>

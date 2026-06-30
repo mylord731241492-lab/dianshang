@@ -3543,7 +3543,36 @@ a {
   }
 
   .admin-source-main {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     padding: 18px;
+    overflow-x: hidden;
+  }
+
+  .admin-source-panel,
+  .admin-source-topbar,
+  .admin-stat-grid,
+  .admin-users-toolbar,
+  .admin-users-list,
+  .admin-users-pagination {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .admin-users-toolbar > *,
+  .admin-tasks-toolbar > *,
+  .admin-logs-toolbar > *,
+  .admin-orders-toolbar > *,
+  .admin-redeem-codes-toolbar > *,
+  .admin-model-prices-toolbar > *,
+  .admin-api-providers-toolbar > *,
+  .admin-template-workflows-toolbar > *,
+  .admin-recycle-bin-toolbar > *,
+  .admin-settings-toolbar > * {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .admin-source-topbar,
@@ -3591,6 +3620,16 @@ a {
 
   .records-image-list img {
     display: block;
+  }
+
+  .admin-users-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-users-pagination .n-pagination {
+    max-width: 100%;
+    flex-wrap: wrap;
   }
 }
 

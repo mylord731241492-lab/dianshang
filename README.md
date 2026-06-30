@@ -60,7 +60,7 @@ npm run build
 
 默认开发地址：`http://127.0.0.1:5173`
 
-Vite 会把 `/api` 和 `/uploads` 代理到旧后端 `http://127.0.0.1:3456`。`frontend/` 的 `/canvas` 是源码入口壳，只提供新窗口打开旧后端画布 `http://127.0.0.1:3456/canvas`；本地文件夹授权和保存必须在旧画布顶层页面执行。新后端准备接管接口前，不在 `F:\dianshang` 根目录安装后端依赖；本阶段复用旧项目后端作为稳定基线：
+Vite 会把 `/api` 和 `/uploads` 代理到旧后端 `http://127.0.0.1:3456`。`frontend/` 的 `/canvas` 是源码直跳入口，会整页跳转到旧后端画布 `http://127.0.0.1:3456/canvas`；本地文件夹授权和保存必须在旧画布顶层页面执行。新后端准备接管接口前，不在 `F:\dianshang` 根目录安装后端依赖；本阶段复用旧项目后端作为稳定基线：
 
 ```powershell
 cd "C:\Users\pc\Desktop\hjm-mb-clone"
@@ -74,7 +74,7 @@ node server.js
 - 已删除 `frontend/src/views/CanvasStudio.vue`。
 - 已删除新画布 Store、类型、运行适配器和 Infinite-Canvas 模板文件。
 - 已卸载 `@vue-flow/*` 依赖。
-- `frontend/src/views/CanvasLegacySource.vue` 只负责承载旧画布入口，不嵌入旧画布 iframe，不开发新画布。
+- `frontend/src/views/CanvasLegacySource.vue` 只负责直跳旧画布运行时，不嵌入旧画布 iframe，不开发新画布。
 - 后续画布验收以旧后端 `http://127.0.0.1:3456/canvas` 为准。
 
 ## API 线路收敛
@@ -105,7 +105,7 @@ git diff --check
 powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"
 ```
 
-该 smoke 会用 Playwright CLI 跑注册临时账号、清理临时账号、未登录态图库/用户中心/生成记录/兑换页边界、登录默认账号、首页迁移索引跳转、旧画布源码入口壳、用户中心快捷导航、图库搜索/刷新、模板切换/填写、生成记录搜索/刷新、兑换码页填写但不提交、移动端 records/redeem 横向溢出检查、退出登录、源码后台登录、源码后台 Dashboard、源码后台用户管理只读搜索、源码后台任务监控只读搜索、源码后台消费日志只读搜索、源码后台订单管理只读搜索、源码后台兑换码管理只读搜索、源码后台模型价格只读搜索、源码后台 API 线路目标展示、源码后台模板工作流只读搜索、源码后台回收站只读搜索、源码后台系统设置保存试点展示和移动端后台横向溢出检查；不会触发真实生成、兑换码提交、后台兑换码创建/删除、后台模型价格保存、后台 API 线路测试/拉模型、后台模板工作流保存、后台回收站恢复/永久删除、后台系统设置保存、后台任务取消/删除、后台订单状态修改、后台余额修改、后台用户写入或图库删除。API 线路整包替换属于人工确认动作，smoke 只检查按钮和目标配置展示。
+该 smoke 会用 Playwright CLI 跑注册临时账号、清理临时账号、未登录态图库/用户中心/生成记录/兑换页边界、登录默认账号、旧站首页工作台导航、旧画布直跳入口、用户中心快捷导航、图库搜索/刷新、模板切换/填写、生成记录搜索/刷新、兑换码页填写但不提交、移动端 records/redeem 横向溢出检查、退出登录、源码后台登录、源码后台 Dashboard、源码后台用户管理只读搜索、源码后台任务监控只读搜索、源码后台消费日志只读搜索、源码后台订单管理只读搜索、源码后台兑换码管理只读搜索、源码后台模型价格只读搜索、源码后台 API 线路目标展示、源码后台模板工作流只读搜索、源码后台回收站只读搜索、源码后台系统设置保存试点展示和移动端后台横向溢出检查；不会触发真实生成、兑换码提交、后台兑换码创建/删除、后台模型价格保存、后台 API 线路测试/拉模型、后台模板工作流保存、后台回收站恢复/永久删除、后台系统设置保存、后台任务取消/删除、后台订单状态修改、后台余额修改、后台用户写入或图库删除。API 线路整包替换和真实 Key 测试属于人工确认动作，smoke 只检查按钮和目标配置展示。
 
 源码前端一键基础校验：
 
@@ -119,10 +119,11 @@ npm run verify:source --prefix "F:\dianshang\frontend"
 
 ```powershell
 node --check "F:\dianshang\server.js"
+powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-backend-canvas-boundary.ps1"
 powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-api-disposable.ps1"
 ```
 
-改旧打包资产时额外运行对应 `node --check assets/<file>.js`，并在 `docs/progress-report.md` 说明为什么必须改旧资产。
+改旧打包资产时额外运行对应 `node --check assets/<file>.js` 和 `node "F:\dianshang\scripts\verify-canvas-performance-assets.js"`，并在 `docs/progress-report.md` 说明为什么必须改旧资产。
 
 ## 迁移记录
 

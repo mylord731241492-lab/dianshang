@@ -72,7 +72,7 @@ onMounted(loadUserCenter);
 <template>
   <main class="user-source-shell">
     <header class="user-topbar">
-      <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+      <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回首页</RouterLink>
       <div>
         <p class="eyebrow">User Center</p>
         <h1>用户中心</h1>

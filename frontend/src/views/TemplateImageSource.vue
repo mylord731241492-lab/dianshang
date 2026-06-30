@@ -230,7 +230,7 @@ onMounted(loadPage);
 <template>
   <main class="template-source-shell">
     <header class="template-topbar">
-      <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+      <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回首页</RouterLink>
       <div>
         <p class="eyebrow">Template Image</p>
         <h1>模板生图工作台</h1>

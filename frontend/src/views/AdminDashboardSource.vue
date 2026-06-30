@@ -80,7 +80,7 @@ onMounted(loadDashboard);
     <section class="admin-source-main">
       <header class="admin-source-topbar">
         <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
           <p class="eyebrow">Admin Dashboard</p>
           <h1>控制台 Dashboard</h1>
           <span>系统概览、模型使用、线路统计和用户排行</span>

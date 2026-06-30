@@ -103,3 +103,16 @@
 - 生产服务端已将 `/admin/login`、Dashboard、用户、回收站、任务、日志、订单、兑换码、模型、API 线路、模板工作流、系统设置统一交给源码前端入口。
 - 旧入口桥接脚本已扩展到全部后台源码页，旧后台菜单点击会进入源码后台，不只针对 API 线路。
 - 已完成构建和浏览器抽查：API 线路、订单、系统设置、模板工作流均显示同一套 11 个菜单并高亮当前页面。
+
+## 2026-06-30 日志扫描与路线图对齐清单追加
+
+- 已扫描最近日志、进度报告、复核日志和 2026-06-30 可维护性审计，确认下一步先处理文档状态滞后，而不是继续扩大代码改动面。
+- `docs/frontend-migration-roadmap.md`、`docs/source-frontend-acceptance-checklist.md`、`README.md` 和 `frontend/src/config/frontendMigration.ts` 已同步当前事实：首页为旧站工作台、`/canvas` 直跳旧画布运行时、后台 11 页共用侧栏、API 线路和系统设置为写入试点。
+- 源码前端 UI smoke 已加固任务监控搜索，不再依赖固定 `simple` 测试词；移动端后台用户页 65px 横向溢出已修复，复跑确认后台移动端页面横向溢出为 0。
+- 当前仍需人工总体验收：后台 11 页侧栏一致性、API 线路/系统设置写入试点保存回显、真实生图与图生图工具链路需在确认额度后再测。
+
+## 2026-06-30 后端与旧画布边界护栏清单追加
+
+- 新增 `scripts/smoke-backend-canvas-boundary.ps1`，用临时数据库启动后端，验证旧画布入口和关键资产、image-tools 路由、上传入口和 canvas storage 边界。
+- 新 smoke 已接入 `scripts/preflight-check.ps1` 默认链路，后续改后端或旧画布入口时会自动检查不返回 404、不误开启未接工具、不触发真实 Provider。
+- `docs/canvas-migration-checklist.md` 和 README 已同步当前入口与维护命令。

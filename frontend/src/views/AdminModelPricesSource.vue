@@ -159,7 +159,7 @@ onMounted(loadPrices);
     <section class="admin-source-main">
       <header class="admin-source-topbar">
         <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
           <p class="eyebrow">Model Prices</p>
           <h1>模型价格</h1>
           <span>只读迁移版：查看线路模型、价格点数、清晰度和启用状态，不保存、不新增、不删除。</span>

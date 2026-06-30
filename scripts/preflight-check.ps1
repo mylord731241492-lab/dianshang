@@ -51,6 +51,12 @@ if (Test-Path "scripts\verify-canvas-performance-assets.js") {
   }
 }
 
+if (Test-Path "scripts\smoke-backend-canvas-boundary.ps1") {
+  Invoke-Step -Name "backend/canvas boundary smoke" -Script {
+    Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-backend-canvas-boundary.ps1")
+  }
+}
+
 if ($env:SMOKE_USE_CURRENT_API -eq "true") {
   Invoke-Step -Name "API smoke current service" -Script {
     Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-api.ps1")

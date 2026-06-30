@@ -172,7 +172,7 @@ onMounted(loadCodes);
     <section class="admin-source-main">
       <header class="admin-source-topbar">
         <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
           <p class="eyebrow">Redeem Codes</p>
           <h1>兑换码管理</h1>
           <span>只读迁移版：查看兑换码额度、次数、剩余量和状态，不创建、不删除、不发放。</span>

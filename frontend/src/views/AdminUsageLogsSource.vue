@@ -155,7 +155,7 @@ onMounted(loadLogs);
     <section class="admin-source-main">
       <header class="admin-source-topbar">
         <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
           <p class="eyebrow">Usage Logs</p>
           <h1>消费日志</h1>
           <span>只读迁移版：查看算力收入、消耗、兑换和调整流水，不执行余额修改。</span>

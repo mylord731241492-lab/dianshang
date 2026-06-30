@@ -89,7 +89,7 @@ onMounted(loadUsers);
     <section class="admin-source-main">
       <header class="admin-source-topbar">
         <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />迁移索引</RouterLink>
+          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
           <p class="eyebrow">Recycle Bin</p>
           <h1>回收站</h1>
           <span>只读迁移版：查看已删除用户，不恢复、不永久删除、不匿名化数据。</span>

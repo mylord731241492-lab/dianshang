@@ -12,6 +12,6 @@ onMounted(redirectToLegacyCanvas);
 
 <template>
   <main class="canvas-direct-redirect">
-    <span>正在打开旧画布...</span>
+    <span>正在打开画布...</span>
   </main>
 </template>

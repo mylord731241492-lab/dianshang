@@ -145,3 +145,10 @@
 - 对话 Agent 提交会带上 `imageCount/count/n`、`quality/clarity`、`ratio/aspectRatio`，不再固定只生成 1 张 1:1。
 - 用户消息卡片显示本次参数摘要，便于回看历史生成设置。
 - 入口 `canvas-chat-prompt-flow.js/css` 版本升级为 `20260630dialogagent2`；快速和视频模式保持原逻辑。
+
+## 2026-06-30 Canvas Chat dialogagent5 清单追加
+
+- 对话/视频参数控件已从原生下拉改回旧画布设计语言：紧凑圆角按钮、深色张数/清晰度菜单、浅色比例卡片菜单。
+- 快速模式继续使用旧 Canvas Chat 自带控件；桥接层只负责布局归组，不替换快速菜单逻辑。
+- 入口 `canvas-chat-prompt-flow.js/css` 版本升级为 `20260630dialogagent5`，边界 smoke 已同步检查该版本。
+- 当前仍需人工复核：刷新当前画布，分别打开三种模式下的参数菜单，确认和用户截图中的旧控件语言一致。

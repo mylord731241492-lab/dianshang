@@ -1702,6 +1702,13 @@
 ## 2026-06-30 Canvas Chat 对话 Agent 参数控件接入
 
 - 触发背景：用户要求把快速模式底部的 `张数`、`清晰度`、`比例` 三个控制项也放到 `对话` 模式里。
-- 完成内容：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260630dialogagent2`；对话模式底部会补充三个轻量 select 控件，默认 `1张 / 1K / 1:1`。提交对话 Agent 时会把 `imageCount/count/n`、`quality/clarity`、`ratio/aspectRatio` 一起传给 `/api/canvas/dialog-agent-generate`。
+- 完成内容：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260630dialogagent2`；对话模式底部会补充 `张数 / 清晰度 / 比例` 三项参数，默认 `1张 / 1K / 1:1`。提交对话 Agent 时会把 `imageCount/count/n`、`quality/clarity`、`ratio/aspectRatio` 一起传给 `/api/canvas/dialog-agent-generate`。
 - 历史展示：用户消息卡片追加本次设置行，例如 `1张 · 1K · 1:1`，便于回看当次生成参数。
 - 边界：不改快速模式和视频模式；不改旧 Canvas 主 bundle；不触发真实 Provider 测试。
+
+## 2026-06-30 Canvas Chat 参数控件旧设计语言修复
+
+- 触发背景：用户指出新增参数控件没有继承旧画布设计语言，表现为原生下拉与快速模式原有控件不一致。
+- 完成内容：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260630dialogagent5`；对话和视频底部参数改为旧式 `canvas-chat-control compact-control` 风格按钮，不再使用原生 `select`。`张数`、`清晰度` 菜单恢复为深色竖向浮层，`比例` 菜单恢复为浅色比例卡片网格。
+- 快速模式：保留旧 Canvas Chat 原生快速控件，只做布局归组，避免重复、挤压和与对话参数状态串用。
+- 边界：只修旧画布桥接层和入口缓存版本，不改后端 Provider、不触发真实生图、不改旧 Canvas 主 bundle。

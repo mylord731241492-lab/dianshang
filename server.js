@@ -842,11 +842,19 @@ async function callProviderImageEdit(prompt, options = {}) {
   }
 
   try {
-    const imageFile = await loadReferenceImageFile(references[0], options.req);
     const maskSource = options.mask || options.maskUrl || options.body?.mask || options.body?.maskUrl || options.body?.maskBase64 || '';
     const maskFile = maskSource
       ? await loadReferenceImageFile({ url: maskSource, dataUrl: maskSource }, options.req)
       : null;
+    const referenceFiles = [];
+    const referencesForEdit = maskFile ? references.slice(0, 1) : references.slice(0, 16);
+    for (let i = 0; i < referencesForEdit.length; i += 1) {
+      const file = await loadReferenceImageFile(referencesForEdit[i], options.req);
+      referenceFiles.push({
+        ...file,
+        fileName: file.fileName || `reference-${i + 1}.${providerImageExt(file.mime)}`
+      });
+    }
     const images = [];
     const upstream = [];
     for (let i = 0; i < count; i += 1) {
@@ -861,7 +869,14 @@ async function callProviderImageEdit(prompt, options = {}) {
         form.append('output_format', outputFormat);
         form.append('response_format', 'url');
         form.append('n', '1');
-        form.append('image', new Blob([imageFile.buffer], { type: imageFile.mime }), imageFile.fileName);
+        if (referenceFiles.length > 1 && !maskFile) {
+          referenceFiles.forEach((file, index) => {
+            form.append('image[]', new Blob([file.buffer], { type: file.mime }), file.fileName || `reference-${index + 1}.${providerImageExt(file.mime)}`);
+          });
+        } else {
+          const imageFile = referenceFiles[0];
+          form.append('image', new Blob([imageFile.buffer], { type: imageFile.mime }), imageFile.fileName);
+        }
         if (maskFile) form.append('mask', new Blob([maskFile.buffer], { type: maskFile.mime }), maskFile.fileName);
         const requestUrl = joinProviderUrl(status.baseUrl, routeImageEditEndpoint(options.route));
         const resp = await fetch(requestUrl, {
@@ -916,7 +931,26 @@ async function callProviderImageEdit(prompt, options = {}) {
         upstream
       };
     }
-    return { success: true, mock: false, provider: status, editMode: true, images, upstream, request: { model, size, quality, output_format: outputFormat, response_format: 'url', n: 1, requestedCount: count, referenceImageCount: references.length } };
+    return {
+      success: true,
+      mock: false,
+      provider: status,
+      editMode: true,
+      images,
+      upstream,
+      request: {
+        model,
+        size,
+        quality,
+        output_format: outputFormat,
+        response_format: 'url',
+        n: 1,
+        requestedCount: count,
+        referenceImageCount: references.length,
+        submittedReferenceImageCount: referenceFiles.length,
+        referenceImageField: referenceFiles.length > 1 && !maskFile ? 'image[]' : 'image'
+      }
+    };
   } catch (err) {
     return {
       success: false,
@@ -1845,9 +1879,12 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
     n: imageCount,
     imageCount
   };
+  const providerPrompt = rawReferences.length > 1
+    ? `输入参考图按顺序为：${rawReferences.map((_, index) => `图${index + 1}`).join('、')}。\n${agentPlan.finalPrompt}`
+    : agentPlan.finalPrompt;
   const imageResult = hasReferenceImages
-    ? await callProviderImageEdit(agentPlan.finalPrompt, providerOptions)
-    : await callProviderImageGeneration(agentPlan.finalPrompt, providerOptions);
+    ? await callProviderImageEdit(providerPrompt, providerOptions)
+    : await callProviderImageGeneration(providerPrompt, providerOptions);
   if (!imageResult.success) {
     return res.status(502).json({
       success: false,
@@ -1855,7 +1892,7 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
       message: imageResult.message || 'GPT Image 2 生图失败，请稍后重试',
       provider: imageResult.provider,
       analysisSummary: agentPlan.analysisSummary,
-      finalPrompt: agentPlan.finalPrompt,
+      finalPrompt: providerPrompt,
       analysisCost,
       imageCost,
       totalCost
@@ -1863,8 +1900,8 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
   }
 
   const task = createCompletedTask(req, {
-    prompt: agentPlan.finalPrompt,
-    finalPrompt: agentPlan.finalPrompt,
+    prompt: providerPrompt,
+    finalPrompt: providerPrompt,
     analysisSummary: agentPlan.analysisSummary,
     modelKey: imageModel,
     imageCount,

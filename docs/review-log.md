@@ -2369,3 +2369,17 @@
 
 - 用户重新测试真实对话 Agent 请求，确认 GPT 5.5 分析结果能进入 GPT Image 2 生图阶段。
 - 若仍返回无 prompt，需要临时记录 Provider 响应 shape，再按真实结构补充解析。
+
+## 2026-06-30 Canvas Chat 对话 Agent GPT Image 2 多参考图复核
+
+### 已确认
+
+- `assets/canvas-chat-prompt-flow.js` 会按可见顺序收集多张参考图，并把它们作为 `referenceImages` 传给 `/api/canvas/dialog-agent-generate`。
+- GPT 5.5 分析阶段使用 `canvasDialogReferencesForAnalysis` 读取全部参考图，因此“图1/图2”的文本分析输入是完整的。
+- GPT Image 2 编辑阶段此前只执行 `loadReferenceImageFile(references[0])` 并 append 单个 `image`，所以第二张参考图没有作为图片文件进入 `/images/edits`。
+- 已改为无 mask 时按顺序提交多张 `image[]`，并在 request meta 中记录 `submittedReferenceImageCount` 和 `referenceImageField`。
+
+### 需要继续验证
+
+- 真实对话 Agent 重新测试“把图1的产品改为图2产品，文案也对应”，确认生成结果更明显继承图2瓶型、包装和文字风格。
+- 若 Provider 不接受 `image[]` 字段，需要根据上游实际接口改为重复 `image` 字段或线路配置化字段名。

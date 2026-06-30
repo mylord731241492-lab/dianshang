@@ -1691,3 +1691,10 @@
 - 定位结论：`parseCanvasDialogAgentPlan` 已允许把非 JSON 文本直接作为最终 prompt；真正失败点是 `imageToolOutputText` 没有兼容 New-API/OpenAI 返回中 `choices[].message.content[]`、`output[].content[].text/value` 等嵌套文本结构，导致成功响应被当成空文本。
 - 完成内容：新增 `normalizeProviderContentText`，统一递归抽取 `output_text/outputText/text/content/value/message/delta/data/result/response` 中的文本；`imageToolOutputText` 改为同时支持 Responses API 和 Chat Completions 风格的数组内容。
 - 边界：不改对话 Agent 业务流程、不改扣费逻辑、不做本地基础提示词兜底生图；如果 GPT 5.5 真实返回完全无文本，仍按分析失败处理。
+
+## 2026-06-30 Canvas Chat 对话 Agent GPT Image 2 多参考图修复
+
+- 触发背景：用户观察到对话 Agent 生成结果更像只按提示词文案生成，没有继承图2产品/包装特征，怀疑参考图未传到 GPT Image 2。
+- 定位结论：前端会把多张参考图传入 `/api/canvas/dialog-agent-generate`，GPT 5.5 分析阶段能看到多图；但后端 `callProviderImageEdit` 真实提交 `/images/edits` 时只加载并 append 了 `references[0]`，导致第二张及之后的参考图只进入文本分析，没有进入 GPT Image 2 生图阶段。
+- 完成内容：无 mask 的图生图编辑现在最多按顺序加载 16 张参考图，并在 multipart 中使用 `image[]` 提交给 Provider；带 mask 的局部重绘仍保持单图 + mask，避免破坏旧工具链路。对话 Agent 多图 prompt 额外前置 “输入参考图按顺序为：图1、图2...” 以匹配用户话术和文件顺序。
+- 边界：不触发真实 Provider 测试；本轮只修复多图上传语义和 prompt 顺序提示，不改变模型配置、扣费规则或快速模式逻辑。

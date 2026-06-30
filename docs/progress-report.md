@@ -1733,3 +1733,10 @@
 - 完成内容：`assets/canvas-chat-prompt-flow.css` 将设置区从硬 grid 改为共享 flex wrap 布局：上传按钮和模型控件一行，`张数 / 清晰度 / 比例` 三个原生参数按钮作为同一组，使用相同高度、圆角、宽度规则和 12px gap；窄面板下允许换行，不再互相覆盖。
 - 入口版本：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260630dialogagent8`，HTML 入口和 boundary smoke 同步更新。
 - 边界：仅修旧画布覆盖层布局；对话/快速仍复用旧 Canvas Chat 原生控件，不引入新控件、不改后端 Provider。
+
+## 2026-06-30 Packy GPT Image 2 本地技术档案与尺寸换算
+
+- 触发背景：用户要求先继续阅读 Packy GPT Image 2 技术文档，并把生图技术档案放到本地；同时明确 UI 的 `1K / 2K / 4K` 是图片大小档位。
+- 完成内容：新增 `docs/provider-packy-gpt-image-2.md`，记录 `gpt-image-2` 文生图 `/v1/images/generations`、图生图 `/v1/images/edits`、`size/quality/output_format/response_format/n/input_fidelity` 等参数和本项目映射。
+- 后端同步：`providerImageSize` 改为按 `图片大小档位 + 比例` 自动换算合法 Packy `size`，保证最大边、16 倍数、长短边比例和总像素范围；`1K/2K/4K` 不再直接映射为 Packy `quality`，无单独质量选择时 `quality` 使用 `auto`。
+- 边界：不触发真实 Provider 付费测试；旧前端字段名仍兼容 `quality/clarity`，业务语义改按图片大小处理。

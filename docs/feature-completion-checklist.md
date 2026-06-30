@@ -171,3 +171,9 @@
 - 对话和快速模式底部 `1张 / 1K / 1:1` 三个参数按钮统一为同一套原生 `.compact-control` 按钮样式。
 - 参数按钮组改为 flex wrap + 固定 gap，避免硬网格在窄面板或缩放下再次重叠。
 - 入口 `canvas-chat-prompt-flow.js/css` 版本升级为 `20260630dialogagent8`，用于刷新一致性修复。
+
+## 2026-06-30 Packy GPT Image 2 技术档案清单追加
+
+- 新增本地技术档案 `docs/provider-packy-gpt-image-2.md`，后续 GPT Image 2 接口参数以该文件和 Packy 官方链接为优先参考。
+- `1K / 2K / 4K` 明确为图片大小档位；比例自动换算为 Packy 合法 `size`。
+- Packy `quality` 与图片大小解耦，默认使用 `auto`，避免把 `1K` 误发成低质量。

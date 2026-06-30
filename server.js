@@ -301,21 +301,93 @@ function routeImageEditEndpoint(route = {}) {
   return candidates.find(value => /\/images\/edits\b/i.test(String(value))) || '/v1/images/edits';
 }
 
-function providerImageSize(value = '') {
-  const raw = String(value || '').trim();
-  if (/^\d+x\d+$/i.test(raw)) return raw.toLowerCase();
-  const ratio = raw.replace(':', 'x');
-  if (['9x16', '3x4', '4x5'].includes(ratio)) return '1024x1536';
-  if (['16x9', '4x3'].includes(ratio)) return '1536x1024';
-  return '1024x1024';
+function providerImageSizeTier(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (['4k', '3840', '4096'].includes(raw)) return '4k';
+  if (['2k', '2048'].includes(raw)) return '2k';
+  return '1k';
+}
+
+function providerImageLongSide(sizeTier = '') {
+  const tier = providerImageSizeTier(sizeTier);
+  if (tier === '4k') return 3840;
+  if (tier === '2k') return 2048;
+  return 1024;
+}
+
+function roundToMultiple(value, multiple = 16) {
+  return Math.max(multiple, Math.round(Number(value || 0) / multiple) * multiple);
+}
+
+function parseImageRatio(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  const match = raw.match(/^(\d+(?:\.\d+)?)\s*[:x]\s*(\d+(?:\.\d+)?)$/);
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  const ratio = width / height;
+  if (!Number.isFinite(ratio) || ratio <= 0) return null;
+  return Math.max(1 / 3, Math.min(3, ratio));
+}
+
+function clampImageSize(width, height) {
+  const maxSide = 3840;
+  const minPixels = 655360;
+  const maxPixels = 8294400;
+  let w = Math.max(16, Number(width) || 1024);
+  let h = Math.max(16, Number(height) || 1024);
+  const sideScale = Math.min(1, maxSide / Math.max(w, h));
+  w *= sideScale;
+  h *= sideScale;
+  let pixels = w * h;
+  if (pixels > maxPixels) {
+    const scale = Math.sqrt(maxPixels / pixels);
+    w *= scale;
+    h *= scale;
+  }
+  pixels = w * h;
+  if (pixels < minPixels) {
+    const scale = Math.sqrt(minPixels / pixels);
+    w *= scale;
+    h *= scale;
+  }
+  w = roundToMultiple(w, 16);
+  h = roundToMultiple(h, 16);
+  while (w * h > maxPixels) {
+    if (w >= h) w -= 16;
+    else h -= 16;
+  }
+  while (w * h < minPixels) {
+    if (w <= h) w += 16;
+    else h += 16;
+  }
+  w = Math.min(maxSide, Math.max(16, w));
+  h = Math.min(maxSide, Math.max(16, h));
+  return `${w}x${h}`;
+}
+
+function providerImageSize(value = '', sizeTierValue = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'auto') return 'auto';
+  if (/^\d+x\d+$/i.test(raw)) {
+    const [width, height] = raw.split('x').map(Number);
+    return clampImageSize(width, height);
+  }
+  const ratio = parseImageRatio(raw) || 1;
+  const longSide = providerImageLongSide(sizeTierValue);
+  const width = ratio >= 1 ? longSide : longSide * ratio;
+  const height = ratio >= 1 ? longSide / ratio : longSide;
+  return clampImageSize(width, height);
 }
 
 function providerImageQuality(value = '') {
   const raw = String(value || '').trim().toLowerCase();
   if (['low', 'medium', 'high', 'auto'].includes(raw)) return raw;
-  if (['1k', 'standard', 'sd'].includes(raw)) return 'low';
-  if (['2k', 'hd'].includes(raw)) return 'medium';
-  if (['4k', 'ultra', 'max'].includes(raw)) return 'high';
+  if (['1k', '2k', '4k'].includes(raw)) return 'auto';
+  if (['standard', 'sd'].includes(raw)) return 'low';
+  if (['hd'].includes(raw)) return 'medium';
+  if (['ultra', 'max'].includes(raw)) return 'high';
   return 'auto';
 }
 
@@ -728,8 +800,9 @@ async function callProviderImageGeneration(prompt, options = {}) {
   const status = options.status || routeProviderStatus(options.route, 'image');
   const model = options.model || options.modelKey || AI_IMAGE_MODEL;
   const count = Math.max(1, Math.min(Number(options.n || options.count || options.imageCount || 1) || 1, 4));
-  const size = providerImageSize(options.size || options.ratio || options.aspectRatio);
-  const quality = providerImageQuality(options.quality);
+  const sizeTier = options.sizeTier || options.resolution || options.clarity || options.quality;
+  const size = providerImageSize(options.size || options.ratio || options.aspectRatio, sizeTier);
+  const quality = providerImageQuality(options.imageQuality || options.providerQuality || options.qualityMode || options.quality);
   const outputFormat = providerImageOutputFormat(options.output_format || options.outputFormat);
   if (!status.enabled) {
     return {
@@ -824,8 +897,9 @@ async function callProviderImageEdit(prompt, options = {}) {
   const status = options.status || routeProviderStatus(options.route, 'image');
   const model = options.model || options.modelKey || AI_IMAGE_MODEL;
   const count = Math.max(1, Math.min(Number(options.n || options.count || options.imageCount || 1) || 1, 4));
-  const size = providerImageSize(options.size || options.ratio || options.aspectRatio);
-  const quality = providerImageQuality(options.quality);
+  const sizeTier = options.sizeTier || options.resolution || options.clarity || options.quality;
+  const size = providerImageSize(options.size || options.ratio || options.aspectRatio, sizeTier);
+  const quality = providerImageQuality(options.imageQuality || options.providerQuality || options.qualityMode || options.quality);
   const outputFormat = providerImageOutputFormat(options.output_format || options.outputFormat);
   const references = imageReferenceCandidates(options.body || options);
   if (!references.length) {

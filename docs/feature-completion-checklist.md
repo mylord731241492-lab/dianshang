@@ -165,3 +165,9 @@
 - 快速模式底部设置区改为三个完整参数列，`1张 / 1K / 1:1` 不再使用上传按钮的 44px 窄列。
 - 对话模式继续复用旧 Canvas Chat 原生设置控件，不新增第二套 UI。
 - 入口 `canvas-chat-prompt-flow.js/css` 版本升级为 `20260630dialogagent7`，用于强制刷新最新对齐样式。
+
+## 2026-06-30 Canvas Chat dialogagent8 清单追加
+
+- 对话和快速模式底部 `1张 / 1K / 1:1` 三个参数按钮统一为同一套原生 `.compact-control` 按钮样式。
+- 参数按钮组改为 flex wrap + 固定 gap，避免硬网格在窄面板或缩放下再次重叠。
+- 入口 `canvas-chat-prompt-flow.js/css` 版本升级为 `20260630dialogagent8`，用于刷新一致性修复。

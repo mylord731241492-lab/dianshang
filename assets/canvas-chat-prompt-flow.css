@@ -21,12 +21,11 @@
 .canvas-chat-panel .composer .config-row {
   --hjm-chat-icon-width: 44px;
   --hjm-chat-param-width: 96px;
-  display: grid !important;
-  grid-template-columns: repeat(3, var(--hjm-chat-param-width)) minmax(0, 1fr) !important;
+  display: flex !important;
+  flex-wrap: wrap;
   align-items: center;
-  column-gap: 12px;
+  gap: 12px;
   overflow: visible !important;
-  row-gap: 10px;
 }
 
 .canvas-chat-panel .composer .config-row > .hidden {
@@ -34,7 +33,7 @@
 }
 
 .canvas-chat-panel .composer .config-row .mini-button {
-  grid-column: 1;
+  flex: 0 0 var(--hjm-chat-icon-width);
   width: var(--hjm-chat-icon-width) !important;
   min-width: var(--hjm-chat-icon-width) !important;
   height: 44px !important;
@@ -42,9 +41,8 @@
 }
 
 .canvas-chat-panel .composer .config-row .model-control {
-  grid-column: 2 / -1;
-  grid-row: 1;
-  width: 100% !important;
+  flex: 1 1 calc(100% - var(--hjm-chat-icon-width) - 12px);
+  width: auto !important;
   min-width: 0 !important;
   height: 44px !important;
   justify-content: space-between;
@@ -58,8 +56,9 @@
 }
 
 .canvas-chat-panel .composer .config-row .compact-control {
-  width: var(--hjm-chat-param-width) !important;
-  min-width: 0 !important;
+  flex: 0 1 min(var(--hjm-chat-param-width), calc((100% - 24px) / 3));
+  width: min(var(--hjm-chat-param-width), calc((100% - 24px) / 3)) !important;
+  min-width: 76px !important;
   height: 44px !important;
   justify-content: center;
   border-radius: 16px !important;
@@ -67,19 +66,17 @@
 }
 
 .canvas-chat-panel .composer .config-row .compact-control[title="张数"] {
-  grid-column: 1;
-  grid-row: 2;
+  order: 2;
 }
 
 .canvas-chat-panel .composer .config-row .compact-control[title="清晰度"] {
-  grid-column: 2;
-  grid-row: 2;
+  order: 3;
 }
 
 .canvas-chat-panel .composer .config-row .ratio-control {
-  grid-column: 3;
-  grid-row: 2;
-  width: var(--hjm-chat-param-width) !important;
+  order: 4;
+  flex: 0 1 min(var(--hjm-chat-param-width), calc((100% - 24px) / 3));
+  width: min(var(--hjm-chat-param-width), calc((100% - 24px) / 3)) !important;
 }
 
 .canvas-chat-panel .hjm-prompt-flow-user,

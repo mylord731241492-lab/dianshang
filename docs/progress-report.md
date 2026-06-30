@@ -1726,3 +1726,10 @@
 - 完成内容：`assets/canvas-chat-prompt-flow.css` 将底部设置区改为 3 个完整参数列 + 余量列，第二行 `1张 / 1K / 1:1` 各占完整 96px 列，避免第一列沿用上传按钮 44px 宽度导致溢出重叠。
 - 入口版本：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260630dialogagent7`，HTML 入口和 boundary smoke 同步更新；旧 Canvas 原生控件渲染开关仍沿用 `dialogagent6` 的改动。
 - 边界：不再新增桥接控件，不改 Provider，不触发真实生图。
+
+## 2026-06-30 Canvas Chat 对话/快速参数按钮一致性修复
+
+- 触发背景：用户进一步明确要求：对话模式底部 `1张 / 1K / 1:1` 三个按钮要和快速模式按钮保持一致，并且保持间距不叠加。
+- 完成内容：`assets/canvas-chat-prompt-flow.css` 将设置区从硬 grid 改为共享 flex wrap 布局：上传按钮和模型控件一行，`张数 / 清晰度 / 比例` 三个原生参数按钮作为同一组，使用相同高度、圆角、宽度规则和 12px gap；窄面板下允许换行，不再互相覆盖。
+- 入口版本：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260630dialogagent8`，HTML 入口和 boundary smoke 同步更新。
+- 边界：仅修旧画布覆盖层布局；对话/快速仍复用旧 Canvas Chat 原生控件，不引入新控件、不改后端 Provider。

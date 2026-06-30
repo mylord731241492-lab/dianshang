@@ -129,7 +129,7 @@ try {
   $canvasHtml = Invoke-BoundaryRequest -Method "GET" -Path "/canvas?backend-canvas-boundary-smoke=1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-performance-mode.js?v=20260629perf5"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-image-node-polish.js?v=20260629image7"
-  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-chat-prompt-flow.js?v=20260630prompt5"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-chat-prompt-flow.js?v=20260630prompt6"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "admin-api-source-route-bridge.js?v=20260629sourceapi1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "index-DglIsp_g.js?v=20260629tools1"
 
@@ -138,8 +138,8 @@ try {
     "/assets/canvas-performance-mode.css?v=20260629perf5",
     "/assets/canvas-image-node-polish.js?v=20260629image7",
     "/assets/canvas-image-node-polish.css?v=20260629image7",
-    "/assets/canvas-chat-prompt-flow.js?v=20260630prompt5",
-    "/assets/canvas-chat-prompt-flow.css?v=20260630prompt5",
+    "/assets/canvas-chat-prompt-flow.js?v=20260630prompt6",
+    "/assets/canvas-chat-prompt-flow.css?v=20260630prompt6",
     "/assets/admin-api-source-route-bridge.js?v=20260629sourceapi1",
     "/assets/index-DglIsp_g.js?v=20260629tools1",
     "/assets/Canvas-B8bY9_QL.js?v=20260629tools1",

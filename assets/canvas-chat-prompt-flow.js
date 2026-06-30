@@ -1,5 +1,5 @@
 (function () {
-  var FLOW_VERSION = '20260630prompt5';
+  var FLOW_VERSION = '20260630prompt6';
   var state = {
     busy: false,
     drafts: {},
@@ -263,6 +263,7 @@
   }
 
   function handleClick(event) {
+    setTimeout(function () { updateHints(document); }, 0);
     var actionTarget = event.target && event.target.closest && event.target.closest('[data-hjm-prompt-flow-action]');
     if (actionTarget) {
       var card = actionTarget.closest('.hjm-prompt-flow-draft');
@@ -313,7 +314,13 @@
 
   function updateHints(root) {
     var panel = panelFromRoot(root);
-    if (!panel || panel.querySelector('.hjm-prompt-flow-hint')) return;
+    if (!panel) return;
+    var existing = panel.querySelector('.hjm-prompt-flow-hint');
+    if (!shouldHandle(panel)) {
+      if (existing) existing.remove();
+      return;
+    }
+    if (existing) return;
     var composer = panel.querySelector('.composer');
     if (!composer) return;
     var hint = document.createElement('div');
@@ -337,7 +344,7 @@
         }
       }
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
     window.__hjmCanvasChatPromptFlow = {
       version: FLOW_VERSION,
       getPanel: getPanel,

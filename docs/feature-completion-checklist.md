@@ -204,3 +204,9 @@
 - Responses 风格输入会自动转换为 Chat Completions `messages`，支持 `input_text` 和 `input_image`。
 - JSON 解析已支持从重复 JSON 输出中提取第一个完整对象，保证 `analysisSummary/finalPrompt` 干净可用。
 - 入口版本升级为 `assets/canvas-chat-prompt-flow.js/css?v=20260630dialogagent9`。
+
+## 2026-06-30 旧画布维护边界清单追加
+
+- 新增 `docs/canvas-maintenance-boundary.md`，明确旧画布唯一入口、可改/慎改/禁改范围、对话/快速/视频三条链路、GPT Image 2 统一适配器和每次修改后的检查命令。
+- 新增 `docs/canvas-maintenance-log.md`，记录 `dialogagent9` 当前资产版本、New API 文本端点修复、参数控件修正、Packy GPT Image 2 准则、多参考图修正和当前临时技术债。
+- `docs/canvas-migration-checklist.md` 已补充维护边界、维护日志和 Packy 技术档案链接，便于后续接手时先看边界再动代码。

@@ -39,3 +39,6 @@
 ## 关联文档
 
 - 画布以外页面迁移见 `docs/frontend-migration-roadmap.md`。
+- 旧画布后续维护边界见 `docs/canvas-maintenance-boundary.md`。
+- 旧画布近期维护日志和技术债见 `docs/canvas-maintenance-log.md`。
+- GPT Image 2 参数和 Packy 适配准则见 `docs/provider-packy-gpt-image-2.md`。

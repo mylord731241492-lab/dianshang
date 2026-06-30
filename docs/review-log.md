@@ -2515,3 +2515,16 @@
 
 - 用户刷新旧画布后重新走对话模式，应先出现 GPT 5.5 生成的真实提示词并继续进入后续图片生成。
 - 后续如果 New API 后台把 GPT 5.5 路线切回真正可用的 `/responses`，再评估是否需要配置化端点选择。
+
+## 2026-06-30 旧画布维护边界复核
+
+### 已确认
+
+- 已新增 `docs/canvas-maintenance-boundary.md`，把当前唯一旧画布入口、资产、后端接口、对话/快速/视频三条链路、GPT Image 2 统一适配器和禁改项写成可执行边界。
+- 已新增 `docs/canvas-maintenance-log.md`，把 `dialogagent9` 当前资产版本、New API 文本端点修复、参数控件去桥接层、Packy GPT Image 2 准则、多参考图修复和临时技术债集中记录。
+- `docs/canvas-migration-checklist.md` 已链接维护边界、维护日志和 Packy 技术档案，后续接手不需要从长进度日志里翻线索。
+
+### 需要继续验证
+
+- 文档本轮只固化维护边界，没有再次触发真实 Provider。
+- 业务链路稳定后，优先清理或收窄 `debugAnalysisOnly` 与普通错误里的 `responseShape`。

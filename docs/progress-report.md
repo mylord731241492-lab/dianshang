@@ -1773,3 +1773,16 @@
 - 完成内容：`callProviderResponses` 在 New API 文本线路下改走 `/chat/completions`，并把 Responses 风格输入自动转换为 Chat Completions `messages`；`input_text` 转为 `text`，`input_image` 转为 `image_url`。
 - 解析修复：`parseJsonObjectFromText` 改为扫描首个完整 JSON 对象，兼容 GPT 5.5 偶发重复输出两个 JSON 的情况；前端桥接版本升级为 `20260630dialogagent9`。
 - 验证结果：用真实 GPT 5.5 analysis-only 诊断测试同一张参考图和“把图1改为详情页长图”，返回 `textEndpoint=chat/completions`、`parseOk=true`、`extractedTextLength=1615`，并得到干净 `analysisSummary/finalPrompt`；未触发 GPT Image 2 生图。
+
+## 2026-06-30 旧画布维护边界与维护日志
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：新增旧画布维护边界和维护日志，整理当前唯一画布基线、三种 Canvas Chat 模式链路、GPT Image 2 统一适配器、Packy 参数规则、允许/谨慎/禁止改动范围、每次改动后的检查命令和当前临时技术债。
+- 修改文件：`docs/canvas-maintenance-boundary.md`、`docs/canvas-maintenance-log.md`、`docs/canvas-migration-checklist.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：文档链接和关键资产版本扫描；`git diff --check`；触达文档 UTF-8 BOM 检查。
+- 验证结果：链接和版本扫描通过；`git diff --check` 仅提示既有 Windows 换行转换 warning，无空白错误；触达文档 UTF-8 BOM 均为 false。
+- 当前完成度：旧画布后续维护边界 90%，仍需按真实业务复测结果继续补充经验项。
+- 新发现问题：当前仍保留 `debugAnalysisOnly` 和普通错误 `responseShape` 作为诊断能力，应在业务稳定后收窄。
+- 未完成清单：真实 GPT 5.5 + GPT Image 2 对话 Agent 全链路复测；多参考图 `image[]` 字段真实兼容性确认；诊断入口收窄。
+- 下一轮建议：先让用户刷新测试 `dialogagent9`，确认提示词和生图链路后，再清理诊断残留。
+- 需要人工介入：真实 Provider 复测会产生上游请求和可能扣费，需要用户确认测试范围。

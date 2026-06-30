@@ -129,6 +129,7 @@ try {
   $canvasHtml = Invoke-BoundaryRequest -Method "GET" -Path "/canvas?backend-canvas-boundary-smoke=1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-performance-mode.js?v=20260629perf5"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-image-node-polish.js?v=20260629image7"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-chat-prompt-flow.js?v=20260630prompt2"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "admin-api-source-route-bridge.js?v=20260629sourceapi1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "index-DglIsp_g.js?v=20260629tools1"
 
@@ -137,6 +138,8 @@ try {
     "/assets/canvas-performance-mode.css?v=20260629perf5",
     "/assets/canvas-image-node-polish.js?v=20260629image7",
     "/assets/canvas-image-node-polish.css?v=20260629image7",
+    "/assets/canvas-chat-prompt-flow.js?v=20260630prompt2",
+    "/assets/canvas-chat-prompt-flow.css?v=20260630prompt2",
     "/assets/admin-api-source-route-bridge.js?v=20260629sourceapi1",
     "/assets/index-DglIsp_g.js?v=20260629tools1",
     "/assets/Canvas-B8bY9_QL.js?v=20260629tools1",
@@ -159,6 +162,7 @@ try {
   Invoke-BoundaryRequest -Method "POST" -Path "/api/image-tools/reverse-prompt" -ExpectedStatus 401 -Body @{ imageUrl = "/mock.png" } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/image-tools/inpaint" -ExpectedStatus 401 -Body @{ prompt = "boundary smoke" } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/image-tools/erase" -ExpectedStatus 401 -Body @{ prompt = "boundary smoke" } | Out-Null
+  Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/generate-prompt" -ExpectedStatus 401 -Body @{ requirement = "boundary smoke"; imageCount = 2 } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/upload/image" -ExpectedStatus 401 | Out-Null
 
   $adminLoginContent = Invoke-BoundaryRequest -Method "POST" -Path "/api/admin/login" -Body @{
@@ -178,6 +182,13 @@ try {
   }
   if ($settings.tools.upscale.enabled -or $settings.tools.removeBg.enabled) {
     throw "Upscale and removeBg should remain disabled until provider capability is confirmed"
+  }
+
+  $promptBody = @{ requirement = "use image 1 product with image 2 style"; imageCount = 2 }
+  $promptContent = Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/generate-prompt" -Headers $headers -Body $promptBody
+  $promptResult = $promptContent | ConvertFrom-Json
+  if (-not $promptResult.success -or -not $promptResult.prompt -or $promptResult.imageCount -ne 2) {
+    throw "Canvas prompt flow did not return an editable prompt draft"
   }
 
   Invoke-BoundaryRequest -Method "POST" -Path "/api/upload/image" -Headers $headers -ExpectedStatus 400 | Out-Null

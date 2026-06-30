@@ -341,6 +341,53 @@ function buildEcommerceImagePrompt(userPrompt = '', options = {}) {
   ].join('\n');
 }
 
+function resolveTextRoute(body = {}) {
+  const requested = String(body.textRouteId || body.languageRouteId || body.routeId || body.lineId || body.routeKey || body.lineKey || '').trim();
+  const routes = routeState();
+  const textRoutes = routes.filter(route => routeKind(route) === 'text');
+  if (requested) {
+    const found = routes.find(route => [route.id, route.routeId, route.lineId, route.rk, route.routeKey, route.lineKey, route.code].includes(requested));
+    if (found && routeKind(found) === 'text') return found;
+  }
+  return textRoutes.find(route => route.def || route.isDefault) || textRoutes[0] || RTS.find(route => route.cat === 'text') || RTS[1];
+}
+
+function canvasPromptImageLabel(index) {
+  return `图${index + 1}`;
+}
+
+function buildCanvasPromptFallback(requirement = '', imageCount = 0) {
+  const imageLine = imageCount > 0
+    ? `参考图顺序：${Array.from({ length: imageCount }, (_, index) => canvasPromptImageLabel(index)).join('、')}。请严格按用户对图序的描述理解主体、风格、构图、文案和替换关系。`
+    : '本次未提供参考图，请根据用户需求独立生成电商视觉。';
+  return [
+    imageLine,
+    `用户需求：${requirement || '生成一张高质量电商产品图片。'}`,
+    '生成要求：商品主体清晰，保留参考图中的产品外观、包装结构、品牌标识、颜色、材质和关键文字；只根据用户要求调整场景、背景、构图、光影、道具、营销氛围和画面风格。画面真实自然，商业摄影质感，适合电商主图或详情页使用。不要虚构价格、认证、功效和不存在的文字，不要产生乱码、水印、二维码或畸形产品。'
+  ].join('\n');
+}
+
+function buildCanvasPromptInput(body = {}) {
+  const requirement = String(body.requirement || body.prompt || body.message || body.text || '').trim();
+  const requestedCount = Number(body.imageCount || body.referenceImageCount || (Array.isArray(body.referenceImages) ? body.referenceImages.length : 0) || 0);
+  const imageCount = Math.max(0, Math.min(Number.isFinite(requestedCount) ? requestedCount : 0, 12));
+  const imageLabels = Array.from({ length: imageCount }, (_, index) => canvasPromptImageLabel(index));
+  return {
+    requirement,
+    imageCount,
+    imageLabels,
+    input: [
+      '你是电商视觉提示词工程师。用户会先按顺序上传参考图，然后写出生成需求。',
+      '请把用户需求整理成一段可直接提交给图片生成模型的中文提示词。',
+      '必须保留用户提到的图序关系，例如“图1的产品、图2的主图/框架/风格/文案”。不要擅自调换图片顺序。',
+      '提示词要明确：主体、参考图使用方式、背景/场景、构图、光影、材质、文字/包装保持规则、电商转化重点、负面约束。',
+      '只输出最终提示词正文，不要输出标题、解释、编号列表或 Markdown。',
+      imageCount > 0 ? `参考图顺序：${imageLabels.join('、')}` : '参考图顺序：无',
+      `用户需求：${requirement || '生成一张高质量电商产品图片'}`
+    ].join('\n')
+  };
+}
+
 function providerImageMime(buffer, fallback = '') {
   const hinted = String(fallback || '').trim().toLowerCase();
   if (/^image\//.test(hinted)) return hinted;
@@ -1505,6 +1552,35 @@ app.post('/api/image-tools/inpaint', auth, async (req, res) => {
 
 app.post('/api/image-tools/erase', auth, async (req, res) => {
   await runImageToolEdit(req, res, 'erase');
+});
+
+app.post('/api/canvas/generate-prompt', auth, async (req, res) => {
+  const draft = buildCanvasPromptInput(req.body || {});
+  if (!draft.requirement && draft.imageCount <= 0) {
+    return res.status(400).json({ success: false, code: 'CANVAS_PROMPT_INPUT_REQUIRED', message: '请输入提示词需求或上传参考图' });
+  }
+
+  const route = resolveTextRoute(req.body || {});
+  const model = String(req.body.textModel || req.body.model || route?.dm || AI_TEXT_MODEL || 'gpt-5.5').trim();
+  const fallbackPrompt = buildCanvasPromptFallback(draft.requirement, draft.imageCount);
+  const providerResult = await callProviderResponses(draft.input, { route, model });
+  const providerPrompt = providerResult.success && !providerResult.mock ? imageToolOutputText(providerResult) : '';
+  const prompt = providerPrompt || fallbackPrompt;
+
+  res.json({
+    success: true,
+    mock: !!providerResult.mock,
+    fallback: !providerPrompt,
+    prompt,
+    draftPrompt: prompt,
+    requirement: draft.requirement,
+    imageCount: draft.imageCount,
+    imageLabels: draft.imageLabels,
+    textModel: model,
+    textRouteId: route?.id || route?.routeId || '',
+    provider: providerResult.provider,
+    providerError: providerResult.success ? '' : (providerResult.message || providerResult.code || '文本模型暂不可用，已生成基础提示词草稿')
+  });
 });
 
 app.post('/api/generate/tasks', auth, async (req, res) => {

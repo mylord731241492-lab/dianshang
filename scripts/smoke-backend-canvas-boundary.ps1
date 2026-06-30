@@ -211,6 +211,19 @@ try {
   }
   Write-Host "OK POST /api/canvas/dialog-agent-generate mock response"
 
+  $agentDebugBody = @{
+    requirement = "analysis debug only"
+    imageCount = 1
+    source = "canvas-chat-dialog-agent"
+    debugAnalysisOnly = $true
+  }
+  $agentDebugContent = Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/dialog-agent-generate" -Headers $headers -Body $agentDebugBody
+  $agentDebugResult = $agentDebugContent | ConvertFrom-Json
+  if (-not $agentDebugResult.debugAnalysisOnly -or $agentDebugResult.charged -or -not $agentDebugResult.finalPrompt -or -not $agentDebugResult.responseShape) {
+    throw "Canvas dialog agent analysis-only debug response is invalid"
+  }
+  Write-Host "OK POST /api/canvas/dialog-agent-generate analysis debug mock response"
+
   Invoke-BoundaryRequest -Method "POST" -Path "/api/upload/image" -Headers $headers -ExpectedStatus 400 | Out-Null
 
   Write-Host "Backend/canvas boundary smoke passed with temp data dir: $tempRoot"

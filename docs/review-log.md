@@ -2488,3 +2488,16 @@
 
 - 当前修复未触发真实 GPT 5.5 调用；用户刷新并重新提交后，应确认对话卡片能进入“正在生成图片...”阶段。
 - 如果仍失败，需要查看真实上游响应体字段名，再把该结构加入抽取回归样例。
+
+## 2026-06-30 Canvas Chat 分析诊断 API 复核
+
+### 已确认
+
+- 为避免完整对话 Agent 继续触发 GPT Image 2，已新增 `debugAnalysisOnly:true` 诊断模式。
+- 诊断模式仅管理员可用，只跑 GPT 5.5 分析阶段，返回解析是否成功、抽取文本长度、最终 prompt 和响应结构摘要。
+- 响应结构摘要会隐藏 key/token/secret/authorization/password 等敏感字段。
+
+### 需要继续验证
+
+- 待用户确认允许一次真实 GPT 5.5 上游调用后，用诊断模式跑当前失败请求，查看 `responseShape` 和 `extractedTextPreview`。
+- 如果 `parseOk=false` 且 `responseShape` 显示新的字段路径，把该结构加入 `scripts/check-provider-text-extraction.js` 再修复。

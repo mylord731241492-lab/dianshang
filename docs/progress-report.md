@@ -1758,3 +1758,10 @@
 - 完成内容：`normalizeProviderContentText` 增加对 `output/outputs/choices/text/value/answer/reasoning_content/final_prompt/image_prompt/prompt` 等字段的递归识别；`imageToolOutputText` 也把顶层 prompt 字段纳入第一轮抽取。
 - 追加守护：新增 `scripts/check-provider-text-extraction.js`，直接从 `server.js` 抽取真实文本解析函数，覆盖 5 种 Provider 响应结构，防止 GPT 5.5 有文本却被判空；该检查已接入 `scripts/smoke-backend-canvas-boundary.ps1`。
 - 边界：不改 GPT 5.5 请求模型和 Provider 配置，不触发真实付费调用；若上游确实返回完全空文本，仍按分析失败处理。
+
+## 2026-06-30 Canvas Chat 对话 Agent 分析阶段诊断开关
+
+- 触发背景：用户复测后仍显示 “GPT 5.5 未返回可用的生图提示词”，需要直接跑 API 定位真实上游返回结构，但完整对话 Agent 会继续触发 GPT Image 2 生图。
+- 完成内容：`/api/canvas/dialog-agent-generate` 增加管理员诊断参数 `debugAnalysisOnly:true`；该模式只执行 GPT 5.5 分析并返回 `parseOk/finalPrompt/extractedTextLength/responseShape`，不会调用 GPT Image 2，不扣本地余额。
+- 安全处理：`responseShape` 只返回字段形状和字符串长度，并对 `key/token/secret/authorization/password` 类字段做 redacted，不返回 API Key。
+- 验证方式：`node --check server.js`、`scripts/check-provider-text-extraction.js`、Packy GPT Image 2 尺寸/入口覆盖脚本、`scripts/smoke-backend-canvas-boundary.ps1`、`scripts/smoke-api-disposable.ps1` 均通过；真实 GPT 5.5 诊断调用需用户确认上游消耗后再执行。

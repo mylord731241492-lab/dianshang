@@ -191,3 +191,9 @@
 - 对话 Agent 分析阶段的文本抽取已支持更多 Provider 响应包裹：`data.choices`、`response.output`、`text.value`、`reasoning_content`、顶层 `final_prompt/finalPrompt`。
 - 新增 `scripts/check-provider-text-extraction.js`，用真实 `server.js` 函数验证 GPT 5.5 有文本时不会被误判为空。
 - 该检查已接入 `scripts/smoke-backend-canvas-boundary.ps1`，后续后端/旧画布边界验证会自动覆盖。
+
+## 2026-06-30 Canvas Chat 分析诊断清单追加
+
+- `/api/canvas/dialog-agent-generate` 支持管理员诊断参数 `debugAnalysisOnly:true`，仅跑 GPT 5.5 分析，不进入 GPT Image 2 生图。
+- 诊断返回 `parseOk`、`finalPrompt`、`extractedTextLength`、`extractedTextPreview` 和脱敏后的 `responseShape`，用于定位真实上游返回结构。
+- backend/canvas boundary smoke 已覆盖 mock 下的 analysis-only 响应，确认不影响正常对话 Agent mock 成功路径。

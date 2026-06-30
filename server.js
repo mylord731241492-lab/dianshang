@@ -1674,6 +1674,31 @@ function imageToolOutputText(data = {}) {
   return normalizeProviderContentText([data.message, data.data, data.result, data.response]);
 }
 
+function providerResponseShape(value, depth = 0) {
+  if (depth > 5) return 'max-depth';
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (typeof value === 'string') return `string(${value.length})`;
+  if (typeof value === 'number' || typeof value === 'boolean') return typeof value;
+  if (Array.isArray(value)) {
+    return {
+      type: 'array',
+      length: value.length,
+      sample: value.slice(0, 3).map(item => providerResponseShape(item, depth + 1))
+    };
+  }
+  if (typeof value !== 'object') return typeof value;
+  const result = {};
+  for (const key of Object.keys(value).slice(0, 30)) {
+    if (/key|token|secret|authorization|password/i.test(key)) {
+      result[key] = 'redacted';
+    } else {
+      result[key] = providerResponseShape(value[key], depth + 1);
+    }
+  }
+  return result;
+}
+
 function imageToolSize(body = {}) {
   const width = Number(body.imageNaturalWidth || body.width || body.canvasWidth || 0);
   const height = Number(body.imageNaturalHeight || body.height || body.canvasHeight || 0);
@@ -1934,6 +1959,7 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
 
   const textRoute = resolveTextRoute(body);
   const imageRoute = resolveImageRoute(body);
+  const debugAnalysisOnly = body.debugAnalysisOnly === true && u.role === 'admin';
   const textModel = String(body.textModel || body.textModelKey || textRoute?.dm || AI_TEXT_MODEL || 'gpt-5.5').trim();
   const imageModel = resolveImageModelKey({ ...body, model: body.imageModel || body.imageModelKey || body.model || imageRoute?.dm || AI_IMAGE_MODEL });
   const imageCount = Math.max(1, Math.min(Number(body.imageCount || body.count || body.n || 1) || 1, 4));
@@ -1976,12 +2002,37 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
   const agentPlan = textResult.mock
     ? mockCanvasDialogAgentPlan(requirement, analysisReferences.length)
     : parseCanvasDialogAgentPlan(textResult, requirement, analysisReferences.length);
+  if (debugAnalysisOnly) {
+    const extractedText = imageToolOutputText(textResult);
+    return res.json({
+      success: !!agentPlan,
+      debugAnalysisOnly: true,
+      stage: 'analysis',
+      parseOk: !!agentPlan,
+      textModel,
+      textRouteId: textRoute?.id || textRoute?.routeId || '',
+      referenceCount: analysisReferences.length,
+      extractedTextLength: extractedText.length,
+      extractedTextPreview: summarizeText(extractedText, 1200),
+      analysisSummary: agentPlan?.analysisSummary || '',
+      finalPrompt: agentPlan?.finalPrompt || '',
+      responseShape: providerResponseShape(textResult),
+      provider: textResult.provider,
+      analysisCost,
+      imageCost,
+      totalCost,
+      charged: false
+    });
+  }
   if (!agentPlan || !agentPlan.finalPrompt) {
     return res.status(502).json({
       success: false,
       code: 'CANVAS_DIALOG_ANALYSIS_BAD_RESPONSE',
       message: 'GPT 5.5 未返回可用的生图提示词，请稍后重试',
       provider: textResult.provider,
+      stage: 'analysis',
+      extractedTextLength: imageToolOutputText(textResult).length,
+      responseShape: providerResponseShape(textResult),
       analysisCost,
       imageCost,
       totalCost

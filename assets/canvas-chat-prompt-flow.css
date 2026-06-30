@@ -10,6 +10,39 @@
   text-align: center;
 }
 
+.canvas-chat-panel .hjm-dialog-agent-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.canvas-chat-panel .hjm-dialog-agent-settings select {
+  height: 38px;
+  min-width: 72px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #1f2937;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+  outline: none;
+  padding: 0 26px 0 12px;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+}
+
+.canvas-chat-panel .hjm-dialog-agent-settings select:focus {
+  box-shadow: inset 0 0 0 2px rgba(249, 115, 22, 0.42);
+}
+
+.canvas-chat-panel .hjm-prompt-flow-settings-line {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
 .canvas-chat-panel .hjm-prompt-flow-user,
 .canvas-chat-panel .hjm-prompt-flow-agent {
   border: 1px solid rgba(249, 115, 22, 0.2);
@@ -199,6 +232,11 @@
 .dark .canvas-chat-panel .hjm-prompt-flow-hint {
   background: transparent;
   color: #000;
+}
+
+.dark .canvas-chat-panel .hjm-dialog-agent-settings select {
+  background: rgba(255, 255, 255, 0.9);
+  color: #111827;
 }
 
 .dark .canvas-chat-panel .hjm-prompt-flow-summary {

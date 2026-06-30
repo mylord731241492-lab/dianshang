@@ -138,3 +138,10 @@
 - 旧 Canvas bundle 动态 import 升级为 `20260630dialogagent1`，并监听 `canvas:add-generated-image-to-canvas`，对话 Agent 成功图会自动落到画布。
 - boundary smoke 覆盖新入口未登录 `401` 和 mock 成功响应，快速/视频仍需人工确认不会串用对话 Agent 状态。
 - 已完成语法检查、资产校验、backend/canvas boundary smoke、disposable API smoke、diff/BOM 检查；真实 Provider 点测需用户确认额度后再做。
+
+## 2026-06-30 Canvas Chat dialogagent2 清单追加
+
+- 对话模式底部新增 `张数`、`清晰度`、`比例` 三个参数控件，默认 `1张 / 1K / 1:1`。
+- 对话 Agent 提交会带上 `imageCount/count/n`、`quality/clarity`、`ratio/aspectRatio`，不再固定只生成 1 张 1:1。
+- 用户消息卡片显示本次参数摘要，便于回看历史生成设置。
+- 入口 `canvas-chat-prompt-flow.js/css` 版本升级为 `20260630dialogagent2`；快速和视频模式保持原逻辑。

@@ -1,5 +1,5 @@
 (function () {
-  var FLOW_VERSION = '20260630dialogagent1';
+  var FLOW_VERSION = '20260630dialogagent2';
   var state = {
     busy: false,
     runs: {},
@@ -52,6 +52,60 @@
 
   function uuid(prefix) {
     return (prefix || 'flow') + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  }
+
+  function clampNumber(value, min, max, fallback) {
+    var num = Number(value);
+    if (!Number.isFinite(num)) return fallback;
+    return Math.max(min, Math.min(max, num));
+  }
+
+  function ensureDialogSettings(panel) {
+    if (!panel || getActiveMode(panel) !== '对话') return;
+    var row = panel.querySelector('.config-row.text-mode');
+    if (!row || row.querySelector('.hjm-dialog-agent-settings')) return;
+    var host = document.createElement('div');
+    host.className = 'hjm-dialog-agent-settings';
+    host.innerHTML = [
+      '<select title="张数" data-hjm-dialog-setting="imageCount">',
+      '<option value="1">1张</option><option value="2">2张</option><option value="3">3张</option><option value="4">4张</option>',
+      '</select>',
+      '<select title="清晰度" data-hjm-dialog-setting="quality">',
+      '<option value="1k">1K</option><option value="2k">2K</option><option value="4k">4K</option>',
+      '</select>',
+      '<select title="比例" data-hjm-dialog-setting="ratio">',
+      '<option value="1:1">1:1</option><option value="3:4">3:4</option><option value="4:3">4:3</option><option value="9:16">9:16</option><option value="16:9">16:9</option>',
+      '</select>'
+    ].join('');
+    var send = row.querySelector('.canvas-chat-send-btn.send-button');
+    row.insertBefore(host, send || null);
+  }
+
+  function readDialogSettings(panel) {
+    ensureDialogSettings(panel);
+    var root = panel && panel.querySelector('.hjm-dialog-agent-settings');
+    var countValue = root && root.querySelector('[data-hjm-dialog-setting="imageCount"]');
+    var qualityValue = root && root.querySelector('[data-hjm-dialog-setting="quality"]');
+    var ratioValue = root && root.querySelector('[data-hjm-dialog-setting="ratio"]');
+    var imageCount = clampNumber(countValue && countValue.value, 1, 4, 1);
+    var quality = String((qualityValue && qualityValue.value) || '1k').toLowerCase();
+    var ratio = String((ratioValue && ratioValue.value) || '1:1');
+    return {
+      imageCount: imageCount,
+      count: imageCount,
+      n: imageCount,
+      quality: quality,
+      clarity: quality,
+      ratio: ratio,
+      aspectRatio: ratio
+    };
+  }
+
+  function settingsLabel(settings) {
+    var count = clampNumber(settings && settings.imageCount, 1, 4, 1);
+    var quality = String((settings && (settings.quality || settings.clarity)) || '1k').toUpperCase();
+    var ratio = String((settings && (settings.ratio || settings.aspectRatio)) || '1:1');
+    return count + '张 · ' + quality + ' · ' + ratio;
   }
 
   function readAsDataUrl(blob) {
@@ -129,7 +183,7 @@
     return references;
   }
 
-  function makeUserCard(requirement, references) {
+  function makeUserCard(requirement, references, settings) {
     var images = references.map(function (ref) {
       return '<figure><img src="' + escapeHtml(ref.preview || ref.dataUrl || ref.url) + '" alt=""><figcaption>图' + ref.index + '</figcaption></figure>';
     }).join('');
@@ -138,12 +192,13 @@
     card.innerHTML = [
       '<div class="hjm-prompt-flow-head"><span>你</span><time>' + nowText() + '</time></div>',
       '<p>' + escapeHtml(requirement) + '</p>',
-      references.length ? '<div class="hjm-prompt-flow-images">' + images + '</div>' : ''
+      references.length ? '<div class="hjm-prompt-flow-images">' + images + '</div>' : '',
+      '<div class="hjm-prompt-flow-settings-line">' + escapeHtml(settingsLabel(settings)) + '</div>'
     ].join('');
     return card;
   }
 
-  function makeAgentCard(flowId, requirement, references) {
+  function makeAgentCard(flowId, requirement, references, settings) {
     var card = document.createElement('article');
     card.className = 'message-card assistant hjm-prompt-flow-agent is-loading';
     card.dataset.flowId = flowId;
@@ -160,7 +215,7 @@
       '<button type="button" data-hjm-prompt-flow-action="cancel">取消</button>',
       '</div>'
     ].join('');
-    state.runs[flowId] = { flowId: flowId, requirement: requirement, references: references, card: card, images: [], finalPrompt: '' };
+    state.runs[flowId] = { flowId: flowId, requirement: requirement, references: references, settings: settings, card: card, images: [], finalPrompt: '' };
     return card;
   }
 
@@ -285,7 +340,13 @@
       var data = await postJson('/api/canvas/dialog-agent-generate', {
         requirement: run.requirement,
         referenceImages: run.references,
-        imageCount: 1,
+        imageCount: run.settings && run.settings.imageCount || 1,
+        count: run.settings && run.settings.imageCount || 1,
+        n: run.settings && run.settings.imageCount || 1,
+        quality: run.settings && run.settings.quality || '1k',
+        clarity: run.settings && run.settings.quality || '1k',
+        ratio: run.settings && run.settings.ratio || '1:1',
+        aspectRatio: run.settings && run.settings.ratio || '1:1',
         source: 'canvas-chat-dialog-agent'
       });
       var images = normalizeImages(data);
@@ -321,6 +382,7 @@
       state.lastError = error.message || String(error);
       return [];
     });
+    var settings = readDialogSettings(panel);
     if (!requirement && !references.length) {
       state.busy = false;
       return;
@@ -330,8 +392,8 @@
       var list = getMessageList(panel);
       if (!list) return;
       var flowId = uuid('dialog_agent');
-      list.appendChild(makeUserCard(requirement, references));
-      var agentCard = makeAgentCard(flowId, requirement, references);
+      list.appendChild(makeUserCard(requirement, references, settings));
+      var agentCard = makeAgentCard(flowId, requirement, references, settings);
       list.appendChild(agentCard);
       if (input) {
         input.value = '';
@@ -427,6 +489,7 @@
   function updateHints(root) {
     var panel = panelFromRoot(root);
     if (!panel) return;
+    ensureDialogSettings(panel);
     var existing = panel.querySelector('.hjm-prompt-flow-hint');
     if (!shouldHandle(panel)) {
       if (existing) existing.remove();
@@ -443,6 +506,15 @@
 
   function install() {
     if (!isCanvasPage()) return;
+    window.__hjmCanvasChatPromptFlow = {
+      version: FLOW_VERSION,
+      getPanel: getPanel,
+      getActiveMode: function () { return getActiveMode(getPanel()); },
+      shouldHandle: function () { return shouldHandle(getPanel()); },
+      collectReferences: function () { return collectReferences(getPanel()); },
+      readDialogSettings: function () { return readDialogSettings(getPanel()); },
+      state: state
+    };
     document.addEventListener('click', handleClick, true);
     document.addEventListener('keydown', handleKeydown, true);
     updateHints(document);
@@ -457,14 +529,6 @@
       }
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
-    window.__hjmCanvasChatPromptFlow = {
-      version: FLOW_VERSION,
-      getPanel: getPanel,
-      getActiveMode: function () { return getActiveMode(getPanel()); },
-      shouldHandle: function () { return shouldHandle(getPanel()); },
-      collectReferences: function () { return collectReferences(getPanel()); },
-      state: state
-    };
   }
 
   if (document.readyState === 'loading') {

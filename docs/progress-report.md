@@ -1698,3 +1698,10 @@
 - 定位结论：前端会把多张参考图传入 `/api/canvas/dialog-agent-generate`，GPT 5.5 分析阶段能看到多图；但后端 `callProviderImageEdit` 真实提交 `/images/edits` 时只加载并 append 了 `references[0]`，导致第二张及之后的参考图只进入文本分析，没有进入 GPT Image 2 生图阶段。
 - 完成内容：无 mask 的图生图编辑现在最多按顺序加载 16 张参考图，并在 multipart 中使用 `image[]` 提交给 Provider；带 mask 的局部重绘仍保持单图 + mask，避免破坏旧工具链路。对话 Agent 多图 prompt 额外前置 “输入参考图按顺序为：图1、图2...” 以匹配用户话术和文件顺序。
 - 边界：不触发真实 Provider 测试；本轮只修复多图上传语义和 prompt 顺序提示，不改变模型配置、扣费规则或快速模式逻辑。
+
+## 2026-06-30 Canvas Chat 对话 Agent 参数控件接入
+
+- 触发背景：用户要求把快速模式底部的 `张数`、`清晰度`、`比例` 三个控制项也放到 `对话` 模式里。
+- 完成内容：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260630dialogagent2`；对话模式底部会补充三个轻量 select 控件，默认 `1张 / 1K / 1:1`。提交对话 Agent 时会把 `imageCount/count/n`、`quality/clarity`、`ratio/aspectRatio` 一起传给 `/api/canvas/dialog-agent-generate`。
+- 历史展示：用户消息卡片追加本次设置行，例如 `1张 · 1K · 1:1`，便于回看当次生成参数。
+- 边界：不改快速模式和视频模式；不改旧 Canvas 主 bundle；不触发真实 Provider 测试。

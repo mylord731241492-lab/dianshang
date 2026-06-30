@@ -1659,3 +1659,20 @@
 - 后端保留：`/api/canvas/generate-prompt` 继续优先使用文本线路 `/responses` 生成提示词；文本线路 mock 或失败时返回基础可编辑草稿，不再把 Provider 错误当成生成结果。
 - 边界：不改旧 Canvas 主 bundle，不新增依赖，不触发 `/api/generate/tasks` 或任何真实图片生成；对话模式不再提供 `确认生图`，生图回到 `快速` 标签由用户手动执行。
 - 验证方式：`node --check "F:\dianshang\server.js"`；`node --check "F:\dianshang\assets\canvas-chat-prompt-flow.js"`；`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-backend-canvas-boundary.ps1"`；浏览器刷新当前画布后检查 `window.__hjmCanvasChatPromptFlow`、对话模式提示条和当前面板接管状态。
+
+## 2026-06-30 Canvas Chat 兜底文案收敛
+
+- 触发背景：用户确认对话模式在文本模型暂不可用时，应提示“文本模型暂不可用，已生成基础提示词，可编辑后复制到快速模式。”，不再把接口错误或上游渠道错误直接展示成生成结果。
+- 完成内容：`assets/canvas-chat-prompt-flow.js` 中 `fallback` 返回、mock 兜底和接口异常 catch 分支统一使用该提示文案；基础提示词仍写入可编辑草稿框，用户可复制到 `快速` 模式手动生图。
+- 边界：不改后端 Provider 配置，不触发真实文本模型或图片生成，不改变旧画布主 bundle 和工作流 JSON。
+- 验证方式与结果：`node --check "F:\dianshang\assets\canvas-chat-prompt-flow.js"`、`node --check "F:\dianshang\server.js"` 和 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-backend-canvas-boundary.ps1"` 均通过；smoke 中 `/api/canvas/generate-prompt` 未登录返回 `401`、管理员登录后返回 `200`，未触发真实 Provider。
+
+## 2026-06-30 Canvas Chat 对话 Agent 生图链路
+
+- 触发背景：用户纠正最新业务线，Agent 生图链路属于 `对话` 模式，不是 `快速` 模式；此前“对话只出提示词，生图切快速”的临时边界被替换。
+- 完成内容：新增 `/api/canvas/dialog-agent-generate` 对话专用编排入口：参考图和用户需求先进入 GPT 5.5 文本线路分析，得到 `analysisSummary/finalPrompt` 后再调用 GPT Image 2 图片线路；分析失败或生图失败均直接返回失败，不继续兜底生图，不扣余额。
+- 旧画布接入：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260630dialogagent1`，只接管 `对话` 标签，展示“正在分析图片和需求...”“正在生成图片...”“生成结果”三段状态；成功后在对话卡片展示摘要和结果图，完整 prompt 存入结果和画布节点 meta。
+- 自动入画布：两个旧 Canvas bundle 增加 `canvas:add-generated-image-to-canvas` 事件监听，复用既有图片节点创建逻辑，把对话 Agent 结果自动放回画布；入口和动态 import 缓存版本同步升级为 `20260630dialogagent1`。
+- 边界：快速模式保持旧的快速生图逻辑，不走 GPT 5.5 分析；视频模式不改；不改 Provider 配置，不主动触发真实 GPT 5.5 或 GPT Image 2 付费测试。
+- 验证方式：`node --check "F:\dianshang\server.js"`；`node --check "F:\dianshang\assets\canvas-chat-prompt-flow.js"`；两个旧 Canvas bundle 语法检查；`node "F:\dianshang\scripts\verify-canvas-performance-assets.js"`；`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-backend-canvas-boundary.ps1"`；`git -C "F:\dianshang" diff --check`；触达文本文件 BOM 检查。
+- 验证结果：上述语法检查、资产校验、backend/canvas boundary smoke 和 disposable API smoke 均通过；boundary smoke 确认新入口未登录为 `401`，mock 登录后返回 `analysisSummary/finalPrompt/resultImages`，成本字段为 `analysisCost=5`、`imageCost=10`、`totalCost=15`；`diff --check` 仅有既有 CRLF 提示，触达文本文件 BOM 均为 false。

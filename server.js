@@ -352,6 +352,17 @@ function resolveTextRoute(body = {}) {
   return textRoutes.find(route => route.def || route.isDefault) || textRoutes[0] || RTS.find(route => route.cat === 'text') || RTS[1];
 }
 
+function resolveImageRoute(body = {}) {
+  const requested = String(body.imageRouteId || body.imageLineId || body.imageRouteKey || body.imageLineKey || body.routeId || body.lineId || body.routeKey || body.lineKey || '').trim();
+  const routes = routeState();
+  const imageRoutes = routes.filter(route => routeKind(route) === 'image');
+  if (requested) {
+    const found = routes.find(route => [route.id, route.routeId, route.lineId, route.rk, route.routeKey, route.lineKey, route.code].includes(requested));
+    if (found && routeKind(found) === 'image') return found;
+  }
+  return imageRoutes.find(route => route.def || route.isDefault) || imageRoutes[0] || RTS.find(route => route.cat === 'image') || RTS[0];
+}
+
 function canvasPromptImageLabel(index) {
   return `图${index + 1}`;
 }
@@ -385,6 +396,106 @@ function buildCanvasPromptInput(body = {}) {
       imageCount > 0 ? `参考图顺序：${imageLabels.join('、')}` : '参考图顺序：无',
       `用户需求：${requirement || '生成一张高质量电商产品图片'}`
     ].join('\n')
+  };
+}
+
+function modelCost(modelKey = '', kind = 'image') {
+  const list = kind === 'text' ? TXT : IMG;
+  const fallback = kind === 'text' ? 5 : 15;
+  const key = String(modelKey || '').trim();
+  const found = list.find(item => item.k === key || item.n === key) || list[0];
+  return found ? found.p : fallback;
+}
+
+function parseJsonObjectFromText(text = '') {
+  const raw = String(text || '').trim();
+  if (!raw) return null;
+  const candidates = [
+    raw,
+    raw.replace(/^```(?:json)?\s*/i, '').replace(/```$/i, '').trim()
+  ];
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start >= 0 && end > start) candidates.push(raw.slice(start, end + 1));
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+    } catch (_) {}
+  }
+  return null;
+}
+
+function summarizeText(text = '', max = 160) {
+  const value = String(text || '').replace(/\s+/g, ' ').trim();
+  if (value.length <= max) return value;
+  return `${value.slice(0, max)}...`;
+}
+
+async function canvasDialogReferencesForAnalysis(body = {}, req) {
+  const references = imageReferenceCandidates(body).slice(0, 8);
+  const result = [];
+  for (let index = 0; index < references.length; index += 1) {
+    const file = await loadReferenceImageFile(references[index], req);
+    result.push({
+      label: canvasPromptImageLabel(index),
+      dataUrl: `data:${file.mime};base64,${file.buffer.toString('base64')}`,
+      mime: file.mime,
+      fileName: file.fileName
+    });
+  }
+  return result;
+}
+
+function buildCanvasDialogAgentInput(requirement = '', references = []) {
+  const text = [
+    '你是电商视觉 Agent，请先分析用户上传的参考图和需求，再给图片生成模型输出最终提示词。',
+    '必须输出 JSON 对象，不要 Markdown，不要额外解释。',
+    'JSON 字段：analysisSummary（给用户看的简短中文分析，80-160字）、finalPrompt（交给 GPT Image 2 的完整中文生图提示词）。',
+    '分析要求：识别参考图中的产品主体、包装结构、品牌/Logo/产品名、关键文字、颜色、材质、构图、背景和风格。',
+    '生成要求：保持产品外观、包装结构、品牌识别、颜色和关键文字一致；只根据用户需求调整标签设计、背景、构图、光影和电商表现。',
+    '合规要求：不要虚构价格、认证、功效、活动标签和不存在的文字；不要生成水印、二维码、乱码文字、畸形产品或多余主体。',
+    references.length ? `参考图顺序：${references.map(item => item.label).join('、')}` : '参考图顺序：无。',
+    `用户需求：${requirement || '生成一张高质量电商产品图片。'}`
+  ].join('\n');
+  if (!references.length) return text;
+  return [{
+    role: 'user',
+    content: [
+      { type: 'input_text', text },
+      ...references.map(item => ({
+        type: 'input_image',
+        image_url: item.dataUrl
+      }))
+    ]
+  }];
+}
+
+function mockCanvasDialogAgentPlan(requirement = '', referenceCount = 0) {
+  const target = requirement || '生成一张高质量电商产品图片';
+  const imageLine = referenceCount > 0
+    ? `已分析 ${referenceCount} 张参考图，将保留产品外观、包装结构、品牌识别、颜色和关键文字，并按用户需求调整画面风格。`
+    : '未提供参考图，将按用户需求构建清晰的电商产品画面。';
+  return {
+    analysisSummary: `${imageLine} 生成结果会优先保证主体清晰、商业摄影质感和电商转化表现。`,
+    finalPrompt: [
+      referenceCount > 0 ? `参考图共 ${referenceCount} 张，请严格保持参考图中的产品主体、包装结构、品牌 Logo、产品名、颜色和材质。` : '根据用户需求生成电商产品主图。',
+      `用户需求：${target}`,
+      '画面要求：商品主体清晰，构图稳定，商业摄影级光影，背景干净高级，真实自然，适合国内电商主图或详情页使用。',
+      '负面约束：不要乱码、水印、二维码、畸形产品、多余主体、虚构价格、虚构认证或不存在的促销信息。'
+    ].join('\n')
+  };
+}
+
+function parseCanvasDialogAgentPlan(providerResult = {}, requirement = '', referenceCount = 0) {
+  const text = imageToolOutputText(providerResult);
+  const parsed = parseJsonObjectFromText(text);
+  const finalPrompt = String(parsed?.finalPrompt || parsed?.prompt || parsed?.imagePrompt || text || '').trim();
+  const analysisSummary = String(parsed?.analysisSummary || parsed?.summary || parsed?.analysis || summarizeText(finalPrompt, 160)).trim();
+  if (!finalPrompt) return null;
+  return {
+    analysisSummary: analysisSummary || mockCanvasDialogAgentPlan(requirement, referenceCount).analysisSummary,
+    finalPrompt
   };
 }
 
@@ -1185,7 +1296,7 @@ function normalizeTaskImage(item, idx, taskId) {
   const url = raw.url || raw.imageUrl || raw.image_url || raw.b64_json || raw.b64Json || placeholderUrl(taskId);
   const normalizedUrl = /^data:image\//i.test(url) || /^https?:\/\//i.test(url) || url.startsWith('/') ? url : `data:image/png;base64,${url}`;
   const finalUrl = imageDisplayUrl(normalizedUrl);
-  return { id: raw.id || `${taskId}_${idx}`, url: finalUrl, imageUrl: finalUrl, preview: finalUrl, originalUrl: normalizedUrl };
+  return { ...raw, id: raw.id || `${taskId}_${idx}`, url: finalUrl, imageUrl: finalUrl, preview: finalUrl, originalUrl: normalizedUrl };
 }
 function makeTaskResponse(task) {
   return {
@@ -1200,6 +1311,11 @@ function makeTaskResponse(task) {
     images: task.images,
     costPoints: task.cost,
     cost: task.cost,
+    totalCost: task.totalCost || task.cost,
+    analysisCost: task.analysisCost || 0,
+    imageCost: task.imageCost || task.cost,
+    analysisSummary: task.analysisSummary || '',
+    finalPrompt: task.finalPrompt || task.prompt,
     errorMessage: task.errorMessage || '',
     createdAt: task.createdAt,
     updatedAt: task.updatedAt
@@ -1251,12 +1367,28 @@ function createCompletedTask(req, source = {}) {
   const imageCount = Math.max(1, Math.min(Number(source.imageCount || req.body.imageCount || req.body.n || 1) || 1, 4));
   const prompt = source.prompt || pickTemplatePrompt(req.body);
   const m = [...IMG, ...TXT].find(x => x.k === modelKey) || IMG[0];
-  const cost = (m ? m.p : 15) * imageCount;
+  const cost = Number(source.cost || source.totalCost || ((m ? m.p : 15) * imageCount));
   const taskId = uid('task_');
   const sourceImages = Array.isArray(source.results) && source.results.length
     ? source.results
     : Array.from({ length: imageCount }, (_, i) => ({ url: placeholderUrl(`${prompt} ${i + 1}`) }));
-  const images = sourceImages.map((img, i) => normalizeTaskImage(img, i, taskId));
+  const images = sourceImages.map((img, i) => normalizeTaskImage({
+    ...img,
+    prompt,
+    finalPrompt: source.finalPrompt || prompt,
+    analysisSummary: source.analysisSummary || '',
+    sourceTaskId: taskId,
+    source: source.source || img.source || 'generation-task',
+    meta: {
+      ...(img.meta || {}),
+      operation: source.operation || 'generation',
+      prompt,
+      finalPrompt: source.finalPrompt || prompt,
+      analysisSummary: source.analysisSummary || '',
+      modelKey,
+      source: source.source || 'generation-task'
+    }
+  }, i, taskId));
   const task = {
     id: taskId,
     userId: req.user.userId,
@@ -1265,6 +1397,11 @@ function createCompletedTask(req, source = {}) {
     prompt,
     modelKey,
     cost,
+    totalCost: Number(source.totalCost || cost),
+    analysisCost: Number(source.analysisCost || 0),
+    imageCost: Number(source.imageCost || cost),
+    analysisSummary: source.analysisSummary || '',
+    finalPrompt: source.finalPrompt || prompt,
     images,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -1580,6 +1717,127 @@ app.post('/api/canvas/generate-prompt', auth, async (req, res) => {
     textRouteId: route?.id || route?.routeId || '',
     provider: providerResult.provider,
     providerError: providerResult.success ? '' : (providerResult.message || providerResult.code || '文本模型暂不可用，已生成基础提示词草稿')
+  });
+});
+
+app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
+  const body = req.body || {};
+  const requirement = String(body.requirement || body.prompt || body.message || body.text || '').trim();
+  const rawReferences = imageReferenceCandidates(body);
+  if (!requirement && rawReferences.length <= 0) {
+    return res.status(400).json({ success: false, code: 'CANVAS_DIALOG_AGENT_INPUT_REQUIRED', message: '请输入生成需求或上传参考图' });
+  }
+
+  const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.userId);
+  if (!u) return res.status(401).json({ success: false, code: 'AUTH_USER_NOT_FOUND', message: '登录状态已失效，请重新登录' });
+
+  const textRoute = resolveTextRoute(body);
+  const imageRoute = resolveImageRoute(body);
+  const textModel = String(body.textModel || body.textModelKey || textRoute?.dm || AI_TEXT_MODEL || 'gpt-5.5').trim();
+  const imageModel = resolveImageModelKey({ ...body, model: body.imageModel || body.imageModelKey || body.model || imageRoute?.dm || AI_IMAGE_MODEL });
+  const imageCount = Math.max(1, Math.min(Number(body.imageCount || body.count || body.n || 1) || 1, 4));
+  const analysisCost = modelCost(textModel, 'text');
+  const imageCost = modelCost(imageModel, 'image') * imageCount;
+  const totalCost = analysisCost + imageCost;
+  if (u.balance < totalCost) {
+    return res.status(400).json({ success: false, code: 'INSUFFICIENT_BALANCE', message: `算力不足，需要 ${totalCost}，当前 ${u.balance}`, totalCost, analysisCost, imageCost });
+  }
+
+  let analysisReferences = [];
+  try {
+    analysisReferences = await canvasDialogReferencesForAnalysis(body, req);
+  } catch (error) {
+    return res.status(400).json({ success: false, code: 'CANVAS_DIALOG_REFERENCE_UNREADABLE', message: error.message || '参考图读取失败' });
+  }
+
+  const analysisInput = buildCanvasDialogAgentInput(requirement, analysisReferences);
+  const textResult = await callProviderResponses(analysisInput, { route: textRoute, model: textModel });
+  if (!textResult.success) {
+    return res.status(502).json({
+      success: false,
+      code: textResult.code || 'CANVAS_DIALOG_ANALYSIS_FAILED',
+      message: textResult.message || 'GPT 5.5 分析失败，请稍后重试',
+      provider: textResult.provider,
+      analysisCost,
+      imageCost,
+      totalCost
+    });
+  }
+
+  const agentPlan = textResult.mock
+    ? mockCanvasDialogAgentPlan(requirement, analysisReferences.length)
+    : parseCanvasDialogAgentPlan(textResult, requirement, analysisReferences.length);
+  if (!agentPlan || !agentPlan.finalPrompt) {
+    return res.status(502).json({
+      success: false,
+      code: 'CANVAS_DIALOG_ANALYSIS_BAD_RESPONSE',
+      message: 'GPT 5.5 未返回可用的生图提示词，请稍后重试',
+      provider: textResult.provider,
+      analysisCost,
+      imageCost,
+      totalCost
+    });
+  }
+
+  const hasReferenceImages = rawReferences.length > 0;
+  const providerOptions = {
+    ...body,
+    body,
+    req,
+    route: imageRoute,
+    model: imageModel,
+    modelKey: imageModel,
+    n: imageCount,
+    imageCount
+  };
+  const imageResult = hasReferenceImages
+    ? await callProviderImageEdit(agentPlan.finalPrompt, providerOptions)
+    : await callProviderImageGeneration(agentPlan.finalPrompt, providerOptions);
+  if (!imageResult.success) {
+    return res.status(502).json({
+      success: false,
+      code: imageResult.code || 'CANVAS_DIALOG_IMAGE_FAILED',
+      message: imageResult.message || 'GPT Image 2 生图失败，请稍后重试',
+      provider: imageResult.provider,
+      analysisSummary: agentPlan.analysisSummary,
+      finalPrompt: agentPlan.finalPrompt,
+      analysisCost,
+      imageCost,
+      totalCost
+    });
+  }
+
+  const task = createCompletedTask(req, {
+    prompt: agentPlan.finalPrompt,
+    finalPrompt: agentPlan.finalPrompt,
+    analysisSummary: agentPlan.analysisSummary,
+    modelKey: imageModel,
+    imageCount,
+    results: imageResult.images,
+    cost: totalCost,
+    totalCost,
+    analysisCost,
+    imageCost,
+    operation: 'canvas-dialog-agent',
+    source: 'canvas-chat-dialog-agent'
+  });
+  const nb = u.balance - totalCost;
+  db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
+  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
+    .run(u.id, 'generation', -totalCost, u.balance, nb, `对话 Agent 生图: ${textModel} + ${imageModel} x${imageCount}`);
+
+  res.json({
+    success: true,
+    mock: !!textResult.mock || !!imageResult.mock,
+    editMode: !!imageResult.editMode,
+    provider: imageResult.provider,
+    analysisProvider: textResult.provider,
+    textModel,
+    imageModel,
+    imageRouteId: imageRoute?.id || imageRoute?.routeId || '',
+    textRouteId: textRoute?.id || textRoute?.routeId || '',
+    remainingBalance: nb,
+    ...makeTaskResponse(task)
   });
 });
 

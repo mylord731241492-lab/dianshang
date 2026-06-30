@@ -2314,3 +2314,31 @@
 
 - 刷新当前画布后，在 `对话` 标签上传两张图并输入需求，确认出现“提示词草稿”卡片和 `复制提示词` 按钮，且不再新增 `gpt-5.5` 失败结果卡。
 - 切到 `快速` 标签后，由用户自行粘贴提示词并触发真实生图；该步骤会产生外部调用和算力消耗，不纳入本轮自动验证。
+
+## 2026-06-30 Canvas Chat 兜底文案复核
+
+### 已确认
+
+- 当前 `/api/canvas/generate-prompt` 路由已加载；未登录访问返回 `401` 而非旧的 `404`。
+- 文本模型暂不可用时，业务上只需要保留基础提示词草稿并提醒用户复制到 `快速` 模式，不应把上游渠道或接口错误直接暴露在卡片里。
+- 已将 `assets/canvas-chat-prompt-flow.js` 的 `fallback`、mock 和接口异常分支统一收敛为：“文本模型暂不可用，已生成基础提示词，可编辑后复制到快速模式。”
+
+### 需要继续验证
+
+- 强刷当前画布后，在 `对话` 标签触发一次提示词生成，确认状态文案一致且草稿仍可编辑、可复制。
+
+## 2026-06-30 Canvas Chat 对话 Agent 生图链路复核
+
+### 已确认
+
+- 最新业务线已改为 `对话` 模式执行 Agent 生图：参考图和需求先由 GPT 5.5 分析，再把最终提示词交给 GPT Image 2 生图。
+- 新增 `/api/canvas/dialog-agent-generate`，与普通 `/api/generate/tasks` 快速生图入口分开，避免把快速模式语义改乱。
+- 对话桥接层只在 `对话` 标签拦截发送，`快速` 和 `视频` 标签不显示对话 Agent 分析状态，也不走 GPT 5.5 分析。
+- 对话结果成功后会派发 `canvas:add-generated-image-to-canvas`，两个旧 Canvas bundle 已监听该事件并复用既有图片节点创建逻辑。
+- boundary smoke 已覆盖未登录 `401`、mock 登录后返回 `analysisSummary/finalPrompt/resultImages`，并校验 `analysisCost=5`、`imageCost=10`、`totalCost=15`。
+- 语法检查、静态资产校验、backend/canvas boundary smoke、disposable API smoke、diff/BOM 检查均已通过；本轮未触发真实 GPT 5.5 或 GPT Image 2 付费调用。
+
+### 需要继续验证
+
+- 强刷当前画布后，用真实登录态在 `对话` 标签上传参考图并输入需求，确认前端依次显示分析、生成、结果，并且结果图自动落到画布。
+- 真实 Provider 模式下点击会产生 GPT 5.5 和 GPT Image 2 上游调用及算力扣除；本轮自动验证只跑 mock，不做真实付费点测。

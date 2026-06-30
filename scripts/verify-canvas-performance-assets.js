@@ -46,10 +46,10 @@ const canvasBundles = [
 
 assertIncludes('index.html', html, 'canvas-performance-mode.js?v=20260629perf5');
 assertIncludes('index.html', html, 'canvas-performance-mode.css?v=20260629perf5');
-assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260629tools1');
+assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260630dialogagent1');
 assertNotIncludes('index.html', html, 'index-DglIsp_g.js?v=20260629perf5');
-assertIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260629tools1');
-assertIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260629tools1');
+assertIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260630dialogagent1');
+assertIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260630dialogagent1');
 assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260629outpaint1');
 assertNotIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260629outpaint1');
 assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260629outpaint2');
@@ -112,6 +112,6 @@ for (const [name, bundle] of canvasBundles) {
 console.log(JSON.stringify({
   ok: true,
   checked: Object.keys(files),
-  version: '20260629perf5+tools1',
+  version: '20260629perf5+dialogagent1',
   saveDeferral: true
 }, null, 2));

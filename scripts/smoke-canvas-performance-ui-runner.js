@@ -50,7 +50,7 @@ async page => {
       perfCssLoaded: styles.some((src) => src.includes('/assets/canvas-performance-mode.css?v=20260629perf5')),
       imageNodePolishCssLoaded: styles.some((src) => src.includes('/assets/canvas-image-node-polish.css?v=20260629image7')),
       imageNodePolishJsLoaded: scripts.some((src) => src.includes('/assets/canvas-image-node-polish.js?v=20260629image7')),
-      appBundlePerfVersion: scripts.some((src) => src.includes('/assets/index-DglIsp_g.js?v=20260629tools1')),
+      appBundlePerfVersion: scripts.some((src) => src.includes('/assets/index-DglIsp_g.js?v=20260630dialogagent1')),
       hasPerfApi: !!window.__hjmCanvasPerformanceMode,
       hasImagePolishApi: !!window.__hjmCanvasImageNodePolish,
       hasPerfIsActive: typeof window.__hjmCanvasPerformanceMode?.isActive === 'function',

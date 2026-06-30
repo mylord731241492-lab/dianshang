@@ -1,8 +1,8 @@
 (function () {
-  var FLOW_VERSION = '20260630prompt6';
+  var FLOW_VERSION = '20260630dialogagent1';
   var state = {
     busy: false,
-    drafts: {},
+    runs: {},
     lastError: ''
   };
 
@@ -143,40 +143,88 @@
     return card;
   }
 
-  function makeDraftCard(flowId, requirement, references) {
+  function makeAgentCard(flowId, requirement, references) {
     var card = document.createElement('article');
-    card.className = 'message-card assistant hjm-prompt-flow-draft is-loading';
+    card.className = 'message-card assistant hjm-prompt-flow-agent is-loading';
     card.dataset.flowId = flowId;
     card.innerHTML = [
-      '<div class="hjm-prompt-flow-head"><span>提示词草稿</span><time>' + nowText() + '</time></div>',
-      '<div class="hjm-prompt-flow-note">按图片顺序生成可编辑提示词，生图请切到快速模式手动生成。</div>',
-      '<textarea class="hjm-prompt-flow-textarea" spellcheck="false" placeholder="正在生成可编辑提示词..."></textarea>',
-      '<div class="hjm-prompt-flow-status">正在生成提示词...</div>',
+      '<div class="hjm-prompt-flow-head"><span>生成结果</span><time>' + nowText() + '</time></div>',
+      '<div class="hjm-prompt-flow-note">椒图AI 正在分析参考图和需求，并自动生成图片。</div>',
+      '<div class="hjm-prompt-flow-summary" hidden></div>',
+      '<div class="hjm-prompt-flow-result-grid"></div>',
+      '<div class="hjm-prompt-flow-status">正在分析图片和需求...</div>',
+      '<div class="hjm-prompt-flow-cost" hidden></div>',
       '<div class="hjm-prompt-flow-actions">',
-      '<button type="button" data-hjm-prompt-flow-action="copy" disabled>复制提示词</button>',
-      '<button type="button" data-hjm-prompt-flow-action="regen" disabled>重新生成提示词</button>',
+      '<button type="button" data-hjm-prompt-flow-action="copy-prompt" disabled>复制提示词</button>',
+      '<button type="button" data-hjm-prompt-flow-action="regen" disabled>重新生成</button>',
       '<button type="button" data-hjm-prompt-flow-action="cancel">取消</button>',
       '</div>'
     ].join('');
-    state.drafts[flowId] = { flowId: flowId, requirement: requirement, references: references, card: card };
+    state.runs[flowId] = { flowId: flowId, requirement: requirement, references: references, card: card, images: [], finalPrompt: '' };
     return card;
   }
 
-  function updateDraft(flowId, patch) {
-    var draft = state.drafts[flowId];
-    if (!draft || !draft.card) return;
-    Object.assign(draft, patch || {});
-    var card = draft.card;
-    var textarea = card.querySelector('.hjm-prompt-flow-textarea');
+  function normalizeImages(data) {
+    var list = Array.isArray(data && data.resultImages) ? data.resultImages
+      : Array.isArray(data && data.images) ? data.images
+        : Array.isArray(data && data.results) ? data.results
+          : [];
+    return list.map(function (item, index) {
+      var raw = item && typeof item === 'object' ? item : { url: item };
+      var url = raw.url || raw.imageUrl || raw.image_url || raw.preview || '';
+      if (!url) return null;
+      return Object.assign({}, raw, {
+        id: raw.id || (data.taskId || data.id || 'dialog_agent') + '_' + index,
+        url: url,
+        imageUrl: raw.imageUrl || url,
+        preview: raw.preview || url
+      });
+    }).filter(Boolean);
+  }
+
+  function resultFigure(image, index) {
+    return [
+      '<figure data-image-index="' + index + '">',
+      '<img src="' + escapeHtml(image.preview || image.url) + '" alt="">',
+      '<figcaption>',
+      '<button type="button" data-hjm-prompt-flow-action="download" data-image-index="' + index + '">下载</button>',
+      '<button type="button" data-hjm-prompt-flow-action="copy-link" data-image-index="' + index + '">复制链接</button>',
+      '<button type="button" data-hjm-prompt-flow-action="add-canvas" data-image-index="' + index + '">添加到画布</button>',
+      '<button type="button" data-hjm-prompt-flow-action="again" data-image-index="' + index + '">再次编辑</button>',
+      '</figcaption>',
+      '</figure>'
+    ].join('');
+  }
+
+  function updateAgent(flowId, patch) {
+    var run = state.runs[flowId];
+    if (!run || !run.card) return;
+    Object.assign(run, patch || {});
+    var card = run.card;
+    var summary = card.querySelector('.hjm-prompt-flow-summary');
+    var grid = card.querySelector('.hjm-prompt-flow-result-grid');
     var status = card.querySelector('.hjm-prompt-flow-status');
+    var cost = card.querySelector('.hjm-prompt-flow-cost');
     var buttons = card.querySelectorAll('[data-hjm-prompt-flow-action]');
-    if (patch && patch.prompt !== undefined && textarea) textarea.value = patch.prompt || '';
+    if (summary && patch && patch.analysisSummary !== undefined) {
+      summary.textContent = patch.analysisSummary || '';
+      summary.hidden = !patch.analysisSummary;
+    }
+    if (grid && patch && patch.images) {
+      grid.innerHTML = run.images.map(resultFigure).join('');
+    }
     if (status && patch && patch.status) status.textContent = patch.status;
+    if (cost && patch && patch.totalCost !== undefined) {
+      cost.textContent = '消耗 ' + patch.totalCost + ' 算力';
+      cost.hidden = !patch.totalCost;
+    }
     if (patch && patch.loading !== undefined) {
       card.classList.toggle('is-loading', !!patch.loading);
+      card.classList.toggle('is-failed', !!patch.failed);
       buttons.forEach(function (button) {
         var action = button.getAttribute('data-hjm-prompt-flow-action');
-        button.disabled = !!patch.loading || (action !== 'cancel' && !(textarea && textarea.value.trim()));
+        var needsResult = ['copy-prompt', 'regen', 'download', 'copy-link', 'add-canvas', 'again'].indexOf(action) >= 0;
+        button.disabled = !!patch.loading || (needsResult && !run.images.length && action !== 'regen' && action !== 'copy-prompt') || (action === 'copy-prompt' && !run.finalPrompt);
       });
     }
   }
@@ -194,27 +242,67 @@
     return data;
   }
 
-  async function generatePrompt(flowId) {
-    var draft = state.drafts[flowId];
-    if (!draft) return;
-    updateDraft(flowId, { loading: true, status: '正在生成提示词...' });
+  function emitAddToCanvas(image, run) {
+    var url = image.url || image.imageUrl || image.preview;
+    if (!url) return;
+    window.dispatchEvent(new CustomEvent('canvas:add-generated-image-to-canvas', {
+      detail: {
+        id: image.id,
+        url: url,
+        imageUrl: url,
+        preview: image.preview || url,
+        originalUrl: image.originalUrl || url,
+        title: '对话生成图片',
+        label: '对话生成图片',
+        source: 'canvas-chat-dialog-agent',
+        sourceTaskId: image.sourceTaskId || run.taskId || '',
+        prompt: run.finalPrompt || '',
+        finalPrompt: run.finalPrompt || '',
+        analysisSummary: run.analysisSummary || '',
+        meta: {
+          operation: 'canvas-dialog-agent',
+          prompt: run.finalPrompt || '',
+          finalPrompt: run.finalPrompt || '',
+          analysisSummary: run.analysisSummary || '',
+          taskId: run.taskId || '',
+          source: 'canvas-chat-dialog-agent'
+        }
+      }
+    }));
+  }
+
+  async function runDialogAgent(flowId) {
+    var run = state.runs[flowId];
+    if (!run) return;
+    updateAgent(flowId, { loading: true, failed: false, status: '正在分析图片和需求...', images: [], analysisSummary: '', totalCost: 0 });
+    var generationTimer = window.setTimeout(function () {
+      var pending = state.runs[flowId];
+      if (pending && pending.card && pending.card.classList.contains('is-loading')) {
+        updateAgent(flowId, { loading: true, failed: false, status: '正在生成图片...' });
+      }
+    }, 900);
     try {
-      var data = await postJson('/api/canvas/generate-prompt', {
-        requirement: draft.requirement,
-        imageCount: draft.references.length,
-        source: 'canvas-chat-prompt-flow'
+      var data = await postJson('/api/canvas/dialog-agent-generate', {
+        requirement: run.requirement,
+        referenceImages: run.references,
+        imageCount: 1,
+        source: 'canvas-chat-dialog-agent'
       });
-      var status = data.fallback && data.providerError
-        ? '文本模型暂不可用，已生成基础提示词，可编辑后复制到快速模式。'
-        : '提示词已生成，可编辑后复制到快速模式生图。';
-      updateDraft(flowId, { prompt: data.prompt || data.draftPrompt || '', loading: false, status: status, provider: data.provider });
+      var images = normalizeImages(data);
+      updateAgent(flowId, {
+        loading: false,
+        status: images.length ? '生成完成，结果已放入画布。' : '生成完成，但没有解析到图片。',
+        analysisSummary: data.analysisSummary || '',
+        finalPrompt: data.finalPrompt || data.prompt || '',
+        totalCost: data.totalCost || data.costPoints || data.cost || 0,
+        taskId: data.taskId || data.id || '',
+        images: images
+      });
+      images.forEach(function (image) { emitAddToCanvas(image, state.runs[flowId]); });
     } catch (error) {
-      var fallback = [
-        draft.references.length ? '参考图顺序：' + draft.references.map(function (ref) { return '图' + ref.index; }).join('、') + '。' : '无参考图。',
-        '用户需求：' + draft.requirement,
-        '请生成一张高质量电商产品图，商品主体清晰，保持参考图中的产品包装、品牌文字、颜色和结构，按用户要求调整背景、构图、光影和风格，画面真实自然，避免乱码、水印、畸形产品和虚构促销信息。'
-      ].join('\n');
-      updateDraft(flowId, { prompt: fallback, loading: false, status: error.message || '提示词生成失败，已给出基础草稿。' });
+      updateAgent(flowId, { loading: false, failed: true, status: error.message || '对话 Agent 生成失败，请稍后重试。' });
+    } finally {
+      window.clearTimeout(generationTimer);
     }
   }
 
@@ -241,16 +329,16 @@
     try {
       var list = getMessageList(panel);
       if (!list) return;
-      var flowId = uuid('prompt_flow');
+      var flowId = uuid('dialog_agent');
       list.appendChild(makeUserCard(requirement, references));
-      var draftCard = makeDraftCard(flowId, requirement, references);
-      list.appendChild(draftCard);
+      var agentCard = makeAgentCard(flowId, requirement, references);
+      list.appendChild(agentCard);
       if (input) {
         input.value = '';
         input.dispatchEvent(new Event('input', { bubbles: true }));
       }
       scrollToBottom(list);
-      await generatePrompt(flowId);
+      await runDialogAgent(flowId);
       scrollToBottom(list);
     } finally {
       state.busy = false;
@@ -262,30 +350,54 @@
     list.scrollTop = list.scrollHeight;
   }
 
+  function imageForAction(card, actionTarget) {
+    var flowId = card && card.dataset.flowId;
+    var run = flowId && state.runs[flowId];
+    var index = Number(actionTarget.getAttribute('data-image-index') || 0);
+    return { run: run, image: run && run.images ? run.images[index] : null, flowId: flowId };
+  }
+
+  function handleAction(event, actionTarget) {
+    var card = actionTarget.closest('.hjm-prompt-flow-agent');
+    var flowId = card && card.dataset.flowId;
+    var action = actionTarget.getAttribute('data-hjm-prompt-flow-action');
+    var resolved = imageForAction(card, actionTarget);
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    if (action === 'regen') runDialogAgent(flowId);
+    if (action === 'cancel' && card) {
+      delete state.runs[flowId];
+      card.remove();
+    }
+    if (action === 'copy-prompt' && resolved.run && resolved.run.finalPrompt && navigator.clipboard) {
+      navigator.clipboard.writeText(resolved.run.finalPrompt).catch(function () {});
+    }
+    if (action === 'download' && resolved.image) {
+      var link = document.createElement('a');
+      link.href = resolved.image.url || resolved.image.preview;
+      link.download = 'canvas-dialog-agent-' + Date.now() + '.png';
+      link.click();
+    }
+    if (action === 'copy-link' && resolved.image && navigator.clipboard) {
+      navigator.clipboard.writeText(resolved.image.url || resolved.image.preview).catch(function () {});
+    }
+    if (action === 'add-canvas' && resolved.image && resolved.run) emitAddToCanvas(resolved.image, resolved.run);
+    if (action === 'again' && resolved.image) {
+      var input = getInput(getPanel());
+      if (input) {
+        input.value = '基于这张图继续优化：';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.focus();
+      }
+    }
+  }
+
   function handleClick(event) {
     setTimeout(function () { updateHints(document); }, 0);
     var actionTarget = event.target && event.target.closest && event.target.closest('[data-hjm-prompt-flow-action]');
     if (actionTarget) {
-      var card = actionTarget.closest('.hjm-prompt-flow-draft');
-      var flowId = card && card.dataset.flowId;
-      var action = actionTarget.getAttribute('data-hjm-prompt-flow-action');
-      event.preventDefault();
-      event.stopPropagation();
-      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-      if (action === 'regen') generatePrompt(flowId);
-      if (action === 'cancel' && card) {
-        delete state.drafts[flowId];
-        card.remove();
-      }
-      if (action === 'copy') {
-        var textarea = card && card.querySelector('.hjm-prompt-flow-textarea');
-        var text = textarea ? textarea.value : '';
-        if (text && navigator.clipboard) {
-          navigator.clipboard.writeText(text).then(function () {
-            updateDraft(flowId, { loading: false, status: '提示词已复制，请切到快速模式粘贴生图。' });
-          }).catch(function () {});
-        }
-      }
+      handleAction(event, actionTarget);
       return;
     }
 
@@ -325,7 +437,7 @@
     if (!composer) return;
     var hint = document.createElement('div');
     hint.className = 'hjm-prompt-flow-hint';
-    hint.textContent = '对话仅生成提示词，生图请到快速模式。';
+    hint.textContent = '对话模式会先分析参考图和需求，再自动生成图片并放入画布。';
     composer.insertBefore(hint, composer.firstChild);
   }
 

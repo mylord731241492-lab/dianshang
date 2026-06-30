@@ -123,3 +123,18 @@
 - 新增 `scripts/smoke-backend-canvas-boundary.ps1`，用临时数据库启动后端，验证旧画布入口和关键资产、image-tools 路由、上传入口和 canvas storage 边界。
 - 新 smoke 已接入 `scripts/preflight-check.ps1` 默认链路，后续改后端或旧画布入口时会自动检查不返回 404、不误开启未接工具、不触发真实 Provider。
 - `docs/canvas-migration-checklist.md` 和 README 已同步当前入口与维护命令。
+
+## 2026-06-30 Canvas Chat 兜底文案清单追加
+
+- 对话模式只出提示词的业务线保持不变：不提供确认生图，不调用 `/api/generate/tasks`，真实生图由用户切到 `快速` 模式手动完成。
+- 文本模型不可用、mock 兜底或提示词接口异常时，统一展示：“文本模型暂不可用，已生成基础提示词，可编辑后复制到快速模式。”
+- 兜底时仍生成本地基础提示词草稿，并保持可编辑、可复制。
+
+## 2026-06-30 Canvas Chat dialogagent1 清单追加
+
+- 最新边界覆盖前面的 prompt-only 临时方案：Agent 生图链路现在归属 `对话` 模式，`快速` 模式继续保持原快速生图逻辑。
+- 后端新增 `/api/canvas/dialog-agent-generate`：GPT 5.5 分析参考图和需求，输出 `analysisSummary/finalPrompt`，再调用 GPT Image 2 生图；任一阶段失败都不继续、不扣费。
+- 对话前端桥接升级为 `assets/canvas-chat-prompt-flow.js/css?v=20260630dialogagent1`，卡片显示分析状态、生成状态和最终结果，完整 prompt 仅存入任务和图片节点 meta。
+- 旧 Canvas bundle 动态 import 升级为 `20260630dialogagent1`，并监听 `canvas:add-generated-image-to-canvas`，对话 Agent 成功图会自动落到画布。
+- boundary smoke 覆盖新入口未登录 `401` 和 mock 成功响应，快速/视频仍需人工确认不会串用对话 Agent 状态。
+- 已完成语法检查、资产校验、backend/canvas boundary smoke、disposable API smoke、diff/BOM 检查；真实 Provider 点测需用户确认额度后再做。

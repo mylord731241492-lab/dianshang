@@ -129,21 +129,21 @@ try {
   $canvasHtml = Invoke-BoundaryRequest -Method "GET" -Path "/canvas?backend-canvas-boundary-smoke=1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-performance-mode.js?v=20260629perf5"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-image-node-polish.js?v=20260629image7"
-  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-chat-prompt-flow.js?v=20260630prompt6"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-chat-prompt-flow.js?v=20260630dialogagent1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "admin-api-source-route-bridge.js?v=20260629sourceapi1"
-  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "index-DglIsp_g.js?v=20260629tools1"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "index-DglIsp_g.js?v=20260630dialogagent1"
 
   $assetPaths = @(
     "/assets/canvas-performance-mode.js?v=20260629perf5",
     "/assets/canvas-performance-mode.css?v=20260629perf5",
     "/assets/canvas-image-node-polish.js?v=20260629image7",
     "/assets/canvas-image-node-polish.css?v=20260629image7",
-    "/assets/canvas-chat-prompt-flow.js?v=20260630prompt6",
-    "/assets/canvas-chat-prompt-flow.css?v=20260630prompt6",
+    "/assets/canvas-chat-prompt-flow.js?v=20260630dialogagent1",
+    "/assets/canvas-chat-prompt-flow.css?v=20260630dialogagent1",
     "/assets/admin-api-source-route-bridge.js?v=20260629sourceapi1",
-    "/assets/index-DglIsp_g.js?v=20260629tools1",
-    "/assets/Canvas-B8bY9_QL.js?v=20260629tools1",
-    "/assets/Canvas-yGc8b2gf.js?v=20260629tools1"
+    "/assets/index-DglIsp_g.js?v=20260630dialogagent1",
+    "/assets/Canvas-B8bY9_QL.js?v=20260630dialogagent1",
+    "/assets/Canvas-yGc8b2gf.js?v=20260630dialogagent1"
   )
 
   foreach ($assetPath in $assetPaths) {
@@ -163,6 +163,7 @@ try {
   Invoke-BoundaryRequest -Method "POST" -Path "/api/image-tools/inpaint" -ExpectedStatus 401 -Body @{ prompt = "boundary smoke" } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/image-tools/erase" -ExpectedStatus 401 -Body @{ prompt = "boundary smoke" } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/generate-prompt" -ExpectedStatus 401 -Body @{ requirement = "boundary smoke"; imageCount = 2 } | Out-Null
+  Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/dialog-agent-generate" -ExpectedStatus 401 -Body @{ requirement = "boundary smoke"; imageCount = 1 } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/upload/image" -ExpectedStatus 401 | Out-Null
 
   $adminLoginContent = Invoke-BoundaryRequest -Method "POST" -Path "/api/admin/login" -Body @{
@@ -190,6 +191,21 @@ try {
   if (-not $promptResult.success -or -not $promptResult.prompt -or $promptResult.imageCount -ne 2) {
     throw "Canvas prompt flow did not return an editable prompt draft"
   }
+
+  $agentBody = @{
+    requirement = "analyze the product and create a clean ecommerce render"
+    imageCount = 1
+    source = "canvas-chat-dialog-agent"
+  }
+  $agentContent = Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/dialog-agent-generate" -Headers $headers -Body $agentBody
+  $agentResult = $agentContent | ConvertFrom-Json
+  if (-not $agentResult.success -or -not $agentResult.analysisSummary -or -not $agentResult.finalPrompt -or -not $agentResult.resultImages -or $agentResult.resultImages.Count -lt 1) {
+    throw "Canvas dialog agent did not return analysisSummary/finalPrompt/resultImages"
+  }
+  if ($agentResult.analysisCost -ne 5 -or $agentResult.imageCost -ne 10 -or $agentResult.totalCost -ne 15) {
+    throw "Canvas dialog agent cost fields are invalid"
+  }
+  Write-Host "OK POST /api/canvas/dialog-agent-generate mock response"
 
   Invoke-BoundaryRequest -Method "POST" -Path "/api/upload/image" -Headers $headers -ExpectedStatus 400 | Out-Null
 

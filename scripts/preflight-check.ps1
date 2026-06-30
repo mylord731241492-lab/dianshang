@@ -45,6 +45,12 @@ if ($env:VERIFY_CANVAS_LOCAL_GUARD -eq "true" -and (Test-Path "scripts\verify-ca
   Write-Host "Skipped. Canvas remains local-first; set VERIFY_CANVAS_LOCAL_GUARD=true only when changing local JSON restore behavior."
 }
 
+if (Test-Path "scripts\verify-canvas-performance-assets.js") {
+  Invoke-Step -Name "canvas performance assets guard" -Script {
+    Invoke-NativeCommand -FilePath "node" -Arguments @("scripts\verify-canvas-performance-assets.js")
+  }
+}
+
 if ($env:SMOKE_USE_CURRENT_API -eq "true") {
   Invoke-Step -Name "API smoke current service" -Script {
     Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-api.ps1")
@@ -82,8 +88,20 @@ if ($env:SMOKE_PERSISTENCE -eq "true") {
 }
 
 if ($env:SMOKE_UI -eq "true") {
+  Invoke-Step -Name "source frontend UI smoke" -Script {
+    Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-source-frontend-ui.ps1")
+  }
+
   Invoke-Step -Name "home/canvas UI smoke" -Script {
     Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-home-canvas-ui.ps1")
+  }
+
+  Invoke-Step -Name "canvas performance UI smoke" -Script {
+    Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-canvas-performance-ui.ps1")
+  }
+
+  Invoke-Step -Name "canvas frame budget UI smoke" -Script {
+    Invoke-NativeCommand -FilePath "powershell" -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts\smoke-canvas-frame-budget-ui.ps1")
   }
 
   Invoke-Step -Name "mobile UI smoke" -Script {
@@ -115,7 +133,7 @@ if ($env:SMOKE_UI -eq "true") {
   }
 } else {
   Write-Host "== UI smoke =="
-  Write-Host "Skipped. Set SMOKE_UI=true to run Playwright home/canvas, mobile, admin, admin save echo, template, gallery, canvas, and user center checks."
+  Write-Host "Skipped. Set SMOKE_UI=true to run Playwright source frontend, home/canvas, canvas performance, mobile, admin, admin save echo, template, gallery, canvas, and user center checks."
 }
 
 Invoke-Step -Name "health check" -Script {

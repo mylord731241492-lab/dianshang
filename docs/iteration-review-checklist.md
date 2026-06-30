@@ -11,8 +11,13 @@
 
 ## 2. 架构护栏
 
-- 7 月前默认仍是 Express 一体服务 + SQLite。
-- 未经确认不引入 Postgres、Redis、BullMQ、Worker、Kubernetes 或微服务拆分。
+- 当前内网过渡栈仍是 Express 一体服务 + SQLite；正式源码目标栈见 `docs/adr/0002-source-first-technology-stack.md`。
+- 主工作目录固定为 `F:\dianshang`；并行工作树统一放在 `F:\dianshang-worktrees\*`。
+- 涉及代码结构、调用链、接口影响面或 bug 定位时，先检查 CodeGraph；未初始化时必须先问用户是否运行 `codegraph init -i`。
+- 新增复杂前端能力前，先确认能否进入后续 `frontend/` 源码工程；避免继续大规模修改打包 JS。
+- 未经确认不在当前内网过渡栈引入 Postgres、Redis、BullMQ、Worker、Kubernetes 或微服务拆分。
+- 新增软件、数据库、Redis、Docker 服务、对象存储、New-API/CPA 配置或 npm 包前，必须先说明用途、来源、许可证和风险，并等待用户确认。
+- 后续进入生产基础设施阶段时，数据库、队列、对象存储和 Worker 按 ADR-0002 分阶段引入，不临时拍脑袋加栈。
 - Provider Adapter 默认面向 New-API。
 - CPA 只作为 New-API 后置渠道，不直接暴露给前端或员工。
 - `ENABLE_REAL_AI=false` 或缺少 key 时必须 mock 回落。

@@ -20,6 +20,7 @@ logs/
 tmp/
 temp/
 .cache/
+.codegraph/
 .playwright-cli/
 .DS_Store
 Thumbs.db

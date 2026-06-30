@@ -1,0 +1,99 @@
+/* Legacy canvas performance mode: keep visual quality at rest, reduce paint cost while interacting. */
+html.canvas-performance-active,
+body.canvas-performance-active {
+  cursor: grabbing;
+}
+
+.canvas-flow,
+.vue-flow,
+.vue-flow__viewport,
+.vue-flow__pane,
+.canvas-chat-panel,
+.image-quick-create-menu,
+.vue-flow__minimap,
+[class*="canvas-chat"] {
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+.vue-flow__viewport {
+  transform: translateZ(0);
+}
+
+html.canvas-performance-active .vue-flow__viewport,
+html.canvas-performance-active .canvas-flow,
+html.canvas-performance-active .vue-flow__pane {
+  will-change: transform;
+}
+
+html.canvas-performance-dragging .canvas-chat-panel,
+html.canvas-performance-dragging .workflow-panel,
+html.canvas-performance-dragging .image-quick-create-menu,
+html.canvas-performance-dragging aside[class*="absolute"],
+html.canvas-performance-dragging section[class*="absolute"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.12) !important;
+  transition: none !important;
+}
+
+html.canvas-performance-dragging .canvas-chat-panel *,
+html.canvas-performance-dragging .image-quick-create-menu *,
+html.canvas-performance-dragging aside[class*="absolute"] *,
+html.canvas-performance-dragging section[class*="absolute"] * {
+  transition-duration: 0s !important;
+  animation-duration: 0s !important;
+}
+
+html.canvas-performance-dragging .canvas-chat-control:hover,
+html.canvas-performance-dragging .canvas-chat-send-btn:hover,
+html.canvas-performance-dragging .send-button:hover {
+  transform: translateZ(0) !important;
+}
+
+.vue-flow__node img,
+.canvas-chat-panel img,
+.image-grid img,
+.canvas-chat-image-preview img {
+  display: block;
+  max-width: 100%;
+  object-fit: cover;
+  contain: paint;
+}
+
+.vue-flow__node img {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.canvas-chat-panel,
+.image-quick-create-menu {
+  contain: layout paint style;
+}
+
+.vue-flow__node:has(.image-node-toolbar),
+.vue-flow__node:has(.image-node-toolbar-wrap),
+.vue-flow__node:has(.image-node-selected),
+.image-node-wrapper,
+.image-node {
+  contain: none !important;
+  overflow: visible !important;
+}
+
+.image-node-toolbar,
+.image-node-toolbar-wrap {
+  z-index: 1200 !important;
+  pointer-events: auto;
+}
+
+.image-node-toolbar {
+  min-width: 188px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas-flow *,
+  .vue-flow *,
+  .canvas-chat-panel * {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+}

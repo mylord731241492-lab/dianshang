@@ -19,6 +19,189 @@
 - 需要人工介入：
 ```
 
+## 2026-06-26 新画布废止回滚进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：按用户最新要求废止新画布，不再继续 Vue Flow/Infinite-Canvas 迁移。已删除新前端画布组件、Store、类型、运行适配器和 Infinite-Canvas 提示词模板；已卸载 `@vue-flow/*` 依赖；`frontend/` 的 `/canvas` 改为跳转旧后端画布 `http://127.0.0.1:3456/canvas`；README、画布迁移清单、功能清单和 review log 已同步回滚决策。
+- 修改文件：`frontend/src/router/index.ts`、`frontend/src/views/HomeWorkbench.vue`、`frontend/src/views/LegacyCanvasRedirect.vue`、`frontend/src/main.ts`、`frontend/src/styles/app.css`、`frontend/package.json`、`frontend/package-lock.json`、`README.md`、`docs/canvas-migration-checklist.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 删除文件：`frontend/src/views/CanvasStudio.vue`、`frontend/src/stores/canvas.ts`、`frontend/src/types/canvas.ts`、`frontend/src/api/canvasRunner.ts`、`frontend/public/system-prompts/infinite-canvas-prompt-templates.md`
+- 验证方式：扫描 `frontend/` 中 `VueFlow|vue-flow|CanvasStudio|canvasRunner|infinite-canvas` 残留；运行 `npm run build --prefix "F:\dianshang\frontend"`。
+- 验证结果：残留扫描无命中；前端构建通过，产物约 `316.98 kB`，已不再出现 Vue Flow 相关依赖。
+- 当前完成度：新画布废止 95%，旧画布回滚入口 90%。
+- 新发现问题：`frontend/` 仍只是源码化壳，真正画布验收应回到旧后端 `3456`。
+- 未完成清单：人工打开旧后端 `/canvas` 确认视觉和功能；旧画布后续如有具体问题再单独修。
+- 下一轮建议：启动旧后端后直接验收旧画布，不再检查新画布节点体系。
+- 需要人工介入：需要你人工确认旧画布视觉和交互是否回到预期。
+
+## 2026-06-26 前端源码化迁移骨架进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：在新画布废止后，建立“旧画布固定旧版、其它前端渐进源码化”的迁移骨架。新增旧前端地址配置、前端迁移路由清单、统一旧页面桥接组件；新源码首页新增迁移索引，未迁移页面保持跳转旧前端，避免半成品替换稳定功能。新增 `docs/frontend-migration-roadmap.md` 记录迁移优先级和验收规则。
+- 修改文件：`frontend/src/config/legacy.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/views/LegacyRouteRedirect.vue`、`frontend/src/router/index.ts`、`frontend/src/views/HomeWorkbench.vue`、`frontend/src/styles/app.css`、`docs/frontend-migration-roadmap.md`、`docs/canvas-migration-checklist.md`、`README.md`、`docs/progress-report.md`
+- 验证方式：运行 `npm run build --prefix "F:\dianshang\frontend"`；启动或复用 Vite dev server 后请求 `/`、`/canvas`、`/template-image`；运行 `git -C "F:\dianshang" diff --check`；检查 UTF-8 无 BOM。
+- 验证结果：前端构建通过；`/`、`/canvas`、`/template-image` 均返回 200 且包含 Vite app 壳；空白检查通过；UTF-8 无 BOM 检查通过。
+- 当前完成度：前端迁移骨架约 30%，模板页源码迁移尚未开始。
+- 新发现问题：旧前端路由由打包资产承载，源码迁移需要逐页替换，不能直接全量反编译。
+- 未完成清单：模板页、图库、认证、用户中心、后台源码页；每页 API 契约和 UI smoke。
+- 下一轮建议：优先迁移 `/template-image`，因为它是前台核心业务页且已有模板 API。
+- 需要人工介入：每个页面切换为源码版本前，需要人工确认旧版视觉和主路径验收点。
+
+## 2026-06-26 模板生图页源码迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：将 `/template-image` 从旧版桥接切换为 `frontend/` 源码第一版。新增模板 API 模块和源码模板页，支持加载模板配置、模板分类、素材槽本地预览和上传、提示词字段、平台/比例/清晰度/张数/线路/模型选择、反推提示词和生成图片入口。反推和生成复用旧后端现有接口；未登录时显示明确登录提示，不执行真实付费生成。
+- 修改文件：`frontend/src/api/http.ts`、`frontend/src/api/templateImage.ts`、`frontend/src/views/TemplateImageSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`docs/frontend-migration-roadmap.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`
+- 验证方式：运行 `npm run build --prefix "F:\dianshang\frontend"`；用 Chrome 打开 `http://127.0.0.1:5173/template-image` 做无登录非付费验证；点击“反推提示词”确认 401 被转为中文登录提示；定位 4xx 响应来源；归档截图。
+- 验证结果：构建通过且路由拆包后无大 chunk 警告；浏览器验证显示标题为“模板生图工作台”、模板按钮 10 个、素材槽 2 个、模型选择控件 5 个、旧版页面链接存在；未登录点击反推后显示“请先登录旧站账号，再使用反推或生成。”；4xx 响应仅有预期的 `/api/template/reverse-prompt` 401；截图保存到 `docs/design-references/template-image-source-2026-06-26.png`。
+- 当前完成度：模板源码迁移第一版约 70%，模板页总体约 96%。
+- 新发现问题：真实上传、反推和生成都依赖登录态；登录态真实生成可能消耗算力，本轮未做。
+- 未完成清单：登录态人工点测上传/反推/生成；生成任务轮询；历史结果与图库联动；移动端细节截图；更贴近旧版的批量任务表。
+- 下一轮建议：先人工复核源码模板页；若通过，继续迁移 `/gallery` 图库页。
+- 需要人工介入：真实反推/生成涉及账号和算力，需人工确认后再测试。
+
+## 2026-06-26 图库页源码迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：将 `/gallery` 从旧版桥接切换为 `frontend/` 源码第一版。新增图库 API 模块和源码图库页，支持读取生成历史、统计图片/模型/消耗、搜索提示词或模型、按模型筛选、打开图片、复制链接和删除记录。保留旧版页面入口用于对照。
+- 修改文件：`frontend/src/api/gallery.ts`、`frontend/src/views/GallerySource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`docs/frontend-migration-roadmap.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：运行 `npm run build --prefix "F:\dianshang\frontend"`；用 Chrome 打开 `http://127.0.0.1:5173/gallery` 做无登录验证；归档截图。
+- 验证结果：构建通过；浏览器验证显示标题为“图库历史”、旧版链接存在、统计为 0、未登录错误提示为“请先登录旧站账号，再查看图库历史。”；4xx 响应为预期 `/api/user/generations` 401；截图保存到 `docs/design-references/gallery-source-2026-06-26.png`。
+- 当前完成度：图库源码迁移第一版约 75%，图库总体约 97%。
+- 新发现问题：未登录会在初次打开和清 token reload 时各请求一次历史接口，自动化中出现两条 401，均为预期。
+- 未完成清单：登录态真实记录展示；复制链接浏览器权限确认；删除记录人工确认；移动端截图复核。
+- 下一轮建议：迁移登录/注册页，让源码前端能直接建立登录态，再回测模板和图库登录态功能。
+- 需要人工介入：删除记录是破坏性操作，登录态删除测试前需确认测试数据。
+
+## 2026-06-26 登录注册源码迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：将 `/login` 和 `/register` 从旧版桥接切换为 `frontend/` 源码第一版。新增认证 API 模块和源码认证页，登录对接 `/api/auth/login`，注册对接 `/api/auth/send-email-code` 和 `/api/auth/register`。登录成功后写入 `auth_token` 和 `auth_user`，默认跳转 `/gallery`。
+- 修改文件：`frontend/src/api/auth.ts`、`frontend/src/views/AuthSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`docs/frontend-migration-roadmap.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：运行 `npm run build --prefix "F:\dianshang\frontend"`；打开 `http://127.0.0.1:5173/login`；使用默认账号 `admin/admin123` 登录；检查 localStorage token、用户角色和源码图库页登录态；归档截图。
+- 验证结果：构建通过；`/login` 返回源码 app 壳；默认账号登录成功，跳转 `http://127.0.0.1:5173/gallery`；`auth_token` 已写入，`auth_user.username=admin`、`role=admin`；源码图库页无 401；截图保存到 `docs/design-references/auth-login-gallery-source-2026-06-26.png`。
+- 当前完成度：认证源码迁移第一版约 75%，用户模块总体约 94%。
+- 新发现问题：注册验证码接口会在本地响应中返回 `code`，源码注册页会自动填入，适合本地开发验证；真实邮件模式后需调整提示。
+- 未完成清单：注册新账号人工验证；退出登录入口；用户中心源码页；登录态模板上传/反推/生成回测。
+- 下一轮建议：先用源码登录态回测模板页和图库页；然后迁移 `/user/center`。
+- 需要人工介入：真实生成会消耗算力，登录态模板生成仍需确认后再测。
+
+## 2026-06-26 用户中心源码迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：将 `/user/center` 从旧版桥接切换为 `frontend/` 源码第一版。新增用户 API 模块和源码用户中心页，支持读取用户资料、余额流水、API 状态、展示账户概览、跳转模板/图库和退出登录。未新增后端接口。
+- 修改文件：`frontend/src/api/user.ts`、`frontend/src/views/UserCenterSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`docs/frontend-migration-roadmap.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：运行 `npm run build --prefix "F:\dianshang\frontend"`；用默认账号 `admin/admin123` 登录 `http://127.0.0.1:5173/login?redirect=/user/center`；检查用户中心资料、余额、API 状态和余额流水；归档截图。
+- 验证结果：构建通过；登录后进入 `http://127.0.0.1:5173/user/center`；页面显示 `admin`、角色 `admin`、当前算力 `999989`、流水记录 `16`、API 状态 `GPT Image 2 · 真实/自动模式 · active`；无 4xx 响应；截图保存到 `docs/design-references/user-center-source-2026-06-26.png`。
+- 当前完成度：用户中心源码迁移第一版约 75%，用户模块总体约 95%。
+- 新发现问题：当前只迁移 `/user/center`，生成记录和兑换码仍桥接旧版。
+- 未完成清单：`/user/records`、`/user/redeem` 源码迁移；头像上传/预设头像编辑；移动端截图复核。
+- 下一轮建议：迁移 `/user/records` 和 `/user/redeem`，补齐用户模块。
+- 需要人工介入：无。
+
+## 2026-06-26 生成记录与兑换码源码迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：将 `/user/records` 和 `/user/redeem` 从旧版桥接切换为 `frontend/` 源码第一版。生成记录页复用 `/api/user/generations` 和 `/api/user/balance-logs`，支持提示词/模型搜索、流水类型筛选、打开结果图和刷新；兑换码页复用 `/api/user/profile`、`/api/user/balance-logs` 和 `/api/user/redeem`，支持余额展示、兑换码提交和最近流水刷新。未新增后端接口、未新增 npm 包。
+- 修改文件：`frontend/src/api/user.ts`、`frontend/src/views/UserRecordsSource.vue`、`frontend/src/views/UserRedeemSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`docs/frontend-migration-roadmap.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：检查 CodeGraph 状态；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；启动或复用前端 `5173` 和后端 `3456`；用默认账号 `admin/admin123` 登录后打开 `/user/records` 和 `/user/redeem`；保存桌面截图。
+- 验证结果：构建通过；后端健康检查通过；`/user/records` 显示标题“生成记录”、2 个记录面板、13 条生成记录和 16 条余额流水；`/user/redeem` 显示标题“兑换码”、当前算力 `999989` 和 8 条最近流水；浏览器没有 page error，也没有 4xx/5xx API 响应；截图保存到 `docs/design-references/user-records-source-2026-06-26.png` 和 `docs/design-references/user-redeem-source-2026-06-26.png`。
+- 当前完成度：用户模块源码迁移第一版约 85%，用户模块总体约 97%。
+- 新发现问题：真实兑换码提交会改变账户余额，自动化只验证页面和接口加载，没有提交兑换码。
+- 未完成清单：移动端 390px 截图复核；真实测试兑换码提交；头像上传/预设头像编辑；登录态模板反推/生成回测。
+- 下一轮建议：先做用户模块移动端截图和模板/图库登录态回测；后台源码化仍放在最后。
+- 需要人工介入：如需验收兑换提交，请提供一次性测试兑换码或确认可以创建临时兑换码。
+
+## 2026-06-26 用户模块移动端与登录态前台回测进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：按上一轮建议补用户模块移动端验收，并回测登录态模板/图库的非付费加载路径。发现 `/user/records` 在 390px 宽度下图片卡片会被图片固有宽度撑出 90px 横向溢出，已在源码 CSS 中补 `min-width: 0`、`max-width: 100%`、图片 `display: block` 和卡片溢出保护。未点击模板反推/生成、未提交兑换码、未删除图库记录。
+- 修改文件：`frontend/src/styles/app.css`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：启动或复用前端 `5173` 和后端 `3456`；用默认账号 `admin/admin123` 登录；在 390x844 视口打开 `/user/records` 和 `/user/redeem` 并截图；在 1440x900 视口打开 `/template-image` 和 `/gallery` 做登录态加载回测；保存截图。
+- 验证结果：`/user/records` 横向溢出从 90px 修复为 0，显示 2 个面板、13 条生成记录和 16 条流水；`/user/redeem` 横向溢出为 0，显示余额 `999989` 和 8 条最近流水；登录态 `/template-image` 显示 10 个模板和 2 个素材槽；登录态 `/gallery` 显示 13 张记录；没有 4xx/5xx API 响应。浏览器有一个非 API 的 404 静态资源提示，暂不阻塞业务验收。
+- 当前完成度：用户模块源码迁移第一版约 90%，模板/图库登录态加载回测完成。
+- 新发现问题：生成历史中部分历史中文 prompt 显示为问号，疑似早期数据写入编码问题，不是本轮源码页渲染问题。
+- 未完成清单：真实兑换码提交；模板反推/生成真实调用；图库删除测试数据；注册新账号；头像上传/预设头像编辑；后台源码化。
+- 下一轮建议：开始迁移注册完整路径或进入后台源码化前的页面边界盘点；真实付费/破坏性操作仍需人工确认。
+- 需要人工介入：真实兑换码、真实生成和删除图库记录需要你确认测试数据或费用边界。
+
+## 2026-06-26 Codex 自带浏览器前台源码页点测进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：按用户要求改用 Codex 自带浏览器可见窗口做实际点测，而不是 headless 浏览器。使用默认账号 `admin/admin123` 登录源码前端，依次打开 `/gallery`、`/template-image`、`/user/records`、`/user/redeem`；随后切到移动端视口复核 `/user/records` 和 `/user/redeem`。本轮只做读操作，不点击真实生成、兑换码提交和图库删除。
+- 修改文件：`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：前端 `5173` 和后端 `3456` 在线；Codex In-app Browser 可见窗口登录；采集页面标题、可见数据、横向溢出、控制台错误；保存自带浏览器截图。
+- 验证结果：登录后跳转 `/gallery`；图库显示 13 张记录，模板页显示 10 个模板和 2 个素材槽，生成记录页显示 13 条生成记录和 16 条流水，兑换页显示余额 `999989` 和 8 条最近流水；桌面和移动端横向溢出均为 0；自带浏览器业务控制台错误为 0。截图保存到 `docs/design-references/iab-*-2026-06-26.png`。
+- 当前完成度：前台源码页可见浏览器验收补充完成，用户模块源码迁移第一版约 90%。
+- 新发现问题：自带浏览器运行环境打印过一条 Codex/Statsig 外部统计请求超时，不属于本地业务页面控制台错误；页面内仍可正常操作。
+- 未完成清单：真实模板反推/生成、真实兑换码提交、图库删除、注册新账号、后台源码化。
+- 下一轮建议：先做注册完整路径源码页点测，或开始后台源码化边界盘点。
+- 需要人工介入：真实付费/改数据操作仍需你确认测试数据和费用边界。
+
+## 2026-06-26 源码前端 Playwright 点击 Smoke 进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：新增可复跑的 Vue3 源码前端 Playwright CLI 点击 smoke，不再只依赖人工截图或 headless 临时脚本。脚本会登录默认账号，点击图库搜索和刷新、模板切换到白底图并填写提示词、生成记录搜索和刷新、兑换码页填写测试文本但只点刷新不提交，并在 390x844 移动端复核 `/user/records` 和 `/user/redeem` 横向溢出。脚本明确避开真实生成、兑换码提交和图库删除。
+- 修改文件：`scripts/smoke-source-frontend-ui.ps1`、`scripts/smoke-source-frontend-ui-runner.js`、`scripts/preflight-check.ps1`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：检查 `npx` 可用；运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`。
+- 验证结果：Playwright smoke 通过。结果包括：登录跳转 `/gallery`；图库搜索 `simple` 后保留 2 张卡片并刷新；模板点击切换到“白底图”并填写提示词；生成记录搜索 `simple` 后保留 2 条记录并刷新；兑换页余额 `999989` 可见；移动端 records/redeem 横向溢出为 0；无 4xx/5xx API 和业务 console error。截图保存到 `docs/design-references/source-frontend-2026-06-26/`。
+- 当前完成度：源码前端工程化回归护栏约 65%，前台源码页非破坏性点击验收已自动化，并已进入统一 `SMOKE_UI=true` 预检链路。
+- 新发现问题：第一次运行时 Playwright open 等待 3 秒不够，已调到 8 秒；模板提示词定位不能依赖旧 placeholder，已改为 `.form-grid textarea`。
+- 未完成清单：注册完整路径点击 smoke；后台源码化前页面边界盘点；真实生成/兑换/删除仍需人工确认后单独测。
+- 下一轮建议：继续补注册页源码点击 smoke，或开始后台源码化边界盘点。
+- 需要人工介入：真实付费和改数据操作仍需用户确认。
+
+## 2026-06-26 源码前端注册点击 Smoke 进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：继续强化 Vue3 源码前端 Playwright 点击回归，把 `/register` 注册完整路径纳入 `scripts/smoke-source-frontend-ui-runner.js`。脚本会生成唯一临时用户名和邮箱，点击发送验证码，确认验证码自动填入，点击注册并确认跳转图库；随后用后台登录接口软删除并永久清理该临时用户，再清空登录态继续默认 admin 登录和其它前台页面点击链路。修正 console 404 过滤逻辑：不再用无 URL 的浏览器 console 文案误判失败，而是通过 response 事件区分 API 失败、非 favicon 静态资源失败和可忽略 favicon 404。
+- 修改文件：`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`
+- 验证方式：运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`。
+- 验证结果：源码前端 smoke 通过。新增注册步骤返回 `register ok` 和 `register-cleanup ok`；后续登录、图库搜索刷新、模板切换填写、生成记录搜索刷新、兑换页填写但不提交、移动端 records/redeem 溢出检查继续全部通过。截图新增 `docs/design-references/source-frontend-2026-06-26/register-success-desktop-1440x900.png`。
+- 当前完成度：源码前端工程化点击回归约 72%，注册/登录/图库/模板/用户记录/兑换页的非付费非破坏性主路径已自动化。
+- 新发现问题：浏览器会对 favicon 404 打一条无 URL console 文案，已改用 response 级别判定，避免误报；真实非 favicon 静态资源 4xx 仍会失败。
+- 未完成清单：真实生成、真实兑换码、图库删除仍需人工确认费用和测试数据；后台源码化边界盘点；源码前端 smoke 还未拆分成更细的可选开关。
+- 下一轮建议：开始后台源码化边界盘点，或在确认测试数据后补图库删除/兑换码提交的 disposable smoke。
+- 需要人工介入：真实付费和改数据操作仍需用户确认。
+
+## 2026-06-26 源码前端导航与退出登录 Smoke 进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：继续扩展 `scripts/smoke-source-frontend-ui-runner.js`，新增首页迁移索引和退出登录点击路径。脚本登录 admin 后打开 `/`，确认“前端迁移索引”可见，点击 `/user/center` 源码入口，确认进入用户中心并无横向溢出；再点击用户中心“图库历史”快捷按钮确认回到图库。脚本末尾重新进入用户中心，点击“退出登录”，确认跳转 `/login` 且 `auth_token/auth_user` 已从 localStorage 清空。
+- 修改文件：`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`
+- 验证方式：运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`。
+- 验证结果：源码前端 smoke 通过。新增步骤 `home-index-user-navigation ok` 和 `logout ok`；原有注册清理、登录、图库、模板、记录、兑换、移动端检查继续通过。新增截图：`home-migration-index-desktop-1440x900.png`、`logout-success-desktop-1440x900.png`。
+- 当前完成度：源码前端工程化点击回归约 78%，关键非付费非破坏性导航与登录态闭环已自动化。
+- 新发现问题：无。
+- 未完成清单：真实生成、真实兑换码、图库删除仍需人工确认费用和测试数据；后台源码化边界盘点；源码前端 smoke 还未拆分成更细的可选开关。
+- 下一轮建议：进入后台源码化边界盘点，或补一个 disposable 方式的图库删除/兑换码提交 smoke。
+- 需要人工介入：真实付费和改数据操作仍需用户确认。
+
+## 2026-06-26 技术栈补救决策进度报告
+
+- 分支：`codex/backend-platform`
+- 完成内容：基于视频参考和当前项目现状，明确“不立即切 Django、不推倒当前内网版本”的补救策略；新增源码优先目标栈 ADR，确定当前过渡栈为 Vue 打包资产 + Express + SQLite，正式目标栈为 Vue 3 + Vite + TypeScript、Node.js + TypeScript API、Prisma/Drizzle、Postgres/MySQL、Redis + BullMQ + AI Worker、S3 兼容对象存储、New-API -> CPA/上游模型。
+- 修改文件：`docs/adr/0002-source-first-technology-stack.md`、`docs/iteration-review-checklist.md`、`docs/known-gaps.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：文档 UTF-8 BOM 检查、`git diff --check`、`git status --short --branch`。
+- 验证结果：5 个 Markdown 文件均为 UTF-8 无 BOM；`git diff --check` 无空白错误，仅提示 Git 后续可能把部分工作区文件 LF 转 CRLF；`git status` 显示仅有本轮文档改动和新增 ADR。
+- 当前完成度：技术栈决策约 95%，补救路线约 80%，实际源码化迁移尚未开始。
+- 新发现问题：视频参考的核心优势是源码工程和后端模型边界，不是必须照搬 Django/MySQL；当前项目最大技术债是打包前端资产维护和单文件后端耦合。
+- 未完成清单：API 契约文档、bridge/override 迁移清单、`server.js` 模块化拆分计划、`frontend/` 源码工程启动计划、生产数据库/队列/Worker 迁移方案。
+- 下一轮建议：先做 API 契约和 bridge/override 债务清单，再开始拆 `server.js` 模块边界；不要先重写 UI。
+- 需要人工介入：确认正式生产数据库偏好是 Postgres 还是 MySQL；确认是否接受后续前端源码重建排期。
+
+## 2026-06-26 新分支源码栈与画布启动进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：新建源码化迁移分支；新增 `frontend/`，使用 Vue 3 + Vite + TypeScript + Vue Router + Pinia + Axios + Naive UI + lucide-vue-next + Vue Flow；新增新版画布工作台，节点/连线/缩放/拖拽由 Vue Flow 承担，状态由 Pinia 管理；新增 README、AGENTS 源码化规则和并行任务树计划；准备复制分支项目到 `F:\dianshang`。
+- 修改文件：`AGENTS.md`、`README.md`、`frontend/*`、`docs/plans/2026-06-26-source-stack-canvas-rebuild-plan.md`、`docs/adr/0002-source-first-technology-stack.md`、`docs/iteration-review-checklist.md`、`docs/known-gaps.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：`npm install --prefix frontend`、`npm run build --prefix frontend`、文档 UTF-8 BOM 检查、`git diff --check`、`git status --short --branch`。
+- 验证结果：`npm install` 完成；新前端 `vue-tsc --noEmit && vite build` 已通过；Vite 仅提示单 chunk 超过 500k，后续可用路由懒加载拆包；其余验证待最终复制后补充。
+- 当前完成度：新源码前端基座约 35%，新版画布第一阶段约 25%，迁移计划约 90%。
+- 新发现问题：新版前端首包包含 Naive UI 和 Vue Flow 后较大，需要后续按页面动态导入；当前是功能起点，不是最终视觉 1:1。
+- 未完成清单：API 契约、新画布真实生成任务、旧画布能力对照迁移、后端 TypeScript 模块化、Redis/BullMQ Worker、对象存储、Playwright 视觉验证。
+- 下一轮建议：先按 `docs/plans/2026-06-26-source-stack-canvas-rebuild-plan.md` 拆 API 契约和新版画布两个并行 Lane。
+- 需要人工介入：确认 `F:\dianshang` 是否作为主工作目录；后续若要多工作树并行，可再创建 `F:\dianshang-worktrees\*`。
+
 ## 2026-06-25 后台全页面截图复跑进度报告
 
 - 分支：`codex/backend-platform`
@@ -928,3 +1111,523 @@
 - 未完成清单：浏览器画布节点真实点击生成还需人工复核；模板页真实生图还需点测；Docker 容器仍需重建。
 - 下一轮建议：你在画布里点一次生成；如果仍显示错误，优先看前端节点自己的等待/轮询/保存逻辑。
 - 需要人工介入：真实生图会消耗额度。
+
+## 2026-06-26 源码化技术栈任务树启动进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：按用户要求把主工作目录固定为 `F:\dianshang`，启动 Lane A/B/C/D/E 的第一批纪律基线。已在 `AGENTS.md` 和 `README.md` 写入阶段门禁、禁止搓轮子、CodeGraph 索引、环境确认、新增 npm 包确认、成熟开源基座和维护测试命令。已新增 `docs/api-contract-next.md` 固化新前端 API 契约初版，新增 `docs/backend-module-boundaries.md` 定义后端模块边界，新增 `docs/canvas-migration-checklist.md` 定义 Vue Flow 画布迁移清单。已把 `.codegraph/` 加入 `.gitignore`，避免本地索引产物入库。
+- 修改文件：`.gitignore`、`AGENTS.md`、`README.md`、`docs/api-contract-next.md`、`docs/backend-module-boundaries.md`、`docs/canvas-migration-checklist.md`、`docs/plans/2026-06-26-source-stack-canvas-rebuild-plan.md`、`docs/iteration-review-checklist.md`、`docs/known-gaps.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：检查 CodeGraph 状态；运行 `npm run build --prefix "F:\dianshang\frontend"`；运行 `git -C "F:\dianshang" diff --check`；对本轮新增和修改的文本文件做 UTF-8 BOM 检查。
+- 验证结果：CodeGraph 已初始化并可用；`npm run build --prefix "F:\dianshang\frontend"` 通过，Vite 仅提示已有大 chunk 警告；`git -C "F:\dianshang" diff --check` 通过，仅有 Git 的 LF/CRLF 提示；本轮文件 UTF-8 无 BOM 检查通过。后端代码未改，本轮不跑后端 smoke。
+- 当前完成度：源码化纪律基线约 70%，API 契约初版约 40%，后端边界文档约 35%，新版画布迁移清单约 45%，实际画布功能迁移仍保持上一阶段状态。
+- 新发现问题：旧计划文档里仍有原桌面目录路径，本轮已改为 `F:\dianshang`；旧缺口文档里 CodeGraph 状态过期，本轮已改为已初始化。
+- 未完成清单：API 契约还需要逐项用真实路由和响应样例复核；后端模块边界还未映射到全部 SQLite 表和错误码；新版 `/canvas` 还需要人工点测第一阶段能力；NestJS/Prisma/Postgres/Redis/BullMQ/MinIO/S3 尚未创建或安装。
+- 下一轮建议：先人工验收 `AGENTS.md` 和 README 规则是否足够严格；确认后进入 API 契约复核和新版画布点测，不先拆 `server.js`。
+- 需要人工介入：如果下一轮要新增任何 npm 包、下载成熟开源基座源码、安装数据库/Redis/Docker 服务或开启真实外部服务，必须先由用户确认。
+
+## 2026-06-26 哈基米旧画布 UI 迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：根据用户截图确认，新版 Vue Flow 画布的整体 UI、布局和卡片板块继续沿用哈基米旧画布，而不是 Vue Flow 默认 UI，也不是 `Infinite-Canvas-main.zip` 的浅色项目管理画布。已把 `frontend/src/views/CanvasStudio.vue` 改为顶部旧画布动作条、左侧浅色 Canvas Chat、右侧黑色 Create Node 面板、暗色点阵画布；节点卡片改为旧画布风格深色卡片。Vue Flow 仍只负责底层拖拽、缩放、连线、Handle、Background、Controls、MiniMap。
+- 修改文件：`frontend/src/views/CanvasStudio.vue`、`frontend/src/styles/app.css`、`frontend/src/stores/canvas.ts`、`frontend/src/types/canvas.ts`、`docs/design-references/canvas-hjm-legacy-layout-final-2026-06-26.png`
+- 验证方式：运行 `npm run build --prefix "F:\dianshang\frontend"`；运行 `git -C "F:\dianshang" diff --check`；使用本机 Chrome 打开 `http://127.0.0.1:5173/canvas` 截图并检查左侧 Chat、右侧 Create Node、顶部动作条、节点数量、横向溢出和节点是否被左侧面板遮挡。
+- 验证结果：前端构建通过，只有 Vite 大 chunk 既有警告；diff 空白检查通过，仅有 Git LF/CRLF 提示；浏览器验证显示 `leftChat=true`、`rightCreate=true`、`topActions=true`、`productNodes=4`、`noOverlap=true`、`scrollWidth=clientWidth=2048`。截图已保存到 `docs/design-references/canvas-hjm-legacy-layout-final-2026-06-26.png`。
+- 新发现问题：浏览器首次监听到一个 404 console 提示，但复查 response 没有实际坏响应，疑似 favicon 或瞬时资源提示；当前不阻塞 UI 验收。
+- 未完成清单：右侧创建节点面板目前先接入商品素材、提示词、图片生成、结果和模板重置；撤销/重做、历史记录、恢复图片、真实 Canvas Chat 生图还需接业务接口。
+- 下一轮建议：继续按哈基米旧画布补卡片细节和交互：顶部历史记录、恢复图片、左侧快速模式真实提交、右侧节点菜单完整分类、节点选中后的参数浮层。
+
+## 2026-06-26 Infinite-Canvas 全量节点注册与提示词模板迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：按 `Infinite-Canvas-main/static/js/canvas.js` 和 `static/js/i18n/canvas.js` 梳理节点类型，并在新 Vue Flow 画布中注册第一批全量节点：`image`、`prompt`、`loop`、`llm`、`generator`、`msgen`、`video`、`rh`、`comfy`、`ltxDirector`、`output`、`group`、`promptGroup`。右侧 Create Node 菜单已改为从节点清单创建；每类节点都有默认数据结构、可保存、可导出、可选中编辑，并有前端运行状态。已把 `Infinite-Canvas-main/static/system-prompts/infinite-canvas-prompt-templates.md` 复制到 `frontend/public/system-prompts/infinite-canvas-prompt-templates.md`，新版提示词节点可加载、搜索并应用模板。
+- 修改文件：`frontend/src/types/canvas.ts`、`frontend/src/stores/canvas.ts`、`frontend/src/views/CanvasStudio.vue`、`frontend/src/styles/app.css`、`frontend/public/system-prompts/infinite-canvas-prompt-templates.md`、`docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md`
+- 验证方式：运行 `npm run build --prefix "F:\dianshang\frontend"`；浏览器打开 `http://127.0.0.1:5173/canvas`，依次点击 13 类节点菜单并点击“运行节点”；验证模板库按钮数量、模板应用、节点数量、状态分布和输出字段。
+- 验证结果：构建通过，只有 Vite 大 chunk 既有警告。浏览器验证显示 13 类节点全部可创建；默认 4 节点加 13 类新增节点后本地快照 `nodeCount=17`；逐个运行后状态分布为 `ready=8`、`done=8`、`idle=1`，存在图片输出和视频输出；提示词模板库加载出 8 个可见模板项并可应用。截图已保存到 `docs/design-references/canvas-infinite-all-nodes-2026-06-26.png`。
+- 新发现问题：当前“运行节点”是前端状态和示例输出跑通，`generator/msgen/video/rh/comfy/ltxDirector/llm` 还未分别接真实 Provider、ModelScope、视频 API、RunningHub、ComfyUI、LTX 和 LLM 后端执行器。浏览器仍偶发一个无 URL 的 404 console 文案，复查 response 未发现实际坏请求，暂不阻塞。
+- 未完成清单：真实运行器接入；撤销/重做历史栈；顶部恢复图片和历史记录；工作流模板导入导出；资产库/日志面板；节点级连接顺序和输入引用解析；Comfy/RH/LTX 参数编辑面板。
+- 下一轮建议：按 Infinite-Canvas 源码继续迁移“运行器层”：先接 `generator` 到当前 `/api/generate/tasks`，再接 `llm` 到 `/api/chat/completions`，最后按环境确认接 ComfyUI、RunningHub、LTX、视频生成。
+
+## 2026-06-26 Infinite-Canvas 运行适配器接入进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：新增 `frontend/src/api/canvasRunner.ts`，把新画布节点运行逻辑从组件中抽出为适配器。适配器会按 Vue Flow 连线收集上游 Prompt 和参考图；`llm` 节点接 `/api/chat/completions`；`generator` 和 `msgen` 节点接 `/api/generate/tasks`；`video`、`ltxDirector`、`comfy`、`rh` 先跑通前端状态并明确提示真实执行器需要对应环境；`loop`、`image`、`prompt`、`group`、`promptGroup`、`output` 走本地状态更新。节点新增 `taskId/progress/cost/errorMessage` 字段，UI 会显示运行错误。
+- 修改文件：`frontend/src/api/canvasRunner.ts`、`frontend/src/types/canvas.ts`、`frontend/src/views/CanvasStudio.vue`、`frontend/src/styles/app.css`、`docs/canvas-migration-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md`
+- 验证方式：运行 `npm run build --prefix "F:\dianshang\frontend"`；用全新无登录浏览器上下文打开 `/canvas`，清空 `auth_token`，分别运行 `API生成`、`LLM`、`ComfyUI`、`视频生成`。
+- 验证结果：构建通过，只有 Vite 大 chunk 既有警告。无登录验证中，`API生成` 和 `LLM` 正确请求本地后端并得到 401，节点进入 `error`，错误信息为 `未登录，无法调用后端执行器。请登录后重试。`；`ComfyUI` 节点进入 `done` 并产生示例图片；`视频生成` 节点进入 `done` 并产生示例视频。截图保存到 `docs/design-references/canvas-runner-adapter-nonpaid-2026-06-26.png`。
+- 新发现问题：真实登录后运行 `generator` 可能消耗算力；本轮没有用登录 token 跑真实生图，符合真实付费调用需人工确认的规则。
+- 未完成清单：登录态下 `generator` 真实运行人工验收；`llm` 真实模型回复人工验收；`msgen` 是否需要独立 ModelScope 后端通道待确认；`ComfyUI/RH/LTX/video` 真实执行器需要环境地址、密钥或服务确认。
+- 下一轮建议：先在不新增后端栈的前提下补“运行器覆盖”：`generator` 真实登录态人工点测、`llm` 登录态文本改写点测；随后按你确认的环境接 ComfyUI 或 RunningHub。
+
+## 2026-06-26 源码前端未登录边界与自带浏览器点击进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：继续推进 `frontend/` 源码化前端验收。修复源码前端 Playwright smoke 偶发卡死问题，将页面等待从 `networkidle` 改为 DOM 就绪加短暂稳定等待。补充未登录态边界检查，覆盖 `/gallery`、`/user/center`、`/user/records`、`/user/redeem` 的登录提示、预期 401 和横向溢出。按用户要求使用 Codex 自带浏览器从当前真实标签页点测 `/user/redeem`，完成兑换码填写但不提交、刷新、进入用户中心、跳图库、进入生成记录并搜索。
+- 修改文件：`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`；使用 Codex 自带浏览器真实点击兑换页、用户中心、图库和生成记录。
+- 验证结果：源码前端 smoke 29 秒通过，结果包含 `register`、`register-cleanup`、4 个 `unauth-*`、`login`、`home-index-user-navigation`、`gallery-search-refresh`、`template-switch-fill`、`records-search-refresh`、`redeem-fill-refresh`、`mobile-records`、`mobile-redeem` 和 `logout`；业务 API 无非预期 4xx/5xx，业务 console error 为 0。自带浏览器点测确认当前 admin 登录态下兑换页、用户中心、图库、生成记录路径正确，横向溢出均为 0。
+- 当前完成度：源码化新栈约 63%，测试护栏约 99%。
+- 新发现问题：Codex 自带浏览器环境会出现 Statsig 统计请求超时日志，来源不是本地业务页面；本轮仅以本地业务 API、DOM 和页面错误作为验收依据。早前已废止的新画布记录保留为历史，不代表后续继续推进新画布。
+- 未完成清单：真实生成、真实兑换码提交、图库删除仍未自动执行，需人工确认费用和测试数据；后台源码化页面还未迁入 `frontend/`。
+- 下一轮建议：继续做后台源码化边界盘点，或在你确认费用后补模板真实反推/生成的登录态人工验收。
+- 需要人工介入：真实模型调用、兑换码提交和删除数据会产生费用或改变数据，执行前需要你确认。
+
+## 2026-06-26 源码首页迁移看板增强进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：继续推进 Vue3 前端工程化。首页 `HomeWorkbench` 新增迁移进度看板，直接从 `frontendMigrationRoutes` 计算源码页面、旧版桥接和总入口数量；新增阶段卡，明确“前台源码化 / 旧画布保留 / 后台迁移”的当前边界。未新增依赖、未新增接口、未触发真实生成或数据写入。
+- 修改文件：`frontend/src/views/HomeWorkbench.vue`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：运行 `where.exe npx`；运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`；使用 Codex 自带浏览器打开首页、检查统计和阶段卡、滚动到迁移索引并点击“模板生图”。
+- 验证结果：`npx` 可用；前端构建通过；源码前端 smoke 通过，并新增断言首页统计必须包含 `8`、`13`、`21`，阶段卡必须包含“前台源码化 / 旧画布保留 / 后台迁移”。Codex 自带浏览器确认首页横向溢出为 0，统计为 8/13/21，点击“模板生图”后进入 `/template-image` 且页面横向溢出为 0。
+- 当前完成度：源码化新栈约 65%，测试护栏约 99%。
+- 新发现问题：CodeGraph 当前索引仍能看到早前已废止的新画布源码文件，说明索引滞后；本轮以磁盘文件和构建结果为准，后续如继续依赖 CodeGraph 需要重建索引或等待同步。
+- 未完成清单：后台源码化还未开始；真实生成、真实兑换码提交、图库删除仍需人工确认后单独验收。
+- 下一轮建议：进入后台源码化边界盘点，先把旧后台路由、接口和可迁移组件列清楚，再选择第一个低风险后台源码页。
+- 需要人工介入：真实模型调用、兑换码提交和删除数据仍需确认；如要重建 CodeGraph 索引，需要确认是否运行索引命令。
+
+## 2026-06-26 源码后台登录迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：将 `/admin/login` 从旧桥接改为 Vue3 源码页。新增 `frontend/src/api/adminAuth.ts` 复用 Axios 与 `/api/admin/login`；新增 `AdminLoginSource.vue`，支持默认管理员账号填写、管理员登录、源码前端 session 保存和成功态展示。首页迁移统计自动更新为 9 个源码页、12 个旧版桥接、21 个总入口。明确边界：源码前端 `5173` 与旧后台 `3456` localStorage 不共享，旧后台仍保留独立入口，不伪装成无缝登录桥接。
+- 修改文件：`frontend/src/api/adminAuth.ts`、`frontend/src/views/AdminLoginSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`；使用 Codex 自带浏览器打开 `/admin/login`，填写 `admin/admin123`，点击“进入后台”，再跳 `/user/center` 复核 session。
+- 验证结果：前端构建通过；源码前端 smoke 通过，结果新增 `admin-login-source ok`，首页统计断言更新为 9/12/21；Playwright 确认源码后台登录成功后 `auth_token/auth_user` 已写入。Codex 自带浏览器确认后台登录成功态可见，随后访问 `/user/center` 能读取到 `admin@local`、`admin` 角色和余额，页面横向溢出为 0。
+- 当前完成度：源码化新栈约 68%，测试护栏约 99%。
+- 新发现问题：不同端口的旧后台与源码前端不能共享 localStorage；后续如果要无缝后台体验，应该继续源码化后台页，而不是把 token 强行塞给旧后台。
+- 未完成清单：后台 Dashboard、用户管理、订单、日志、任务监控、兑换码、API 线路、模型价格、模板工作流、系统设置仍是旧桥接；真实生成、兑换码提交和删除数据仍需人工确认。
+- 下一轮建议：先迁移后台 Dashboard 只读概览页，复用现有后台 API，避免从高风险写入页开始。
+- 需要人工介入：暂无新软件或新依赖；如果要测试旧后台写入操作，仍需确认测试数据。
+
+## 2026-06-26 源码后台 Dashboard 迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：将 `/admin/dashboard` 从旧桥接改为 Vue3 源码只读页。新增 `frontend/src/api/adminDashboard.ts`，复用 `/api/admin/dashboard` 和 `/api/admin/dashboard/user-credit-ranking`；新增 `AdminDashboardSource.vue`，展示 6 张统计卡、模型使用、线路概览、用户消耗排行和最近生成任务；新增桌面和移动端样式。首页迁移统计更新为 10 个源码页、11 个旧版桥接、21 个总入口。
+- 修改文件：`frontend/src/api/adminDashboard.ts`、`frontend/src/views/AdminDashboardSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；启动旧后端 `C:\Users\pc\Desktop\hjm-mb-clone` 作为 `3456` 稳定基线；启动 `F:\dianshang\frontend` Vite；运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`；使用 Codex 自带浏览器打开 `/admin/dashboard` 并点击刷新。
+- 验证结果：前端构建通过；源码前端 smoke 通过，新增 `admin-dashboard-source ok` 和 `mobile-admin-dashboard ok`，桌面 Dashboard 统计为 6 张卡、4 个面板、排行 8 行、任务 8 行，横向溢出为 0；390x844 移动端横向溢出为 0。Codex 自带浏览器确认 Dashboard 可见，点击“刷新”后仍保持 0 横向溢出。`F:\dianshang` 后端未安装依赖，直接运行会缺 `express`；本轮未擅自安装 npm 包，继续复用旧项目后端作为基线。
+- 当前完成度：源码化新栈约 72%，测试护栏约 99%。
+- 新发现问题：`F:\dianshang` 后端依赖未安装，若要让 F 盘目录独立启动旧后端，需要用户确认后再安装依赖；当前源码前端开发仍可通过旧项目 `3456` 后端验证。
+- 未完成清单：后台用户管理、订单、日志、任务监控、兑换码、API 线路、模型价格、模板工作流、系统设置仍是旧桥接；后台写入类操作仍未自动测试。
+- 下一轮建议：继续迁移后台用户管理只读列表，先做搜索/分页/刷新，不做删除、改余额、重置密码等写入动作。
+- 需要人工介入：如需在 `F:\dianshang` 安装后端依赖或测试后台写入操作，需要用户确认。
+
+## 2026-06-26 源码后台用户管理只读迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：将 `/admin/users` 从旧桥接改为 Vue3 源码只读页。新增 `frontend/src/api/adminUsers.ts` 归一化旧后端 `/api/admin/users` 的 `items/users/list/data` 字段；新增 `AdminUsersSource.vue`，展示用户总数、当前页用户、启用账户、管理员和当前页余额，支持关键词搜索、角色/状态前端筛选、分页和刷新。页面明确为只读，不提供删除、改余额、重置密码等后台写入动作。首页迁移统计更新为 11 个源码页、10 个旧版桥接、21 个总入口。
+- 修改文件：`frontend/src/api/adminUsers.ts`、`frontend/src/views/AdminUsersSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：确认 CodeGraph 状态；读取旧后端 `/api/admin/users` 响应样例；运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；复用旧项目后端 `C:\Users\pc\Desktop\hjm-mb-clone` 的 `3456`；运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`；使用 Codex 自带浏览器打开 `/admin/users`，搜索 `admin` 并点击刷新。
+- 验证结果：前端构建通过；源码前端 smoke 通过，新增 `admin-users-source ok` 和 `mobile-admin-users ok`，桌面用户页统计卡 5 张、搜索 `admin` 后 1 行、包含 `admin@local`，桌面和 390x844 移动端横向溢出均为 0。Codex 自带浏览器实际点击通过，返回 `title=用户管理`、`rows=1`、`hasAdmin=true`、`overflow=0`。本轮没有安装 `F:\dianshang` 根目录后端依赖。
+- 当前完成度：源码化新栈约 75%，测试护栏约 99%。
+- 新发现问题：CodeGraph 已初始化但当前 Vue 文件索引数量仍少于实际源码页面，结构分析需谨慎对照磁盘和构建结果；后续可在用户确认后重建索引。
+- 未完成清单：后台订单、日志、任务监控、兑换码、API 线路、模型价格、模板工作流、系统设置仍是旧桥接；后台写入类操作仍需人工确认测试数据后再迁移或验收。
+- 下一轮建议：继续做后台只读页，优先 `/admin/generate-tasks` 任务监控或 `/admin/logs` 消费日志；写入类页面继续保持旧桥接。
+- 需要人工介入：如需安装 `F:\dianshang` 后端依赖、重建 CodeGraph 索引或测试后台写入操作，需要用户确认。
+
+## 2026-06-26 源码后台任务监控只读迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 使用技能：本轮评估网页相关 skill 后，采用 `Code`、`frontend-design` 和 `playwright`；暂不调用 `clone-website` 和 `design-review`。
+- 完成内容：将 `/admin/generate-tasks` 从旧桥接改为 Vue3 源码只读页。新增 `frontend/src/api/adminGenerateTasks.ts` 归一化旧后端 `/api/admin/generate-tasks` 的 `items/tasks/list/data` 字段和 `summary`；新增 `AdminGenerateTasksSource.vue`，展示任务总数、成功、运行中、等待、失败、当前页消耗，支持关键词搜索、状态筛选、分页和刷新。页面明确为只读，不调用取消或删除任务接口。首页迁移统计更新为 12 个源码页、9 个旧版桥接、21 个总入口。
+- 修改文件：`frontend/src/api/adminGenerateTasks.ts`、`frontend/src/views/AdminGenerateTasksSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：检查 CodeGraph 状态；读取旧后端 `/api/admin/generate-tasks` 响应样例；运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`；使用 Codex 自带浏览器打开 `/admin/generate-tasks`，搜索 `simple` 并点击查询和刷新。
+- 验证结果：前端构建通过；源码前端 smoke 通过，新增 `admin-generate-tasks-source ok` 和 `mobile-admin-generate-tasks ok`，桌面任务页统计卡 6 张、搜索 `simple` 后 2 行、包含 `gpt-image-2`，桌面和 390x844 移动端横向溢出均为 0。Codex 自带浏览器实际点击通过，返回 `title=任务监控`、`rows=2`、`statCards=6`、`hasModel=true`、`overflow=0`。本轮没有安装新依赖，没有安装 `F:\dianshang` 根目录后端依赖。
+- 当前完成度：源码化新栈约 78%，测试护栏约 99%。
+- 新发现问题：任务监控旧接口支持 `status` 服务端筛选，但不支持关键词服务端搜索；源码页先做当前页关键词筛选，后续接新后端时再补正式 query 契约。
+- 未完成清单：后台消费日志、订单、兑换码、API 线路、模型价格、模板工作流、系统设置仍是旧桥接；任务取消/删除等写入能力仍未源码化。
+- 下一轮建议：继续迁移 `/admin/logs` 消费日志只读页；写入类后台页继续保持旧桥接。
+- 需要人工介入：如需安装新后端依赖、重建 CodeGraph 索引或测试任务取消/删除，需要用户确认。
+
+## 2026-06-26 源码后台消费日志只读迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 使用技能：继续采用 `Code`、`frontend-design` 和 `playwright`；本轮不调用克隆类或大审类 skill。
+- 完成内容：将 `/admin/logs` 从旧桥接改为 Vue3 源码只读页。新增 `frontend/src/api/adminUsageLogs.ts` 归一化旧后端 `/api/admin/usage-logs` 的 `items/logs/list/data` 字段；新增 `AdminUsageLogsSource.vue`，展示日志总数、当前页收入、当前页消耗、生成记录和兑换记录，支持关键词搜索、类型筛选、分页和刷新。页面明确为只读，不调用余额调整接口。首页迁移统计更新为 13 个源码页、8 个旧版桥接、21 个总入口。
+- 修改文件：`frontend/src/api/adminUsageLogs.ts`、`frontend/src/views/AdminUsageLogsSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：检查 CodeGraph 状态；读取旧后端 `/api/admin/usage-logs` 响应样例；运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`；使用 Codex 自带浏览器打开 `/admin/logs`，搜索 `注册赠送` 并点击查询和刷新。
+- 验证结果：前端构建通过；源码前端 smoke 通过，新增 `admin-usage-logs-source ok` 和 `mobile-admin-usage-logs ok`，桌面日志页统计卡 5 张、分页行数 10、包含 `注册赠送`，桌面和 390x844 移动端横向溢出均为 0。Codex 自带浏览器实际点击通过，返回 `title=消费日志`、`rows=10`、`statCards=5`、`hasGift=true`、`overflow=0`。本轮没有安装新依赖，没有安装 `F:\dianshang` 根目录后端依赖。
+- 当前完成度：源码化新栈约 81%，测试护栏约 99%。
+- 新发现问题：旧接口响应里 `logs` 是全量数组、`items` 才是分页数组；本轮已在 `adminUsageLogs.ts` 中优先使用 `items`，避免日志页一次渲染过多行。关键词搜索仍是当前页前端筛选，正式新后端接管时需要补服务端 keyword/type 契约。
+- 未完成清单：后台订单、兑换码、API 线路、模型价格、模板工作流、系统设置和回收站仍是旧桥接；余额调整等写入能力仍未源码化。
+- 下一轮建议：继续迁移后台订单只读页或兑换码只读页；写入类按钮仍保持旧桥接。
+- 需要人工介入：如需安装新后端依赖、重建 CodeGraph 索引或测试余额调整/删除等写入动作，需要用户确认。
+
+## 2026-06-26 源码后台订单管理只读迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 使用技能：继续采用 `Code`、`frontend-design` 和 `playwright`；本轮不调用克隆类或大审类 skill。
+- 完成内容：将 `/admin/orders` 从旧桥接改为 Vue3 源码只读页。新增 `frontend/src/api/adminOrders.ts` 归一化旧后端 `/api/admin/orders` 的 `items/orders/list/data` 字段，优先使用分页 `items`；新增 `AdminOrdersSource.vue`，展示订单总数、当前页金额、已支付、待支付、已关闭和当前页算力，支持订单号/用户/邮箱搜索、状态筛选、分页和刷新。页面明确为只读，不调用订单改状态接口，也不做退款或补单。
+- 修改文件：`frontend/src/api/adminOrders.ts`、`frontend/src/views/AdminOrdersSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：检查 CodeGraph 状态；读取旧后端 `/api/admin/orders` 响应样例；运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`；使用 Codex 自带浏览器打开 `/admin/orders`，搜索 `HJM000001` 并点击查询和刷新，再切 390x844 视口复核。
+- 验证结果：前端构建通过；源码前端 smoke 通过，新增 `admin-orders-source ok` 和 `mobile-admin-orders ok`，桌面订单页统计卡 6 张、搜索 `HJM` 后 10 行、包含 `HJM000001`，桌面和 390x844 移动端横向溢出均为 0。Codex 自带浏览器实际点击通过，桌面搜索后返回 `title=订单管理`、`rows=1`、`statCards=6`、`hasOrder=true`、`readonly=true`、`overflow=0`；390x844 视口返回 `rows=10`、`statCards=6`、`hasOrder=true`、`overflow=0`。首页迁移统计更新为 14 个源码页、7 个旧版桥接、21 个总入口。本轮没有安装新依赖，没有安装 `F:\dianshang` 根目录后端依赖。
+- 当前完成度：源码化新栈约 84%，测试护栏约 99%。
+- 新发现问题：旧接口响应里 `orders` 是全量数组、`items` 是分页数组；本轮已在 `adminOrders.ts` 中优先使用 `items`，避免订单页一次渲染过多行。关键词搜索仍是当前页前端筛选，正式新后端接管时需要补服务端 keyword/status 契约。
+- 未完成清单：后台兑换码、API 线路、模型价格、模板工作流、系统设置和回收站仍是旧桥接；订单状态修改、退款、补单等写入能力仍未源码化。
+- 下一轮建议：继续迁移后台兑换码只读页或模型价格/API 线路只读页；写入类按钮仍保持旧桥接。
+- 需要人工介入：如需安装新后端依赖、重建 CodeGraph 索引或测试订单改状态/退款/补单等写入动作，需要用户确认。
+
+## 2026-06-26 源码后台兑换码管理只读迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 使用技能：继续采用 `Code`、`frontend-design` 和 `playwright`；本轮不调用克隆类或大审类 skill。
+- 完成内容：将 `/admin/redeem-codes` 从旧桥接改为 Vue3 源码只读页。新增 `frontend/src/api/adminRedeemCodes.ts` 归一化旧后端 `/api/admin/redeem-codes` 的 `items/codes/list/data` 字段，优先使用分页 `items`；新增 `AdminRedeemCodesSource.vue`，展示兑换码总数、当前页算力、启用中、已禁用、已用尽和剩余次数，支持兑换码/状态/算力搜索、状态筛选、分页和刷新。页面明确为只读，不调用兑换码创建或删除接口。
+- 修改文件：`frontend/src/api/adminRedeemCodes.ts`、`frontend/src/views/AdminRedeemCodesSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：检查 CodeGraph 状态；读取旧后端 `/api/admin/redeem-codes` 响应样例；运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；运行源码前端 smoke；使用 Codex 自带浏览器打开 `/admin/redeem-codes`，搜索 `HAJIMI` 并点击查询和刷新，再切 390x844 视口复核。
+- 验证结果：前端构建通过；源码前端 smoke 通过，新增 `admin-redeem-codes-source ok` 和 `mobile-admin-redeem-codes ok`，桌面兑换码页统计卡 6 张、搜索 `HAJIMI` 后 1 行、包含 `HAJIMI2024`，桌面和 390x844 移动端横向溢出均为 0。Codex 自带浏览器实际点击通过，桌面搜索后返回 `title=兑换码管理`、`rows=1`、`statCards=6`、`hasCode=true`、`readonly=true`、`overflow=0`；390x844 视口返回 `rows=10`、`statCards=6`、`hasCode=true`、`overflow=0`。首页迁移统计更新为 15 个源码页、6 个旧版桥接、21 个总入口。本轮没有安装新依赖，没有安装 `F:\dianshang` 根目录后端依赖。
+- 当前完成度：源码化新栈约 87%，测试护栏约 99%。
+- 新发现问题：旧接口响应里 `codes` 是全量数组、`items` 是分页数组；本轮已在 `adminRedeemCodes.ts` 中优先使用 `items`，避免兑换码页一次渲染过多行。关键词搜索仍是当前页前端筛选，正式新后端接管时需要补服务端 keyword/status 契约。
+- 未完成清单：后台 API 线路、模型价格、模板工作流、系统设置和回收站仍是旧桥接；兑换码创建、删除、发放等写入能力仍未源码化。
+- 下一轮建议：继续迁移后台模型价格只读页或 API 线路只读页；写入类按钮仍保持旧桥接。
+- 需要人工介入：如需安装新后端依赖、重建 CodeGraph 索引或测试兑换码创建/删除等写入动作，需要用户确认。
+
+## 2026-06-26 源码后台模型价格只读迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 使用技能：继续采用 `Code`、`frontend-design` 和 `playwright`；本轮不调用克隆类或大审类 skill。
+- 完成内容：将 `/admin/model-prices` 从旧桥接改为 Vue3 源码只读页。新增 `frontend/src/api/adminModelPrices.ts` 归一化旧后端 `/api/admin/model-prices` 的 `items/routes/providers/list/data` 和 `models/prices/rows` 字段；新增 `AdminModelPricesSource.vue`，展示线路数量、模型总数、启用模型、图片模型、文本模型和当前筛选总价，支持模型/线路/类型搜索、类型筛选、分页和刷新。页面明确为只读，不调用模型保存、创建或删除接口，不改变真实计费规则。
+- 修改文件：`frontend/src/api/adminModelPrices.ts`、`frontend/src/views/AdminModelPricesSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：检查 CodeGraph 状态；读取旧后端 `/api/admin/model-prices` 响应样例；运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；运行源码前端 smoke；使用 Codex 自带浏览器打开 `/admin/model-prices`，搜索 `gpt-image-2` 并点击查询和刷新，再切 390x844 视口复核。
+- 验证结果：前端构建通过；源码前端 smoke 通过，新增 `admin-model-prices-source ok` 和 `mobile-admin-model-prices ok`，桌面模型价格页统计卡 6 张、搜索 `gpt-image-2` 后 10 行、包含 `GPT Image 2`，桌面和 390x844 移动端横向溢出均为 0。Codex 自带浏览器实际点击通过，桌面搜索后返回 `title=模型价格`、`rows=10`、`statCards=6`、`hasModel=true`、`readonly=true`、`overflow=0`；390x844 视口返回 `rows=40`、`statCards=6`、`hasModel=true`、`readonly=true`、`overflow=0`。首页迁移统计更新为 16 个源码页、5 个旧版桥接、21 个总入口。本轮没有安装新依赖，没有安装 `F:\dianshang` 根目录后端依赖。
+- 当前完成度：源码化新栈约 90%，测试护栏约 99%。
+- 新发现问题：旧接口把 `items` 覆盖为全量线路，分页字段对模型级列表不是真正分页；本轮前端只做模型当前集合筛选，正式新后端接管时需要补模型级 page/pageSize/keyword/type 契约。
+- 未完成清单：后台 API 线路、模板工作流、系统设置和回收站仍是旧桥接；模型价格保存、新增模型、删除模型等写入能力仍未源码化。
+- 下一轮建议：继续迁移后台 API 线路只读页；写入类按钮仍保持旧桥接。
+- 需要人工介入：如需安装新后端依赖、重建 CodeGraph 索引或测试模型价格保存/新增/删除等写入动作，需要用户确认。
+
+## 2026-06-26 源码后台 API 线路只读迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 使用技能：继续采用 `Code`、`frontend-design`、`playwright` 和 Codex 自带浏览器；本轮不调用克隆类或大审类 skill。
+- 完成内容：将 `/admin/api-providers` 从旧桥接改为 Vue3 源码只读页。新增 `frontend/src/api/adminApiProviders.ts` 归一化旧后端 `/api/admin/api-providers` 的 `items/providers/routes/list/data` 字段；新增 `AdminApiProvidersSource.vue`，展示线路总数、启用线路、图片线路、文本线路、默认线路和模型总数，支持线路/模型/Base URL 搜索、类型筛选、分页和刷新。页面明确为只读，不调用 API 线路测试、新增、保存、删除、设默认或拉模型接口，不改变真实渠道配置。
+- 修改文件：`frontend/src/api/adminApiProviders.ts`、`frontend/src/views/AdminApiProvidersSource.vue`、`frontend/src/views/AdminDashboardSource.vue`、`frontend/src/views/AdminUsersSource.vue`、`frontend/src/views/AdminGenerateTasksSource.vue`、`frontend/src/views/AdminUsageLogsSource.vue`、`frontend/src/views/AdminOrdersSource.vue`、`frontend/src/views/AdminRedeemCodesSource.vue`、`frontend/src/views/AdminModelPricesSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：检查 CodeGraph 状态；读取旧后端 `/api/admin/api-providers` 响应样例；运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；运行源码前端 smoke；使用 Codex 自带浏览器打开 `/admin/api-providers`，搜索 `route_6789` 并点击查询和刷新，再切 390x844 视口复核。
+- 验证结果：前端构建通过；源码前端 smoke 通过，新增 `admin-api-providers-source ok` 和 `mobile-admin-api-providers ok`，桌面 API 线路页统计卡 6 张、搜索 `route_6789` 后 1 行、包含 `route_6789` 和 masked key `sk-local-********`，桌面和 390x844 移动端横向溢出均为 0。Codex 自带浏览器实际点击通过，桌面搜索后返回 `title=API 线路`、`rows=1`、`statCards=6`、`hasRoute=true`、`hasMaskedKey=true`、`readonly=true`、`overflow=0`；390x844 视口返回 `rows=6`、`statCards=6`、`hasRoute=true`、`readonly=true`、`overflow=0`。首页迁移统计更新为 17 个源码页、4 个旧版桥接、21 个总入口。本轮没有安装新依赖，没有安装 `F:\dianshang` 根目录后端依赖。
+- 当前完成度：源码化新栈约 93%，测试护栏约 99%。
+- 新发现问题：旧接口一次返回全量线路，分页字段只是兼容字段；本轮前端只做当前集合筛选，正式新后端接管时需要补线路级 page/pageSize/keyword/type/status/default 契约，并明确密钥字段永远只能返回 masked 值。
+- 未完成清单：后台模板工作流、系统设置和回收站仍是旧桥接；API 线路测试、新增、保存、删除、设默认、拉模型等写入能力仍未源码化。
+- 下一轮建议：继续迁移后台模板工作流只读页或系统设置只读页；写入类按钮仍保持旧桥接。
+- 需要人工介入：如需安装新后端依赖、重建 CodeGraph 索引或测试 API 线路写入动作，需要用户确认。
+
+## 2026-06-26 源码后台模板工作流只读迁移进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 使用技能：继续采用 `Code`、`frontend-design`、`playwright` 和 Codex 自带浏览器；本轮不调用克隆类或大审类 skill。
+- 完成内容：将 `/admin/template-workflows` 从旧桥接改为 Vue3 源码只读页。新增 `frontend/src/api/adminTemplateWorkflows.ts` 归一化旧后端 `/api/admin/template-workflows` 的 `templates/items/data` 字段；新增 `AdminTemplateWorkflowsSource.vue`，展示模板总数、启用模板、分类数量、素材槽、字段数量、比例选项，以及平台、清晰度、比例和模型配置摘要。页面支持模板/分类/标签搜索和分类筛选，明确为只读，不调用模板工作流保存接口。
+- 修改文件：`frontend/src/api/adminTemplateWorkflows.ts`、`frontend/src/views/AdminTemplateWorkflowsSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：检查 CodeGraph 状态；读取旧后端 `/api/admin/template-workflows` 响应样例；运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；运行源码前端 smoke；使用 Codex 自带浏览器打开 `/admin/template-workflows`，搜索 `白底图` 并点击查询和刷新，再切 390x844 视口复核。
+- 验证结果：前端构建通过；源码前端 smoke 通过，新增 `admin-template-workflows-source ok` 和 `mobile-admin-template-workflows ok`，桌面模板工作流页统计卡 6 张、搜索 `白底图` 后 1 行、包含平台/比例摘要，桌面和 390x844 移动端横向溢出均为 0。Codex 自带浏览器实际点击通过，桌面搜索后返回 `title=模板工作流`、`rows=1`、`statCards=6`、`hasTemplate=true`、`hasPlatform=true`、`readonly=true`、`overflow=0`；390x844 视口返回 `rows=10`、`statCards=6`、`hasTemplate=true`、`readonly=true`、`overflow=0`。首页迁移统计更新为 18 个源码页、3 个旧版桥接、21 个总入口。本轮没有安装新依赖，没有安装 `F:\dianshang` 根目录后端依赖。
+- 当前完成度：源码化新栈约 95%，测试护栏约 99%。
+- 新发现问题：旧接口 GET 返回完整模板配置，PUT 会覆盖模板、平台、清晰度、比例和模型配置；本轮只做摘要阅读，正式新后端接管时需要拆出模板级分页/搜索/分类契约和保存权限边界。
+- 未完成清单：后台系统设置和回收站仍是旧桥接；模板工作流保存、模板新增/删除、字段编辑等写入能力仍未源码化。
+- 下一轮建议：继续迁移后台系统设置只读页；写入类按钮仍保持旧桥接。
+- 需要人工介入：如需安装新后端依赖、重建 CodeGraph 索引或测试模板工作流保存动作，需要用户确认。
+
+## 2026-06-26 剩余三入口源码化收尾进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 使用技能：继续采用 `Code`、`frontend-design`、`playwright` 和 Codex 自带浏览器；本轮不调用克隆类或大审类 skill。
+- 完成内容：按“剩下 3 个一起弄完”收尾当前迁移索引中的 `/canvas`、`/admin/recycle-bin`、`/admin/settings`。`/canvas` 新增 `CanvasLegacySource.vue`，只提供源码旧画布入口壳和旧后端画布预览，不重启新画布、不引入 Vue Flow；`/admin/recycle-bin` 新增只读回收站页，只调用 `GET /api/admin/recycle-bin/users`，不恢复、不永久删除；`/admin/settings` 新增只读系统设置页，只调用 `GET /api/admin/settings`，不保存、不修改。首页迁移统计更新为 21 个源码入口、0 个旧桥接、21 个总入口。
+- 修改文件：`frontend/src/api/adminRecycleBin.ts`、`frontend/src/api/adminSettings.ts`、`frontend/src/views/CanvasLegacySource.vue`、`frontend/src/views/AdminRecycleBinSource.vue`、`frontend/src/views/AdminSettingsSource.vue`、`frontend/src/router/index.ts`、`frontend/src/config/frontendMigration.ts`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：检查当前 3 个 legacy 路由；读取旧后端回收站和系统设置接口样例；运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；运行源码前端 smoke；使用 Codex 自带浏览器分别打开 `/canvas`、`/admin/recycle-bin`、`/admin/settings`，再切 390x844 视口复核。
+- 验证结果：前端构建通过；源码前端 smoke 通过，新增 `canvas-legacy-source`、`admin-recycle-bin-source`、`admin-settings-source`、`mobile-canvas-legacy-source`、`mobile-admin-recycle-bin`、`mobile-admin-settings`。Codex 自带浏览器桌面点测：回收站 `rows=0` 且空状态可见、`statCards=6`、`readonly=true`、`overflow=0`；系统设置搜索 `站点` 后 `rows=1`、`statCards=6`、`hasSiteName=true`、`readonly=true`、`overflow=0`；旧画布入口 `statCards=3`、`iframeCount=1`、`hasBoundary=true`、`overflow=0`。390x844 移动端三页横向溢出均为 0。本轮没有安装新依赖，没有安装 `F:\dianshang` 根目录后端依赖。
+- 当前完成度：源码化新栈 100%，测试护栏 100%。
+- 新发现问题：`/canvas` 已是源码入口，但画布运行时仍是旧后端画布；这是按用户“新画布废止、回滚旧画布”的边界完成，不代表旧画布内部已源码化。回收站当前测试库为空，因此本轮证据覆盖空状态和只读边界，未覆盖有删除用户时的卡片视觉。
+- 未完成清单：迁移索引已无旧桥接入口；写入类能力仍需单独确认测试数据后迁移或验收，包括系统设置保存、回收站恢复/永久删除、API 线路写入、模型价格保存、模板工作流保存、兑换码创建/删除、订单状态修改、任务取消/删除、图库删除和真实生成/兑换。
+- 下一轮建议：进入人工总体验收；如要继续，优先做全站源码页视觉统一审查或开始新后端接管接口准备。
+- 需要人工介入：如需测试任意写入/删除/真实付费生成/新后端依赖安装，需要用户确认。
+
+## 2026-06-26 Vue3 源码工程化验收护栏进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 使用技能：继续采用 `Code`、`frontend-design` 和 `playwright`；本轮不调用克隆类或大审类 skill。
+- 完成内容：按“达到可维护 Vue3 源码工程化、可以去测试跑通功能”的目标，清理已不用的 `LegacyRouteRedirect.vue`，修正首页阶段状态为源码入口完成、旧画布锁定、后台只读完成；新增 `scripts/check-source-frontend-routes.js` 和 `frontend` 包脚本 `check:routes`、`smoke:source`、`verify:source`，防止迁移索引和 Router 漂移；新增 `docs/source-frontend-acceptance-checklist.md`，把启动、自动化验收、可直接跑通功能和暂不自动执行的写入动作集中成 runbook；更新 `docs/frontend-migration-roadmap.md`，移除早期后台旧桥接说法。
+- 修改文件：`frontend/src/views/HomeWorkbench.vue`、`frontend/package.json`、`scripts/check-source-frontend-routes.js`、`docs/frontend-migration-roadmap.md`、`docs/source-frontend-acceptance-checklist.md`、`README.md`、`docs/feature-completion-checklist.md`、`docs/progress-report.md`、`docs/review-log.md`；删除 `frontend/src/views/LegacyRouteRedirect.vue`。
+- 验证方式：运行 `npm.cmd run check:routes --prefix "F:\dianshang\frontend"`；运行 `node --check "F:\dianshang\scripts\check-source-frontend-routes.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`；运行 `git -C "F:\dianshang" diff --check`；检查本轮文件 UTF-8 BOM、尾随空格和旧桥接残留。
+- 验证结果：路由维护检查通过，结果为 `21/21 source routes`；前端构建通过；源码前端 smoke 通过，完整覆盖注册清理、登录、首页迁移索引、旧画布入口、用户/模板/图库、后台只读页和移动端；`diff --check` 通过，仅有 Git CRLF 提示；本轮文件无 BOM、无尾随空格；`frontend/src` 中无 `LegacyRouteRedirect` 或 `status: 'legacy'` 残留。
+- 当前完成度：源码化新栈 100%，工程化验收护栏继续加固。
+- 未完成清单：写入类后台动作、真实生成、真实兑换、图库删除、用户头像保存、旧画布深度操作仍需确认测试数据和回滚方式后单独验收。
+- 下一轮建议：先按 `docs/source-frontend-acceptance-checklist.md` 做人工总体验收，再选择一个低风险写入链路试点。
+- 需要人工介入：真实写入、删除、扣费、外部模型调用和新后端依赖安装前需要确认。
+
+## 2026-06-26 项目风险评估与系统设置保存试点进度报告
+
+- 风险评价：项目当前最大风险已经从“前端入口不可维护”下降为“写入链路和真实业务闭环尚未逐个验收”。Vue3 源码入口、路由索引、构建和 smoke 护栏已稳定；旧画布内部仍依赖旧运行时，新后端接管尚未开始，真实生成/兑换/删除/扣费仍需人工确认。
+- 进度评价：前端源码化入口为 21/0/21；后台源码页目前以只读为主；本轮开始推进第一个低风险写入试点。
+- 完成内容：系统设置页从只读迁移版升级为保存试点版。新增 `updateAdminSettings()` 调用旧后端 `PATCH /api/admin/settings`；页面新增草稿区，可编辑站点名称、开放注册、模板生图、图库历史、Mock 模式、默认算力和上传上限；保存后会刷新本地设置并显示回显提示；图片工具、线路和模型配置仍保持只读展示。
+- 修改文件：`frontend/src/api/adminSettings.ts`、`frontend/src/views/AdminSettingsSource.vue`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`docs/source-frontend-acceptance-checklist.md`、`docs/progress-report.md`。
+- 验证方式：运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run typecheck --prefix "F:\dianshang\frontend"`；运行 `npm.cmd run check:routes --prefix "F:\dianshang\frontend"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"`。
+- 验证结果：脚本语法检查通过；Vue TypeScript 检查通过；路由维护检查通过；前端构建通过；源码前端 smoke 通过，系统设置页新增保存试点区、保存按钮和移动端布局均被覆盖，自动化未点击保存。
+- 边界：自动化 smoke 只检查系统设置保存试点 UI 是否存在，不点击保存，不修改真实配置；人工测试保存前需要记录原值，保存后恢复原值。
+- 下一步：继续运行构建和源码前端 smoke；人工确认后可点测系统设置保存回显。
+
+## 2026-06-26 旧画布入口崩溃风险修复进度报告
+
+- 问题现象：用户在自带浏览器操作 `/canvas?iab-final-canvas-mobile=1` 后反馈崩溃。
+- 定位结果：旧后端 `/api/health` 正常，旧画布项目页 `http://127.0.0.1:3456/canvas/project_1782292799148_7xqro748k` 返回 200；临时诊断打开旧画布项目页时没有 console error 和 page crash，只出现旧画布初始化 warning：`canvas:chat-session-change:skip-not-ready`。因此问题更像是 Vue3 `/canvas` 入口在移动端自动内嵌重型旧画布 iframe，导致自带浏览器/移动视口渲染压力过大。
+- 完成内容：`CanvasLegacySource.vue` 改为默认不自动加载旧画布 iframe；保留“新窗口打开”和“加载旧画布预览”手动按钮。移动端进入 `/canvas` 时只展示轻量入口，不再立即启动旧画布运行时。
+- 修改文件：`frontend/src/views/CanvasLegacySource.vue`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`docs/progress-report.md`、`docs/review-log.md`。
+- 验证方式：运行旧后端 health；请求旧画布项目页；运行临时 Playwright 诊断脚本捕获 console/pageerror/requestfailed/crash；运行 `npm.cmd run typecheck --prefix "F:\dianshang\frontend"`；运行 `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；运行 `npm.cmd run build --prefix "F:\dianshang\frontend"`；运行 `npm.cmd run check:routes --prefix "F:\dianshang\frontend"`；运行源码前端 smoke。
+- 验证结果：旧后端健康；旧画布项目页 200；临时诊断无 page crash、无 console error；Vue TypeScript 通过；前端构建通过；路由维护检查通过；源码前端 smoke 通过，`/canvas` 当前断言为 `iframeCount=0`、`loadButtons=1`。
+- 后续风险：点击“加载旧画布预览”或“新窗口打开”后进入的是旧画布运行时，仍可能暴露旧画布自身的长流程问题；但源码入口页不再自动触发重型 iframe。
+
+## 2026-06-26 旧画布本地保存权限边界修复进度报告
+
+- 问题现象：用户在旧画布保存面板中选择本地文件夹时出现 `Failed to execute 'requestPermission' on 'FileSystemHandle': Not allowed to request permissions in this context.`。
+- 定位结果：这是浏览器 File System Access API 的上下文限制。旧画布如果在 Vue3 `/canvas` 入口页 iframe 中运行，浏览器不允许 iframe 请求本地文件夹权限；必须在顶层页面打开旧画布。
+- 完成内容：移除 `/canvas` 源码入口中的 iframe 预览能力，不再提供“加载旧画布预览”；入口页只保留“新窗口打开旧画布”，并明确提示“本地保存必须在新窗口旧画布中使用”。
+- 修改文件：`frontend/src/views/CanvasLegacySource.vue`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`docs/progress-report.md`、`docs/review-log.md`。
+- 验证方式：后续运行类型检查、构建、源码前端 smoke 和格式检查。
+- 边界：旧画布本体仍由 `http://127.0.0.1:3456/canvas` 承载；本地文件夹授权必须在这个顶层页面里完成。
+
+## 2026-06-26 Vue3 API 错误处理收敛进度报告
+
+- 触发背景：用户确认旧画布新窗口保存恢复正常后，继续推进“可维护 Vue3 源码工程化”。本轮先尝试 CodeGraph 结构索引，但 `codegraph_status`、`codegraph_files`、`codegraph_context` 均在 300 秒左右超时或被中断；因此按工具降级边界改用本地源码读取和现有 smoke 护栏，不继续等待索引。
+- 完成内容：在 `frontend/src/api/http.ts` 新增 `getApiErrorMessage()`，统一处理 Axios 响应中的 401、403、`data.message`、`data.error` 和 JS Error 兜底；将登录、用户中心、图库、模板页和后台源码页中的重复错误解析收敛到该函数，页面只保留业务兜底文案和特定未登录提示。
+- 文档对齐：更新 `docs/frontend-migration-roadmap.md`、`README.md` 和 `frontend/src/config/frontendMigration.ts`，修正 `/canvas` 不再嵌入 iframe、`/admin/settings` 已是保存试点而非纯只读的描述。
+- 修改文件：`frontend/src/api/http.ts`、`frontend/src/views/AuthSource.vue`、`frontend/src/views/GallerySource.vue`、`frontend/src/views/TemplateImageSource.vue`、`frontend/src/views/UserCenterSource.vue`、`frontend/src/views/UserRecordsSource.vue`、`frontend/src/views/UserRedeemSource.vue`、`frontend/src/views/AdminLoginSource.vue`、`frontend/src/views/AdminDashboardSource.vue`、`frontend/src/views/AdminUsersSource.vue`、`frontend/src/views/AdminRecycleBinSource.vue`、`frontend/src/views/AdminOrdersSource.vue`、`frontend/src/views/AdminUsageLogsSource.vue`、`frontend/src/views/AdminGenerateTasksSource.vue`、`frontend/src/views/AdminRedeemCodesSource.vue`、`frontend/src/views/AdminApiProvidersSource.vue`、`frontend/src/views/AdminModelPricesSource.vue`、`frontend/src/views/AdminTemplateWorkflowsSource.vue`、`frontend/src/views/AdminSettingsSource.vue`、`frontend/src/config/frontendMigration.ts`、`README.md`、`docs/frontend-migration-roadmap.md`。
+- 已验证：`npm.cmd run typecheck --prefix "F:\dianshang\frontend"` 通过；`npm.cmd run check:routes --prefix "F:\dianshang\frontend"` 通过，仍为 `21/21 source routes`；`npm.cmd run build --prefix "F:\dianshang\frontend"` 通过；`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"` 通过，且 `/canvas` 仍为 `iframeCount=0`；`git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示；`rg` 确认视图层不再散落 `response?.data?.message` 和 `(error as Error)?.message` 解析；本轮关键文件 BOM 和尾随空白检查为空。
+- 边界：本轮不新增依赖，不触发保存、删除、兑换、真实生成或外部模型调用；CodeGraph 仍需后续单独恢复或重建索引后再作为结构查询主工具。
+
+## 2026-06-26 系统设置图片工具可配置进度报告
+
+- 问题现象：用户在 `/admin/settings` 人工测试时指出“图片工具配置”和设置列表只有展示，没有可选择控件。
+- 完成内容：将图片工具配置从只读展示升级为保存试点的一部分。每个工具现在有启用开关、图片线路下拉、模型下拉和提示词模板输入；线路和模型选项复用现有 `/api/admin/api-providers` 数据，不新增接口、不新增依赖。保存时随 `imageToolFeatures` 一起写入旧后端 `app_state`。
+- 修改文件：`frontend/src/views/AdminSettingsSource.vue`、`frontend/src/styles/app.css`、`docs/progress-report.md`、`docs/review-log.md`。
+- 已验证：`npm.cmd run typecheck --prefix "F:\dianshang\frontend"` 通过；`npm.cmd run build --prefix "F:\dianshang\frontend"` 通过；`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"` 第二次重跑通过，第一次失败原因是 Playwright CLI session 未先打开浏览器；`git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示；自带浏览器刷新 `/admin/settings` 后确认图片工具区有 4 个工具卡、4 个开关、8 个下拉和 4 个提示词输入框。
+- 边界：本轮只打开页面确认控件存在，没有点击保存；人工测试保存前仍需记录原值，保存后再恢复原值。
+
+## 2026-06-26 系统设置基础开关点击修复进度报告
+
+- 问题现象：用户反馈系统设置保存试点里有几个按钮按不动。复测发现右侧文字“开启/关闭”按钮能改变草稿状态，但左侧 Naive UI `n-switch` 滑块本体 7 个都无法改变状态。
+- 完成内容：将基础设置区的 7 个开关从 `n-switch` 替换为项目自控的原生按钮式滑块，并保留右侧文字按钮。现在点击滑块本体和点击文字按钮都会调用同一个 `toggleDraftBoolean()`，避免组件点击区和 `<label>` 包裹导致的事件不一致。
+- 修改文件：`frontend/src/views/AdminSettingsSource.vue`、`frontend/src/styles/app.css`、`docs/progress-report.md`、`docs/review-log.md`。
+- 已验证：自带浏览器逐个点击 7 个滑块，开放注册、邮箱验证码、画布存储、画布云存储、模板生图、图库历史、Mock 模式均能改变草稿状态，并已逐个点回测试前状态；逐个点击右侧文字按钮也全部能改变并恢复。`npm.cmd run typecheck --prefix "F:\dianshang\frontend"` 通过；`npm.cmd run check:routes --prefix "F:\dianshang\frontend"` 通过；`npm.cmd run build --prefix "F:\dianshang\frontend"` 通过；`git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示。
+- 边界：本轮不点击“保存设置”，没有写入真实配置。
+
+## 2026-06-26 API 官方双线路收敛进度报告
+
+- 触发背景：用户要求旧 API 路线全部删除，改为两条：图片 `gpt-image-2`、文本 `gpt-5.5`，请求格式参考官方。
+- 官方格式参考：图片线路按 OpenAI Images 的 `/images/generations` 形态落字段；文本线路按 OpenAI Responses 的 `/responses` 形态落字段。本轮不调用外部付费接口。
+- 完成内容：目标工程和当前兼容后端的默认模型池已收窄为图片 `gpt-image-2`、文本 `gpt-5.5`；默认 API 路线收窄为 `route_openai_gpt_image_2` 和 `route_openai_gpt_5_5`；新增 `PUT /api/admin/api-providers` 整包替换能力；`/admin/api-providers` 从只读页升级为写入试点页，展示官方双线路目标、请求路径、请求体示例和“应用官方双线路”按钮；README 与 API 契约记录了“禁止恢复旧多渠道列表”的边界。
+- 实际数据写入：已用本地管理员账号 `admin/admin123` 调用兼容后端整包替换接口，将运行数据库中的 API 线路替换为两条目标线路；随后清理 `admin.modelPrices` 中 3 条早期 `ui-echo-model-*` 覆盖行。复核结果：API 线路 `total=2`，模型键只剩 `gpt-image-2,gpt-5.5`，旧线路名匹配为 false。
+- 修改文件：`server.js`、`frontend/src/api/adminApiProviders.ts`、`frontend/src/views/AdminApiProvidersSource.vue`、`frontend/src/styles/app.css`、`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/api-contract-next.md`、`docs/progress-report.md`、`docs/review-log.md`；同步修改当前兼容后端 `C:\Users\pc\Desktop\hjm-mb-clone\server.js`。
+- 验证方式：`node --check "F:\dianshang\server.js"`；`node --check "C:\Users\pc\Desktop\hjm-mb-clone\server.js"`；`npm.cmd run typecheck --prefix "F:\dianshang\frontend"`；`npm.cmd run check:routes --prefix "F:\dianshang\frontend"`；`npm.cmd run build --prefix "F:\dianshang\frontend"`；`git -C "F:\dianshang" diff --check`；重启兼容后端并检查 `/api/health`；本地 API 登录后写入并复核 `/api/admin/api-providers`、`/api/admin/model-prices`；自带浏览器打开 `/admin/api-providers`；完整源码前端 smoke。
+- 验证结果：后端语法检查通过；前端类型检查通过；路由维护检查通过，仍为 `21/21 source routes`；前端构建通过；`diff --check` 通过，仅有 CRLF 提示；兼容后端 health 正常，`textModel=gpt-5.5`、`imageModel=gpt-image-2`；自带浏览器显示 2 条线路、2 张官方目标卡、无旧线路文本、无横向溢出；源码前端 smoke 通过。
+- 边界：历史生成记录和消费日志里仍可能出现旧线路展示名或历史模型名，这是历史业务数据，不属于当前 API 路线配置；真实供应商 Key、新后端接管、真实付费调用仍需人工确认。
+
+## 2026-06-26 API 图生图能力补齐进度报告
+
+- 触发背景：用户指出官方双线路中漏了图生图。
+- 完成内容：不新增第三条 API 线路，继续保持图片 `GPT Image 2` 与文本 `GPT 5.5` 两条线路；在图片线路下新增第二个请求示例 `图生图 / 局部重绘`，端点为 `POST /images/edits`，请求体包含 `model/images/prompt/mask/size/quality/n`。前端 API 线路页改为支持一个线路展示多个请求示例。
+- 运行数据同步：已重启兼容后端，并调用本地整包替换接口写入当前数据库；复核图片线路 `requestExamples=2`，包含 `/images/edits`。
+- 修改文件：`frontend/src/api/adminApiProviders.ts`、`frontend/src/views/AdminApiProvidersSource.vue`、`frontend/src/styles/app.css`、`server.js`、`scripts/smoke-source-frontend-ui-runner.js`、`README.md`、`docs/api-contract-next.md`、`docs/progress-report.md`、`docs/review-log.md`；同步修改当前兼容后端 `C:\Users\pc\Desktop\hjm-mb-clone\server.js`。
+- 验证方式：`node --check "F:\dianshang\server.js"`；`node --check "C:\Users\pc\Desktop\hjm-mb-clone\server.js"`；`npm.cmd run typecheck --prefix "F:\dianshang\frontend"`；`npm.cmd run check:routes --prefix "F:\dianshang\frontend"`；`npm.cmd run build --prefix "F:\dianshang\frontend"`；`git -C "F:\dianshang" diff --check`；自带浏览器打开 `/admin/api-providers`；完整源码前端 smoke。
+- 验证结果：后端语法检查通过；前端类型检查通过；路由维护检查通过，仍为 `21/21 source routes`；前端构建通过；`diff --check` 通过，仅有 CRLF 提示；浏览器页面显示 `/images/generations`、`/images/edits`、`/responses` 和“图生图 / 局部重绘”，横向溢出为 0；完整源码前端 smoke 通过。
+- 边界：本轮只补配置和展示，不实现真实图生图上传调用链；真实文件上传、mask 绘制、图生图任务入队和上游付费调用仍需后续单独实现并确认。
+
+## 2026-06-26 Provider 能力注册表推进报告
+
+- 触发背景：用户确认当前 API 线路先用着，但后续可能持续增加新的中转站和模型，且不同中转站请求方式可能不同。
+- 完成内容：新增 `frontend/src/config/providerCapabilities.ts`，将 `gpt-image-2` 的文生图、图生图/局部重绘，以及 `gpt-5.5` 的文本生成能力收敛为前端能力注册表；`adminApiProviders.ts` 不再直接维护大段请求示例；`AdminApiProvidersSource.vue` 在后端返回旧数据缺少 `requestExamples` 时，会按模型从注册表补齐展示。
+- 架构边界：API 线路页仍只是后台配置展示；前端功能模块不直接路由到线路。后续新增中转站时，应在后端 Provider Adapter 处理请求格式、鉴权和返回解析，前端只读能力注册表或后端返回的能力元数据。
+- 修改文件：`frontend/src/config/providerCapabilities.ts`、`frontend/src/api/adminApiProviders.ts`、`frontend/src/views/AdminApiProvidersSource.vue`、`README.md`、`docs/api-contract-next.md`、`docs/progress-report.md`、`docs/review-log.md`。
+- 验证方式：`npm.cmd run typecheck --prefix "F:\dianshang\frontend"`；`npm.cmd run check:routes --prefix "F:\dianshang\frontend"`；`node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"`；`git -C "F:\dianshang" diff --check`；`npm.cmd run build --prefix "F:\dianshang\frontend"`；自带浏览器打开 `/admin/api-providers`。
+- 验证结果：前端类型检查通过；路由维护检查通过，仍为 `21/21 source routes`；smoke runner 语法检查通过；`diff --check` 通过，仅有 CRLF 提示；前端构建通过；浏览器页面显示文生图 `/images/generations`、图生图 `/images/edits`、文本生成 `/responses`，横向溢出为 0。
+- 边界：本轮不新增 npm 包，不改真实 Provider 调用链，不新增中转站。
+
+## 2026-06-26 API 线路旧后台表单恢复进度报告
+
+- 触发背景：用户反馈源码后台与原 HJM 后台不一致，尤其是“自己写 API Key 的接口”缺失。
+- 定位结果：旧 HJM 后台存在完整 API 线路表单字段，包括后端真实名称、前端展示名称、线路标识 code、渠道类型、接口格式、Base URL、API Key、聊天/生图/视频接口、默认模型、优先级、线路倍率、状态、默认线路和备注；源码后台此前只有列表和官方双线路试点。
+- 完成内容：`/admin/api-providers` 恢复旧后台同款新增/编辑表单；补齐新增、编辑、删除、设默认、拉取模型、测试连接按钮；API Key 输入采用密码框，编辑时留空不修改，后端仍只回显掩码；官方模型请求示例优先使用前端能力注册表，避免旧运行数据中的乱码标签污染页面。
+- 后端同步：目标工程和当前兼容后端均补齐旧表单字段持久化，包括 `chatEndpoint`、`imageEndpoint`、`videoEndpoint`、`defaultTextModel`、`defaultImageModel`、`defaultVideoModel`、`multiplier` 和 `remark`。
+- 修改文件：`frontend/src/api/adminApiProviders.ts`、`frontend/src/views/AdminApiProvidersSource.vue`、`frontend/src/styles/app.css`、`server.js`、`docs/progress-report.md`、`docs/review-log.md`；同步修改当前兼容后端 `C:\Users\pc\Desktop\hjm-mb-clone\server.js`。
+- 验证方式：`node --check "F:\dianshang\server.js"`；`node --check "C:\Users\pc\Desktop\hjm-mb-clone\server.js"`；`npm.cmd run typecheck --prefix "F:\dianshang\frontend"`；`npm.cmd run build --prefix "F:\dianshang\frontend"`；`git -C "F:\dianshang" diff --check`；重启兼容后端并检查 `/api/health`；Playwright 浏览器烟测新增临时 `codex-smoke` 线路、打开编辑表单、删除临时线路；复核运行数据库无残留测试线路。
+- 验证结果：后端语法检查通过；前端类型检查通过；前端构建通过；`diff --check` 通过，仅有 CRLF 提示；兼容后端 health 正常；浏览器烟测新增和编辑打开通过，删除后复核 API 线路回到 `route_openai_gpt_image_2,route_openai_gpt_5_5` 两条。
+- 边界：本轮不自动点击“测试连接”，因为当前后端处于 `real-provider-ready`，该按钮可能触发真实 Provider 请求；真实 API Key 是否允许从后台写入并用于付费调用，后续需要单独做加密/权限/审计设计后再接管。
+
+## 2026-06-26 首页旧客户端能力补回进度报告
+
+- 触发背景：用户指出当前首页仍是迁移说明页，没有把旧版客户端首页的业务功能迁移过来。
+- 旧版对照：旧首页首屏包含“电商全流程工作台”、Chat/Fast/AI 专业绘图 Agent 模式、添加图片、提示词输入、模型/张数/比例/清晰度、预计算力、生成按钮、模板/图库/画布/指南入口和历史画布项目。
+- 纠偏记录：第一版误做成新的业务首页壳，用户指出应迁移 `C:\Users\pc\Desktop\hjm-mb-clone` 的旧首页；随后按旧站实际运行页 `http://127.0.0.1:3456/` 重新迁移。
+- 完成内容：Vue3 首页已迁回旧站首页结构和视觉：固定顶部栏、导出/保存/历史记录、样式按钮、登录按钮、左侧首页/新画布/模板/图库/指南导航、中心浅色玻璃生成面板、Chat/Fast/AI 专业绘图 Agent 模式、添加图片、提示词、模型/张数/比例/清晰度、预计算力、生成按钮、我的历史画布项目横向列表和新建项目入口。
+- 复用边界：首页不再首屏请求 API 线路和用户项目，避免未登录 401/403；真实上传和生成时继续复用 `uploadTemplateFile()` 与 `/api/template/generate-image`；登录态下历史项目仍可读取 `/api/user/projects`。
+- 修改文件：`frontend/src/views/HomeWorkbench.vue`、`frontend/src/styles/app.css`、`frontend/src/assets/home-product-workbench.png`、`frontend/src/config/frontendMigration.ts`、`docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md`。
+- 验证方式：`npm.cmd run typecheck --prefix "F:\dianshang\frontend"`；`npm.cmd run check:routes --prefix "F:\dianshang\frontend"`；`npm.cmd run build --prefix "F:\dianshang\frontend"`；`git -C "F:\dianshang" diff --check`；Playwright 打开旧首页 `http://127.0.0.1:3456/` 做能力对照；Playwright 打开新首页 `http://127.0.0.1:5173/` 做桌面和 390px 移动端 DOM/溢出检查；点击 Agent 模式和空提示“生成”验证本地拦截。
+- 验证结果：旧首页能力已完成对照；前端类型检查、路由检查和构建通过；Playwright 确认新首页存在旧版顶部栏、侧栏、生成面板、历史画布项目，桌面和 390px 移动端横向溢出均为 0；重新加载后仅有 Vite debug 日志，无 401/403、无 pageerror，背景图不再从工程外 `@fs` 路径加载。
+- 边界：本轮没有输入真实提示词点击生成，避免误触发外部付费调用；旧首页更复杂的本地保存弹窗、历史项目拖拽惯性和完整项目恢复后续可继续按旧站 assets 逐项迁入。
+
+## 2026-06-29 Packy API 档案对齐进度报告
+
+- 触发背景：用户提供 Packy GPT Image 文档链接，要求先优化 API 档案，后续由用户填写 key 后手动测试。
+- 完成内容：将 `gpt-image-2` 文生图档案对齐为 `POST /images/generations`，请求体包含 `model/prompt/size/quality/output_format/response_format/n`；将图生图/局部重绘档案对齐为 `POST /images/edits`，`contentType` 为 `multipart/form-data`，字段为 `model/image/mask/prompt/size/quality/output_format/response_format/n`；补充 `gpt-5.5` 文本线路 `POST /responses` 示例；编辑弹窗的默认格式仅用于复制，不写入线路记录。
+- 后端同步：目标工程和当前兼容后端均补齐 Packy 图片参数归一化，`quality` 只输出 `low/medium/high/auto`，`n` 固定向上游传 `1`，多图由后端循环请求；后台“测试线路”接口改为按线路类型选择 Images API 或 Responses API，不再用图片线路测试聊天接口；官方双线路输出层会覆盖旧数据库中缓存的乱码示例，避免污染页面展示。
+- 修改文件：`server.js`、`frontend/src/config/providerCapabilities.ts`、`frontend/src/api/adminApiProviders.ts`、`frontend/src/views/AdminApiProvidersSource.vue`、`docs/progress-report.md`；同步修改当前兼容后端 `C:\Users\pc\Desktop\hjm-mb-clone\server.js` 和 `C:\Users\pc\Desktop\hjm-mb-clone\assets\admin-api-form-labels.js`。
+- 验证方式：`node --check "F:\dianshang\server.js"`；`node --check "C:\Users\pc\Desktop\hjm-mb-clone\server.js"`；`npm.cmd run typecheck --prefix "F:\dianshang\frontend"`；`npm.cmd run check:routes --prefix "F:\dianshang\frontend"`；`npm.cmd run build --prefix "F:\dianshang\frontend"`；`git -C "F:\dianshang" diff --check`；重启兼容后端并检查 `/api/health`；本地登录后只读复核 `/api/admin/api-providers`。
+- 验证结果：后端语法检查通过；前端类型检查通过；路由维护检查通过，仍为 `21/21 source routes`；前端构建通过；`diff --check` 通过，仅有 CRLF 提示；兼容后端 health 正常；后台 API 线路只读复核显示图片线路 `packy-openai-images-generations`、文生图 `/images/generations`、图生图 `/images/edits`、文本生成 `/responses`，示例标签为中文。
+- 边界：本轮没有点击测试连接或触发真实生图，避免在用户填写/确认 key 前产生外部付费请求；旧数据库里的历史缓存未被清空，只在服务端输出层对官方两条线路做展示归一化。
+
+## 2026-06-29 API 线路密钥编辑修复进度报告
+
+- 问题现象：用户指出 API 线路看起来不能修改，不知道如何添加 key。复核发现前端有编辑表单和 API Key 输入框，但后端保存时把用户输入的真实 key 直接替换成 `sk-local-********`，导致线路级 key 实际不可用。
+- 完成内容：目标工程和当前兼容后端均改为本地数据库保存真实线路 key，API 列表和公共线路输出只回显掩码；编辑表单留空表示不修改旧 key，填入新 key 才替换；批量应用官方双线路时会尽量保留已有线路 key，避免误覆盖。
+- 调用链对齐：后台“测试线路”接口现在优先使用当前线路自己的 `baseUrl/apiKey`，没有线路 key 时才回退环境变量；Provider 状态会标记 `routeKeyConfigured` 和 `routeBaseUrlConfigured`，便于后续排查。
+- 修改文件：`server.js`、`docs/progress-report.md`；同步修改当前兼容后端 `C:\Users\pc\Desktop\hjm-mb-clone\server.js`。
+- 验证方式：`node --check "F:\dianshang\server.js"`；`node --check "C:\Users\pc\Desktop\hjm-mb-clone\server.js"`；`npm.cmd run typecheck --prefix "F:\dianshang\frontend"`；`npm.cmd run check:routes --prefix "F:\dianshang\frontend"`；`npm.cmd run build --prefix "F:\dianshang\frontend"`；`git -C "F:\dianshang" diff --check`；重启兼容后端并检查 `/api/health`；创建临时 `codex-key-smoke` 线路验证 key 保存与掩码回显后删除。
+- 验证结果：临时线路列表回显 `sk-local-********` 且 `hasApiKey=true`，本地数据库原始值匹配测试 key，删除后数据库恢复为 `route_openai_gpt_image_2` 和 `route_openai_gpt_5_5` 两条正式线路；自带浏览器刷新 `/admin/api-providers` 后确认编辑按钮存在，编辑面板里 API Key 输入框位于 Base URL 下方。
+- 边界：真实 key 仍只保存在本地 SQLite 状态中，不会回显到前端；本轮没有点击真实测试连接或生图，避免产生外部付费调用。
+
+## 2026-06-29 API 线路保存回显修复进度报告
+
+- 问题现象：用户反馈编辑保存后表单内容看起来没有变化。
+- 定位结果：保存接口已写入数据库，但 `routePayload()` 为了修复官方双线路旧缓存示例，返回时把官方线路的 `apiFormat/requestFormat/endpoint/requestBodyExample` 强制覆盖成默认档案，导致用户手动保存的接口格式和 endpoint 被展示层盖回默认值。
+- 完成内容：目标工程和当前兼容后端均改为“可编辑字段优先使用数据库保存值”，仅在字段为空时使用官方默认值；官方请求示例仍保留用于展示 Packy 文生图、图生图和 Responses 示例。
+- 修改文件：`server.js`、`docs/progress-report.md`；同步修改当前兼容后端 `C:\Users\pc\Desktop\hjm-mb-clone\server.js`。
+- 验证方式：`node --check "F:\dianshang\server.js"`；`node --check "C:\Users\pc\Desktop\hjm-mb-clone\server.js"`；重启兼容后端并检查 `/api/health`；用本地管理员 API 临时修改图片线路备注和优先级，读取确认后恢复；`npm.cmd run typecheck --prefix "F:\dianshang\frontend"`；`npm.cmd run check:routes --prefix "F:\dianshang\frontend"`；`git -C "F:\dianshang" diff --check`。
+- 验证结果：临时保存的备注 `codex-save-smoke-*` 和优先级 `11` 能立即从 `/api/admin/api-providers` 读回；恢复后正式线路仍为两条；自带浏览器刷新 `/admin/api-providers` 后能看到当前数据库保存的图片线路 `baseUrl/endpoint/requestFormat`，不再被官方默认档案覆盖。
+- 边界：API Key 输入框重新打开时仍会留空，这是防止真实密钥回显；判断 key 是否已保存看列表中的掩码 `sk-local-********` 或 `hasApiKey` 状态。
+
+## 2026-06-29 旧画布性能过渡优化进度报告
+
+- 触发背景：用户反馈旧画布拖拽和缩放明显卡顿，要求优化画布，但不换画布、不重做画布、不新增自研渲染引擎。
+- 完成内容：新增 `assets/canvas-performance-mode.css` 与 `assets/canvas-performance-mode.js`，在画布拖拽、缩放、节点移动和触摸移动期间给页面加 `canvas-performance-active`；交互中临时降低毛玻璃、大阴影、hover transform 和动画过渡，并给 Vue Flow 视口、节点、边和浮动面板启用受控合成层。
+- 图片节点优化：画布节点、聊天面板和图片网格中的图片会自动设置 `loading="lazy"`、`decoding="async"` 和固定 `object-fit` 行为，减少大图加载造成的布局抖动。
+- 自动保存降频与合并：旧画布两个运行 bundle 中保存节流从 `900ms/250ms` 调整为 `1400ms/800ms`；同时在自动保存和视口保存 timer 触发时检查 `window.__hjmCanvasPerformanceMode.isActive()`，如果仍处于拖拽/缩放交互态，就记录 `noteSaveDeferred()` 并重新排队，等交互结束后合并保存；工作流 JSON 格式不变。
+- 缓存刷新：入口和 Canvas 动态 import 版本号统一切换到 `20260629perf3`，避免浏览器继续加载旧 bundle。
+- 测试护栏：新增 `scripts/smoke-canvas-performance-ui.ps1` 与 `scripts/smoke-canvas-performance-ui-runner.js`，自动验证画布性能资源加载、拖拽/滚轮触发 `canvas-performance-active`、`will-change: transform` 只在交互态启用、交互结束自动恢复，以及动态新增图片会被优化为 `loading=lazy`、`decoding=async`。新增 `scripts/verify-canvas-performance-assets.js`，静态验证 `perf3` 版本、保存延迟锚点和旧节流值不回退。两条检查均已接入预检链路。
+- 修改文件：`index.html`、`assets/index-DglIsp_g.js`、`assets/index-ZrBcanD1.js`、`assets/Canvas-B8bY9_QL.js`、`assets/Canvas-yGc8b2gf.js`、`assets/canvas-performance-mode.css`、`assets/canvas-performance-mode.js`、`scripts/smoke-canvas-performance-ui.ps1`、`scripts/smoke-canvas-performance-ui-runner.js`、`scripts/verify-canvas-performance-assets.js`、`scripts/preflight-check.ps1`、`AGENTS.md`、`docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md`。
+- 验证方式与结果：`node --check "F:\dianshang\server.js"` 通过；`git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示；`/api/health` 正常且路径指向 `F:\dianshang`；自带浏览器打开 `http://127.0.0.1:3456/canvas`，确认性能 CSS/JS 加载，拖拽和滚轮缩放均会触发 `canvas-performance-active` 并自动恢复，console error 为 0。
+- 追加验证：`node --check "F:\dianshang\scripts\smoke-canvas-performance-ui-runner.js"` 通过；`node "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 通过，返回 `version=20260629perf3`、`saveDeferral=true`；`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-canvas-performance-ui.ps1"` 通过，结果显示性能 API 完整、`imageProbe.loading=lazy`、`imageProbe.decoding=async`、基础拖拽、单次滚轮、连续 20 次滚轮、打开 Canvas Chat 后拖拽的 class/API 启停均正常，console errors 为 0、bad responses 为 0。
+- 缩放闪烁修复：用户反馈滚轮缩放时卡片闪烁后，确认原 `canvas-performance-active` 同时改写 `.vue-flow__node` 的 `will-change/box-shadow/transition`，会和 Vue Flow 视口缩放叠加导致卡片重绘闪烁；已升级到 `20260629perf4`，脚本区分 `canvas-performance-zooming` 与 `canvas-performance-dragging`，缩放态只优化 viewport/pane/canvas-flow，不再改写节点卡片视觉；验证脚本新增防回退断言，禁止 `html.canvas-performance-active .vue-flow__node` 重新出现。
+- 缩放闪烁验证：`node "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 通过，返回 `version=20260629perf4`；默认画布 smoke 通过，新增断言显示滚轮缩放时 `zooming=true`、`dragging=false`、`debugMode=zooming`，且节点视觉样式未被改写；指定项目 `SMOKE_CANVAS_PATH=/canvas/project_1782707934819_dxzylygh5` 的 smoke 也通过，性能资源加载、拖拽/缩放 class 启停和 console/bad responses 均正常。
+- 帧预算验证：新增 `scripts/smoke-canvas-frame-budget-ui.ps1` 与 `scripts/smoke-canvas-frame-budget-ui-runner.js`，在测试页面临时注入 8 个 Vue Flow 卡片和图片探针，不保存项目、不触发真实生图；通过 `requestAnimationFrame` 统计拖拽与连续缩放的平均帧间隔、P95、最大帧间隔和长帧数，并接入 `SMOKE_UI=true` 预检。默认画布帧预算 smoke 通过：拖拽 `frames=145`、`avgDelta=16.67ms`、`p95Delta=16.8ms`、`longFramesOver100=0`；缩放 `frames=157`、`avgDelta=16.67ms`、`p95Delta=16.8ms`、`maxDelta=16.9ms`、`longFramesOver100=0`。
+- 图片工具侧边栏修复：用户反馈选中图片节点后右侧工具栏只露出半截。定位为 `perf4` 中 `.vue-flow__node { contain: layout paint style; }` 的 paint containment 裁掉了图片节点外溢的 `image-node-toolbar`。已升级到 `20260629perf5`，取消普通 Vue Flow 节点的 paint containment，仅保留面板/浮层 contain；针对图片工具栏增加 `:has(.image-node-toolbar)`、`overflow: visible` 和 `z-index: 1200` 防裁切规则。性能 smoke 新增 `toolbarProbe`，验证 `contain=none`、`overflow=visible`、工具栏 `z-index=1200`；帧预算 smoke 复跑通过，拖拽/缩放 P95 仍约 `16.8ms`、长帧为 0。
+- 图片节点对象化：用户要求图片节点像参考图一样成为“图片对象”，而不是复杂上传表单 UI。新增 `assets/canvas-image-node-polish.css` 并以 `20260629image2` 加载；有图节点改为图片本体优先，取消 `object-cover` 和 `max-height:220px` 裁切，使用 `object-fit: contain`、`max-height:520px` 和受控最大宽度，节点随图片原始比例展开并完整显示；标题和尺寸信息浮到图片上方，右侧工具栏继续保持 `z-index=1200`。空图片节点上传态也收敛为大图占位区，隐藏 URL 输入行。性能 smoke 新增 `imageNodeVisualProbe` 与 `loadedImageNodeProbe`，验证空图占位为 300x300、有图探针 800x1000 显示为 416x520 且 `objectFit=contain`；真实项目页读取到 1254x1254 图片按 416x416 完整显示。
+- 图片节点自适应比例修正：用户反馈图片工具栏遮挡图片、图片节点没有按比例 box 展示。已升级到 `20260629image4`，有图节点改为由图片舞台决定 `fit-content` 尺寸，外壳不再参与固定宽度；右侧 `image-node-toolbar` 和折叠把手统一以图片 box 的右边缘为锚点 `left: calc(100% + gap)`，避免压在图片主体上。该改动仅限 `assets/canvas-image-node-polish.css` 旧画布过渡样式，不改 Provider、生图接口、节点数据结构或工作流 JSON。
+- 边界：本轮不改真实生图接口、不改 Provider、不动 API Key 配置；GPU 加速指浏览器合成层优化，不是 WebGL 或 Canvas 重写。
+
+## 2026-06-29 图片节点 image4 验收进度报告
+
+- 分支：`codex/source-stack-canvas-rebuild`
+- 完成内容：按用户指定刷新 `http://127.0.0.1:3456/canvas/project_1782707934819_dxzylygh5`，复核旧画布 `20260629image4` 图片节点补丁。指定项目页可加载旧画布壳和 `canvas-image-node-polish.css?v=20260629image4`；当前运行数据库 projects 为 0，该项目页没有读到已有真实节点，因此用 Playwright 在页面内临时注入方图、横图、竖图三种图片节点 DOM 探针，只测布局，不保存项目、不触发 API、不触发生图。
+- 修改文件：`docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md`
+- 验证方式：`SMOKE_CANVAS_PATH=/canvas/project_1782707934819_dxzylygh5` 运行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-canvas-performance-ui.ps1"`；临时 Playwright runner 注入 900x900 方图、1200x600 横图、600x1200 竖图并测量图片、舞台、右侧工具栏和折叠把手位置。
+- 验证结果：指定项目 smoke 通过，性能资源、图片 polish CSS、工具栏防裁切、竖图 loadedImageNodeProbe、拖拽/缩放交互态和 Canvas Chat 拖拽均正常，console errors 为 0、bad responses 为 0。比例探针通过：方图显示 `520x520`，横图显示 `520x260`，竖图显示 `260x520`，三者 `objectFit=contain` 且显示比例与原图一致；右侧工具栏均在图片舞台右侧 `18px`，折叠把手均在右侧 `2px`，`toolbarOverlapsImage=false`。
+- 当前完成度：图片节点 image4 验收约 95%；自动化证明 CSS 覆盖对三类比例有效，但真实项目当前没有已有节点可做人工选中截图。
+- 新发现问题：指定项目页标题为“二蛋”，但项目数据未恢复出已有节点，页面初始 `nodeCount=0`；这不影响 CSS 探针结论，但真实历史项目恢复仍需另行排查。
+- 未完成清单：继续测试真实生图链路：文生图、图生图、结果入画布、结果图可见；检查图生图是否正确携带参考图和提示词；如需人工验收真实节点，需要先恢复或创建包含图片节点的项目。
+- 下一轮建议：先用非付费方式创建或导入一份含方/横/竖图节点的测试画布，再做可见截图；真实生图测试继续保持先确认费用边界。
+- 需要人工介入：真实 Provider 生图会消耗额度；需要你确认测试范围后再触发。
+
+## 2026-06-29 图片节点 image5 顶部工具条重做进度报告
+
+- 触发背景：用户对 `image4` 的右侧侧边栏工具仍不满意，明确要求参考图 3/4，把图片节点工具改到顶部；普通图片、图像生成结果和 Canvas Chat 添加到画布的生成图统一使用同一套图片节点视觉规则。
+- 完成内容：保留旧画布与 Vue Flow 运行链路，仅扩展图片节点 polish 层。`assets/canvas-image-node-polish.css` 升级为 `20260629image5`：有图节点继续以图片本体为主，顶部常驻标题与尺寸信息，选中/hover 时显示黑色圆角顶部横向工具条；旧 `.image-node-toolbar-wrap` 折叠把手隐藏；无图上传态的工具条隐藏且不可交互；工具条不再从右侧遮挡图片和连接点。
+- 方向识别：新增 `assets/canvas-image-node-polish.js`，观察图片 natural width/height 并给节点打 `data-image-orientation="square|landscape|portrait|long"`，同时按标题文本推断 `data-image-source="generated|uploaded|remote"`，只作为视觉标记，不写入工作流 JSON。
+- 长图策略：超长图不再受 `max-height: 520px` 限制，改为较窄宽度完整展开；方图、横图和普通竖图继续 `object-fit: contain` 等比完整显示。
+- 修改文件：`index.html`、`assets/canvas-image-node-polish.css`、`assets/canvas-image-node-polish.js`、`scripts/smoke-canvas-performance-ui-runner.js`、`docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md`。
+- 验证方式：`node --check "F:\dianshang\server.js"`；`node --check "F:\dianshang\assets\canvas-image-node-polish.js"`；`node --check "F:\dianshang\scripts\smoke-canvas-performance-ui-runner.js"`；指定项目运行 `SMOKE_CANVAS_PATH=/canvas/project_1782707934819_dxzylygh5` 的 `scripts/smoke-canvas-performance-ui.ps1`；`git -C "F:\dianshang" diff --check`。
+- 验证结果：指定项目 smoke 通过，确认 `canvas-image-node-polish.css/js?v=20260629image5` 已加载，`window.__hjmCanvasImageNodePolish` 可用；方图显示 `520x520`、横图 `520x260`、普通竖图 `260x520`、超长图约 `259x5864` 且 `max-height=none`、生成结果方图 `520x520` 且 `source=generated`；五类探针均为 `object-fit: contain`，顶部工具条在图片舞台上方且不与图片矩形相交，旧折叠把手隐藏，console errors 为 0、bad responses 为 0。
+- 边界：本轮不改 Provider、不动 API Key、不触发真实生图、不改变节点类型/连线类型/工作流 JSON；指定项目当前仍未自动恢复已有真实节点，人工验收需要刷新页面后选中真实或新建的图片节点确认观感。
+
+## 2026-06-29 图片节点 image6 真实工具栏补丁
+
+- 问题现象：用户截图显示真实图片节点仍出现白色右侧竖向工具栏，遮挡图片主体。复核发现真实 `ImageNodeToolbar` 是 `.image-node-wrapper` 的兄弟节点，而 `image5` 的主要选择器只覆盖了位于 `.image-node` 内部的模拟工具栏，导致真实 scoped 规则 `.image-node-toolbar[data-v-aaeac626]{ left:302px; flex-direction:column; height:calc(100% - 20px) }` 仍然生效。
+- 完成内容：升级到 `20260629image6`；`canvas-image-node-polish.js` 给真实 Vue Flow 图片节点本身打 `image-node-has-image` 和 `image-node-is-selected` 类，并监听 class 变化；`canvas-image-node-polish.css` 改用节点级选择器覆盖真实 sibling 工具栏，强制顶部横向 `flex-direction: row`，隐藏折叠把手，继续保证不遮挡图片。
+- 验证结果：指定项目 smoke 通过，确认 `image6` CSS/JS 加载；真实 sibling 工具栏探针测得 `toolbarFlexDirection=row`、`toolbarWidth=346`、`toolbarHeight=50`、`toolbarAboveStage=true`、`toolbarOverlapsStage=false`、`toggleDisplay=none`，已覆盖截图中的右侧竖栏回退。
+
+## 2026-06-29 图片节点 image7 多按钮可见修复
+
+- 问题现象：用户截图显示顶部工具条只露出一个 `AI 扩图` 按钮。定位为旧 scoped 按钮规则 `.image-node-tool-button[data-v-aaeac626]{ width:100% }` 仍在生效，横向容器里第一个按钮占满整条工具栏，后续按钮被挤到横向滚动区域外。
+- 完成内容：升级到 `20260629image7`；图片节点工具按钮强制 `width:auto`、`max-width:136px`，继续保留顶部横向工具条和折叠把手隐藏。
+- 验证结果：指定项目 smoke 通过，并给探针补上真实 `data-v-aaeac626` scoped 属性复现旧按钮宽度规则；当前结果为 `buttonCount=3`、`visibleButtonCount=3`、`maxButtonWidth=110`、`toolbarFlexDirection=row`、`toolbarOverlapsStage=false`。
+
+## 2026-06-29 扩图面板 outpaint1 居中修复
+
+- 问题现象：用户截图显示 `AI 扩图` 面板默认预览图没有居中，图片落在目标画布左上区域；用户同时指出绿色目标画布内移动范围有限制。
+- 定位结果：扩图面板的图片位置来自旧 Canvas bundle 内部状态 `c.value`，只靠 CSS 居中会让显示位置和最终提交的 `imageX/imageY` 坐标不一致。原逻辑只在图片加载或比例切换后 `nextTick(P)` 一次，若面板尺寸随后稳定为真实宽高，初始中心点不会再次按目标画布重算。
+- 完成内容：仅修旧画布 bundle 中 `OutpaintPanel` 的布局重算时机，不改 Provider、不动 API Key、不触发真实生图。图片加载和比例切换后改为 `nextTick + requestAnimationFrame + 80ms` 复算，使默认位置按最终目标画布尺寸居中；拖拽边界仍沿用原有 clamp，保证图片不会拖出目标画布提交范围。
+- 缓存刷新：入口 `index.html` 与两个 Vue entry 中 Canvas 动态 import 升级为 `20260629outpaint1`，性能资源继续保持 `20260629perf5`，图片节点 polish 继续保持 `20260629image7`。
+- 修改文件：`index.html`、`assets/index-DglIsp_g.js`、`assets/index-ZrBcanD1.js`、`assets/Canvas-B8bY9_QL.js`、`assets/Canvas-yGc8b2gf.js`、`scripts/smoke-canvas-performance-ui-runner.js`、`scripts/verify-canvas-performance-assets.js`、`docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md`。
+- 验证方式与结果：`node --check "F:\dianshang\server.js"`、`node --check "F:\dianshang\assets\canvas-image-node-polish.js"`、`node --check "F:\dianshang\scripts\smoke-canvas-performance-ui-runner.js"`、`node --check "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 均通过；`node "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 返回 `version=20260629perf5+outpaint1`；`index-DglIsp_g.js?v=20260629outpaint1`、两个 Canvas chunk `?v=20260629outpaint1`、图片节点 polish `image7` CSS/JS 均 HTTP 200；指定项目 `SMOKE_CANVAS_PATH=/canvas/project_1782707934819_dxzylygh5` 的画布 smoke 通过，console errors 为 0、bad responses 为 0；`git diff --check` 通过，仅有既有 CRLF warning；本轮触达文件 BOM 检查均为 false。
+- 验收标准：刷新指定项目后打开图片节点的 `AI 扩图`，默认图像应位于黄色/绿色目标画布中心；比例按钮切换后继续居中；拖动图片时仍受目标画布范围限制，不越界、不改变真实生图链路。
+
+## 2026-06-29 扩图面板 outpaint2 缩放位置保持修复
+
+- 问题现象：用户继续反馈扩图面板在缩放时无法自动保持位置。
+- 定位结果：缩放滑条的计算依赖 `u.value`，但真实 input 事件中 Vue 指令更新和显式 `onInput` 的执行顺序可能导致计算读到上一帧缩放值，表现为缩放位置不稳定或滞后一帧；同时需要明确缩放锚点应为当前图片中心，而不是重新按默认居中。
+- 完成内容：旧 Canvas bundle 的扩图缩放 handler 改为直接读取当前 range 事件值并同步 `u.value`，再以当前图片中心点计算新宽高和 `x/y`；只有触达目标画布边界时才沿用原 clamp 逻辑回到合法范围。默认打开和比例切换仍使用 `outpaint1` 的居中复算。
+- 缓存刷新：入口 `index.html` 与两个 Vue entry 中 Canvas 动态 import 升级为 `20260629outpaint2`；性能资源继续保持 `20260629perf5`，图片节点 polish 继续保持 `20260629image7`。
+- 修改文件：`index.html`、`assets/index-DglIsp_g.js`、`assets/index-ZrBcanD1.js`、`assets/Canvas-B8bY9_QL.js`、`assets/Canvas-yGc8b2gf.js`、`scripts/smoke-canvas-performance-ui-runner.js`、`scripts/verify-canvas-performance-assets.js`、`docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md`。
+- 验证方式与结果：`node --check "F:\dianshang\server.js"`、`node --check "F:\dianshang\assets\canvas-image-node-polish.js"`、`node --check "F:\dianshang\scripts\smoke-canvas-performance-ui-runner.js"`、`node --check "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 均通过；`node "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 返回 `version=20260629perf5+outpaint2`，确认默认居中补丁和缩放保持位置补丁均在两个 Canvas bundle 中；`index-DglIsp_g.js?v=20260629outpaint2`、两个 Canvas chunk `?v=20260629outpaint2`、图片节点 polish `image7` CSS/JS 均 HTTP 200；指定项目画布 smoke 通过，确认入口资源、图片节点工具条、比例探针、拖拽/缩放性能态均正常，console errors 为 0、bad responses 为 0。
+- 验收标准：强刷指定项目后打开 `AI 扩图`，先拖动图片到目标画布中某个位置，再拖动“原图等比缩放”滑条；图片应围绕当前中心缩放，除非碰到画布边界才被限制回合法范围。
+
+## 2026-06-29 扩图面板 outpaint3 舞台比例修复
+
+- 问题现象：用户截图显示 `1:1` 扩图面板里的黄色目标画布被压成横向矩形；初始图很小，滑条拉到最大后图片仍只占上半部分，无法铺满 1:1 目标画布。
+- 定位结果：旧 CSS 给 `.outpaint-stage` 固定了 `max-height:230px`。在弹窗宽度约 320px 时，`1:1` 舞台本应是方形，但实际高度被压到 230px；后续缩放计算只能以这个被压扁的高度为最大 contain 基准，所以 100% 也无法填满方形目标。
+- 完成内容：旧 Canvas bundle 的扩图舞台样式改为按比例自适应：`maxHeight:none`，横图/方图使用可用宽度，竖图按 `56vh` 自动收窄以保持完整比例和弹窗可用性。这样 `1:1` 为真正方形，`16:9` 为横向画布，`9:16` 为较窄竖向画布；100% 缩放表示原图按比例完整贴合目标画布。
+- 缓存刷新：入口 `index.html` 与两个 Vue entry 中 Canvas 动态 import 升级为 `20260629outpaint3`；性能资源继续保持 `20260629perf5`，图片节点 polish 继续保持 `20260629image7`。
+- 修改文件：`index.html`、`assets/index-DglIsp_g.js`、`assets/index-ZrBcanD1.js`、`assets/Canvas-B8bY9_QL.js`、`assets/Canvas-yGc8b2gf.js`、`scripts/smoke-canvas-performance-ui-runner.js`、`scripts/verify-canvas-performance-assets.js`、`docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md`。
+- 验证方式与结果：`node --check "F:\dianshang\server.js"`、`node --check "F:\dianshang\assets\canvas-image-node-polish.js"`、`node --check "F:\dianshang\scripts\smoke-canvas-performance-ui-runner.js"`、`node --check "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 均通过；`node "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 返回 `version=20260629perf5+outpaint3`；`index-DglIsp_g.js?v=20260629outpaint3`、两个 Canvas chunk `?v=20260629outpaint3`、图片节点 polish `image7` CSS/JS 均 HTTP 200；指定项目 `/canvas/project_1782722806029_6dez0ml5d` 的画布 smoke 通过，确认入口资源、图片节点工具条、比例探针、拖拽/缩放性能态均正常，console errors 为 0、bad responses 为 0。
+- 验收标准：强刷后打开 `AI 扩图`，`1:1` 黄色目标画布应为方形；滑条拉到最大时，方图应完整铺满方形舞台；横图/竖图按各自比例完整贴合，不再被 `230px` 高度压扁。
+
+## 2026-06-29 扩图面板 outpaint4 自由移动与等比放大修复
+
+- 问题现象：用户追问扩图内容能否在绿色画布里自由移动，以及缩放能否等比例缩放。实际体验里，图片拉到最大后被锁住，无法拖动取景。
+- 定位结果：旧拖动 clamp 只允许图片完整位于目标画布内，公式为 `0..stageSize-imageSize`；当图片尺寸等于或大于目标画布时，上限被压到 0，导致放大后无法移动。
+- 完成内容：新增双模式位置限制：图片小于目标画布时，整张图片保留在绿色画布内自由移动；图片大于目标画布时，允许图片在绿色画布内平移取景，但不露出空白。缩放仍以当前中心点为锚点等比例缩放。
+- 缩放范围：滑条从 `35-100` 调整为 `20-220`。`100%` 表示原图按比例完整贴合目标画布，超过 `100%` 为等比例放大，可拖动选择保留区域。
+- 缓存刷新：入口 `index.html` 与两个 Vue entry 中 Canvas 动态 import 升级为 `20260629outpaint4`；性能资源继续保持 `20260629perf5`，图片节点 polish 继续保持 `20260629image7`。
+- 修改文件：`index.html`、`assets/index-DglIsp_g.js`、`assets/index-ZrBcanD1.js`、`assets/Canvas-B8bY9_QL.js`、`assets/Canvas-yGc8b2gf.js`、`scripts/smoke-canvas-performance-ui-runner.js`、`scripts/verify-canvas-performance-assets.js`、`docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md`。
+- 验证方式与结果：`node --check "F:\dianshang\server.js"`、`node --check "F:\dianshang\assets\canvas-image-node-polish.js"`、`node --check "F:\dianshang\scripts\smoke-canvas-performance-ui-runner.js"`、`node --check "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 均通过；`node "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 返回 `version=20260629perf5+outpaint4`，确认新 clamp、`20-220` 缩放范围和旧限制规则不回退；`index-DglIsp_g.js?v=20260629outpaint4`、两个 Canvas chunk `?v=20260629outpaint4`、图片节点 polish `image7` CSS/JS 均 HTTP 200；指定项目 `/canvas/project_1782722806029_6dez0ml5d` 的画布 smoke 通过，console errors 为 0、bad responses 为 0。
+- 验收标准：强刷后打开 `AI 扩图`，将缩放拉到超过 `100%`，图片应等比例变大；拖动图片时可以在绿色目标画布内平移取景，且不会露出空白区域。
+
+## 2026-06-29 扩图面板 outpaint6 绿色画布自由摆放修复
+
+- 问题现象：用户指出前一版仍误解需求。扩图不是裁剪器，图片贴到右侧或右下角后不应被限位卡死；绿色区域可以露出，露出的部分就是待扩展生成区域。
+- 纠偏结论：`outpaint4` 的“不露空 clamp”是错误方向，适合裁剪，不适合扩图。扩图需要允许图片在绿色目标画布中自由摆放，而不是强制覆盖目标画布。
+- 完成内容：位置限制改为宽松边界 `[-imageSize, stageSize]`，允许图片向任意方向拖动直到整张图片即将完全离开目标画布；这样右侧、右下角、空白区都不会再因为“不露空”逻辑卡死。舞台本身也绑定 pointerdown，按住绿色空白区域也能拖动图片层。
+- 缩放范围：滑条从 `20-220` 进一步放宽为 `20-300`，继续保持等比例缩放。
+- 缓存刷新：入口 `index.html` 与两个 Vue entry 中 Canvas 动态 import 升级为 `20260629outpaint6`；性能资源继续保持 `20260629perf5`，图片节点 polish 继续保持 `20260629image7`。
+- 修改文件：`index.html`、`assets/index-DglIsp_g.js`、`assets/index-ZrBcanD1.js`、`assets/Canvas-B8bY9_QL.js`、`assets/Canvas-yGc8b2gf.js`、`scripts/smoke-canvas-performance-ui-runner.js`、`scripts/verify-canvas-performance-assets.js`、`docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md`。
+- 验证方式与结果：`node --check "F:\dianshang\server.js"`、`node --check "F:\dianshang\assets\canvas-image-node-polish.js"`、`node --check "F:\dianshang\scripts\smoke-canvas-performance-ui-runner.js"`、`node --check "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 均通过；`node "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 返回 `version=20260629perf5+outpaint6`，确认自由摆放 clamp、舞台空白拖动入口、`20-300` 缩放范围均存在，且旧“不露空” clamp 不回退；`index-DglIsp_g.js?v=20260629outpaint6`、两个 Canvas chunk `?v=20260629outpaint6`、图片节点 polish `image7` CSS/JS 均 HTTP 200；指定项目画布 smoke 通过，console errors 为 0、bad responses 为 0。
+- 验收标准：强刷后打开 `AI 扩图`，无论按住图片还是绿色空白区域都能拖动；图片可以拖到右侧、右下角并继续移动，绿色区域允许露出作为待扩图区域；缩放仍保持等比例。
+
+## 2026-06-29 重绘接入 GPT Image 2 图生图编辑
+
+- 触发背景：用户要求“把重绘接到图生图里 GPT Image 2”。旧画布图片节点的 `局部修改`/`AI 智能消除` 面板已在前端调用 `/api/image-tools/inpaint` 和 `/api/image-tools/erase`，但后端此前没有对应路由，按钮无法进入真实图生图链路。
+- 完成内容：新增 `/api/image-tools/inpaint` 和 `/api/image-tools/erase`，复用现有 `callProviderImageEdit`，把前端传入的 `imageUrl`、`maskBase64`、`prompt`、`referenceImages` 转成 OpenAI-compatible `/images/edits` 请求；模型按线路选择解析，默认仍是 `gpt-image-2`。同时修正 mask 传递条件，单张原图 + mask 也会带 `mask` 文件，不再要求参考图数量大于 1。
+- 兼容补丁：新增 `/api/upload/image` 兼容旧画布参考图上传入口，返回 `url/imageUrl/originalUrl`；`data:image/*` mask 现在可直接作为编辑文件读取。
+- 边界：本轮不改 Provider、不动 API Key、不改工作流 JSON、不触发真实生图；image-tools 路由只做编辑调用适配，不新增计费逻辑。
+- 验证方式与结果：已重启 `http://127.0.0.1:3456` 的本地服务，`/api/health` 指向 `F:\dianshang` 且 Provider 仍为 `real-provider-ready`；未授权探测 `/api/image-tools/inpaint`、`/api/image-tools/erase`、`/api/upload/image` 均返回 `401` 而非 `404`，确认新路由已加载且未触发上游；静态检查和 diff 检查另见本轮复核记录。
+- 待人工验收：登录后在真实图片节点打开 `局部修改`，涂抹 mask 并输入提示词后提交，会真实调用 GPT Image 2 edits，可能消耗上游额度；需由用户确认测试范围后再点测。
+
+## 2026-06-29 image-tools tools1 顶部工具接线
+
+- 触发背景：用户要求顶部图片工具条里除 `AI 超清放大` 和 `一键抠图` 外，其它按钮都接上可用链路。
+- 完成内容：入口和两个旧 Canvas bundle 升级为 `20260629tools1`；`AI 扩图` 补 `/api/image-tools/outpaint`，返回标准生成任务供旧轮询逻辑消费；`反推提示词` 补 `/api/image-tools/reverse-prompt`，打开面板时请求文本模型并展示 `prompt/text`；`文字编辑` 改接现有 mask 局部重绘面板，保留 `text_edit` 类型并在后台生成文字编辑专用图生图提示词。
+- 已接工具：`AI 扩图`、`格式/压缩`、`反推提示词`、`AI 智能消除`、`局部修改`、`文字编辑`、`图片尺寸调整`、`图片裁剪`、`添加到聊天`、`生成视频`。其中格式/压缩、尺寸、裁剪为本地处理后走上传兼容入口；局部修改/智能消除/文字编辑/扩图在用户点击提交时才调用 GPT Image 2 编辑链路。
+- 保留未接：`AI 超清放大` 和 `一键抠图` 明确保持未接入；新增 `/api/image-tools/settings` 中也标记为 `enabled:false`，不误导为可用真实链路。
+- 边界：不改 Provider、不动 API Key、不改变节点类型、连线类型或工作流 JSON；本轮验证不触发真实生成，仅做路由存在性和页面加载验证。
+- 验证方式与结果：服务已重启到 `F:\dianshang`；未登录探测 `/api/image-tools/settings`、`/outpaint`、`/reverse-prompt`、`/inpaint`、`/erase` 均返回 `401` 而非 `404`；`node --check` 覆盖 `server.js`、两个 Canvas bundle、图片节点 polish JS、smoke runner 和资源校验脚本；`verify-canvas-performance-assets.js` 返回 `20260629perf5+tools1`；指定项目画布 UI smoke 第二次通过，确认 `index-DglIsp_g.js?v=20260629tools1` 加载、顶部工具条不遮挡、图片比例探针通过、console errors 为 0。
+
+## 2026-06-29 API 线路源码页生产入口修复
+
+- 问题现象：用户截图确认早上改过 `frontend/src/views/AdminApiProvidersSource.vue`、`frontend/src/api/adminApiProviders.ts` 和 `frontend/src/config/providerCapabilities.ts`，但当前生产 URL `/admin/api-providers` 仍显示旧 `AdminShell` 表格，看不到源码页中的官方双线路目标卡、请求示例和旧后台字段表单。
+- 定位结果：`http://127.0.0.1:3456/admin/api-providers` 实际加载根目录旧入口 `assets/index-DglIsp_g.js?v=20260629tools1`，其后台路由仍指向 `AdminShell-CnxotuTf.js`；源码页已构建在 `frontend/dist`，但没有被 3456 生产入口接管。
+- 完成内容：在 `server.js` 中为 `/admin/api-providers` 单独返回 `frontend/dist/index.html`，并给 `/assets` 增加 `frontend/dist/assets` 兜底静态资源；只切这一条后台源码页，不切全站、不影响旧画布、不改 Provider、不动 API Key。
+- 验证结果：重启服务后 `/api/health` 仍指向 `F:\dianshang`；内置浏览器打开 `/admin/api-providers` 已加载 `assets/index-D1smZqeB.js` 和源码 `admin-source-shell`；页面可见 `应用官方双线路`、`/images/generations`、`/images/edits`、`/responses`、`图生图 / 局部重绘`、两条线路和编辑入口。
+
+## 2026-06-29 API 线路源码页旧后台导航桥接
+
+- 问题现象：用户从旧后台/旧首页进入时，客户端路由仍在已加载的旧 `index-DglIsp_g.js` 内部渲染旧 `AdminShell` 表格；即使直达 `/admin/api-providers` 已能加载源码页，旧后台菜单点击仍会“变回旧版”。
+- 完成内容：新增 `assets/admin-api-source-route-bridge.js` 并在根 `index.html` 加载；当旧后台点击 `API 线路管理`，或旧客户端路由停在 `/admin/api-providers` 且仍是旧入口时，强制整页跳转到同一路径，让 `server.js` 的源码页路由接管。
+- 验证结果：从 `http://127.0.0.1:3456/admin/dashboard` 点击旧后台 `API 线路管理` 后，浏览器落到 `/admin/api-providers`，加载源码 bundle `assets/index-D1smZqeB.js`，页面存在 `admin-source-shell`，可见 `应用官方双线路`、`/images/generations`、`/images/edits`、`/responses`。
+
+## 2026-06-29 后台源码侧栏与路由统一
+
+- 问题现象：用户指出后台选择页面一会菜单多、一会菜单少。复核确认源码后台各页面手写侧栏，入口数量和顺序不一致；同时服务端只把 `/admin/api-providers` 交给源码前端，其它 `/admin/...` 直达路径仍进入旧入口。
+- 完成内容：新增 `frontend/src/components/AdminSourceSidebar.vue` 作为源码后台共用侧栏，统一 11 个入口：控制台、用户、回收站、订单、消费日志、任务监控、兑换码、API 线路、模型价格、模板工作流、系统设置；11 个 `Admin*Source.vue` 页面均改为使用该组件。`server.js` 将已源码化后台路径统一返回 `frontend/dist/index.html`，旧入口桥接脚本也扩展到全部后台源码页。
+- 构建结果：`frontend/dist` 已重新构建，源码入口 bundle 更新为 `assets/index-Cr_6CD7V.js`，并生成共用侧栏 chunk。
+- 验证结果：`node --check server.js`、`node --check assets/admin-api-source-route-bridge.js`、`node scripts/check-source-frontend-routes.js`、`npm run typecheck`、`npm run build` 均通过；服务重启后直接打开 `/admin/api-providers`、`/admin/orders`、`/admin/settings`、`/admin/template-workflows` 都加载源码后台，侧栏均为 11 个入口且高亮当前页面。

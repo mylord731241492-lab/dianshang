@@ -22,6 +22,10 @@ $oldDbPath = $env:DB_PATH
 $oldUploadDir = $env:UPLOAD_DIR
 $oldLogDir = $env:LOG_DIR
 $oldSmokeBaseUrl = $env:SMOKE_BASE_URL
+$oldEnableRealAi = $env:ENABLE_REAL_AI
+$oldEnableRealEmail = $env:ENABLE_REAL_EMAIL
+$oldEnableRealPayment = $env:ENABLE_REAL_PAYMENT
+$oldEnableRealStorage = $env:ENABLE_REAL_STORAGE
 $proc = $null
 
 try {
@@ -30,6 +34,10 @@ try {
   $env:DB_PATH = Join-Path $dataDir "data.db"
   $env:UPLOAD_DIR = $uploadDir
   $env:LOG_DIR = $logDir
+  $env:ENABLE_REAL_AI = "false"
+  $env:ENABLE_REAL_EMAIL = "false"
+  $env:ENABLE_REAL_PAYMENT = "false"
+  $env:ENABLE_REAL_STORAGE = "false"
 
   $proc = Start-Process -FilePath "node" `
     -ArgumentList "server.js" `
@@ -77,6 +85,10 @@ try {
   if ($null -eq $oldUploadDir) { Remove-Item Env:\UPLOAD_DIR -ErrorAction SilentlyContinue } else { $env:UPLOAD_DIR = $oldUploadDir }
   if ($null -eq $oldLogDir) { Remove-Item Env:\LOG_DIR -ErrorAction SilentlyContinue } else { $env:LOG_DIR = $oldLogDir }
   if ($null -eq $oldSmokeBaseUrl) { Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue } else { $env:SMOKE_BASE_URL = $oldSmokeBaseUrl }
+  if ($null -eq $oldEnableRealAi) { Remove-Item Env:\ENABLE_REAL_AI -ErrorAction SilentlyContinue } else { $env:ENABLE_REAL_AI = $oldEnableRealAi }
+  if ($null -eq $oldEnableRealEmail) { Remove-Item Env:\ENABLE_REAL_EMAIL -ErrorAction SilentlyContinue } else { $env:ENABLE_REAL_EMAIL = $oldEnableRealEmail }
+  if ($null -eq $oldEnableRealPayment) { Remove-Item Env:\ENABLE_REAL_PAYMENT -ErrorAction SilentlyContinue } else { $env:ENABLE_REAL_PAYMENT = $oldEnableRealPayment }
+  if ($null -eq $oldEnableRealStorage) { Remove-Item Env:\ENABLE_REAL_STORAGE -ErrorAction SilentlyContinue } else { $env:ENABLE_REAL_STORAGE = $oldEnableRealStorage }
 
   if ($env:SMOKE_KEEP_TEMP -ne "true") {
     $resolvedTempRoot = Resolve-Path $tempRoot -ErrorAction SilentlyContinue

@@ -1,0 +1,377 @@
+/*
+ * Legacy canvas image-node visual polish.
+ * Keep the old Vue Flow canvas and node behavior; only simplify the image node
+ * empty/upload state and loaded-image state into picture-first objects.
+ */
+
+.vue-flow__node-image,
+.vue-flow__node-image .image-node-wrapper,
+.vue-flow__node-image .image-node {
+  overflow: visible !important;
+}
+
+.vue-flow__node-image:has(.image-node img),
+.vue-flow__node-image:has(.image-node img) .image-node-wrapper {
+  width: max-content !important;
+  height: max-content !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+
+.vue-flow__node-image .image-node {
+  background: rgba(244, 246, 248, 0.84) !important;
+}
+
+.vue-flow__node-image .image-node:has(img) {
+  display: block !important;
+  position: relative !important;
+  width: fit-content !important;
+  min-width: 220px !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  border-radius: 12px !important;
+}
+
+.vue-flow__node-image .image-node-selected:has(img),
+.vue-flow__node-image .image-node:has(img):hover {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.vue-flow__node-image .image-node:has(img) > .absolute.inset-x-0 {
+  display: none !important;
+}
+
+.vue-flow__node-image .image-node:has(img) > .relative.flex.h-12 {
+  position: absolute !important;
+  left: 0 !important;
+  top: -32px !important;
+  z-index: 2 !important;
+  width: auto !important;
+  max-width: calc(100% - 130px) !important;
+  height: 24px !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: visible !important;
+  color: rgba(226, 232, 240, 0.92) !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.38) !important;
+}
+
+.vue-flow__node-image .image-node:has(img) > .relative.flex.h-12::before {
+  content: "▧" !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 16px !important;
+  height: 16px !important;
+  margin-right: 5px !important;
+  border-radius: 4px !important;
+  background: rgba(148, 163, 184, 0.38) !important;
+  color: rgba(241, 245, 249, 0.95) !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+}
+
+.vue-flow__node-image .image-node:has(img) > .relative.flex.h-12 * {
+  color: inherit !important;
+}
+
+.vue-flow__node-image .image-node:has(img) > .relative.flex.h-12 .truncate {
+  max-width: min(260px, 100%) !important;
+}
+
+.vue-flow__node-image .image-node:has(img) > .relative.p-4 {
+  padding: 0 !important;
+  width: fit-content !important;
+  height: auto !important;
+  max-width: min(520px, 70vw) !important;
+}
+
+.vue-flow__node-image .image-node:has(img) > .relative.p-4 > .rounded-xl {
+  display: block !important;
+  width: fit-content !important;
+  max-width: min(520px, 70vw) !important;
+  height: auto !important;
+  max-height: none !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  background: rgba(15, 23, 42, 0.24) !important;
+  overflow: hidden !important;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.22) !important;
+}
+
+.vue-flow__node-image .image-node:has(img) img {
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: min(520px, 70vw) !important;
+  max-height: 520px !important;
+  object-fit: contain !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+.vue-flow__node-image[data-image-orientation="long"] .image-node:has(img) > .relative.p-4,
+.vue-flow__node-image[data-image-orientation="long"] .image-node:has(img) > .relative.p-4 > .rounded-xl {
+  max-width: clamp(180px, 18vw, 260px) !important;
+}
+
+.vue-flow__node-image[data-image-orientation="long"] .image-node:has(img) img {
+  width: clamp(180px, 18vw, 260px) !important;
+  max-width: clamp(180px, 18vw, 260px) !important;
+  max-height: none !important;
+}
+
+.vue-flow__node-image .image-node:has(img) > .flex.h-8 {
+  position: absolute !important;
+  right: 0 !important;
+  top: -32px !important;
+  z-index: 2 !important;
+  width: auto !important;
+  max-width: 46% !important;
+  height: 24px !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: rgba(203, 213, 225, 0.9) !important;
+  overflow: visible !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.36) !important;
+}
+
+.vue-flow__node-image .image-node:has(img) > .flex.h-8 span:first-child {
+  max-width: 180px !important;
+}
+
+.vue-flow__node-image .image-node:has(img) > .flex.h-8 .rounded-full,
+.vue-flow__node-image .image-node:has(img) > .relative.flex.h-12 .rounded-full {
+  display: none !important;
+}
+
+.vue-flow__node-image .image-node:has(img) .image-quick-connect {
+  right: -15px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+}
+
+.vue-flow__node-image:not(.image-node-has-image) .image-node-toolbar,
+.vue-flow__node-image:not(.image-node-has-image) .image-node-toolbar-wrap,
+.vue-flow__node-image .image-node:not(:has(img)) .image-node-toolbar,
+.vue-flow__node-image .image-node:not(:has(img)) .image-node-toolbar-wrap {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.vue-flow__node-image.image-node-has-image .image-node-toolbar,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar,
+.vue-flow__node-image .image-node:has(img) .image-node-toolbar {
+  position: absolute !important;
+  left: 50% !important;
+  top: auto !important;
+  bottom: calc(100% + 38px) !important;
+  right: auto !important;
+  transform: translateX(-50%) translateY(4px) !important;
+  z-index: 1220 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: max-content !important;
+  max-width: min(920px, calc(100vw - 96px)) !important;
+  min-width: 0 !important;
+  min-height: 44px !important;
+  max-height: 52px !important;
+  padding: 8px 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 18px !important;
+  background: rgba(28, 28, 28, 0.94) !important;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.34) !important;
+  backdrop-filter: blur(18px) saturate(1.2) !important;
+  color: rgba(255, 255, 255, 0.94) !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease !important;
+}
+
+.vue-flow__node-image.image-node-has-image .image-node-toolbar-wrap,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar-wrap,
+.vue-flow__node-image .image-node:has(img) .image-node-toolbar-wrap {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.vue-flow__node-image.image-node-has-image.image-node-is-selected .image-node-toolbar,
+.vue-flow__node-image.image-node-has-image:hover .image-node-toolbar,
+.vue-flow__node-image.image-node-has-image .image-node-toolbar:hover,
+.vue-flow__node-image:has(.image-node-selected) .image-node-toolbar,
+.vue-flow__node-image .image-node-selected:has(img) .image-node-toolbar,
+.vue-flow__node-image .image-node:has(img):hover .image-node-toolbar,
+.vue-flow__node-image .image-node:has(img) .image-node-toolbar:hover,
+.vue-flow__node-image .image-node[data-toolbar-open="true"]:has(img) .image-node-toolbar {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: translateX(-50%) translateY(0) !important;
+}
+
+.vue-flow__node-image.image-node-has-image .image-node-toolbar > *,
+.vue-flow__node-image.image-node-has-image .image-node-toolbar button,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar > *,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar button,
+.vue-flow__node-image .image-node:has(img) .image-node-toolbar > *,
+.vue-flow__node-image .image-node:has(img) .image-node-toolbar button {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  width: auto !important;
+  max-width: 136px !important;
+  min-width: 36px !important;
+  height: 32px !important;
+  margin: 0 !important;
+  padding: 0 10px !important;
+  border: 0 !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+  transform: none !important;
+}
+
+.vue-flow__node-image.image-node-has-image .image-node-toolbar .image-node-tool-button,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar .image-node-tool-button {
+  width: auto !important;
+  max-width: 136px !important;
+}
+
+.vue-flow__node-image.image-node-has-image .image-node-toolbar .image-node-tool-button::before,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar .image-node-tool-button::before {
+  display: none !important;
+}
+
+.vue-flow__node-image.image-node-has-image .image-node-toolbar .tool-icon,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar .tool-icon {
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 9px !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+.vue-flow__node-image.image-node-has-image .image-node-toolbar .tool-text,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar .tool-text {
+  color: rgba(255, 255, 255, 0.94) !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+
+.vue-flow__node-image.image-node-has-image .image-node-toolbar .tool-spinner,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar .tool-spinner {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.vue-flow__node-image.image-node-has-image .image-node-toolbar > *:hover,
+.vue-flow__node-image.image-node-has-image .image-node-toolbar button:hover,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar > *:hover,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar button:hover,
+.vue-flow__node-image .image-node:has(img) .image-node-toolbar > *:hover,
+.vue-flow__node-image .image-node:has(img) .image-node-toolbar button:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.vue-flow__node-image .image-node > .relative.p-4 {
+  padding: 10px !important;
+}
+
+.vue-flow__node-image
+  .image-node
+  > .relative.p-4
+  > .space-y-4:has(input[type="file"][accept="image/*"]) {
+  display: block !important;
+}
+
+.vue-flow__node-image
+  .image-node
+  > .relative.p-4
+  > .space-y-4:has(input[type="file"][accept="image/*"])
+  > .relative:has(input[type="file"][accept="image/*"]) {
+  aspect-ratio: 1 / 1 !important;
+  height: auto !important;
+  min-height: 270px !important;
+  border: 0 !important;
+  border-radius: 20px !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9)),
+    #fff !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 23, 42, 0.06),
+    0 12px 26px rgba(15, 23, 42, 0.08) !important;
+}
+
+.vue-flow__node-image
+  .image-node
+  > .relative.p-4
+  > .space-y-4:has(input[type="file"][accept="image/*"])
+  > .relative:has(input[type="file"][accept="image/*"])
+  > .w-16.h-16 {
+  margin-bottom: 12px !important;
+  border-radius: 22px !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08) !important;
+}
+
+.vue-flow__node-image
+  .image-node
+  > .relative.p-4
+  > .space-y-4:has(input[type="file"][accept="image/*"])
+  > .relative:has(input[type="file"][accept="image/*"])
+  .text-sm {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  color: #172033 !important;
+}
+
+.vue-flow__node-image
+  .image-node
+  > .relative.p-4
+  > .space-y-4:has(input[type="file"][accept="image/*"])
+  > .relative:has(input[type="file"][accept="image/*"])
+  .text-xs {
+  margin-top: 4px !important;
+  color: #8a92a3 !important;
+}
+
+.vue-flow__node-image
+  .image-node
+  > .relative.p-4
+  > .space-y-4:has(input[type="file"][accept="image/*"])
+  > .flex.gap-2 {
+  display: none !important;
+}
+
+.vue-flow__node-image .image-node-toolbar,
+.vue-flow__node-image .image-node-toolbar-wrap {
+  z-index: 1200 !important;
+}

@@ -11,6 +11,51 @@
 - 下一轮优先级。
 - 优先复用已有接口、成熟开源项目和当前技术栈能力，不重复造轮子；新增能力前先确认是否已有 New-API、CPA、Docker Compose、现有 `/api/*` 或前端模块可复用。
 
+## 2026-06-26 技术栈补救决策复核
+
+### 已验证
+
+- 对比视频参考中的源码型全栈思路：前端保留 `frontend/src/*`，后端按模型/视图组织，数据库和后台管理有稳定边界。
+- 对比当前项目现状：前端为打包 Vue 资产，后端为 Express + SQLite，一部分功能依赖 bridge 脚本和 override CSS。
+- 新增 `docs/adr/0002-source-first-technology-stack.md`，明确当前过渡栈和正式源码目标栈。
+- 更新 `docs/iteration-review-checklist.md`，要求新增复杂前端能力先判断是否进入后续源码工程，避免继续大规模改打包 JS。
+- 更新 `docs/known-gaps.md`，把技术栈补救路线列为显式缺口。
+
+### 结论
+
+- 当前不建议立即切 Django/MySQL，也不建议推倒 Express/SQLite 内网版本。
+- 正式补救方向是 Vue 3 + Vite + TypeScript 前端源码化，Node.js + TypeScript 后端模块化，后续按阶段引入 Postgres/MySQL、Redis、BullMQ、Worker 和对象存储。
+- Django Admin 的效率可以作为后台能力参考，但当前核心栈继续沿用 Vue/Node 更能复用已有验证成果。
+
+### 未覆盖
+
+- 尚未建立 API 契约文档。
+- 尚未盘点每个 bridge/override 对应的源码化迁移项。
+- 尚未开始 `server.js` 模块拆分和 `frontend/` 源码工程。
+
+## 2026-06-26 新分支源码栈与画布启动复核
+
+### 已验证
+
+- 已切换到 `codex/source-stack-canvas-rebuild` 新分支。
+- 已新增 `frontend/` 源码工程，依赖限定为成熟开源基座：Vue、Vite、TypeScript、Vue Router、Pinia、Axios、Naive UI、lucide-vue-next、Vue Flow。
+- 已实现新版画布第一版：节点、连线、视口、Controls、MiniMap 和背景全部来自 Vue Flow。
+- 已通过 `npm run build --prefix frontend`，覆盖 TypeScript 类型检查和 Vite 生产构建。
+- 已新增 `README.md` 和更新 `AGENTS.md`，明确禁止自研画布、UI 组件库、状态库、HTTP Client、AI 网关和账号池。
+- 已新增 `docs/plans/2026-06-26-source-stack-canvas-rebuild-plan.md`，按 Lane A-E 写明并行任务树。
+
+### 结论
+
+- 新分支已从旧打包资产修补模式切到源码前端模式。
+- 当前新版画布是可构建的起点，但尚未承载旧画布全部业务能力。
+- 后续应先做 API 契约和旧画布能力盘点，再扩大新画布功能。
+
+### 未覆盖
+
+- 尚未启动浏览器做新前端视觉检查。
+- 尚未接真实后端生成任务。
+- 尚未建立多工作树目录。
+
 ## 2026-06-25 后台全页面截图复跑
 
 ### 已验证
@@ -1246,3 +1291,982 @@
 
 - 前端画布节点真实点击后是否等待足够久。
 - 模板页真实生图是否复用同一条兼容路径。
+
+## 2026-06-26 源码化技术栈任务树启动
+
+### 已确认
+
+- 主目录固定为 `F:\dianshang`，并行工作树统一规划为 `F:\dianshang-worktrees\*`。
+- CodeGraph 已在 `F:\dianshang` 初始化，结构定位和调用链分析后续优先用索引工具。
+- 新前端成熟基座固定为 Vue 3、Vite、TypeScript、Vue Router、Pinia、Axios、Naive UI、lucide-vue-next、Vue Flow。
+- 新画布继续基于 Vue Flow，不自研拖拽、连线、缩放、视口和小地图。
+- 后端暂不创建 NestJS 工程，先写 API 契约和模块边界，避免推倒当前可运行旧版本。
+- `docs/api-contract-next.md`、`docs/backend-module-boundaries.md`、`docs/canvas-migration-checklist.md` 已作为第一批迁移边界文档落地。
+- `.codegraph/` 已加入 `.gitignore`，本地索引不会进入版本库。
+
+### 需要继续验证
+
+- API 契约需要继续对照真实 `/api/*` 路由、字段和错误码做逐项复核。
+- 新版 `/canvas` 需要人工点测节点新增、属性面板、连线、JSON 导入导出、本地保存和生成入口。
+- 后端模块边界需要补充数据库表归属、错误码归属和 smoke 覆盖关系。
+- 未经确认不安装新依赖、不引入数据库/Redis/对象存储、不真实调用外部服务。
+
+## 2026-06-26 哈基米旧画布 UI 迁移
+
+### 已确认
+
+- 用户明确要求新版画布 UI 继续使用哈基米旧画布的整体布局和卡片板块。
+- `Infinite-Canvas-main.zip` 是用户提供的画布源码参考，但本轮 UI 主风格以用户截图中的哈基米旧画布为准。
+- Vue Flow 继续作为底层成熟画布引擎；顶部工具条、左侧 Canvas Chat、右侧 Create Node、节点卡片视觉为本项目业务 UI。
+- 默认节点坐标已整体避开左侧 Canvas Chat，且导入或读取旧本地缓存时会自动右移避免遮挡。
+- 浏览器截图已归档：`docs/design-references/canvas-hjm-legacy-layout-final-2026-06-26.png`。
+
+### 需要继续验证
+
+- 用户人工确认新版 `/canvas` 与截图中的旧哈基米画布视觉接近度。
+- 右侧节点菜单的“文生图、视频生成、撤销、重做”目前是 UI 占位，还未接完整动作。
+- 左侧快速模式输入框还未接真实生成任务，只完成 UI 迁移。
+
+## 2026-06-26 Infinite-Canvas 节点与模板迁移
+
+### 已确认
+
+- 新 Vue Flow 画布已注册 Infinite-Canvas 第一批全量节点：图片、提示词、循环、LLM、API生成、MS生成、视频生成、RunningHub、ComfyUI、LTX Director、Output、分组、提示词组。
+- 所有节点通过同一个 Store 注册表创建，避免后续继续搓临时节点。
+- 提示词模板直接来自 `Infinite-Canvas-main` 的系统模板 Markdown，已进入 `frontend/public/system-prompts/infinite-canvas-prompt-templates.md`。
+- 浏览器自动化已验证：13 类节点都能创建，提示词模板可见并可应用，运行按钮可让节点进入 ready/done 状态，图片和视频示例输出字段存在。
+
+### 需要继续验证
+
+- 真实外部执行器尚未逐项接入；当前是前端运行状态与示例输出跑通。
+- 后续接真实执行器前，需要确认 ComfyUI、RunningHub、ModelScope、LTX、视频 API 的环境、密钥和本机/局域网地址。
+- 提示词模板目前先显示搜索结果前 8 个；后续需要补分类 Tab、详情预览、正向/完整应用两个按钮，与 Infinite-Canvas 行为完全对齐。
+
+## 2026-06-26 Infinite-Canvas 运行适配器
+
+### 已确认
+
+- 新增 `canvasRunner` 适配器，避免把运行逻辑散写在画布组件内。
+- `generator` 和 `msgen` 已接入本地成熟接口 `/api/generate/tasks`。
+- `llm` 已接入本地成熟接口 `/api/chat/completions`。
+- 适配器会从 Vue Flow 连线收集上游提示词和参考图，符合 Infinite-Canvas 的节点输入输出迁移方向。
+- 未登录浏览器验证中，真实后端接口返回 401，节点进入 error 并显示明确原因；没有执行真实外部付费调用。
+- `video`、`ltxDirector`、`comfy`、`rh` 当前可完成前端运行状态，但真实外部执行器仍需要环境配置。
+
+### 需要继续验证
+
+- 登录态下真实 `generator` 生图需要人工确认，因为可能消耗算力。
+- 登录态下真实 `llm` 文本改写需要人工确认，因为可能消耗模型额度。
+- ComfyUI、RunningHub、LTX、视频生成必须先确认环境和密钥，不能写自研替代执行器。
+
+## 2026-06-26 新画布废止并回滚旧画布
+
+### 已确认
+
+- 用户明确要求“新画布直接全部废止，回滚到旧画布”。
+- `frontend/` 中的新画布已经从构建链路移除：删除 `CanvasStudio.vue`、新画布 Store、类型、运行适配器和 Infinite-Canvas 提示词模板文件。
+- 已卸载 `@vue-flow/core`、`@vue-flow/background`、`@vue-flow/controls`、`@vue-flow/minimap`，新前端不再依赖 Vue Flow。
+- `frontend/src/views/LegacyCanvasRedirect.vue` 负责把新前端 `/canvas` 跳转到旧后端 `http://127.0.0.1:3456/canvas`。
+- 旧画布资产 `assets/Canvas-*.js/css` 和旧后端 `server.js` 未被本轮修改。
+
+### 需要继续验证
+
+- 人工打开 `http://127.0.0.1:3456/canvas`，确认回到旧画布。
+- 后续画布问题只在旧画布链路做最小修复，不继续推进新画布或 Infinite-Canvas 节点迁移。
+
+## 2026-06-26 前端源码化迁移骨架
+
+### 已确认
+
+- 前端源码化不再包含新画布。
+- 未迁移页面使用统一桥接组件跳转旧前端，避免旧功能断链。
+- `frontend/src/config/frontendMigration.ts` 成为页面迁移索引，每个路由标记 source 或 legacy。
+- 首页显示迁移索引，便于人工确认哪些页面还在旧版、哪些已进入源码。
+
+### 需要继续验证
+
+- `/template-image` 是下一批最适合迁移的核心业务页。
+- 后台页面数量多，建议最后迁移。
+
+## 2026-06-26 模板生图页源码迁移
+
+### 已确认
+
+- `/template-image` 已由 `frontend/` 源码承载，不再桥接旧页面。
+- 模板配置来自 `/api/template/settings`，当前可加载 10 个模板。
+- 图片/文本线路来自 `/api/model-routes?group=image/text`。
+- 反推和生成沿用旧后端接口，不新造业务接口。
+- 无登录验证只触发本地 401，不会发生真实付费生成。
+
+### 需要继续验证
+
+- 登录态真实上传和反推。
+- 登录态真实生成前需人工确认算力消耗。
+- 移动端 390px 布局还需截图复核。
+
+## 2026-06-26 图库页源码迁移
+
+### 已确认
+
+- `/gallery` 已由 `frontend/` 源码承载，不再桥接旧页面。
+- 图库历史读取复用 `/api/user/generations`。
+- 删除记录复用 `DELETE /api/user/generations/:id`，未新增后端接口。
+- 无登录验证只触发预期 401，并显示中文登录提示。
+- 截图已归档：`docs/design-references/gallery-source-2026-06-26.png`。
+
+### 需要继续验证
+
+- 登录态真实图库数据。
+- 删除记录需要测试数据确认后再点测。
+- 移动端布局需补截图。
+
+## 2026-06-26 登录注册源码迁移
+
+### 已确认
+
+- `/login` 和 `/register` 已由 `frontend/` 源码承载。
+- 登录接口复用 `/api/auth/login`。
+- 注册流程复用 `/api/auth/send-email-code` 和 `/api/auth/register`。
+- 已用默认账号 `admin/admin123` 验证登录成功。
+- 登录后 token 写入 `auth_token`，源码图库页可带 token 请求，不再出现 401。
+
+### 需要继续验证
+
+- 注册新账号完整路径。
+- 源码前端退出登录。
+- 登录态下模板页上传/反推/生成。
+
+## 2026-06-26 用户中心源码迁移
+
+### 已确认
+
+- `/user/center` 已由 `frontend/` 源码承载。
+- 用户资料复用 `/api/user/profile`。
+- 余额流水复用 `/api/user/balance-logs`。
+- API 状态复用 `/api/user/api-status`。
+- 已用 `admin/admin123` 验证登录态用户中心，无 4xx 响应。
+- 截图已归档：`docs/design-references/user-center-source-2026-06-26.png`。
+
+### 需要继续验证
+
+- `/user/records` 和 `/user/redeem` 仍需源码迁移。
+- 头像上传和头像预设编辑暂未迁移。
+- 移动端布局需补截图。
+
+## 2026-06-26 生成记录与兑换码源码迁移
+
+### 已确认
+
+- `/user/records` 已由 `frontend/` 源码承载，生成历史复用 `/api/user/generations`，余额流水复用 `/api/user/balance-logs`。
+- `/user/redeem` 已由 `frontend/` 源码承载，用户余额复用 `/api/user/profile`，兑换提交复用 `/api/user/redeem`，最近流水复用 `/api/user/balance-logs`。
+- 已用默认账号 `admin/admin123` 验证登录态访问；生成记录页显示 13 条生成记录和 16 条余额流水；兑换页显示当前算力 `999989` 和 8 条最近流水。
+- 浏览器验收没有 page error，也没有 4xx/5xx API 响应。
+- 截图已归档：`docs/design-references/user-records-source-2026-06-26.png`、`docs/design-references/user-redeem-source-2026-06-26.png`。
+
+### 需要继续验证
+
+- 真实兑换码提交会改变余额，自动化未提交兑换码；需要测试码或人工确认后再测。
+- 移动端布局还需补 390px 截图。
+- 头像上传/预设头像编辑暂未进入源码化迁移。
+
+## 2026-06-26 用户模块移动端与登录态前台回测
+
+### 已确认
+
+- 390x844 移动端打开 `/user/records` 时，初次回测发现横向溢出 90px，原因是生成图片卡片被图片固有宽度撑开。
+- 已补源码 CSS 约束，复跑后 `/user/records` 的 `scrollWidth=clientWidth=390`，横向溢出为 0。
+- `/user/redeem` 移动端同样为 0 横向溢出，余额和最近流水可见。
+- 登录态 `/template-image` 只做非付费加载回测，确认 10 个模板、2 个素材槽、无 4xx/5xx API。
+- 登录态 `/gallery` 确认 13 张记录、无 4xx/5xx API。
+- 截图已归档：`docs/design-references/user-records-source-mobile-390x844-2026-06-26.png`、`docs/design-references/user-redeem-source-mobile-390x844-2026-06-26.png`、`docs/design-references/template-image-source-login-2026-06-26.png`、`docs/design-references/gallery-source-login-2026-06-26.png`。
+
+### 需要继续验证
+
+- 浏览器仍有一个非 API 的 404 静态资源提示，业务 API 无 4xx/5xx；后续可单独补 favicon 或定位静态资源。
+- 真实模板反推/生成会消耗模型额度，本轮未点击。
+- 图库删除和兑换码提交会改数据，本轮未点击。
+- 部分历史中文 prompt 显示为问号，疑似早期数据编码遗留，需要另开数据修复任务。
+
+## 2026-06-26 Codex 自带浏览器前台源码页点测
+
+### 已确认
+
+- 已按用户要求使用 Codex 自带浏览器可见窗口点测，不再只依赖 headless 截图。
+- 默认账号 `admin/admin123` 可在源码登录页登录，登录后跳转 `/gallery`。
+- 桌面视口点测结果：
+  - `/gallery`：标题“图库历史”，13 张图库卡片，横向溢出 0。
+  - `/template-image`：标题“模板生图工作台”，10 个模板按钮，2 个素材槽，横向溢出 0。
+  - `/user/records`：标题“生成记录”，2 个面板、13 条生成记录、16 条流水，横向溢出 0。
+  - `/user/redeem`：标题“兑换码”，余额 `999989`、8 条最近流水，横向溢出 0。
+- 移动端视口点测结果：
+  - `/user/records`：横向溢出 0，13 条生成记录和 16 条流水可见。
+  - `/user/redeem`：横向溢出 0，余额 `999989` 可见。
+- 自带浏览器页面业务控制台错误为 0。
+- 截图已归档：`docs/design-references/iab-gallery-source-login-2026-06-26.png`、`docs/design-references/iab-template-image-source-login-2026-06-26.png`、`docs/design-references/iab-user-records-source-2026-06-26.png`、`docs/design-references/iab-user-redeem-source-2026-06-26.png`、`docs/design-references/iab-user-records-mobile-390x844-2026-06-26.png`、`docs/design-references/iab-user-redeem-mobile-390x844-2026-06-26.png`。
+
+### 需要继续验证
+
+- 本轮没有触发真实生成、兑换码提交和图库删除，避免消耗额度或改数据。
+- 自带浏览器运行环境出现过 Codex/Statsig 统计请求超时日志，不影响本地业务页；后续只把业务页面控制台作为验收依据。
+- 注册新账号和后台源码页仍未进入本轮点测。
+
+## 2026-06-26 源码前端 Playwright 点击 Smoke
+
+### 已确认
+
+- 新增 `scripts/smoke-source-frontend-ui.ps1` 和 `scripts/smoke-source-frontend-ui-runner.js`，专门覆盖 `frontend/` Vue3 源码页，并接入 `scripts/preflight-check.ps1` 的 `SMOKE_UI=true` 分支。
+- 脚本使用 Playwright CLI，不新增依赖；`npx` 已确认可用。
+- 点击链路已跑通：
+  - 登录页填写 `admin/admin123` 并点击登录。
+  - 图库页填写搜索词 `simple`，确认至少 1 张卡片，再点击刷新。
+  - 模板页点击“白底图”，确认选中模板发生变化，再填写提示词文本。
+  - 生成记录页填写搜索词 `simple`，确认至少 1 条记录，再点击刷新。
+  - 兑换码页填写测试文本，但只点击刷新，不提交兑换码。
+  - 390x844 移动端复核 records/redeem 横向溢出为 0。
+- 脚本输出无 4xx/5xx API、无业务 console error。
+- 截图已归档到 `docs/design-references/source-frontend-2026-06-26/`。
+
+### 需要继续验证
+
+- 真实生成、兑换码提交和图库删除仍需要人工确认费用和测试数据后再测。
+
+## 2026-06-26 源码前端注册点击 Smoke
+
+### 已确认
+
+- `/register` 注册页已纳入 `scripts/smoke-source-frontend-ui-runner.js`。
+- Playwright 会填写唯一临时用户名、邮箱和密码，点击“发送验证码”，确认验证码自动填入，再点击“注册”。
+- 注册成功后确认跳转 `/gallery`，并保存注册成功截图。
+- 注册产生的临时用户会通过后台登录接口清理：先软删除，再调用回收站永久删除接口。
+- 清理后脚本清空本地登录态，再继续默认账号 `admin/admin123` 的原有源码前端点击回归。
+- 重新运行 `scripts/smoke-source-frontend-ui.ps1` 已通过，结果包含 `register ok` 和 `register-cleanup ok`。
+
+### 需要继续验证
+
+- 注册 smoke 使用当前本地服务和当前库，虽然会清理临时用户，但仍属于写入型测试；生产环境运行前需要确认测试库或 disposable 环境。
+- 真实生成、真实兑换码提交和图库删除仍没有自动执行，避免费用和数据变化。
+
+## 2026-06-26 源码前端导航与退出登录 Smoke
+
+### 已确认
+
+- 首页迁移索引已纳入 `scripts/smoke-source-frontend-ui-runner.js`。
+- Playwright 会打开 `/`，确认“前端迁移索引”，点击 `/user/center` 源码入口进入用户中心。
+- 用户中心会检查横向溢出为 0，并点击“图库历史”快捷按钮确认可导航到图库页。
+- 脚本末尾会回到用户中心点击“退出登录”，确认跳转 `/login`，并确认 localStorage 中 `auth_token` 和 `auth_user` 已清空。
+- 重新运行源码前端 smoke 已通过，结果包含 `home-index-user-navigation ok` 和 `logout ok`。
+
+### 需要继续验证
+
+- 真实付费和破坏性动作仍未自动执行。
+- 后台源码化页面尚未进入 `frontend/`。
+
+## 2026-06-26 源码前端未登录边界与自带浏览器点击复核
+
+### 已确认
+
+- `scripts/smoke-source-frontend-ui-runner.js` 已移除 `networkidle` 硬等待，统一使用 DOM 就绪加短暂稳定等待，避免源码前端 smoke 在本地开发服务中卡死。
+- 源码前端 smoke 已新增未登录态边界：
+  - `/gallery` 显示“请先登录”提示，预期 401 被白名单识别。
+  - `/user/center` 显示“请先登录后查看用户中心。”
+  - `/user/records` 显示“请先登录后查看生成记录。”
+  - `/user/redeem` 显示“请先登录后兑换。”
+- 重新运行源码前端 smoke 已通过，覆盖注册清理、未登录边界、默认账号登录、首页跳转、用户中心快捷导航、图库、模板、记录、兑换页、移动端和退出登录。
+- 已按用户要求使用 Codex 自带浏览器真实点击当前页面：兑换页填写测试码但不提交、点击刷新、点击用户中心、从用户中心点击图库历史、进入生成记录并搜索 `simple`。
+- 自带浏览器复核的 `/user/redeem`、`/user/center`、`/gallery`、`/user/records` 横向溢出均为 0。
+
+### 需要继续验证
+
+- 本轮仍未触发真实生成、兑换码提交、图库删除，避免费用和数据变化。
+- Codex 自带浏览器运行时出现 Statsig 统计请求超时日志，但本地业务页面检查通过；后续仍以业务 API 和页面错误作为验收依据。
+
+## 2026-06-26 源码首页迁移看板复核
+
+### 已确认
+
+- 首页迁移看板直接读取 `frontendMigrationRoutes`，没有硬编码新增路由列表。
+- 页面显示 `8` 个源码页面、`13` 个旧版桥接、`21` 个总入口。
+- 阶段卡显示“前台源码化”“旧画布保留”“后台迁移”，和当前画布废止、后台桥接策略一致。
+- Playwright smoke 已新增首页统计和阶段卡断言，避免后续路由变化时看板静默失真。
+- Codex 自带浏览器已打开首页并检查横向溢出为 0；滚动到迁移索引后点击“模板生图”，成功进入 `/template-image`。
+
+### 需要继续验证
+
+- 首页看板只解决迁移透明度，不代表后台页面已源码化。
+- CodeGraph 索引仍显示已废止的新画布文件，后续结构分析前需要重建或谨慎对照磁盘状态。
+
+## 2026-06-26 源码后台登录复核
+
+### 已确认
+
+- `/admin/login` 已由 `frontend/` 源码承载，并从迁移配置中的 `legacy` 改为 `source`。
+- 登录接口复用 `/api/admin/login`，不新增后端接口、不新增依赖。
+- 登录成功后写入源码前端 `auth_token/auth_user`，页面展示“管理员登录成功”。
+- Playwright smoke 已覆盖后台登录源码页，确认默认管理员账号可登录并保存 session。
+- Codex 自带浏览器点测通过：填写 `admin/admin123` 后显示成功态，再访问 `/user/center` 可读取 admin 资料，证明源码前端 session 生效。
+
+### 需要继续验证
+
+- 旧后台运行在 `http://127.0.0.1:3456`，源码前端运行在 `http://127.0.0.1:5173`，两个 origin 的 localStorage 不共享；旧后台仍需旧入口登录。
+- 后台其余页面仍是旧桥接，下一步应从只读 Dashboard 开始迁移，不先动删除、保存、价格等写入页。
+
+## 2026-06-26 源码后台 Dashboard 复核
+
+### 已确认
+
+- `/admin/dashboard` 已由 `frontend/` 源码承载，并从迁移配置中的 `legacy` 改为 `source`。
+- Dashboard 只调用只读接口：`/api/admin/dashboard` 和 `/api/admin/dashboard/user-credit-ranking`。
+- 页面展示 6 张统计卡、模型使用、线路概览、用户消耗排行和最近生成任务。
+- Playwright smoke 已覆盖桌面 Dashboard、刷新按钮、排行/任务行数和 390x844 移动端横向溢出。
+- Codex 自带浏览器点测通过：打开 `/admin/dashboard`，点击“刷新”，页面横向溢出为 0。
+
+### 需要继续验证
+
+- 后台 Dashboard 是只读迁移，不代表用户管理、API 线路、模型价格等写入页已源码化。
+- `F:\dianshang` 后端依赖未安装，独立启动会缺 `express`；本轮继续复用旧项目后端 `C:\Users\pc\Desktop\hjm-mb-clone`。
+
+## 2026-06-26 源码后台用户管理只读复核
+
+### 已确认
+
+- `/admin/users` 已由 `frontend/` 源码承载，并从迁移配置中的 `legacy` 改为 `source`。
+- 用户页只调用只读接口 `/api/admin/users`，不提供删除、改余额、重置密码等写入动作。
+- 页面支持关键词搜索、角色/状态筛选、分页和刷新，统计卡显示总数、当前页、启用账户、管理员和余额。
+- Playwright smoke 已覆盖桌面用户管理搜索 `admin`、刷新、统计卡数量、列表行数、`admin@local` 可见性，以及 390x844 移动端横向溢出。
+- Codex 自带浏览器点测通过：打开 `/admin/users`，搜索 `admin`，点击“查询”和“刷新”，页面横向溢出为 0。
+
+### 需要继续验证
+
+- 当前用户管理页是只读迁移，不代表旧后台的删除、恢复、改余额、重置密码等写入能力已源码化。
+- CodeGraph 当前 Vue 索引数量少于实际源码页，继续结构分析前应考虑重建索引或以构建结果为准。
+
+## 2026-06-26 源码后台任务监控只读复核
+
+### 已确认
+
+- `/admin/generate-tasks` 已由 `frontend/` 源码承载，并从迁移配置中的 `legacy` 改为 `source`。
+- 任务监控页只调用只读接口 `/api/admin/generate-tasks`，不调用取消任务和删除任务接口。
+- 页面支持关键词搜索、状态筛选、分页和刷新，统计卡显示总数、成功、运行中、等待、失败和当前页消耗。
+- Playwright smoke 已覆盖桌面任务监控搜索 `simple`、刷新、统计卡数量、列表行数、`gpt-image-2` 可见性，以及 390x844 移动端横向溢出。
+- Codex 自带浏览器点测通过：打开 `/admin/generate-tasks`，搜索 `simple`，点击“查询”和“刷新”，页面横向溢出为 0。
+
+### 需要继续验证
+
+- 当前任务监控页是只读迁移，不代表旧后台的取消任务、删除任务等写入能力已源码化。
+- 旧接口不支持关键词服务端搜索，本轮是当前页前端筛选；新后端接管时需要在 API 契约里补正式 keyword 参数。
+
+## 2026-06-26 源码后台消费日志只读复核
+
+### 已确认
+
+- `/admin/logs` 已由 `frontend/` 源码承载，并从迁移配置中的 `legacy` 改为 `source`。
+- 消费日志页只调用只读接口 `/api/admin/usage-logs`，不调用余额调整或用户写入接口。
+- 页面支持关键词搜索、类型筛选、分页和刷新，统计卡显示总数、当前页收入、当前页消耗、生成记录和兑换记录。
+- Playwright smoke 已覆盖桌面消费日志搜索 `注册赠送`、刷新、统计卡数量、列表行数、文本可见性，以及 390x844 移动端横向溢出。
+- Codex 自带浏览器点测通过：打开 `/admin/logs`，搜索 `注册赠送`，点击“查询”和“刷新”，页面横向溢出为 0。
+
+### 需要继续验证
+
+- 当前消费日志页是只读迁移，不代表旧后台余额调整、用户删除、兑换码管理等写入能力已源码化。
+- 旧接口的 `logs` 字段是全量数组，`items` 是分页数组；本轮已修正前端归一化优先级，但新后端契约需要把字段含义固定下来。
+
+## 2026-06-26 源码后台订单管理只读复核
+
+### 已确认
+
+- `/admin/orders` 已由 `frontend/` 源码承载，并从迁移配置中的 `legacy` 改为 `source`。
+- 订单管理页只调用只读接口 `/api/admin/orders`，不调用 `/api/admin/orders/:id/status`。
+- 页面支持订单号/用户/邮箱搜索、状态筛选、分页和刷新，统计卡显示订单总数、当前页金额、已支付、待支付、已关闭和当前页算力。
+- Playwright smoke 已覆盖桌面订单管理搜索 `HJM`、刷新、统计卡数量、列表行数、`HJM000001` 可见性，以及 390x844 移动端横向溢出。
+- Codex 自带浏览器点测通过：打开 `/admin/orders`，搜索 `HJM000001`，点击“查询”和“刷新”，桌面横向溢出为 0；390x844 视口复核横向溢出仍为 0。
+
+### 需要继续验证
+
+- 当前订单管理页是只读迁移，不代表旧后台订单改状态、退款、补单等写入能力已源码化。
+- 旧接口的 `orders` 字段是全量数组，`items` 是分页数组；本轮已修正前端归一化优先级，但新后端契约需要把字段含义固定下来。
+
+## 2026-06-26 源码后台兑换码管理只读复核
+
+### 已确认
+
+- `/admin/redeem-codes` 已由 `frontend/` 源码承载，并从迁移配置中的 `legacy` 改为 `source`。
+- 兑换码管理页只调用只读接口 `/api/admin/redeem-codes`，不调用 `POST /api/admin/redeem-codes` 或 `DELETE /api/admin/redeem-codes/:code`。
+- 页面支持兑换码/状态/算力搜索、状态筛选、分页和刷新，统计卡显示兑换码总数、当前页算力、启用中、已禁用、已用尽和剩余次数。
+- Playwright smoke 已新增桌面兑换码管理搜索 `HAJIMI`、刷新、统计卡数量、列表行数、`HAJIMI2024` 可见性，以及 390x844 移动端横向溢出检查。
+- Codex 自带浏览器点测通过：打开 `/admin/redeem-codes`，搜索 `HAJIMI`，点击“查询”和“刷新”，桌面横向溢出为 0；390x844 视口复核横向溢出仍为 0。
+
+### 需要继续验证
+
+- 当前兑换码管理页是只读迁移，不代表旧后台兑换码创建、删除、发放等写入能力已源码化。
+- 旧接口的 `codes` 字段是全量数组，`items` 是分页数组；本轮已修正前端归一化优先级，但新后端契约需要把字段含义固定下来。
+
+## 2026-06-26 源码后台模型价格只读复核
+
+### 已确认
+
+- `/admin/model-prices` 已由 `frontend/` 源码承载，并从迁移配置中的 `legacy` 改为 `source`。
+- 模型价格页只调用只读接口 `/api/admin/model-prices`，不调用模型价格保存、新增或删除接口。
+- 页面支持模型/线路/类型搜索、类型筛选、分页和刷新，统计卡显示线路数量、模型总数、启用模型、图片模型、文本模型和当前筛选总价。
+- Playwright smoke 已新增桌面模型价格搜索 `gpt-image-2`、刷新、统计卡数量、列表行数、`GPT Image 2` 可见性，以及 390x844 移动端横向溢出检查。
+- Codex 自带浏览器点测通过：打开 `/admin/model-prices`，搜索 `gpt-image-2`，点击“查询”和“刷新”，桌面横向溢出为 0；390x844 视口复核横向溢出仍为 0。
+
+### 需要继续验证
+
+- 当前模型价格页是只读迁移，不代表旧后台模型价格保存、新增模型、删除模型等写入能力已源码化。
+- 旧接口的 `items` 是全量线路而不是模型级分页；新后端契约需要把模型级分页、搜索和类型筛选固定下来。
+
+## 2026-06-26 源码后台 API 线路只读复核
+
+### 已确认
+
+- `/admin/api-providers` 已由 `frontend/` 源码承载，并从迁移配置中的 `legacy` 改为 `source`。
+- API 线路页只调用只读接口 `/api/admin/api-providers`，不调用测试、新增、保存、删除、设默认或拉模型接口。
+- 页面支持线路/模型/Base URL 搜索、类型筛选、分页和刷新，统计卡显示线路总数、启用线路、图片线路、文本线路、默认线路和模型总数。
+- 已源码化后台页侧栏中的 API 线路入口已改为 `/admin/api-providers`，不再跳回旧后台线路页。
+- Playwright smoke 已新增桌面 API 线路搜索 `route_6789`、刷新、统计卡数量、列表行数、masked key 可见性，以及 390x844 移动端横向溢出检查。
+- Codex 自带浏览器点测通过：打开 `/admin/api-providers`，搜索 `route_6789`，点击“查询”和“刷新”，桌面横向溢出为 0；390x844 视口复核横向溢出仍为 0。
+
+### 需要继续验证
+
+- 当前 API 线路页是只读迁移，不代表旧后台 API 线路测试、新增、保存、删除、设默认、拉模型等写入能力已源码化。
+- 旧接口的 `items` 是全量线路而不是真正分页；新后端契约需要固定线路级分页、搜索、类型筛选和密钥脱敏规则。
+
+## 2026-06-26 源码后台模板工作流只读复核
+
+### 已确认
+
+- `/admin/template-workflows` 已由 `frontend/` 源码承载，并从迁移配置中的 `legacy` 改为 `source`。
+- 模板工作流页只调用只读接口 `/api/admin/template-workflows`，不调用 `PUT /api/admin/template-workflows`。
+- 页面支持模板/分类/标签搜索、分类筛选和刷新，统计卡显示模板总数、启用模板、分类数量、素材槽、字段数量和比例选项。
+- 页面展示平台、清晰度、比例和模型配置摘要，并按模板展示素材槽、字段和输出上限。
+- Playwright smoke 已新增桌面模板工作流搜索 `白底图`、刷新、统计卡数量、列表行数、平台/比例摘要可见性，以及 390x844 移动端横向溢出检查。
+- Codex 自带浏览器点测通过：打开 `/admin/template-workflows`，搜索 `白底图`，点击“查询”和“刷新”，桌面横向溢出为 0；390x844 视口复核横向溢出仍为 0。
+
+### 需要继续验证
+
+- 当前模板工作流页是只读迁移，不代表旧后台模板保存、新增、删除、字段编辑等写入能力已源码化。
+- 旧接口 GET 一次返回完整模板配置；新后端契约需要固定模板级分页、搜索、分类筛选和写入权限边界。
+
+## 2026-06-26 剩余三入口源码化收尾复核
+
+### 已确认
+
+- `/canvas`、`/admin/recycle-bin`、`/admin/settings` 已从迁移配置中的 `legacy` 改为 `source`，首页迁移统计为 21/0/21。
+- `/canvas` 已由 `CanvasLegacySource.vue` 承载源码入口壳，页面明确“不重启新画布、不引入 Vue Flow、不自研画布”，并内嵌/链接旧后端画布。
+- `/admin/recycle-bin` 只调用 `GET /api/admin/recycle-bin/users`，不调用恢复或永久删除接口。
+- `/admin/settings` 只调用 `GET /api/admin/settings`，不调用 `PATCH /api/admin/settings`。
+- Playwright smoke 已覆盖旧画布源码入口、回收站只读搜索、系统设置只读搜索，以及三者 390x844 移动端横向溢出检查。
+- Codex 自带浏览器点测通过：桌面 `/canvas`、`/admin/recycle-bin`、`/admin/settings` 均横向溢出为 0；390x844 视口三页横向溢出仍为 0。
+
+### 需要继续验证
+
+- 当前 `/canvas` 是源码入口壳，不代表旧画布内部代码已迁入 `frontend/`；这符合“新画布废止、回滚旧画布”的既定边界。
+- 当前回收站测试库为空，本轮已覆盖空状态；有删除用户时的卡片视觉和恢复/永久删除写入动作需另行确认测试数据后再验收。
+- 当前系统设置页是只读迁移，不代表保存设置、图片工具配置写入等能力已源码化。
+
+## 2026-06-26 Vue3 源码工程化护栏复核
+
+### 已确认
+
+- 首页阶段状态已从早期迁移文案改为当前事实：源码入口完成、旧画布锁定、后台只读完成。
+- 已删除未使用的 `LegacyRouteRedirect.vue`，当前源码路由不再依赖旧桥接组件。
+- `scripts/check-source-frontend-routes.js` 已新增，检查 `frontendMigrationRoutes` 与 Vue Router 的 21 个路径一致，并确认所有迁移入口都是 `source`。
+- `frontend/package.json` 已新增 `check:routes`、`smoke:source` 和 `verify:source`，便于后续进入人工验收前先跑基础护栏。
+- `docs/source-frontend-acceptance-checklist.md` 已新增，明确可直接跑通的功能、暂不自动执行的写入动作和下一阶段验收顺序。
+
+### 验证
+
+- `npm.cmd run check:routes --prefix "F:\dianshang\frontend"` 通过，输出 `Source frontend route maintenance check passed: 21/21 source routes.`
+- `node --check "F:\dianshang\scripts\check-source-frontend-routes.js"` 通过。
+- `npm.cmd run build --prefix "F:\dianshang\frontend"` 通过。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"` 通过。
+- `git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示。
+- UTF-8 BOM、尾随空格和 `frontend/src` 旧桥接残留检查通过。
+
+### 需要继续验证
+
+- 写入、删除、扣费、真实模型调用和新后端依赖安装仍需用户确认后再执行。
+
+## 2026-06-26 系统设置保存试点复核
+
+### 已确认
+
+- `frontend/src/api/adminSettings.ts` 已新增 `updateAdminSettings()`，复用现有 Axios，不新增依赖。
+- `/admin/settings` 已从纯只读页升级为保存试点页，当前只开放低风险基础字段草稿：站点名称、注册开关、模板生图、图库历史、Mock 模式、默认算力和上传上限。
+- 图片工具配置仍保持只读，未开放复杂线路、模型和提示词模板写入。
+- smoke 断言已改为检查保存试点区和保存按钮存在，但不点击保存。
+
+### 验证
+
+- `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"` 通过。
+- `npm.cmd run typecheck --prefix "F:\dianshang\frontend"` 通过。
+- `npm.cmd run check:routes --prefix "F:\dianshang\frontend"` 通过。
+- `npm.cmd run build --prefix "F:\dianshang\frontend"` 通过。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"` 通过，且未触发系统设置保存。
+
+### 需要继续验证
+
+- 保存按钮的真实写入回显需要人工确认测试值和恢复方式后再点测。
+
+## 2026-06-26 旧画布入口崩溃复核
+
+### 已确认
+
+- 用户反馈崩溃时处于 `/canvas` 移动端入口；旧后端健康检查正常，旧画布项目页可 200 返回。
+- 临时 Playwright 诊断打开旧画布项目页 8 秒，无 page crash、无 console error、无 4xx/5xx 静态资源错误。
+- 诊断中唯一异常级信号是旧画布 warning：`canvas:chat-session-change:skip-not-ready`，属于旧画布初始化时序提示，不是页面崩溃栈。
+- 为降低移动端和自带浏览器压力，`/canvas` 源码入口已改为默认不加载 iframe，只显示轻量入口和手动加载按钮。
+
+### 验证
+
+- `npm.cmd run typecheck --prefix "F:\dianshang\frontend"` 通过。
+- `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"` 通过。
+- `npm.cmd run build --prefix "F:\dianshang\frontend"` 通过。
+- `npm.cmd run check:routes --prefix "F:\dianshang\frontend"` 通过。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"` 通过；`/canvas` 断言更新为默认 `iframeCount=0` 且存在“加载旧画布预览”按钮。
+
+### 需要继续验证
+
+- 旧画布内部的节点新增、上传、生成、保存恢复仍需要单独长流程验收。
+- 如果点击“加载旧画布预览”仍导致浏览器崩溃，应进一步禁用入口页 iframe，只保留新窗口打开。
+
+## 2026-06-26 旧画布本地保存权限复核
+
+### 已确认
+
+- 截图中的报错来自浏览器 File System Access API：`requestPermission` 不能在当前上下文请求权限。
+- 旧画布在 iframe 里运行时属于嵌入上下文，不适合执行本地文件夹授权。
+- `/canvas` 源码入口已移除 iframe 预览，只保留新窗口打开旧画布，并写明本地保存必须在新窗口旧画布中使用。
+
+### 需要继续验证
+
+- 用户需要从 `/canvas` 点击“新窗口打开旧画布”，在 `127.0.0.1:3456/canvas` 顶层页里重新选择本地文件夹。
+- 如果顶层旧画布仍报同样错误，再继续查是否缺少用户手势、浏览器权限策略或 File System Access API 兼容性。
+
+## 2026-06-26 Vue3 API 错误处理收敛复核
+
+### 已确认
+
+- CodeGraph 本轮调用超时，不是“未初始化”返回；已按工具不可用处理，改用本地源码读取和自动化护栏推进。
+- `frontend/src/api/http.ts` 已集中提供 `getApiErrorMessage()`，统一处理 401、403、后端 `message/error` 字段和 JS Error。
+- 用户页、模板页、图库页和后台源码页仍保留各自业务兜底文案，未登录提示没有被抹平。
+- `/canvas` 和 `/admin/settings` 的路线图与 README 描述已同步到当前事实。
+
+### 验证
+
+- `npm.cmd run typecheck --prefix "F:\dianshang\frontend"` 通过。
+- `npm.cmd run check:routes --prefix "F:\dianshang\frontend"` 通过，输出 `Source frontend route maintenance check passed: 21/21 source routes.`。
+- `npm.cmd run build --prefix "F:\dianshang\frontend"` 通过。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"` 通过，且 `/canvas` 仍为 `iframeCount=0`。
+- `git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示。
+- `rg` 检查确认视图层不再散落 `response?.data?.message` 和 `(error as Error)?.message` 解析。
+- 本轮关键文件 BOM 和尾随空白检查为空。
+
+### 需要继续验证
+
+- CodeGraph 后续如继续超时，需要单独确认是否重建索引或重启 MCP 服务。
+
+## 2026-06-26 系统设置图片工具可配置复核
+
+### 已确认
+
+- 用户反馈准确：此前图片工具配置只有展示标签，没有线路、模型和提示词模板选择控件。
+- 本轮复用现有 API 线路数据，不新增 npm 包、不新增后端接口。
+- `/admin/settings` 图片工具配置现在提供启用开关、图片线路下拉、模型下拉和提示词模板输入。
+- 页面顶部文案已从“复杂图片工具配置只读”改为“开放基础设置和图片工具线路、模型、提示词模板配置”。
+
+### 验证
+
+- `npm.cmd run typecheck --prefix "F:\dianshang\frontend"` 通过。
+- `npm.cmd run build --prefix "F:\dianshang\frontend"` 通过。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"` 第二次重跑通过；第一次失败停在 Playwright CLI session 未打开，不是页面逻辑错误。
+- `git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示。
+- 自带浏览器刷新 `/admin/settings`，确认图片工具区有 4 个工具卡、4 个开关、8 个下拉和 4 个提示词输入框。
+
+### 需要继续验证
+
+- 真实保存仍需人工按“记录原值 -> 修改 -> 保存 -> 刷新回显 -> 恢复原值”的顺序验收。
+
+## 2026-06-26 系统设置基础开关点击复核
+
+### 已确认
+
+- 用户反馈成立：基础设置里的 Naive UI `n-switch` 滑块本体点击后状态不变。
+- 右侧文字按钮此前可以工作，但滑块本体不工作会误导人工验收。
+- 已替换为自控按钮式滑块，点击滑块和文字按钮都会走同一个状态切换函数。
+
+### 验证
+
+- 自带浏览器逐个点击 7 个滑块，全部能改变草稿状态，并逐个恢复测试前状态。
+- 自带浏览器逐个点击 7 个文字按钮，全部能改变草稿状态，并逐个恢复测试前状态。
+- `npm.cmd run typecheck --prefix "F:\dianshang\frontend"` 通过。
+- `npm.cmd run check:routes --prefix "F:\dianshang\frontend"` 通过。
+- `npm.cmd run build --prefix "F:\dianshang\frontend"` 通过。
+- `git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示。
+
+### 需要继续验证
+
+- 用户人工点击保存前仍需记录原值；本轮未保存真实配置。
+
+## 2026-06-26 API 官方双线路收敛复核
+
+### 已确认
+
+- 用户要求成立：旧 API 多线路列表应收敛，不再继续保留 `6789`、`comfly-*`、`RK`、`哈吉米`、`flowstudio` 等旧目标线路。
+- 当前目标只保留两条线路：图片 `GPT Image 2 / gpt-image-2`，文本 `GPT 5.5 / gpt-5.5`。
+- 图片请求格式按官方 Images 生成形态记录为 `POST /images/generations`，请求体示例包含 `model/prompt/size/quality/n`。
+- 文本请求格式按官方 Responses 形态记录为 `POST /responses`，请求体示例包含 `model/input`。
+- 本轮没有新增 npm 依赖，没有调用真实外部 AI 接口。
+
+### 验证
+
+- `node --check "F:\dianshang\server.js"` 通过。
+- `node --check "C:\Users\pc\Desktop\hjm-mb-clone\server.js"` 通过。
+- `npm.cmd run typecheck --prefix "F:\dianshang\frontend"` 通过。
+- `npm.cmd run check:routes --prefix "F:\dianshang\frontend"` 通过，输出 `21/21 source routes`。
+- `npm.cmd run build --prefix "F:\dianshang\frontend"` 通过。
+- `git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示。
+- 兼容后端重启后 `/api/health` 正常，模型配置为 `textModel=gpt-5.5`、`imageModel=gpt-image-2`。
+- 已调用本地整包替换接口写入运行数据库，复核 `/api/admin/api-providers` 为 2 条线路、默认模型为 `gpt-image-2,gpt-5.5`，旧线路名匹配为 false。
+- 已删除 3 条早期 `ui-echo-model-*` 模型价格覆盖行，复核 `/api/admin/model-prices` 模型键只剩 `gpt-image-2,gpt-5.5`。
+- 自带浏览器打开 `/admin/api-providers`，显示 2 条线路、2 张官方目标卡、`/images/generations`、`/responses`、无旧线路文本，横向溢出为 0。
+- 完整源码前端 smoke 通过；首次失败为脚本选择器把 `/images/generations` 误解析成正则，已修正。
+
+### 需要继续验证
+
+- 历史生成记录、消费日志和仪表盘模型使用统计仍可能显示旧历史模型或旧线路名；这属于历史业务数据，若用户要求“历史也清洗”，必须另开数据迁移任务并先备份。
+- 新后端真正接管时，需要把 `POST /responses` 与 `POST /images/generations` 的请求构造迁移到 Provider Adapter，且先确认 Key、代理网关和费用边界。
+
+## 2026-06-26 API 图生图能力补齐复核
+
+### 已确认
+
+- 图生图不应作为第三条 API 线路处理；它属于 `GPT Image 2` 图片线路下的第二个官方请求能力。
+- 图片线路现在包含两个请求示例：`文生图 /images/generations` 与 `图生图 / 局部重绘 /images/edits`。
+- `/images/edits` 示例包含 `images` 和 `prompt`，局部重绘场景保留 `mask` 字段；真实文件上传时可走 `multipart/form-data`，URL/base64 引用可按 JSON 形态表达。
+
+### 验证
+
+- 已重启兼容后端并写入运行数据库，复核图片线路 `requestExamples=2`，包含 `/images/edits`。
+- `node --check "F:\dianshang\server.js"` 通过。
+- `node --check "C:\Users\pc\Desktop\hjm-mb-clone\server.js"` 通过。
+- `npm.cmd run typecheck --prefix "F:\dianshang\frontend"` 通过。
+- `npm.cmd run check:routes --prefix "F:\dianshang\frontend"` 通过，输出 `21/21 source routes`。
+- `npm.cmd run build --prefix "F:\dianshang\frontend"` 通过。
+- `git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示。
+- 自带浏览器打开 `/admin/api-providers`，确认页面显示 `/images/generations`、`/images/edits`、`/responses` 和“图生图 / 局部重绘”，横向溢出为 0。
+- 完整源码前端 smoke 通过。
+
+### 需要继续验证
+
+- 当前只是配置与后台展示补齐，未实现真实图生图上传、mask 画布、Provider Adapter 调用和任务结果回写。
+
+## 2026-06-26 Provider 能力注册表复核
+
+### 已确认
+
+- 线路不是前端功能路由；线路只描述上游 Provider 和模型能力。
+- 能力展示不应继续散落在 API 线路页或 API client 文件里。
+- 已新增 `frontend/src/config/providerCapabilities.ts`，作为当前前端能力展示注册表。
+- 后续新增中转站差异应落到后端 Provider Adapter，不在前端页面里手写各家请求格式。
+
+### 验证
+
+- `npm.cmd run typecheck --prefix "F:\dianshang\frontend"` 通过。
+- `npm.cmd run check:routes --prefix "F:\dianshang\frontend"` 通过，输出 `21/21 source routes`。
+- `node --check "F:\dianshang\scripts\smoke-source-frontend-ui-runner.js"` 通过。
+- `git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示。
+- `npm.cmd run build --prefix "F:\dianshang\frontend"` 通过。
+- 自带浏览器打开 `/admin/api-providers`，确认文生图 `/images/generations`、图生图 `/images/edits`、文本生成 `/responses` 都存在，横向溢出为 0。
+
+### 需要继续验证
+
+- 新后端接管时，需要把这份前端注册表升级为后端能力元数据来源，避免前后端双份配置长期漂移。
+
+## 2026-06-26 API 线路旧后台表单恢复复核
+
+### 已确认
+
+- 用户反馈成立：源码后台此前不像原 HJM 后台，缺少旧后台已有的 API 线路新增/编辑表单。
+- 旧后台字段已对齐到源码页：后端真实名称、前端展示名称、线路标识 code、渠道类型、接口格式、Base URL、API Key、聊天接口、生图接口、视频接口、默认模型、优先级、线路倍率、状态、默认线路和备注。
+- API Key 不在页面明文回显；后端仍返回 `sk-local-********` 掩码。编辑时留空表示不修改，这是当前安全边界。
+- 当前 `real-provider-ready`，所以本轮未自动点击“测试连接”，避免触发真实外部请求。
+
+### 验证
+
+- `node --check "F:\dianshang\server.js"` 通过。
+- `node --check "C:\Users\pc\Desktop\hjm-mb-clone\server.js"` 通过。
+- `npm.cmd run typecheck --prefix "F:\dianshang\frontend"` 通过。
+- `npm.cmd run build --prefix "F:\dianshang\frontend"` 通过。
+- `git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示。
+- 已重启兼容后端，`/api/health` 正常，当前 Provider 状态为 `real-provider-ready`。
+- Playwright 浏览器烟测通过核心本地链路：登录管理员、打开 `/admin/api-providers`、新增临时 `codex-smoke` 线路、确认列表出现、打开编辑表单、删除临时线路。
+- 删除后复核运行数据库无 `route_codex_smoke_*` 残留，API 线路回到 `route_openai_gpt_image_2,route_openai_gpt_5_5` 两条。
+
+### 需要继续验证
+
+- 人工验收时可点击“新增线路”和“编辑”确认旧后台字段是否满足你的实际配置习惯。
+- 若要让后台写入的真实 API Key 直接接管付费调用，需要先设计密钥加密存储、权限控制、审计日志和 Provider Adapter 读取策略；当前实现不把真实 Key 明文回显。
+
+## 2026-06-26 首页旧客户端能力补回复核
+
+### 已确认
+
+- 用户反馈成立：Vue3 首页此前只是迁移索引，不是旧客户端业务首页。
+- 已用 Playwright 打开旧首页 `http://127.0.0.1:3456/` 对照首屏能力，旧首页包含模式切换、添加图片、提示词、模型/张数/比例/清晰度、预计算力、生成和历史画布入口。
+- 第一版纠偏：此前误做成新业务工作台壳，用户指出不是旧首页迁移；已撤掉该版。
+- Vue3 首页已按旧站实际运行首页迁移：固定顶部栏、左侧导航、浅色玻璃背景、中心生成面板和“我的历史画布项目”横向列表。
+- 首页快速生图复用现有模板生成 API，不新增第二套生成逻辑；首屏不再主动请求需要登录的项目接口，避免未登录状态产生 401/403。
+
+### 验证
+
+- `npm.cmd run typecheck --prefix "F:\dianshang\frontend"` 通过。
+- `npm.cmd run check:routes --prefix "F:\dianshang\frontend"` 通过，输出 `21/21 source routes`。
+- `npm.cmd run build --prefix "F:\dianshang\frontend"` 通过。
+- `git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示。
+- Playwright 新首页桌面检查通过：旧版 `.home-header`、`.side-rail`、`.hero-panel` 和“我的历史画布项目”均存在，横向溢出为 0。
+- Playwright 390px 移动端检查通过：主标题、生成按钮和历史画布项目可见，横向溢出为 0。
+- 重新加载后 console 仅有 Vite debug 连接日志，无 401/403、无 pageerror；背景图不再通过工程外 `@fs/F:/dianshang/assets` 路径加载。
+
+### 需要继续验证
+
+- 人工登录后输入真实提示词点击首页快速生图，确认 Provider 返回、余额扣减和图库写入。
+- 旧首页的本地保存弹窗、历史项目拖拽惯性、完整项目恢复等深层交互仍需继续按旧站 assets 迁入。
+## 2026-06-29 旧画布性能优化复核
+
+### 已确认
+
+- 本轮只优化 `F:\dianshang` 当前生产测试项目，不再改 `C:\Users\pc\Desktop\hjm-mb-clone`。
+- 新增 `canvas-performance-active` 交互态，拖拽、缩放、节点移动时降低旧画布重阴影、毛玻璃、hover transform 和动画成本。
+- 图片节点和聊天面板图片已做懒加载与异步解码；不新增缩略图服务，不改变图片 URL 策略。
+- 自动保存只做降频和合并等待，不改变旧工作流 JSON 格式。
+
+### 验证
+
+- `node --check "F:\dianshang\server.js"` 通过。
+- `git -C "F:\dianshang" diff --check` 通过，仅有 CRLF 提示。
+- `/api/health` 正常，数据库和上传目录均指向 `F:\dianshang`。
+- 自带浏览器打开 `http://127.0.0.1:3456/canvas`，确认 `canvas-performance-mode.css/js?v=20260629perf3` 已加载。
+- 浏览器模拟拖动画布后 `canvas-performance-active=true`，约 0.9 秒后恢复为 false；模拟滚轮缩放同样触发并恢复。
+- 页面 Vue Flow 存在、节点数为 2、console error 为 0；节点图片未破图，已应用异步解码。
+- 旧画布自动保存和视口保存 timer 已加入性能态延迟：交互仍活跃时调用 `noteSaveDeferred()` 并重新排队，等待拖拽/缩放结束后合并保存；不改变工作流 JSON 格式。
+- 新增 `scripts/smoke-canvas-performance-ui.ps1` 和 `scripts/smoke-canvas-performance-ui-runner.js`，并接入 `SMOKE_UI=true` 预检。
+- 新增 `scripts/verify-canvas-performance-assets.js`，静态防回退检查 `perf3` 版本、保存延迟锚点、`J4=1400` 和旧 `900/250` 节流锚点不再存在。
+- `node "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 通过，返回 `version=20260629perf3`、`saveDeferral=true`。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-canvas-performance-ui.ps1"` 通过；自动复核性能资源加载、性能 API、基础拖拽、单次滚轮、连续 20 次滚轮、打开 Canvas Chat 后拖拽、交互态 `will-change: transform`、动态图片探针 `loading=lazy/decoding=async`、console errors 为 0、bad responses 为 0。
+- 用户反馈缩放时卡片闪烁后已复核并修复：性能态拆分为 `canvas-performance-zooming` 与 `canvas-performance-dragging`，滚轮缩放只给 Vue Flow viewport/pane/canvas-flow 启用合成层，不再对 `.vue-flow__node` 改写阴影、滤镜、transition 或 hover transform。
+- 缓存版本已升级到 `20260629perf4`；`scripts/verify-canvas-performance-assets.js` 新增防回退检查，确保性能 CSS 不再包含 `html.canvas-performance-active .vue-flow__node`。
+- 默认画布 smoke 通过缩放闪烁回归断言：滚轮后 `zooming=true`、`dragging=false`、`debugMode=zooming`，节点视觉样式在缩放前后保持一致。
+- 指定项目 smoke 已通过：`SMOKE_CANVAS_PATH=/canvas/project_1782707934819_dxzylygh5`，确认该 URL 加载 `perf4` 资源，拖拽/缩放性能态启停正常，console errors 为 0，bad responses 为 0。
+- 新增帧预算 smoke：`scripts/smoke-canvas-frame-budget-ui.ps1` 会临时注入 8 个 Vue Flow 卡片和图片探针，并采样拖拽/连续缩放期间的 `requestAnimationFrame` 帧间隔；默认画布复核通过，拖拽 `avgDelta=16.67ms`、`p95Delta=16.8ms`、长帧 0，缩放 `avgDelta=16.67ms`、`p95Delta=16.8ms`、长帧 0。
+- `scripts/verify-canvas-performance-assets.js` 已纳入帧预算 smoke 文件和 `preflight-check.ps1` 接入点检查，避免后续性能验收脚本被遗漏。
+- 图片节点右侧工具栏半截问题已修复：取消普通 `.vue-flow__node` 的 paint containment，避免裁掉节点外溢的 `image-node-toolbar`；新增工具栏防裁切规则和 `toolbarProbe` 自动断言，当前结果为 `nodeContain=none`、`nodeOverflow=visible`、`toolbarZIndex=1200`。
+- 缓存版本已升级到 `20260629perf5`；性能 smoke 与帧预算 smoke 均通过，移除节点 paint containment 后未观察到帧预算回退。
+- 图片节点展示形态已改为图片对象优先：新增 `assets/canvas-image-node-polish.css?v=20260629image2`，只做旧画布 CSS 过渡覆盖，不新增依赖、不重写画布、不改节点数据结构；有图节点取消 `object-cover` 和 `max-height:220px` 裁切，改为 `object-fit: contain` 与 `max-height:520px`，让图片按原始比例完整显示；标题和尺寸信息浮到图片上方，右侧工具栏继续保持外溢可点击。
+- 性能 smoke 已新增 `imageNodeVisualProbe` 和 `loadedImageNodeProbe`：空图占位为 300x300、URL 输入行隐藏、工具栏 `z-index=1200`；800x1000 有图探针显示为 416x520，`imageObjectFit=contain`，顶部信息为 absolute。真实项目页复核到 1254x1254 图片按 416x416 完整显示。
+- 帧预算 smoke 复跑通过：拖拽 `avgDelta=16.67ms`、`p95Delta=16.8ms`、长帧 0；缩放 `avgDelta=16.77ms`、`p95Delta=16.8ms`、`maxDelta=33.2ms`、长帧 0。
+- 用户反馈图片工具栏遮挡图片后，图片节点补丁升级到 `20260629image4`：有图节点的外壳、舞台和图片统一按图片比例 box 自适应，工具栏与折叠把手改为挂在该 box 右侧，不再使用旧固定卡片宽度定位；已验证 CSS 资源可由 `http://127.0.0.1:3456/assets/canvas-image-node-polish.css?v=20260629image4` 返回 200，`node --check` 和 `git diff --check` 通过。
+- 本轮追加指定项目验收：`SMOKE_CANVAS_PATH=/canvas/project_1782707934819_dxzylygh5` 的画布性能 smoke 通过，确认 `20260629image4` 资源加载、工具栏防裁切、竖图 loadedImageNodeProbe、拖拽/缩放性能态和 Canvas Chat 拖拽无 console error、无 bad response。
+- 本轮追加比例专项探针：在指定项目页临时注入方图、横图、竖图三类图片节点，不保存项目、不触发接口。测得方图 `520x520`、横图 `520x260`、竖图 `260x520`，均为 `object-fit: contain`；右侧工具栏均位于图片舞台右侧 `18px`，折叠把手位于右侧 `2px`，且 `toolbarOverlapsImage=false`。
+- 当前没有继续修改 `assets/canvas-image-node-polish.css`，因为遮挡问题未在指定项目 smoke 或三比例探针中复现。
+
+### 需要继续验证
+
+- 用户人工拖动画布 10 秒、缩放 20 次，观察是否比优化前更顺滑。
+- 用户人工选中真实图片节点，确认右侧图片工具侧边栏完整露出，不再只剩半截。
+- 如指定项目未恢复已有图片节点，需要先创建或导入含方图、横图、竖图的测试画布，再做人工截图确认顶部标题/尺寸不遮挡图片主体。
+- 生成结果加入画布后继续拖动，确认大图节点不再明显阻塞。
+- 如果仍卡，第二阶段再规划旧画布源码化、缩略图缓存、节点虚拟化和更细粒度渲染拆分。
+
+## 2026-06-29 图片节点顶部工具条复核
+
+### 已确认
+
+- 本轮继续只改 `F:\dianshang` 旧画布过渡层，不重写画布引擎，不改 Provider，不动 API Key，不触发真实生图。
+- `index.html` 已把图片节点 polish 资源升级到 `20260629image5`，并新增 `assets/canvas-image-node-polish.js`。
+- 图片节点 JS 会按图片自然宽高打 `square`、`landscape`、`portrait`、`long` 方向标记；`图像生成结果`、`文生图`、`对话生成图片` 等生成图会被标为 `data-image-source="generated"`。
+- 有图图片节点保留顶部标题/尺寸信息，选中或 hover 时显示顶部黑色横向工具条；旧右侧大侧栏和折叠把手不再展示。
+- 无图上传态的旧工具条已隐藏并禁用 pointer events，避免空节点残留可点击浮层。
+- 超长图已从普通 `max-height: 520px` 限制中分离，改为较窄宽度完整展开。
+
+### 验证
+
+- `node --check "F:\dianshang\server.js"` 通过。
+- `node --check "F:\dianshang\assets\canvas-image-node-polish.js"` 通过。
+- `node --check "F:\dianshang\scripts\smoke-canvas-performance-ui-runner.js"` 通过。
+- 指定项目 `SMOKE_CANVAS_PATH=/canvas/project_1782707934819_dxzylygh5` 的画布性能 smoke 通过：`imageNodePolishCssLoaded=true`、`imageNodePolishJsLoaded=true`、`hasImagePolishApi=true`。
+- 图片比例专项探针通过：方图 `520x520`、横图 `520x260`、竖图 `260x520`、长图约 `259x5864` 且 `imageMaxHeight=none`、生成结果图 `520x520` 且 `source=generated`。
+- 顶部工具条专项断言通过：工具条 `display=flex`、`position=absolute`、`z-index=1220`，位于图片舞台上方，且与图片矩形无交集；`.image-node-toolbar-wrap` 为 `display=none`。
+
+### 需要继续验证
+
+- 用户在浏览器中刷新指定项目，选中真实图片节点确认顶部工具条观感。
+- 用真实普通图片节点和真实图像生成结果节点各选中一次，确认二者视觉一致。
+- 真实生图链路仍需用户确认额度和测试范围后再做。
+
+## 2026-06-29 图片节点 image6 回归复核
+
+### 已确认
+
+- 用户截图中的右侧白色竖向工具栏来自真实构建里的 `ImageNodeToolbar` scoped 组件，旧规则为 `left:302px`、`flex-direction:column`、`height:calc(100% - 20px)`。
+- `image5` 的 smoke 探针把工具栏放在 `.image-node` 内部，未覆盖真实 sibling 结构，这是本次漏测原因。
+- 已升级 `image6`：JS 给 Vue Flow 图片节点本身打 `image-node-has-image/image-node-is-selected`，CSS 以节点级选择器覆盖 sibling 工具栏，强制顶部横向显示。
+
+### 验证
+
+- `node --check "F:\dianshang\server.js"` 通过。
+- `node --check "F:\dianshang\assets\canvas-image-node-polish.js"` 通过。
+- `node --check "F:\dianshang\scripts\smoke-canvas-performance-ui-runner.js"` 通过。
+- 指定项目 smoke 通过：`imageNodePolishCssLoaded=true`、`imageNodePolishJsLoaded=true`、真实 sibling 工具栏 `toolbarFlexDirection=row`、`toolbarWidth=346`、`toolbarHeight=50`、`toolbarAboveStage=true`、`toolbarOverlapsStage=false`。
+
+### 需要继续验证
+
+- 用户在当前打开的浏览器页强刷后，选中截图中的真实图片节点，确认右侧白色竖栏消失，顶部黑色横向工具条出现。
+
+## 2026-06-29 扩图面板 outpaint1 复核
+
+### 已确认
+
+- 本轮只修旧画布扩图面板定位逻辑，不改 Provider、不动 API Key、不触发真实生图。
+- 扩图面板默认位置属于组件状态计算问题：原逻辑只在图片 load 和比例切换后排一次 `nextTick(P)`，在面板实际目标画布尺寸稳定后不会二次居中。
+- 已在两个旧 Canvas bundle 中将扩图重算改为 `nextTick + requestAnimationFrame + 80ms`，确保默认打开和切换比例后按最终画布尺寸重新计算中心点。
+- 拖拽边界仍使用原有 clamp 逻辑，保持图片移动受目标画布范围限制，避免提交坐标越界。
+- 入口缓存版本已升级到 `20260629outpaint1`；性能资源仍为 `20260629perf5`，图片节点工具条仍为 `20260629image7`。
+- 静态验证已通过：`verify-canvas-performance-assets.js` 检查两个 Canvas bundle 均包含二次重算补丁，并确认旧 `Dt(P)` 扩图锚点不再存在。
+- 指定项目 smoke 已通过，确认 `outpaint1` 入口资源加载、旧画布基础交互、图片节点工具条和比例探针均正常；本 smoke 不触发真实扩图接口。
+
+### 需要继续验证
+
+- 用户强刷当前浏览器页后，打开真实图片节点的 `AI 扩图`，确认默认图像在目标画布中心。
+- 依次点 `1:1`、`3:2`、`4:3`、`16:9`、`9:16`，确认每次切换后仍居中。
+- 在目标画布内拖动图片，确认移动范围仍受限制且不会跑出黄色/绿色区域。
+
+## 2026-06-29 扩图面板 outpaint2 复核
+
+### 已确认
+
+- 本轮继续只修旧画布扩图面板，不改 Provider、不动 API Key、不触发真实生图。
+- 用户反馈缩放时无法自动保持位置后，复核缩放 handler 发现其依赖 `u.value`，在 input 事件顺序下可能读到上一帧值。
+- 已将缩放 handler 改为读取当前 range 事件值，并以当前图片中心点为锚点计算新尺寸和位置。
+- 原有 clamp 边界保留：图片靠近画布边缘时，缩放后会被限制在黄色/绿色目标画布内，这是预期限制。
+- 入口缓存版本已升级到 `20260629outpaint2`；静态护栏会检查新缩放 handler 和旧 handler 不回退。
+- 静态和页面 smoke 已通过：`verify-canvas-performance-assets.js` 返回 `20260629perf5+outpaint2`，指定项目加载 `outpaint2` 入口成功，console errors 为 0、bad responses 为 0。
+
+### 需要继续验证
+
+- 强刷后打开 `AI 扩图`，先把图片拖到非默认位置，再滑动“原图等比缩放”，确认图片围绕当前位置缩放。
+- 在画布边缘附近重复缩放，确认只在越界时被 clamp，不在普通区域突然跳回默认中心。
+
+## 2026-06-29 扩图面板 outpaint3 复核
+
+### 已确认
+
+- 用户截图确认 `outpaint2` 仍有问题：`1:1` 黄色舞台不是方形，滑条拉满后图片也没有按方形目标铺满。
+- 根因是 CSS 的 `.outpaint-stage { max-height: 230px }` 压扁了比例舞台；缩放计算本身拿到的是被压扁后的 DOM 尺寸。
+- 已改为由组件 inline style 覆盖舞台尺寸：`maxHeight:none`，横图/方图占满可用宽度，竖图按视口高度自动收窄，保证比例不变。
+- 静态护栏已增加舞台比例样式断言，并禁止回退到旧的单一 `aspectRatio` 写法。
+- 静态和页面 smoke 已通过：`verify-canvas-performance-assets.js` 返回 `20260629perf5+outpaint3`，指定项目加载 `outpaint3` 入口成功，console errors 为 0、bad responses 为 0。
+
+### 需要继续验证
+
+- 强刷后打开 `AI 扩图`，确认 `1:1` 舞台为方形。
+- 将缩放拉到最大，确认方图完整铺满方形舞台。
+- 切换 `16:9` 和 `9:16`，确认舞台形状跟随比例变化而不是被固定高度压扁。
+
+## 2026-06-29 扩图面板 outpaint4 复核
+
+### 已确认
+
+- 用户希望扩图内容能在绿色画布里自由移动，并且缩放保持等比例。
+- 旧 clamp 对放大后的图片不友好：图片一旦等于或大于目标画布，`max(0, stageSize-imageSize)` 变成 0，拖动被锁死。
+- 已新增双模式 clamp：图片小于画布时限制在画布内；图片大于画布时允许在画布内平移取景，同时不露空。
+- 缩放范围已从 `35-100` 改成 `20-220`，其中 `100%` 是完整贴合，超过 `100%` 是等比例放大取景。
+- 静态护栏已检查新 clamp、`20-220` 滑条范围，并禁止旧拖动 clamp 和旧滑条范围回退。
+- 静态和页面 smoke 已通过：`verify-canvas-performance-assets.js` 返回 `20260629perf5+outpaint4`，指定项目加载 `outpaint4` 入口成功，console errors 为 0、bad responses 为 0。
+
+### 需要继续验证
+
+- 强刷后打开 `AI 扩图`，将缩放拉到超过 `100%`，确认图片等比例放大。
+- 放大后拖动图片，确认能在绿色画布中平移取景，且不会露出黄色/绿色空白。
+
+## 2026-06-29 扩图面板 outpaint6 复核
+
+### 已确认
+
+- 用户纠正成立：扩图不是裁剪，绿色区域露出不是错误，而是待生成区域；不应使用“不露空”限位。
+- `outpaint4` 的 clamp 会在右侧和右下角让图片卡死，违背自由摆放需求。
+- 已将位置限制放宽到 `[-imageSize, stageSize]`，允许图片在绿色目标画布内外自由摆放，只避免整张图完全拖走后找不到。
+- 舞台空白区域也已绑定拖动开始事件，按住绿色空白处也能移动图片层。
+- 缩放范围改为 `20-300`，保持等比例缩放。
+- 静态和页面 smoke 已通过：`verify-canvas-performance-assets.js` 返回 `20260629perf5+outpaint6`，指定项目加载 `outpaint6` 入口成功，console errors 为 0、bad responses 为 0。
+
+### 需要继续验证
+
+- 强刷后打开 `AI 扩图`，在绿色空白区域按住拖动，确认图片跟随移动。
+- 把图片拖到右侧、右下角和左上角，确认不会提前卡死。
+- 缩放到较大比例后继续拖动，确认仍能自由摆放。
+
+## 2026-06-29 重绘接入 GPT Image 2 图生图复核
+
+### 已确认
+
+- 前端旧画布 `局部修改` 面板提交字段为 `imageUrl`、`maskBase64`、`prompt`、`referenceImages`，并同步等待 `/api/image-tools/inpaint` 返回最终图片。
+- 后端此前缺少 `/api/image-tools/inpaint` 和 `/api/image-tools/erase`，因此按钮没有接入真实图生图编辑链路。
+- 已新增两个 image-tools 路由，统一复用 `callProviderImageEdit`，请求目标为线路配置的 `/images/edits`，默认模型保持 `gpt-image-2`。
+- 已修正 mask 读取：`maskBase64`/`mask`/`maskUrl` 独立于参考图数量发送，支持单原图 + 单 mask 的局部重绘。
+- 已新增 `/api/upload/image` 兼容旧画布参考图上传入口。
+- 服务已重启，`/api/health` 指向 `F:\dianshang`；未授权探测三个新入口均返回 `401` 而不是 `404`，确认路由已加载且没有触发真实上游。
+- 最终检查通过：`node --check` 覆盖 `server.js`、图片节点 polish JS、画布性能 runner 和资源验证脚本；`verify-canvas-performance-assets.js` 返回 `20260629perf5+outpaint6`；指定项目画布 UI smoke 通过，console errors 为 0、bad responses 为 0；`git diff --check` 仅有既有 CRLF warning；本轮触达文件 BOM 均为 false。
+
+### 需要继续验证
+
+- 用户确认额度后，登录态选中真实图片节点，打开 `局部修改`，涂抹 mask 并提交，确认返回 GPT Image 2 edits 结果图并创建 `局部修改结果` 图片节点。
+- 同样验证 `AI 智能消除` 是否按 mask 消除并创建 `智能消除结果` 节点。
+- 若上游对 Packy/OpenAI-compatible `/images/edits` 的 multipart 字段有差异，再追加 Provider Adapter 配置化。
+
+## 2026-06-29 image-tools tools1 顶部工具接线复核
+
+### 已确认
+
+- 用户要求除 `AI 超清放大` 和 `一键抠图` 外，其它顶部图片工具都接上。
+- `AI 扩图` 已补后端 `/api/image-tools/outpaint`，复用 GPT Image 2 图生图编辑链路，并返回标准 `taskId/resultImages`，旧画布原有轮询可继续使用。
+- `反推提示词` 已补 `/api/image-tools/reverse-prompt`，前端面板从 mock 文案改为打开时请求当前图片并展示返回提示词。
+- `文字编辑` 已从空的 `textEdit` 面板改为复用 mask 局部重绘面板，提交时保留 `type/operation=text_edit`，后台用文字编辑专用提示词调用 `/images/edits`。
+- `格式/压缩`、`图片尺寸调整`、`图片裁剪`、`添加到聊天`、`生成视频` 沿用旧画布已有本地/节点链路；其中本地结果上传依赖已补齐的 `/api/upload/image`。
+- `AI 超清放大` 和 `一键抠图` 保持未接入，`/api/image-tools/settings` 明确返回 `enabled:false`，避免误判。
+- 入口缓存版本已升级为 `20260629tools1`，资源校验增加 `/image-tools/reverse-prompt` 与 `operation:"text_edit"` 锚点。
+- 服务已重启，`/api/health` 指向 `F:\dianshang`；未授权路由探测全部为 `401` 而非 `404`，未触发真实上游。
+- 静态和页面验证通过：`node --check` 覆盖后端、两个 Canvas bundle、图片 polish JS 和验证脚本；`verify-canvas-performance-assets.js` 返回 `20260629perf5+tools1`；第二次画布 UI smoke 通过，console errors 为 0、bad responses 为 0。第一次 smoke 仍复现一次已知 Playwright 会话未打开问题，重跑成功。
+
+### 需要继续验证
+
+- 登录态选中真实图片节点，依次打开 `AI 扩图`、`反推提示词`、`文字编辑`，确认面板和标题符合预期。
+- 用户确认额度后，再点提交 `AI 扩图`、`反推提示词`、`智能消除`、`局部修改`、`文字编辑`，确认真实 GPT Image 2/文本模型返回结果。
+- 后续若要接 `AI 超清放大` 或 `一键抠图`，需要单独确认使用的 Provider 能力和返回格式。
+
+## 2026-06-29 API 线路源码页旧后台导航复核
+
+### 已确认
+
+- 直达 `/admin/api-providers` 已由 `server.js` 返回 `frontend/dist/index.html`，源码页 bundle 为 `assets/index-D1smZqeB.js`。
+- 旧后台仪表盘仍由根 `index.html` 和旧 bundle `assets/index-DglIsp_g.js` 承载，菜单点击此前会在旧客户端路由内渲染旧 `AdminShell` 表格。
+- 已新增 `assets/admin-api-source-route-bridge.js`，旧后台点击 `API 线路管理` 时会整页跳转到 `/admin/api-providers`，交给源码页入口接管。
+- 浏览器复核：从 `/admin/dashboard` 点击旧后台 `API 线路管理` 后，页面加载源码 `admin-source-shell`，可见 `应用官方双线路`、`/images/generations`、`/images/edits`、`/responses`。
+
+### 需要继续验证
+
+- 用户当前浏览器如果停留在已加载的旧页面，需要刷新一次或重新点击菜单；之后应稳定进入新版源码线路管理。
+- 后续若继续把更多后台页面源码化，需要逐页接管入口，避免旧 Vue Router 和源码 Vue Router 同时管理同一路径。
+
+## 2026-06-29 后台源码侧栏与路由统一复核
+
+### 已确认
+
+- 后台源码页此前各自维护侧栏，Dashboard、任务监控、API 线路等页面的菜单入口数量不一致，属于迁移未同步完成。
+- 已抽出 `AdminSourceSidebar.vue` 统一后台源码页侧栏，11 个已迁移后台页面均改用共用组件，避免后续单页漏改。
+- 服务端源码入口从单独 `/admin/api-providers` 扩展为全部已迁移 `/admin/...` 后台路径，直达订单、系统设置、模板工作流不再进入旧入口。
+- 浏览器复核：`/admin/api-providers`、`/admin/orders`、`/admin/settings`、`/admin/template-workflows` 均加载源码 bundle，侧栏都是同一套 11 个入口，且当前页高亮正确。
+
+### 需要继续验证
+
+- 其它后台页如用户、回收站、任务监控、消费日志、兑换码、模型价格可按同一方式继续人工点一遍，主要风险是个别页面接口数据为空或权限提示，不是侧栏同步问题。

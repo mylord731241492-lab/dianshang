@@ -1,5 +1,12 @@
 # 已知缺口与后续路线
 
+## 技术栈补救路线
+
+- 已明确当前内网过渡栈与正式源码目标栈，见 `docs/adr/0002-source-first-technology-stack.md`。
+- 当前不立即切 Django，也不推倒 Express/SQLite 内网版本；优先保住已验收路径。
+- 正式目标是 Vue 3 + Vite + TypeScript 前端源码工程，Node.js + TypeScript 后端模块化，后续再引入 Postgres/MySQL、Redis、BullMQ、Worker 和对象存储。
+- 大规模 UI 和交互需求不再优先堆到打包 JS；需要进入源码重建清单，避免继续扩大 bridge/override 债务。
+
 ## 当前仍为 mock 的能力
 
 - 真实 AI 生图通道已接入 Provider Adapter，但仍未开启 `ENABLE_REAL_AI=true` 做真实联通测试；反推提示词、视频生成仍是 mock。
@@ -10,7 +17,7 @@
 - 画布高级 AI 工具：扩图、消除、局部修改、参考图融合的真实图像编辑效果。
 - New-API 真实联通测试、真实 `/images/generations` 返回结构确认和 CPA 后置渠道配置。
 - Docker 容器已可启动，重启后 SQLite 基础持久化已验证；仍需人工浏览器完整点击测试。
-- CodeGraph 未在当前项目目录初始化，结构索引工具暂不可用。
+- CodeGraph 已在 `F:\dianshang` 初始化；后续结构定位、接口影响面和调用链分析必须优先使用 CodeGraph，不能退回手工全文搜索。
 - 服务器正式部署前的 `.env` 生产密钥、Nginx/HTTPS、访问权限和备份恢复演练尚未完成；当前先以内网测试为目标。
 
 ## 前端 1:1 尚需精修
@@ -34,6 +41,7 @@
 ## 不建议现在做的事
 
 - 在没有前端源码的情况下大规模重写打包 JS。
+- 在已验证 Node/Express 路径可跑时，立刻全量切换 Django/MySQL。
 - 在视觉未验收前投入真实支付和真实外部模型。
 - 默认开启真实服务调用。
 - 删除已有 mock 兼容字段。

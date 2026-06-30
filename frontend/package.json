@@ -1,0 +1,29 @@
+{
+  "name": "hjm-mb-frontend-next",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4173",
+    "typecheck": "vue-tsc --noEmit",
+    "check:routes": "node ../scripts/check-source-frontend-routes.js",
+    "smoke:source": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/smoke-source-frontend-ui.ps1",
+    "verify:source": "npm run check:routes && npm run build"
+  },
+  "dependencies": {
+    "axios": "^1.13.2",
+    "lucide-vue-next": "^0.562.0",
+    "naive-ui": "^2.43.2",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.26",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.3",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0",
+    "vue-tsc": "^3.1.8"
+  }
+}

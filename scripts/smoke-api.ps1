@@ -33,6 +33,11 @@ $health = Invoke-SmokeJson -Method "GET" -Path "/api/health"
 if (-not $health.success) {
   throw "Health check failed"
 }
+$providerMode = ""
+if ($health.providers -and $health.providers.ai -and $health.providers.ai.mode) {
+  $providerMode = [string]$health.providers.ai.mode
+}
+$allowRealProviderSmoke = $env:ALLOW_REAL_PROVIDER_SMOKE -eq "true"
 
 $templateSettings = Invoke-SmokeJson -Method "GET" -Path "/api/template/settings"
 if (-not $templateSettings.templates -or $templateSettings.templates.Count -lt 1) {
@@ -74,6 +79,7 @@ $profile = Invoke-SmokeJson -Method "GET" -Path "/api/user/profile" -Headers $us
 if (-not $profile.user) {
   throw "User profile missing"
 }
+$balanceBeforeGeneration = [double]$profile.user.balance
 
 $projectName = "Smoke Canvas " + (Get-Date -Format "HHmmss")
 $createdProject = Invoke-SmokeJson -Method "POST" -Path "/api/user/projects" -Headers $userHeaders -Body @{
@@ -196,28 +202,53 @@ if (-not $publicApiStatus.success -or -not $publicApiStatus.provider -or -not $p
   throw "Public API status fallback failed"
 }
 
-$templateGenerate = Invoke-SmokeJson -Method "POST" -Path "/api/template/generate-image" -Headers $userHeaders -Body @{
-  templateType = "main-image"
-  selectedPrompt = "smoke ecommerce hero image, white thermos bottle, clean premium studio lighting"
-  imageModel = "gpt-image-2"
-  imageCount = 1
-  platform = "JD"
-  ratio = "1:1"
-  quality = "2K"
-}
-if (-not $templateGenerate.success -or -not $templateGenerate.images -or $templateGenerate.images.Count -lt 1) {
-  throw "Template image generation failed"
-}
+if ($providerMode -eq "real-provider-ready" -and -not $allowRealProviderSmoke) {
+  Write-Host "SKIP POST /api/template/generate-image because provider is real-provider-ready. Set ALLOW_REAL_PROVIDER_SMOKE=true to allow paid upstream calls."
+} else {
+  $templateGenerate = Invoke-SmokeJson -Method "POST" -Path "/api/template/generate-image" -Headers $userHeaders -Body @{
+    templateType = "main-image"
+    selectedPrompt = "smoke ecommerce hero image, white thermos bottle, clean premium studio lighting"
+    imageModel = "gpt-image-2"
+    imageCount = 1
+    platform = "JD"
+    ratio = "1:1"
+    quality = "2K"
+  }
+  if (-not $templateGenerate.success -or -not $templateGenerate.images -or $templateGenerate.images.Count -lt 1) {
+    throw "Template image generation failed"
+  }
+  if (-not $templateGenerate.images[0].url -and -not $templateGenerate.images[0].imageUrl) {
+    throw "Template image generation did not return an image URL"
+  }
+  if ($providerMode -ne "real-provider-ready" -and -not $templateGenerate.mock) {
+    throw "Template image generation should be mock when provider is not real-ready"
+  }
+  if ($templateGenerate.totalCost -le 0) {
+    throw "Template image generation did not return totalCost"
+  }
+  $expectedBalance = $balanceBeforeGeneration - [double]$templateGenerate.totalCost
+  if ([math]::Abs(([double]$templateGenerate.remainingBalance) - $expectedBalance) -gt 0.001) {
+    throw "Template image generation balance mismatch"
+  }
 
-$generations = Invoke-SmokeJson -Method "GET" -Path "/api/user/generations" -Headers $userHeaders
-if (-not $generations.items -or $generations.items.Count -lt 1) {
-  throw "User generations missing after template generation"
-}
+  $profileAfterGeneration = Invoke-SmokeJson -Method "GET" -Path "/api/user/profile" -Headers $userHeaders
+  if ([math]::Abs(([double]$profileAfterGeneration.user.balance) - $expectedBalance) -gt 0.001) {
+    throw "User profile balance was not deducted after template generation"
+  }
 
-$generatedId = $generations.items[0].id
-$deletedGeneration = Invoke-SmokeJson -Method "DELETE" -Path "/api/user/generations/$generatedId" -Headers $userHeaders
-if (-not $deletedGeneration.success -or -not $deletedGeneration.deleted) {
-  throw "User generation delete failed"
+  $generations = Invoke-SmokeJson -Method "GET" -Path "/api/user/generations" -Headers $userHeaders
+  if (-not $generations.items -or $generations.items.Count -lt 1) {
+    throw "User generations missing after template generation"
+  }
+  if (-not $generations.items[0].imageUrl -or [double]$generations.items[0].cost -le 0) {
+    throw "User generation record missing image URL or cost"
+  }
+
+  $generatedId = $generations.items[0].id
+  $deletedGeneration = Invoke-SmokeJson -Method "DELETE" -Path "/api/user/generations/$generatedId" -Headers $userHeaders
+  if (-not $deletedGeneration.success -or -not $deletedGeneration.deleted) {
+    throw "User generation delete failed"
+  }
 }
 
 $adminLogin = Invoke-SmokeJson -Method "POST" -Path "/api/admin/login" -Body @{

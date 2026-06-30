@@ -52,8 +52,10 @@ const hasConfiguredSecret = (key = '') => {
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '50mb' }));
+const sourceFrontendDist = path.join(__dirname, 'frontend', 'dist');
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(__dirname));
+app.use('/assets', express.static(path.join(sourceFrontendDist, 'assets')));
 app.use((req, res, next) => {
   res.success = (payload = {}) => res.json({ success: true, ...payload });
   res.fail = (status, code, message, extra = {}) => res.status(status).json({ success: false, code, message, ...extra });
@@ -135,25 +137,19 @@ function admin(req, res, next) {
 
 // ===================== DATA =====================
 const IMG = [
-  {k:"gpt-image-2",n:"GPT Image 2",p:10,q:["1k","2k","4k"]},
-  {k:"gpt-image-2-flatfee",n:"GPT Image 2 Flatfee",p:3.5,q:["1k","2k","4k"]},
-  {k:"nano-banana-2",n:"Nano Banana 2",p:15,q:["1k","2k","4k"]},
-  {k:"nano-banana-pro",n:"Nano Banana Pro",p:16,q:["1k","2k","4k"]},
-  {k:"gemini-3-pro-image-preview",n:"Gemini 3 Pro Image",p:20,q:["1k","2k","4k"]},
-  {k:"gemini-2.5-flash-image",n:"Gemini 2.5 Flash Image",p:8,q:["1k","2k","4k"]},
-  {k:"gpt-4o-image",n:"GPT-4o Image",p:15,q:["1k","2k","4k"]},
+  {k:"gpt-image-2",n:"GPT Image 2",p:10,q:["low","medium","high","auto"]},
 ];
 const TXT = [
   {k:"gpt-5.5",n:"GPT 5.5",p:5,q:["1k"]},
-  {k:"gpt-4o",n:"GPT-4o",p:10,q:["1k"]},
 ];
 const RTS = [
-  {id:"pub_route_64f93e01e8f3",rk:"route_6789",dn:"6789",cat:"image",g:"image",pri:10,def:true},
-  {id:"pub_route_5b4b23928f32",rk:"route_comfly_google",dn:"comfly-google",cat:"image",g:"image",pri:7},
-  {id:"pub_route_a63414b11775",rk:"route_comfly_openai_plus",dn:"comfly-openai-plus",cat:"image",g:"image",pri:7},
-  {id:"pub_route_4fc539bc3e3d",rk:"route_rk",dn:"RK",cat:"image",g:"image",pri:6},
-  {id:"pub_route_hajimi",rk:"route_hajimi",dn:"哈吉米",cat:"image",g:"image",pri:0},
-  {id:"pub_route_b966dd1c7011",rk:"route_flowstudio",dn:"flowstudio",cat:"text",g:"text",pri:8,dm:"GPT 5.5"},
+  {id:"pub_route_openai_gpt_image_2",rk:"route_openai_gpt_image_2",dn:"GPT Image 2",cat:"image",g:"image",pri:10,def:true,dm:"gpt-image-2",apiFormat:"openai-images",requestFormat:"packy-openai-images-generations",endpoint:"/images/generations",requestExamples:[
+    {label:"文生图",method:"POST",endpoint:"/images/generations",contentType:"application/json",requestFormat:"packy-openai-images-generations",body:{model:"gpt-image-2",prompt:"string",size:"1024x1024",quality:"auto",output_format:"png",response_format:"url",n:1}},
+    {label:"图生图 / 局部重绘",method:"POST",endpoint:"/images/edits",contentType:"multipart/form-data",requestFormat:"packy-openai-images-edits",body:{model:"gpt-image-2",image:"<file>",mask:"<file optional>",prompt:"string",size:"1024x1024",quality:"auto",output_format:"png",response_format:"url",n:1}}
+  ]},
+  {id:"pub_route_openai_gpt_5_5",rk:"route_openai_gpt_5_5",dn:"GPT 5.5",cat:"text",g:"text",pri:9,dm:"gpt-5.5",apiFormat:"openai-responses",requestFormat:"openai-responses",endpoint:"/responses",requestExamples:[
+    {label:"文本生成",method:"POST",endpoint:"/responses",contentType:"application/json",requestFormat:"openai-responses",body:{model:"gpt-5.5",input:"string"}}
+  ]},
 ];
 const TMPL = JSON.parse(fs.readFileSync(path.join(__dirname,'template-data.json'),'utf8'));
 const tasks = new Map();
@@ -228,20 +224,211 @@ function providerStatus() {
   };
 }
 
-function providerAuthKey(kind = 'text') {
+function secretLooksMasked(value = '') {
+  return /\*{3,}|sk-local-\*+|env-\*+/i.test(String(value || ''));
+}
+
+function hasStoredSecret(value = '') {
+  return hasConfiguredSecret(value) && !secretLooksMasked(value);
+}
+
+function normalizeSecretInput(value = '', previous = '') {
+  const raw = String(value || '').trim();
+  if (!raw || secretLooksMasked(raw)) return previous || '';
+  return raw;
+}
+
+function maskSecret(value = '') {
+  return hasStoredSecret(value) ? 'sk-local-********' : '';
+}
+
+function providerAuthKey(kind = 'text', route = null) {
+  if (route && hasStoredSecret(route.apiKey)) return String(route.apiKey).trim();
   const status = providerStatus();
   if (status.gateway !== 'new-api') return kind === 'image' ? AI_IMAGE_KEY : AI_TEXT_KEY;
   if (hasConfiguredSecret(NEW_API_KEY)) return NEW_API_KEY;
   return kind === 'image' ? AI_IMAGE_KEY : AI_TEXT_KEY;
 }
 
+function routeProviderStatus(route = {}, kind = 'text') {
+  const status = providerStatus();
+  const routeBaseUrl = String(route.baseUrl || route.apiBase || '').trim();
+  const baseUrl = routeBaseUrl || status.baseUrl;
+  const key = providerAuthKey(kind, route);
+  const keyConfigured = hasConfiguredSecret(key);
+  const enabled = ENABLE_REAL_AI && keyConfigured && !!baseUrl;
+  return {
+    ...status,
+    baseUrl,
+    enabled,
+    mode: enabled ? 'real-provider-ready' : 'mock',
+    textKeyConfigured: kind === 'text' ? keyConfigured : status.textKeyConfigured,
+    imageKeyConfigured: kind === 'image' ? keyConfigured : status.imageKeyConfigured,
+    routeKeyConfigured: hasStoredSecret(route.apiKey),
+    routeBaseUrlConfigured: !!routeBaseUrl
+  };
+}
+
+function joinProviderUrl(baseUrl = '', endpoint = '') {
+  const rawEndpoint = String(endpoint || '').trim();
+  if (/^https?:\/\//i.test(rawEndpoint)) return rawEndpoint;
+  const base = String(baseUrl || '').trim().replace(/\/$/, '');
+  let path = rawEndpoint || '/responses';
+  if (!path.startsWith('/')) path = `/${path}`;
+  if (base.endsWith('/v1') && path.startsWith('/v1/')) path = path.slice(3);
+  return `${base}${path}`;
+}
+
+function routeTextEndpoint(route = {}) {
+  const candidates = [route.chatEndpoint, route.endpoint, route.requestPath].filter(Boolean);
+  return candidates.find(value => /\/responses\b/i.test(String(value))) || '/responses';
+}
+
+function routeImageGenerationEndpoint(route = {}) {
+  const candidates = [route.imageGenerationEndpoint, route.generationEndpoint, route.imageEndpoint, route.endpoint, route.requestPath].filter(Boolean);
+  const generation = candidates.find(value => /\/images\/generations\b/i.test(String(value)));
+  if (generation) return generation;
+  return '/v1/images/generations';
+}
+
+function routeImageEditEndpoint(route = {}) {
+  const candidates = [route.imageEditEndpoint, route.editEndpoint, route.imageEndpoint, route.endpoint, route.requestPath].filter(Boolean);
+  return candidates.find(value => /\/images\/edits\b/i.test(String(value))) || '/v1/images/edits';
+}
+
 function providerImageSize(value = '') {
   const raw = String(value || '').trim();
   if (/^\d+x\d+$/i.test(raw)) return raw.toLowerCase();
   const ratio = raw.replace(':', 'x');
-  if (ratio === '9x16') return '1024x1792';
-  if (ratio === '16x9') return '1792x1024';
+  if (['9x16', '3x4', '4x5'].includes(ratio)) return '1024x1536';
+  if (['16x9', '4x3'].includes(ratio)) return '1536x1024';
   return '1024x1024';
+}
+
+function providerImageQuality(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (['low', 'medium', 'high', 'auto'].includes(raw)) return raw;
+  if (['1k', 'standard', 'sd'].includes(raw)) return 'low';
+  if (['2k', 'hd'].includes(raw)) return 'medium';
+  if (['4k', 'ultra', 'max'].includes(raw)) return 'high';
+  return 'auto';
+}
+
+function providerImageOutputFormat(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  return ['png', 'jpeg'].includes(raw) ? raw : 'png';
+}
+
+const ECOMMERCE_IMAGE_SYSTEM_PROMPT = [
+  '你是一名服务国内电商平台的资深电商美工设计师，熟悉淘宝、天猫、京东、拼多多、小红书等平台的商品主图审美、点击转化和合规边界。',
+  '你的任务是把用户的简短需求转化为可直接用于图片生成模型的完整电商视觉指令。',
+  '画面要求：商品主体清晰居中，构图稳定，商业摄影级光影，质感真实，背景干净高级，有适合国内电商的主图氛围和转化感。',
+  '参考图要求：如果提供参考图，必须优先保持产品外形、包装结构、颜色、材质、文字、logo 和品牌识别一致；只能优化构图、背景、光影、道具和整体视觉表现。',
+  '合规要求：不要虚构品牌、认证、价格、功效、活动标签和不存在的文字；不要改错包装文字；不要生成水印、二维码、乱码文字、畸形产品或多余主体。',
+  '输出要求：只生成最终图片，不要在图片里添加说明性大段文字；如需文字，只能使用用户明确要求或参考图中已有的可识别元素。'
+].join('\n');
+
+function buildEcommerceImagePrompt(userPrompt = '', options = {}) {
+  const prompt = String(userPrompt || '').trim();
+  const referenceRule = options.hasReferenceImages
+    ? '本次有参考图：请把参考图中的产品作为核心主体，保持产品包装与识别信息一致，在此基础上生成更适合电商展示的主图。'
+    : '本次没有参考图：请根据用户需求生成一张完整、清晰、适合国内电商平台展示的商品主图。';
+  return [
+    ECOMMERCE_IMAGE_SYSTEM_PROMPT,
+    referenceRule,
+    `用户需求：${prompt || '生成一张电商商品主图'}`,
+    '最终目标：输出一张可直接用于商品主图测试的高质量电商图片。'
+  ].join('\n');
+}
+
+function providerImageMime(buffer, fallback = '') {
+  const hinted = String(fallback || '').trim().toLowerCase();
+  if (/^image\//.test(hinted)) return hinted;
+  if (buffer && buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) return 'image/png';
+  if (buffer && buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'image/jpeg';
+  if (buffer && buffer.length >= 12 && buffer.slice(0, 4).toString('ascii') === 'RIFF' && buffer.slice(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
+  return 'image/png';
+}
+
+function providerImageExt(mime = '') {
+  const raw = String(mime || '').toLowerCase();
+  if (raw.includes('jpeg') || raw.includes('jpg')) return 'jpg';
+  if (raw.includes('webp')) return 'webp';
+  return 'png';
+}
+
+function firstString(...values) {
+  return values.find(value => typeof value === 'string' && value.trim()) || '';
+}
+
+function imageReferenceCandidates(body = {}) {
+  const buckets = [body.referenceImages, body.reference_images, body.images, body.imageUrls, body.image_urls]
+    .filter(Array.isArray);
+  const list = buckets.flat();
+  [body.image, body.imageUrl, body.image_url, body.originalUrl, body.original_url, body.referenceImage, body.reference_image]
+    .filter(Boolean)
+    .forEach(item => list.push(item));
+  return list
+    .map((item) => {
+      if (typeof item === 'string') return { url: item };
+      if (!item || typeof item !== 'object') return null;
+      return {
+        url: firstString(item.url, item.imageUrl, item.image_url, item.originalUrl, item.original_url, item.preview, item.src),
+        dataUrl: firstString(item.dataUrl, item.data_url, item.base64, item.b64_json, item.b64Json),
+        fileName: firstString(item.fileName, item.filename, item.name, item.title),
+        mimeType: firstString(item.mimeType, item.mime, item.type)
+      };
+    })
+    .filter(item => item && (item.url || item.dataUrl));
+}
+
+function localRequestOrigin(req) {
+  if (!req || !req.headers || typeof req.get !== 'function') return `http://127.0.0.1:${PORT}`;
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  return `${protocol}://${req.get('host') || `127.0.0.1:${PORT}`}`;
+}
+
+function resolveReferenceUrl(rawUrl = '', req) {
+  const value = String(rawUrl || '').trim();
+  if (!value) return '';
+  if (/^data:image\//i.test(value)) return value;
+  if (/^https?:\/\//i.test(value)) return value;
+  if (value.startsWith('/')) return `${localRequestOrigin(req)}${value}`;
+  return value;
+}
+
+async function loadReferenceImageFile(reference = {}, req) {
+  const dataUrl = String(reference.dataUrl || '').trim();
+  if (/^data:image\//i.test(dataUrl)) {
+    const match = dataUrl.match(/^data:(image\/[^;,]+)[^,]*,(.*)$/i);
+    if (!match) throw new Error('参考图 data URL 无效');
+    const buffer = Buffer.from(match[2], 'base64');
+    const mime = providerImageMime(buffer, match[1]);
+    return { buffer, mime, fileName: reference.fileName || `reference.${providerImageExt(mime)}` };
+  }
+
+  const rawUrl = String(reference.url || '').trim();
+  if (/^data:image\//i.test(rawUrl)) {
+    return loadReferenceImageFile({ ...reference, dataUrl: rawUrl, url: '' }, req);
+  }
+  if (/^\/uploads\/[^/?#]+/i.test(rawUrl)) {
+    const fileName = path.basename(rawUrl.split(/[?#]/)[0]);
+    const filePath = path.join(uploadDir, fileName);
+    if (fs.existsSync(filePath)) {
+      const buffer = fs.readFileSync(filePath);
+      const mime = providerImageMime(buffer, reference.mimeType);
+      return { buffer, mime, fileName: reference.fileName || `${fileName}.${providerImageExt(mime)}` };
+    }
+  }
+
+  const resolvedUrl = resolveReferenceUrl(rawUrl, req);
+  if (!resolvedUrl) throw new Error('参考图地址为空');
+  const resp = await fetch(resolvedUrl);
+  if (!resp.ok) throw new Error(`参考图读取失败: ${resp.status}`);
+  const arrayBuffer = await resp.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const mime = providerImageMime(buffer, resp.headers.get('content-type') || reference.mimeType);
+  return { buffer, mime, fileName: reference.fileName || `reference.${providerImageExt(mime)}` };
 }
 
 function mockChatCompletion(messages = [], model = AI_TEXT_MODEL) {
@@ -323,10 +510,62 @@ async function callProviderChat(messages, options = {}) {
   }
 }
 
+async function callProviderResponses(input, options = {}) {
+  const status = options.status || routeProviderStatus(options.route, 'text');
+  const model = options.model || AI_TEXT_MODEL;
+  if (!status.enabled) {
+    return {
+      success: true,
+      mock: true,
+      provider: status,
+      output_text: `本地 mock 回复：${String(input || 'ping').slice(0, 80)}`
+    };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), status.timeoutMs);
+  try {
+    const requestUrl = joinProviderUrl(status.baseUrl, routeTextEndpoint(options.route));
+    const resp = await fetch(requestUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${providerAuthKey('text', options.route)}`
+      },
+      body: JSON.stringify({ model, input }),
+      signal: controller.signal
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      return {
+        success: false,
+        code: 'PROVIDER_RESPONSES_FAILED',
+        message: data.message || data.error?.message || `Provider returned ${resp.status}`,
+        provider: status,
+        upstreamStatus: resp.status,
+        upstream: data
+      };
+    }
+    return { success: true, provider: status, ...data };
+  } catch (error) {
+    return {
+      success: false,
+      code: error.name === 'AbortError' ? 'PROVIDER_TIMEOUT' : 'PROVIDER_REQUEST_FAILED',
+      message: error.name === 'AbortError' ? 'AI Provider 请求超时' : `AI Provider 调用失败: ${error.message}`,
+      provider: status
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function callProviderImageGeneration(prompt, options = {}) {
-  const status = providerStatus();
+  const status = options.status || routeProviderStatus(options.route, 'image');
   const model = options.model || options.modelKey || AI_IMAGE_MODEL;
   const count = Math.max(1, Math.min(Number(options.n || options.count || options.imageCount || 1) || 1, 4));
+  const size = providerImageSize(options.size || options.ratio || options.aspectRatio);
+  const quality = providerImageQuality(options.quality);
+  const outputFormat = providerImageOutputFormat(options.output_format || options.outputFormat);
   if (!status.enabled) {
     return {
       success: true,
@@ -336,60 +575,76 @@ async function callProviderImageGeneration(prompt, options = {}) {
     };
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), status.imageTimeoutMs || status.timeoutMs);
   try {
-    const resp = await fetch(`${status.baseUrl.replace(/\/$/, '')}/images/generations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${providerAuthKey('image')}`
-      },
-      body: JSON.stringify({
-        model,
-        prompt,
-        n: count,
-        size: providerImageSize(options.size || options.ratio || options.aspectRatio),
-        quality: options.quality || undefined
-      }),
-      signal: controller.signal
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-      return {
-        success: false,
-        code: 'PROVIDER_IMAGE_FAILED',
-        message: data.message || data.error?.message || `Provider returned ${resp.status}`,
-        provider: status,
-        upstreamStatus: resp.status,
-        upstream: data
-      };
+    const images = [];
+    const upstream = [];
+    for (let i = 0; i < count; i += 1) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), status.imageTimeoutMs || status.timeoutMs);
+      try {
+        const requestUrl = joinProviderUrl(status.baseUrl, routeImageGenerationEndpoint(options.route));
+        const resp = await fetch(requestUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${providerAuthKey('image', options.route)}`
+          },
+          body: JSON.stringify({
+            model,
+            prompt,
+            size,
+            quality,
+            output_format: outputFormat,
+            response_format: 'url',
+            n: 1
+          }),
+          signal: controller.signal
+        });
+        const contentType = resp.headers.get('content-type') || '';
+        const data = await resp.json().catch(() => ({}));
+        upstream.push({ status: resp.status, contentType, data });
+        if (!resp.ok) {
+          return {
+            success: false,
+            code: 'PROVIDER_IMAGE_FAILED',
+            message: data.message || data.error?.message || `Provider returned ${resp.status}`,
+            provider: status,
+            upstreamStatus: resp.status,
+            upstream: data
+          };
+        }
+        const rawImages = Array.isArray(data.data)
+          ? data.data
+          : Array.isArray(data.images)
+            ? data.images
+            : Array.isArray(data.results)
+              ? data.results
+              : [];
+        rawImages
+          .map((item) => {
+            const raw = item && typeof item === 'object' ? item : { url: item };
+            return raw.url || raw.imageUrl || raw.image_url || raw.b64_json || raw.b64Json
+              ? { ...raw, index: images.length }
+              : null;
+          })
+          .filter(Boolean)
+          .forEach((item) => images.push(item));
+      } finally {
+        clearTimeout(timer);
+      }
     }
-    const rawImages = Array.isArray(data.data)
-      ? data.data
-      : Array.isArray(data.images)
-        ? data.images
-        : Array.isArray(data.results)
-          ? data.results
-          : [];
-    const images = rawImages
-      .map((item, index) => {
-        const raw = item && typeof item === 'object' ? item : { url: item };
-        return raw.url || raw.imageUrl || raw.image_url || raw.b64_json || raw.b64Json
-          ? { ...raw, index }
-          : null;
-      })
-      .filter(Boolean);
     if (!images.length) {
       return {
         success: false,
         code: 'PROVIDER_IMAGE_EMPTY',
-        message: 'Provider 没有返回有效图片',
+        message: upstream.some(item => item.contentType && !String(item.contentType).toLowerCase().includes('json'))
+          ? 'Provider 返回的不是 JSON，请检查 Base URL 和图片接口路径是否包含 /v1'
+          : 'Provider 没有返回有效图片',
         provider: status,
-        upstream: data
+        upstream
       };
     }
-    return { success: true, mock: false, provider: status, images, upstream: data };
+    return { success: true, mock: false, provider: status, images, upstream, request: { model, size, quality, output_format: outputFormat, response_format: 'url', n: 1, requestedCount: count } };
   } catch (err) {
     return {
       success: false,
@@ -397,8 +652,113 @@ async function callProviderImageGeneration(prompt, options = {}) {
       message: err.name === 'AbortError' ? 'Provider 图片生成超时' : (err.message || 'Provider 图片生成失败'),
       provider: status
     };
-  } finally {
-    clearTimeout(timer);
+  }
+}
+
+async function callProviderImageEdit(prompt, options = {}) {
+  const status = options.status || routeProviderStatus(options.route, 'image');
+  const model = options.model || options.modelKey || AI_IMAGE_MODEL;
+  const count = Math.max(1, Math.min(Number(options.n || options.count || options.imageCount || 1) || 1, 4));
+  const size = providerImageSize(options.size || options.ratio || options.aspectRatio);
+  const quality = providerImageQuality(options.quality);
+  const outputFormat = providerImageOutputFormat(options.output_format || options.outputFormat);
+  const references = imageReferenceCandidates(options.body || options);
+  if (!references.length) {
+    return callProviderImageGeneration(prompt, options);
+  }
+  if (!status.enabled) {
+    return {
+      success: true,
+      mock: true,
+      provider: status,
+      editMode: true,
+      images: Array.from({ length: count }, (_, i) => ({ url: placeholderUrl(`${prompt} reference ${i + 1}`) }))
+    };
+  }
+
+  try {
+    const imageFile = await loadReferenceImageFile(references[0], options.req);
+    const maskSource = options.mask || options.maskUrl || options.body?.mask || options.body?.maskUrl || options.body?.maskBase64 || '';
+    const maskFile = maskSource
+      ? await loadReferenceImageFile({ url: maskSource, dataUrl: maskSource }, options.req)
+      : null;
+    const images = [];
+    const upstream = [];
+    for (let i = 0; i < count; i += 1) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), status.imageTimeoutMs || status.timeoutMs);
+      try {
+        const form = new FormData();
+        form.append('model', model);
+        form.append('prompt', prompt);
+        form.append('size', size);
+        form.append('quality', quality);
+        form.append('output_format', outputFormat);
+        form.append('response_format', 'url');
+        form.append('n', '1');
+        form.append('image', new Blob([imageFile.buffer], { type: imageFile.mime }), imageFile.fileName);
+        if (maskFile) form.append('mask', new Blob([maskFile.buffer], { type: maskFile.mime }), maskFile.fileName);
+        const requestUrl = joinProviderUrl(status.baseUrl, routeImageEditEndpoint(options.route));
+        const resp = await fetch(requestUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${providerAuthKey('image', options.route)}`
+          },
+          body: form,
+          signal: controller.signal
+        });
+        const contentType = resp.headers.get('content-type') || '';
+        const data = await resp.json().catch(() => ({}));
+        upstream.push({ status: resp.status, contentType, data });
+        if (!resp.ok) {
+          return {
+            success: false,
+            code: 'PROVIDER_IMAGE_EDIT_FAILED',
+            message: data.message || data.error?.message || `Provider returned ${resp.status}`,
+            provider: status,
+            upstreamStatus: resp.status,
+            upstream: data
+          };
+        }
+        const rawImages = Array.isArray(data.data)
+          ? data.data
+          : Array.isArray(data.images)
+            ? data.images
+            : Array.isArray(data.results)
+              ? data.results
+              : [];
+        rawImages
+          .map((item) => {
+            const raw = item && typeof item === 'object' ? item : { url: item };
+            return raw.url || raw.imageUrl || raw.image_url || raw.b64_json || raw.b64Json
+              ? { ...raw, index: images.length }
+              : null;
+          })
+          .filter(Boolean)
+          .forEach((item) => images.push(item));
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    if (!images.length) {
+      return {
+        success: false,
+        code: 'PROVIDER_IMAGE_EDIT_EMPTY',
+        message: upstream.some(item => item.contentType && !String(item.contentType).toLowerCase().includes('json'))
+          ? 'Provider 返回的不是 JSON，请检查 Base URL 和图生图接口路径是否包含 /v1'
+          : 'Provider 没有返回有效图片',
+        provider: status,
+        upstream
+      };
+    }
+    return { success: true, mock: false, provider: status, editMode: true, images, upstream, request: { model, size, quality, output_format: outputFormat, response_format: 'url', n: 1, requestedCount: count, referenceImageCount: references.length } };
+  } catch (err) {
+    return {
+      success: false,
+      code: err.name === 'AbortError' ? 'PROVIDER_IMAGE_EDIT_TIMEOUT' : 'PROVIDER_IMAGE_EDIT_ERROR',
+      message: err.name === 'AbortError' ? 'Provider 图生图超时' : (err.message || 'Provider 图生图失败'),
+      provider: status
+    };
   }
 }
 
@@ -437,6 +797,14 @@ function routePayload(route = RTS[0]) {
   const key = route.rk || route.routeKey || route.lineKey || route.code || id;
   const name = route.name || route.dn || route.displayName || key;
   const displayName = route.displayName || route.routeDisplayName || route.dn || name;
+  const officialRoute = RTS.find(item =>
+    [item.id, item.rk].includes(id) ||
+    [item.id, item.rk].includes(key) ||
+    (item.dm && item.dm === route.dm)
+  );
+  const officialExamples = Array.isArray(officialRoute && officialRoute.requestExamples)
+    ? officialRoute.requestExamples
+    : null;
   return {
     ...route,
     id,
@@ -466,6 +834,14 @@ function routePayload(route = RTS[0]) {
     defaultModelKey: defaultModel.modelKey,
     defaultModelRealName: defaultModel.realName,
     defaultModelDisplayName: defaultModel.displayName,
+    apiKey: maskSecret(route.apiKey),
+    hasApiKey: hasStoredSecret(route.apiKey),
+    apiFormat: route.apiFormat || officialRoute?.apiFormat || '',
+    requestFormat: route.requestFormat || route.apiFormat || officialRoute?.requestFormat || '',
+    endpoint: route.endpoint || route.requestPath || officialRoute?.endpoint || '',
+    requestPath: route.requestPath || route.endpoint || officialRoute?.endpoint || '',
+    requestBodyExample: route.requestBodyExample || (officialExamples ? officialExamples[0].body : null),
+    requestExamples: officialExamples || (Array.isArray(route.requestExamples) ? route.requestExamples : []),
     models
   };
 }
@@ -648,6 +1024,11 @@ app.put('/api/user/avatar', auth, (req, res) => {
 });
 app.post('/api/upload', auth, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ message: '请上传文件' });
+  const url = `/uploads/${req.file.filename}`;
+  res.json({ url, imageUrl: url, originalUrl: url, success: true });
+});
+app.post('/api/upload/image', auth, upload.single('image'), (req, res) => {
+  if (!req.file) return res.status(400).json({ message: '请上传图片' });
   const url = `/uploads/${req.file.filename}`;
   res.json({ url, imageUrl: url, originalUrl: url, success: true });
 });
@@ -849,6 +1230,283 @@ function createCompletedTask(req, source = {}) {
   return task;
 }
 
+function resolveRequestImageRoute(body = {}) {
+  const routeId = String(body.routeId || body.lineId || body.routeKey || body.lineKey || '').trim();
+  return findRouteByAnyId(routeId);
+}
+
+function normalizeImageToolUrl(item = {}) {
+  const raw = item && typeof item === 'object' ? item : { url: item };
+  return firstString(raw.url, raw.imageUrl, raw.image_url, raw.uploadedUrl, raw.previewUrl, raw.preview, raw.src);
+}
+
+function imageToolReferences(body = {}) {
+  const baseImage = normalizeImageToolUrl(body.imageUrl || body.image || body.url || body.originalUrl || body.original_url);
+  const refs = [];
+  if (baseImage) refs.push({ url: baseImage, fileName: 'image.png' });
+  if (Array.isArray(body.referenceImages)) {
+    body.referenceImages
+      .map(normalizeImageToolUrl)
+      .filter(Boolean)
+      .forEach(url => refs.push({ url }));
+  }
+  return refs;
+}
+
+function buildImageToolPrompt(body = {}, type = 'inpaint') {
+  const userPrompt = String(body.prompt || '').trim();
+  const baseByType = {
+    erase: '请根据原图上下文，只重绘 mask 白色区域，移除涂抹区域内的对象并自然补全背景。未涂抹区域必须保持不变。',
+    text_edit: '请只重绘 mask 白色区域内的文字或排版，按用户提示替换文字内容、字体、颜色和版式。未涂抹区域必须保持不变。',
+    outpaint: '请基于原图自然扩展画面，保持主体、透视、材质、光线、商品包装和整体电商视觉风格一致。原图主体不得变形，新增区域需要自然补全背景。'
+  };
+  const base = baseByType[type] || '请根据用户提示和参考图，只重绘 mask 白色区域。未涂抹区域必须保持不变，产品包装、主体结构、文字和品牌识别尽量保持一致。';
+  const fallbackByType = {
+    erase: '自然消除涂抹区域',
+    text_edit: '按涂抹区域修改文字',
+    outpaint: '自然扩展画布背景'
+  };
+  return `${base}\n用户提示：${userPrompt || fallbackByType[type] || '按涂抹区域进行局部修改'}`;
+}
+
+function imageToolOutputText(data = {}) {
+  if (typeof data.output_text === 'string' && data.output_text.trim()) return data.output_text.trim();
+  if (typeof data.outputText === 'string' && data.outputText.trim()) return data.outputText.trim();
+  if (typeof data.text === 'string' && data.text.trim()) return data.text.trim();
+  if (typeof data.content === 'string' && data.content.trim()) return data.content.trim();
+  if (Array.isArray(data.output)) {
+    for (const item of data.output) {
+      if (typeof item === 'string' && item.trim()) return item.trim();
+      if (typeof item?.content === 'string' && item.content.trim()) return item.content.trim();
+      if (Array.isArray(item?.content)) {
+        const text = item.content.map(part => part?.text || part?.content || '').join('').trim();
+        if (text) return text;
+      }
+    }
+  }
+  const choiceText = data.choices?.[0]?.message?.content || data.choices?.[0]?.text;
+  if (typeof choiceText === 'string' && choiceText.trim()) return choiceText.trim();
+  return '';
+}
+
+function imageToolSize(body = {}) {
+  const width = Number(body.imageNaturalWidth || body.width || body.canvasWidth || 0);
+  const height = Number(body.imageNaturalHeight || body.height || body.canvasHeight || 0);
+  if (width > 0 && height > 0) {
+    const ratio = width / height;
+    if (ratio > 1.15) return '16:9';
+    if (ratio < 0.87) return '9:16';
+  }
+  return body.size || body.ratio || '1:1';
+}
+
+function makeImageToolResponse(providerResult = {}, body = {}, type = 'inpaint') {
+  const taskId = uid(`${type}_`);
+  const image = normalizeTaskImage((providerResult.images || [])[0] || {}, 0, taskId);
+  const width = Number(body.imageNaturalWidth || body.width || 0);
+  const height = Number(body.imageNaturalHeight || body.height || 0);
+  return {
+    success: true,
+    id: taskId,
+    taskId,
+    status: 'success',
+    progress: 100,
+    mock: !!providerResult.mock,
+    editMode: !!providerResult.editMode,
+    provider: providerResult.provider,
+    imageUrl: image.imageUrl,
+    url: image.url,
+    originalUrl: image.originalUrl,
+    thumbUrl: image.preview,
+    thumbnailUrl: image.preview,
+    width,
+    height,
+    resultImages: [image],
+    images: [image],
+    operation: type,
+    request: providerResult.request
+  };
+}
+
+async function runImageToolEdit(req, res, type = 'inpaint') {
+  try {
+    const references = imageToolReferences(req.body);
+    const mask = firstString(req.body.maskBase64, req.body.mask, req.body.maskUrl);
+    if (!references.length) return res.status(400).json({ success: false, code: 'IMAGE_TOOL_IMAGE_REQUIRED', message: '缺少待处理图片' });
+    if (!mask) return res.status(400).json({ success: false, code: 'IMAGE_TOOL_MASK_REQUIRED', message: '请先涂抹需要处理的区域' });
+
+    const route = resolveRequestImageRoute(req.body);
+    const model = resolveImageModelKey(req.body);
+    const requestedType = String(req.body.type || req.body.operation || type).trim();
+    const operationType = requestedType === 'text_edit' && type === 'inpaint' ? 'text_edit' : type;
+    const prompt = buildImageToolPrompt(req.body, operationType);
+    const providerResult = await callProviderImageEdit(prompt, {
+      ...req.body,
+      body: {
+        ...req.body,
+        referenceImages: references,
+        mask
+      },
+      req,
+      route,
+      model,
+      size: imageToolSize(req.body),
+      quality: req.body.quality || req.body.clarity || 'auto',
+      n: 1,
+      mask
+    });
+    if (!providerResult.success) {
+      return res.status(502).json({
+        success: false,
+        code: providerResult.code || 'IMAGE_TOOL_PROVIDER_FAILED',
+        message: providerResult.message || '图片编辑接口调用失败',
+        provider: providerResult.provider
+      });
+    }
+    res.json(makeImageToolResponse(providerResult, req.body, operationType));
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      code: 'IMAGE_TOOL_EDIT_ERROR',
+      message: error.message || '图片编辑任务失败'
+    });
+  }
+}
+
+async function runImageToolOutpaint(req, res) {
+  try {
+    const references = imageToolReferences(req.body);
+    if (!references.length) return res.status(400).json({ success: false, code: 'IMAGE_TOOL_IMAGE_REQUIRED', message: '缺少待扩展图片' });
+
+    const route = resolveRequestImageRoute(req.body);
+    const model = resolveImageModelKey(req.body);
+    const prompt = buildImageToolPrompt(req.body, 'outpaint');
+    const providerResult = await callProviderImageEdit(prompt, {
+      ...req.body,
+      body: {
+        ...req.body,
+        referenceImages: references
+      },
+      req,
+      route,
+      model,
+      size: imageToolSize(req.body),
+      quality: req.body.quality || req.body.clarity || 'auto',
+      n: 1
+    });
+    if (!providerResult.success) {
+      return res.status(502).json({
+        success: false,
+        code: providerResult.code || 'IMAGE_TOOL_OUTPAINT_FAILED',
+        message: providerResult.message || '扩图接口调用失败',
+        provider: providerResult.provider
+      });
+    }
+
+    const task = createCompletedTask(req, {
+      prompt,
+      modelKey: model,
+      imageCount: 1,
+      results: providerResult.images
+    });
+    res.json({
+      success: true,
+      mock: !!providerResult.mock,
+      editMode: !!providerResult.editMode,
+      provider: providerResult.provider,
+      operation: 'outpaint',
+      ...makeTaskResponse(task)
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      code: 'IMAGE_TOOL_OUTPAINT_ERROR',
+      message: error.message || '扩图任务失败'
+    });
+  }
+}
+
+async function runImageToolReversePrompt(req, res) {
+  try {
+    const imageUrl = normalizeImageToolUrl(req.body.imageUrl || req.body.image || req.body.url || req.body.originalUrl);
+    if (!imageUrl) return res.status(400).json({ success: false, code: 'IMAGE_TOOL_IMAGE_REQUIRED', message: '缺少待分析图片' });
+
+    const route = resolveRequestImageRoute(req.body);
+    const model = String(req.body.textModel || req.body.model || AI_TEXT_MODEL || 'gpt-5.5').trim();
+    const input = [
+      '请根据下面这张电商图片，反推出适合文生图或图生图使用的中文提示词。',
+      '输出一段完整提示词，包含主体、构图、光线、材质、背景、文字/包装要点、画面风格和电商转化重点。',
+      '不要输出解释，不要输出列表标题。',
+      `图片地址：${imageUrl}`
+    ].join('\n');
+    const providerResult = await callProviderResponses(input, { route, model });
+    if (!providerResult.success) {
+      return res.status(502).json({
+        success: false,
+        code: providerResult.code || 'IMAGE_TOOL_REVERSE_PROMPT_FAILED',
+        message: providerResult.message || '反推提示词接口调用失败',
+        provider: providerResult.provider
+      });
+    }
+    const text = imageToolOutputText(providerResult) || '高质量电商产品主图，主体清晰，构图居中，商业摄影级光影，背景干净，材质真实，细节丰富。';
+    res.json({
+      success: true,
+      mock: !!providerResult.mock,
+      provider: providerResult.provider,
+      prompt: text,
+      text,
+      rawPrompt: text,
+      rawText: text
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      code: 'IMAGE_TOOL_REVERSE_PROMPT_ERROR',
+      message: error.message || '反推提示词失败'
+    });
+  }
+}
+
+app.get('/api/image-tools/settings', auth, (req, res) => {
+  res.json({
+    success: true,
+    tools: {
+      outpaint: { enabled: true, mode: 'image-edit' },
+      reversePrompt: { enabled: true, mode: 'responses' },
+      smartErase: { enabled: true, mode: 'image-edit' },
+      inpaint: { enabled: true, mode: 'image-edit' },
+      textEdit: { enabled: true, mode: 'image-edit' },
+      compress: { enabled: true, mode: 'local' },
+      resize: { enabled: true, mode: 'local' },
+      crop: { enabled: true, mode: 'local' },
+      upscale: { enabled: false, mode: 'planned' },
+      removeBg: { enabled: false, mode: 'planned' }
+    }
+  });
+});
+
+app.get('/api/image-tools/tasks/:id', auth, (req, res) => {
+  const task = tasks.get(req.params.id);
+  if (!task || task.userId !== req.user.userId) return res.status(404).json({ message: '任务不存在' });
+  res.json(makeTaskResponse(task));
+});
+
+app.post('/api/image-tools/outpaint', auth, async (req, res) => {
+  await runImageToolOutpaint(req, res);
+});
+
+app.post('/api/image-tools/reverse-prompt', auth, async (req, res) => {
+  await runImageToolReversePrompt(req, res);
+});
+
+app.post('/api/image-tools/inpaint', auth, async (req, res) => {
+  await runImageToolEdit(req, res, 'inpaint');
+});
+
+app.post('/api/image-tools/erase', auth, async (req, res) => {
+  await runImageToolEdit(req, res, 'erase');
+});
+
 app.post('/api/generate/tasks', auth, async (req, res) => {
   const prompt = req.body.prompt || req.body.selectedPrompt || '';
   const modelKey = resolveImageModelKey(req.body);
@@ -856,11 +1514,17 @@ app.post('/api/generate/tasks', auth, async (req, res) => {
     return res.status(400).json({ message: '请输入提示词或上传参考图' });
   }
   const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.userId);
+  if (!u) return res.status(401).json({ success: false, code: 'AUTH_USER_NOT_FOUND', message: '登录状态已失效，请重新登录' });
   const m = [...IMG, ...TXT].find(x => x.k === modelKey) || IMG[0];
   const imageCount = Math.max(1, Math.min(Number(req.body.imageCount || req.body.n || 1) || 1, 4));
   const total = (m ? m.p : 15) * imageCount;
   if (u.balance < total) return res.status(400).json({ message: `算力不足，需要 ${total}，当前 ${u.balance}` });
-  const providerResult = await callProviderImageGeneration(prompt, { ...req.body, model: modelKey, n: imageCount });
+  const hasReferenceImages = imageReferenceCandidates(req.body).length > 0;
+  const providerPrompt = buildEcommerceImagePrompt(prompt, { hasReferenceImages });
+  const providerOptions = { ...req.body, body: req.body, req, model: modelKey, n: imageCount };
+  const providerResult = hasReferenceImages
+    ? await callProviderImageEdit(providerPrompt, providerOptions)
+    : await callProviderImageGeneration(providerPrompt, providerOptions);
   if (!providerResult.success) {
     return res.status(502).json({
       success: false,
@@ -869,12 +1533,12 @@ app.post('/api/generate/tasks', auth, async (req, res) => {
       provider: providerResult.provider
     });
   }
-  const task = createCompletedTask(req, { prompt, modelKey, imageCount, results: providerResult.images });
+  const task = createCompletedTask(req, { prompt: providerPrompt, modelKey, imageCount, results: providerResult.images });
   const nb = u.balance - total;
   db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
   db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
     .run(u.id,'generation',-total,u.balance,nb,`生成任务: ${modelKey} x${imageCount}`);
-  res.json({ success: true, mock: !!providerResult.mock, provider: providerResult.provider, ...makeTaskResponse(task) });
+  res.json({ success: true, mock: !!providerResult.mock, editMode: !!providerResult.editMode, provider: providerResult.provider, ...makeTaskResponse(task) });
 });
 app.get('/api/generate/tasks/:id', auth, (req, res) => {
   const task = tasks.get(req.params.id);
@@ -897,10 +1561,16 @@ app.post('/api/template/generate-image', auth, async (req, res) => {
   const total = cp * cnt;
 
   const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.userId);
+  if (!u) return res.status(401).json({ success: false, code: 'AUTH_USER_NOT_FOUND', message: '登录状态已失效，请重新登录' });
   if (u.balance < total) return res.status(400).json({ message: `算力不足，需要 ${total}，当前 ${u.balance}` });
 
   const fullPrompt = `${prompt}${negativePrompt ? '，避免：' + negativePrompt : ''}`;
-  const providerResult = await callProviderImageGeneration(fullPrompt, { ...req.body, model: modelKey, n: cnt });
+  const hasReferenceImages = imageReferenceCandidates(req.body).length > 0;
+  const providerPrompt = buildEcommerceImagePrompt(fullPrompt, { hasReferenceImages });
+  const providerOptions = { ...req.body, body: req.body, req, model: modelKey, n: cnt };
+  const providerResult = hasReferenceImages
+    ? await callProviderImageEdit(providerPrompt, providerOptions)
+    : await callProviderImageGeneration(providerPrompt, providerOptions);
   if (!providerResult.success) {
     return res.status(502).json({
       success: false,
@@ -911,13 +1581,14 @@ app.post('/api/template/generate-image', auth, async (req, res) => {
   }
 
   const results = providerResult.images;
-  const task = createCompletedTask(req, { prompt: fullPrompt, modelKey, imageCount: cnt, results });
+  const task = createCompletedTask(req, { prompt: providerPrompt, modelKey, imageCount: cnt, results });
   const nb = u.balance - total;
   db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
   db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)').run(u.id,'generation',-total,u.balance,nb,`AI生图: ${modelKey} x${cnt}`);
   res.json({
     success: true,
     mock: !!providerResult.mock,
+    editMode: !!providerResult.editMode,
     provider: providerResult.provider,
     results: task.images,
     resultImages: task.images,
@@ -928,7 +1599,7 @@ app.post('/api/template/generate-image', auth, async (req, res) => {
     progress: 100,
     totalCost: total,
     remainingBalance: nb,
-    prompt: fullPrompt,
+    prompt: providerPrompt,
     modelKey
   });
 });
@@ -1398,10 +2069,11 @@ app.delete('/api/admin/redeem-codes/:code', auth, admin, (req, res) => {
   res.json({ success: true });
 });
 app.get('/api/admin/api-providers', auth, admin, (req, res) => {
+  const provider = providerStatus();
   const rows = filteredRoutes().map(r => ({
     ...r,
-    baseUrl: r.baseUrl || (r.type === 'text' ? 'https://api.flowstudio.local/v1' : 'https://api.hjm.local/v1'),
-    apiKey: 'sk-local-********',
+    baseUrl: r.baseUrl || provider.baseUrl,
+    apiKey: r.apiKey || (hasConfiguredSecret(providerAuthKey(r.type === 'image' ? 'image' : 'text')) ? 'env-********' : ''),
     modelCount: r.models.length,
     supportsChat: r.type === 'text',
     supportsImage: r.type === 'image'
@@ -1420,15 +2092,81 @@ app.post('/api/admin/api-providers', auth, admin, (req, res) => {
     cat: req.body.category || req.body.type || req.body.group || 'image',
     g: req.body.category || req.body.type || req.body.group || 'image',
     pri: Number(req.body.priority || 1),
+    def: req.body.isDefault === true || req.body.def === true,
+    dm: req.body.defaultModelKey || req.body.defaultModelRealName || req.body.defaultModelDisplayName || req.body.dm || '',
     enabled: req.body.enabled !== false,
     status: req.body.status || 'active',
     baseUrl: req.body.baseUrl || req.body.apiBase || '',
-    apiKey: req.body.apiKey ? 'sk-local-********' : ''
+    apiKey: normalizeSecretInput(req.body.apiKey),
+    requestFormat: req.body.requestFormat || req.body.apiFormat || '',
+    endpoint: req.body.endpoint || req.body.requestPath || '',
+    requestPath: req.body.requestPath || req.body.endpoint || '',
+    requestBodyExample: req.body.requestBodyExample || null,
+    requestExamples: Array.isArray(req.body.requestExamples) ? req.body.requestExamples : [],
+    chatEndpoint: req.body.chatEndpoint || '',
+    imageEndpoint: req.body.imageEndpoint || '',
+    imageEditEndpoint: req.body.imageEditEndpoint || '',
+    videoEndpoint: req.body.videoEndpoint || '',
+    defaultTextModel: req.body.defaultTextModel || '',
+    defaultImageModel: req.body.defaultImageModel || '',
+    defaultVideoModel: req.body.defaultVideoModel || '',
+    multiplier: Number(req.body.multiplier || req.body.rate || 1),
+    remark: req.body.remark || req.body.note || ''
   };
   const routes = [...routeState(), rawRoute];
   saveRouteState(routes);
   const route = routePayload(rawRoute);
   res.json({ success: true, item: route, provider: route, route });
+});
+app.put('/api/admin/api-providers', auth, admin, (req, res) => {
+  const inputRoutes = Array.isArray(req.body)
+    ? req.body
+    : (Array.isArray(req.body.routes) ? req.body.routes : req.body.providers);
+  if (!Array.isArray(inputRoutes)) {
+    return res.status(400).json({ success: false, code: 'INVALID_ROUTES', message: '请提供 routes 数组' });
+  }
+  const previousRoutes = routeState();
+  const nextRoutes = inputRoutes.map((route, index) => {
+    const kind = route.category || route.type || route.group || route.cat || route.g || 'image';
+    const id = route.id || route.routeId || route.lineId || uid('pub_route_');
+    const routeKey = route.routeKey || route.lineKey || route.routeCode || route.code || route.key || route.rk || id;
+    const name = route.displayName || route.name || route.routeDisplayName || route.routeName || route.dn || routeKey;
+    const previous = previousRoutes.find(item => [item.id, item.rk, item.routeKey, item.lineKey, item.code].includes(id) || [item.id, item.rk, item.routeKey, item.lineKey, item.code].includes(routeKey)) || {};
+    return {
+      id,
+      rk: routeKey,
+      name,
+      displayName: route.displayName || name,
+      dn: route.displayName || name,
+      apiFormat: route.apiFormat || route.requestFormat || 'openai',
+      requestFormat: route.requestFormat || route.apiFormat || '',
+      endpoint: route.endpoint || route.requestPath || '',
+      requestPath: route.requestPath || route.endpoint || '',
+      requestBodyExample: route.requestBodyExample || null,
+      requestExamples: Array.isArray(route.requestExamples) ? route.requestExamples : [],
+      cat: kind,
+      g: kind,
+      pri: Number(route.priority ?? route.pri ?? (inputRoutes.length - index)),
+      def: route.isDefault === true || route.def === true,
+      dm: route.defaultModelKey || route.defaultModelRealName || route.defaultModelDisplayName || route.dm || '',
+      enabled: route.enabled !== false,
+      status: route.status || 'active',
+      baseUrl: route.baseUrl || route.apiBase || '',
+      apiKey: normalizeSecretInput(route.apiKey, previous.apiKey || ''),
+      chatEndpoint: route.chatEndpoint || '',
+      imageEndpoint: route.imageEndpoint || '',
+      imageEditEndpoint: route.imageEditEndpoint || '',
+      videoEndpoint: route.videoEndpoint || '',
+      defaultTextModel: route.defaultTextModel || '',
+      defaultImageModel: route.defaultImageModel || '',
+      defaultVideoModel: route.defaultVideoModel || '',
+      multiplier: Number(route.multiplier || route.rate || 1),
+      remark: route.remark || route.note || ''
+    };
+  });
+  saveRouteState(nextRoutes);
+  const rows = nextRoutes.map(routePayload);
+  res.json({ success: true, items: rows, list: rows, data: rows, providers: rows, routes: rows, total: rows.length, page: 1, pageSize: rows.length || 20 });
 });
 app.put('/api/admin/api-providers/:id', auth, admin, (req, res) => {
   const routes = routeState();
@@ -1444,11 +2182,27 @@ app.put('/api/admin/api-providers/:id', auth, admin, (req, res) => {
       displayName: req.body.displayName || route.displayName || route.dn || route.name,
       dn: req.body.displayName || req.body.name || route.dn,
       apiFormat: req.body.apiFormat || route.apiFormat || 'openai',
+      requestFormat: req.body.requestFormat || route.requestFormat || req.body.apiFormat || route.apiFormat || '',
+      endpoint: req.body.endpoint || req.body.requestPath || route.endpoint || route.requestPath || '',
+      requestPath: req.body.requestPath || req.body.endpoint || route.requestPath || route.endpoint || '',
+      requestBodyExample: req.body.requestBodyExample || route.requestBodyExample || null,
+      requestExamples: Array.isArray(req.body.requestExamples) ? req.body.requestExamples : (route.requestExamples || []),
       cat: req.body.category || req.body.type || req.body.group || route.cat,
       g: req.body.category || req.body.type || req.body.group || route.g,
       baseUrl: req.body.baseUrl ?? req.body.apiBase ?? route.baseUrl,
-      apiKey: req.body.apiKey ? 'sk-local-********' : route.apiKey,
+      apiKey: normalizeSecretInput(req.body.apiKey, route.apiKey || ''),
+      chatEndpoint: req.body.chatEndpoint ?? route.chatEndpoint ?? '',
+      imageEndpoint: req.body.imageEndpoint ?? route.imageEndpoint ?? '',
+      imageEditEndpoint: req.body.imageEditEndpoint ?? route.imageEditEndpoint ?? '',
+      videoEndpoint: req.body.videoEndpoint ?? route.videoEndpoint ?? '',
+      defaultTextModel: req.body.defaultTextModel ?? route.defaultTextModel ?? '',
+      defaultImageModel: req.body.defaultImageModel ?? route.defaultImageModel ?? '',
+      defaultVideoModel: req.body.defaultVideoModel ?? route.defaultVideoModel ?? '',
+      multiplier: Number(req.body.multiplier ?? req.body.rate ?? route.multiplier ?? route.rate ?? 1),
+      remark: req.body.remark ?? req.body.note ?? route.remark ?? route.note ?? '',
       pri: Number(req.body.priority ?? route.pri ?? 0),
+      def: req.body.isDefault ?? req.body.def ?? route.def,
+      dm: req.body.defaultModelKey || req.body.defaultModelRealName || req.body.defaultModelDisplayName || route.dm,
       enabled: req.body.enabled !== false
     };
     return updated;
@@ -1466,7 +2220,9 @@ app.delete('/api/admin/api-providers/:id', auth, admin, (req, res) => {
 });
 app.post('/api/admin/api-providers/:id/test', auth, admin, async (req, res) => {
   const startedAt = Date.now();
-  const status = providerStatus();
+  const route = findRouteByAnyId(req.params.id);
+  const kind = routeKind(route);
+  const status = routeProviderStatus(route, kind);
   if (!status.enabled) {
     return res.json({
       success: true,
@@ -1477,12 +2233,29 @@ app.post('/api/admin/api-providers/:id/test', auth, admin, async (req, res) => {
     });
   }
 
-  const result = await callProviderChat([{ role: 'user', content: 'ping' }], { model: AI_TEXT_MODEL });
+  const model = route.dm || route.defaultModelKey || route.defaultModelRealName || (kind === 'image' ? AI_IMAGE_MODEL : AI_TEXT_MODEL);
+  const result = kind === 'image'
+    ? await callProviderImageGeneration('API 线路连通性测试，简洁白底产品图标，不包含文字', {
+      model,
+      n: 1,
+      imageCount: 1,
+      size: '1024x1024',
+      quality: 'auto',
+      output_format: 'png',
+      route
+    })
+    : await callProviderResponses('ping', { model, route });
   res.status(result.success ? 200 : 502).json({
     success: result.success,
+    mock: !!result.mock,
     latencyMs: Date.now() - startedAt,
-    message: result.success ? 'New-API 网关连接正常' : result.message,
+    message: result.success
+      ? (kind === 'image' ? '图片线路连接正常，Packy Images API 已返回图片' : '文本线路连接正常，Responses API 已返回结果')
+      : result.message,
     provider: status,
+    route: { id: req.params.id, type: kind, model },
+    request: result.request,
+    imageCount: Array.isArray(result.images) ? result.images.length : undefined,
     code: result.code || undefined
   });
 });
@@ -1706,6 +2479,25 @@ app.use((err, req, res, next) => {
 });
 
 // ===================== SPA FALLBACK =====================
+const sourceAdminRoutes = [
+  '/admin/login',
+  '/admin/dashboard',
+  '/admin/users',
+  '/admin/recycle-bin',
+  '/admin/generate-tasks',
+  '/admin/logs',
+  '/admin/orders',
+  '/admin/redeem-codes',
+  '/admin/model-prices',
+  '/admin/api-providers',
+  '/admin/template-workflows',
+  '/admin/settings'
+];
+
+app.get(sourceAdminRoutes, (req, res) => {
+  const sourceIndex = path.join(sourceFrontendDist, 'index.html');
+  res.sendFile(fs.existsSync(sourceIndex) ? sourceIndex : path.join(__dirname, 'index.html'));
+});
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 // ===================== START =====================

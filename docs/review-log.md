@@ -2356,3 +2356,16 @@
 
 - 真实登录态下再次发起对话 Agent 生图，确认 42 秒级 GPT 5.5 分析能正常进入后续 GPT Image 2 生图阶段。
 - 若 GPT 5.5 超过 120 秒仍超时，需要再评估是否改为异步任务轮询，避免 HTTP 长连接等待。
+
+## 2026-06-30 Canvas Chat 对话 Agent GPT 5.5 文本提取复核
+
+### 已确认
+
+- 超时修复后出现的新错误是 “GPT 5.5 未返回可用的生图提示词”，说明文本 Provider HTTP 调用已经成功，失败发生在本地解析阶段。
+- 当前 `parseCanvasDialogAgentPlan` 在有文本时会把原始文本作为 prompt 兜底，因此空 prompt 的根因是 `imageToolOutputText` 没能从 Provider 响应结构中抽取文本。
+- 已补充 `normalizeProviderContentText`，支持 `choices[].message.content[]`、`output[].content[]`、`text.value`、`output_text` 等常见嵌套结构。
+
+### 需要继续验证
+
+- 用户重新测试真实对话 Agent 请求，确认 GPT 5.5 分析结果能进入 GPT Image 2 生图阶段。
+- 若仍返回无 prompt，需要临时记录 Provider 响应 shape，再按真实结构补充解析。

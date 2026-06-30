@@ -1460,24 +1460,64 @@ function buildImageToolPrompt(body = {}, type = 'inpaint') {
   return `${base}\n用户提示：${userPrompt || fallbackByType[type] || '按涂抹区域进行局部修改'}`;
 }
 
+function normalizeProviderContentText(content, depth = 0) {
+  if (depth > 8 || content === undefined || content === null) return '';
+  if (typeof content === 'string') return content.trim();
+  if (Array.isArray(content)) {
+    return content
+      .map(item => normalizeProviderContentText(item, depth + 1))
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+  }
+  if (typeof content !== 'object') return '';
+  const direct = firstString(
+    content.output_text,
+    content.outputText,
+    content.text,
+    content.value,
+    content.content
+  );
+  if (direct) return direct.trim();
+  const nested = [
+    content.message,
+    content.delta,
+    content.content,
+    content.data,
+    content.result,
+    content.response
+  ];
+  for (const item of nested) {
+    const text = normalizeProviderContentText(item, depth + 1);
+    if (text) return text;
+  }
+  return '';
+}
+
 function imageToolOutputText(data = {}) {
-  if (typeof data.output_text === 'string' && data.output_text.trim()) return data.output_text.trim();
-  if (typeof data.outputText === 'string' && data.outputText.trim()) return data.outputText.trim();
-  if (typeof data.text === 'string' && data.text.trim()) return data.text.trim();
-  if (typeof data.content === 'string' && data.content.trim()) return data.content.trim();
+  const direct = normalizeProviderContentText({
+    output_text: data.output_text,
+    outputText: data.outputText,
+    text: data.text,
+    content: data.content
+  });
+  if (direct) return direct;
   if (Array.isArray(data.output)) {
-    for (const item of data.output) {
-      if (typeof item === 'string' && item.trim()) return item.trim();
-      if (typeof item?.content === 'string' && item.content.trim()) return item.content.trim();
-      if (Array.isArray(item?.content)) {
-        const text = item.content.map(part => part?.text || part?.content || '').join('').trim();
-        if (text) return text;
-      }
+    const text = normalizeProviderContentText(data.output);
+    if (text) return text;
+  }
+  if (Array.isArray(data.choices)) {
+    for (const choice of data.choices) {
+      const text = normalizeProviderContentText([
+        choice?.message?.content,
+        choice?.message,
+        choice?.delta?.content,
+        choice?.text
+      ]);
+      if (text) return text;
     }
   }
-  const choiceText = data.choices?.[0]?.message?.content || data.choices?.[0]?.text;
-  if (typeof choiceText === 'string' && choiceText.trim()) return choiceText.trim();
-  return '';
+  return normalizeProviderContentText([data.message, data.data, data.result, data.response]);
 }
 
 function imageToolSize(body = {}) {

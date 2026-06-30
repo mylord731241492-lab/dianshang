@@ -1684,3 +1684,10 @@
 - 完成内容：将文本 Provider 默认等待时间提高到 120 秒；`callProviderResponses` 支持单次 `timeoutMs` 覆盖；`/api/canvas/dialog-agent-generate` 的 GPT 5.5 分析阶段显式使用 `CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS`，超时时返回 `CANVAS_DIALOG_ANALYSIS_TIMEOUT` 和 `stage: analysis`，前端可明确知道是分析阶段超时。
 - 边界：不改 Provider 配置、不改 API Key、不触发真实 GPT 5.5 或 GPT Image 2 测试；本地余额仍只在端到端成功后扣除，但上游在本地超时后是否继续记账取决于 Provider。
 - 验证方式：`node --check "F:\dianshang\server.js"`；`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-backend-canvas-boundary.ps1"`；`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-api-disposable.ps1"`；浏览器刷新旧画布入口确认可打开。
+
+## 2026-06-30 Canvas Chat 对话 Agent GPT 5.5 文本提取修复
+
+- 触发背景：超时修复后，真实 GPT 5.5 调用不再超时，但对话卡片显示 “GPT 5.5 未返回可用的生图提示词”。
+- 定位结论：`parseCanvasDialogAgentPlan` 已允许把非 JSON 文本直接作为最终 prompt；真正失败点是 `imageToolOutputText` 没有兼容 New-API/OpenAI 返回中 `choices[].message.content[]`、`output[].content[].text/value` 等嵌套文本结构，导致成功响应被当成空文本。
+- 完成内容：新增 `normalizeProviderContentText`，统一递归抽取 `output_text/outputText/text/content/value/message/delta/data/result/response` 中的文本；`imageToolOutputText` 改为同时支持 Responses API 和 Chat Completions 风格的数组内容。
+- 边界：不改对话 Agent 业务流程、不改扣费逻辑、不做本地基础提示词兜底生图；如果 GPT 5.5 真实返回完全无文本，仍按分析失败处理。

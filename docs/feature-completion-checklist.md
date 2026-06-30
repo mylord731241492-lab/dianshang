@@ -178,3 +178,10 @@
 - `1K / 2K / 4K` 明确为图片大小档位；比例自动换算为 Packy 合法 `size`。
 - Packy `quality` 与图片大小解耦，默认使用 `auto`，避免把 `1K` 误发成低质量。
 - 旧画布比例菜单 13 个比例已全部纳入 `scripts/check-packy-gpt-image-size.js`，并接入后端画布边界 smoke。
+
+## 2026-06-30 Packy GPT Image 2 全入口覆盖清单追加
+
+- 所有 GPT Image 2 文生图入口统一走 `callProviderImageGeneration`，所有图生图 / 图片编辑入口统一走 `callProviderImageEdit`。
+- 对话 Agent、快速生图、模板生图、图片工具和后台 Provider 测试已纳入统一适配器覆盖。
+- 图生图 / 编辑默认发送 `input_fidelity=high`，同时继承统一尺寸、质量、输出格式、`response_format=url` 和上游 `n=1` 准则。
+- 新增 `scripts/check-packy-gpt-image-adapter-coverage.js` 并接入 backend/canvas boundary smoke，防止当前已知入口绕过统一适配器。

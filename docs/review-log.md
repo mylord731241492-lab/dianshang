@@ -2461,3 +2461,17 @@
 ### 需要继续验证
 
 - 不付费环境先用本地换算断言覆盖常见比例；真实 Provider 点测需用户确认额度后进行。
+
+## 2026-06-30 Packy GPT Image 2 全入口覆盖复核
+
+### 已确认
+
+- 当前后端所有 GPT Image 2 出图路径都应收敛到 `callProviderImageGeneration` 或 `callProviderImageEdit`，不再由各业务入口分别拼 Provider 参数。
+- 已知入口覆盖：Canvas Chat 对话 Agent、快速生图任务、模板生图、图片工具局部修改/消除/文字编辑/扩图、后台 API Provider 图片线路测试。
+- 图生图 / 图片编辑统一补 `input_fidelity=high`，以提高保留参考图主体、包装结构和细节的概率。
+- 新增 `scripts/check-packy-gpt-image-adapter-coverage.js`，检查已知入口调用统一适配器，并禁止源码中出现绕过适配器的 Packy 图片端点直连。
+
+### 需要继续验证
+
+- 后续新增任何 GPT Image 2 入口时，必须把该入口加入覆盖脚本；否则静态检查只能覆盖当前已知入口。
+- 真实 Provider 对多参考图字段名 `image[]`、`input_fidelity=high` 的实际兼容性仍需在用户确认额度后点测。

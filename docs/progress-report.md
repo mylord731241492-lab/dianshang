@@ -1741,3 +1741,12 @@
 - 后端同步：`providerImageSize` 改为按 `图片大小档位 + 比例` 自动换算合法 Packy `size`，保证最大边、16 倍数、长短边比例和总像素范围；`1K/2K/4K` 不再直接映射为 Packy `quality`，无单独质量选择时 `quality` 使用 `auto`。
 - 边界：不触发真实 Provider 付费测试；旧前端字段名仍兼容 `quality/clarity`，业务语义改按图片大小处理。
 - 追加守护：新增 `scripts/check-packy-gpt-image-size.js`，覆盖旧画布比例菜单全部 13 个比例在 `1K/2K/4K` 下的 39 个换算结果，并接入 `scripts/smoke-backend-canvas-boundary.ps1`。
+
+## 2026-06-30 Packy GPT Image 2 全入口适配器覆盖
+
+- 触发背景：用户明确要求 Packy GPT Image 2 生图准则要覆盖所有 GPT Image 2 生图接口，不能只覆盖对话 Agent 或快速模式。
+- 完成内容：`callProviderImageGeneration` 和 `callProviderImageEdit` 被确认作为所有 GPT Image 2 请求的唯一后端适配器；文生图统一走 JSON `/images/generations`，图生图 / 图片编辑统一走 multipart `/images/edits`。
+- 参数统一：图生图 / 编辑默认增加 `input_fidelity=high`，并继续统一写入 `size`、`quality=auto`、`output_format=png`、`response_format=url`、上游 `n=1`；多张图仍由后端循环请求。
+- 覆盖范围：Canvas Chat 对话 Agent、快速生图 `/api/generate/tasks`、模板生图 `/api/template/generate-image`、图片工具局部修改/消除/文字编辑/扩图、后台 API Provider 图片线路测试均纳入同一套适配器。
+- 追加守护：新增 `scripts/check-packy-gpt-image-adapter-coverage.js`，静态检查已知 GPT Image 2 入口必须调用统一适配器，并禁止绕过适配器直接请求 Packy 图片端点；该检查已接入 `scripts/smoke-backend-canvas-boundary.ps1`。
+- 边界：不改 Provider 配置，不触发真实 GPT Image 2 付费测试；后续新增 GPT Image 2 入口时必须同步补覆盖脚本。

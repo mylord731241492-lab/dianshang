@@ -396,6 +396,11 @@ function providerImageOutputFormat(value = '') {
   return ['png', 'jpeg'].includes(raw) ? raw : 'png';
 }
 
+function providerImageInputFidelity(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  return ['high', 'low'].includes(raw) ? raw : 'high';
+}
+
 const ECOMMERCE_IMAGE_SYSTEM_PROMPT = [
   '你是一名服务国内电商平台的资深电商美工设计师，熟悉淘宝、天猫、京东、拼多多、小红书等平台的商品主图审美、点击转化和合规边界。',
   '你的任务是把用户的简短需求转化为可直接用于图片生成模型的完整电商视觉指令。',
@@ -901,6 +906,7 @@ async function callProviderImageEdit(prompt, options = {}) {
   const size = providerImageSize(options.size || options.ratio || options.aspectRatio, sizeTier);
   const quality = providerImageQuality(options.imageQuality || options.providerQuality || options.qualityMode || options.quality);
   const outputFormat = providerImageOutputFormat(options.output_format || options.outputFormat);
+  const inputFidelity = providerImageInputFidelity(options.input_fidelity || options.inputFidelity);
   const references = imageReferenceCandidates(options.body || options);
   if (!references.length) {
     return callProviderImageGeneration(prompt, options);
@@ -943,6 +949,7 @@ async function callProviderImageEdit(prompt, options = {}) {
         form.append('output_format', outputFormat);
         form.append('response_format', 'url');
         form.append('n', '1');
+        form.append('input_fidelity', inputFidelity);
         if (referenceFiles.length > 1 && !maskFile) {
           referenceFiles.forEach((file, index) => {
             form.append('image[]', new Blob([file.buffer], { type: file.mime }), file.fileName || `reference-${index + 1}.${providerImageExt(file.mime)}`);
@@ -1019,6 +1026,7 @@ async function callProviderImageEdit(prompt, options = {}) {
         output_format: outputFormat,
         response_format: 'url',
         n: 1,
+        input_fidelity: inputFidelity,
         requestedCount: count,
         referenceImageCount: references.length,
         submittedReferenceImageCount: referenceFiles.length,

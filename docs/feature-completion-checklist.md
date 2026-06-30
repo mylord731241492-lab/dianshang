@@ -39,12 +39,12 @@
 - 保留原有目标画布边界限制：拖动图片时仍限制在黄色/绿色画布范围内，避免扩图提交坐标越界。
 - 已完成静态和浏览器 smoke：`verify-canvas-performance-assets.js` 返回 `20260629perf5+outpaint1`，指定项目画布 smoke 通过，新增入口和 Canvas chunk 资源均为 200。
 
-## 2026-06-30 Canvas Chat prompt2 清单追加
+## 2026-06-30 Canvas Chat prompt3 清单追加
 
-- Canvas Chat 对话业务线新增旧画布桥接层 `assets/canvas-chat-prompt-flow.js/css?v=20260630prompt2`，只接管 `对话` 标签，不影响 `快速` 和 `视频`。
-- 新流程：按可见顺序收集参考图，用户填写需求后先调用 `/api/canvas/generate-prompt` 生成可编辑提示词草稿；用户点击 `确认生图` 后再调用 `/api/generate/tasks`，图片模型固定为 `gpt-image-2`。
+- Canvas Chat 对话业务线新增旧画布桥接层 `assets/canvas-chat-prompt-flow.js/css?v=20260630prompt3`，只接管 `对话` 标签，不影响 `快速` 和 `视频`。
+- 新流程：按可见顺序收集参考图，用户填写需求后调用 `/api/canvas/generate-prompt` 生成可编辑提示词草稿；不再提供 `确认生图`，真实生图由用户切到 `快速` 标签手动完成。
 - 后端提示词接口在文本线路不可用或 mock 模式下返回基础草稿，避免继续把 `gpt-5.5` Provider 错误展示成“生成结果”。
-- 当前剩余：真实确认生图需要用户确认额度后人工点击；生成结果自动落成画布图片节点仍待后续补桥。
+- 当前剩余：用户强刷后人工确认 `对话` 标签只出现提示词草稿和复制操作；真实生图链路继续在 `快速` 标签按费用边界人工点测。
 - 当前画布完成度维持 `待复核`：需要用户强刷后人工打开真实图片节点扩图面板，确认默认居中和比例切换居中。
 
 ## 2026-06-29 outpaint2 清单追加

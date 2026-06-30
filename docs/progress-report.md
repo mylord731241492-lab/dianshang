@@ -1652,10 +1652,10 @@
 - 验证方式：`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-backend-canvas-boundary.ps1"`；`node --check "F:\dianshang\server.js"`；`node "F:\dianshang\scripts\verify-canvas-performance-assets.js"`；默认预检；`git -C "F:\dianshang" diff --check`；触达文件 BOM 检查。
 - 验证结果：新边界 smoke 单独通过；默认 `scripts/preflight-check.ps1` 通过，包含 `node --check server.js`、画布性能资产静态校验、新增 backend/canvas boundary smoke、disposable API smoke、前端路由 smoke、Provider guard 和当前服务 health；Provider guard 识别当前真实 Provider ready 后跳过 mock route/chat 调用，未触发外部付费请求。
 
-## 2026-06-30 Canvas Chat 对话生图两段式补丁
+## 2026-06-30 Canvas Chat 对话只出提示词补丁
 
-- 触发背景：用户确认 Canvas Chat 对话业务线应为“先按顺序上传参考图，再写提示词需求，点击后先生成可编辑提示词，用户确认后才调用图片模型生图”。此前旧画布对话模式直接走 `/api/chat/completions`，底部显示 `GPT 5.5`，失败时把文本模型错误显示成 `生成结果`。
-- 完成内容：新增 `assets/canvas-chat-prompt-flow.js/css`，只在旧 Canvas Chat 的 `对话` 标签接管发送按钮和回车发送；桥接层会按可见顺序收集参考图，必要时把浏览器 `blob:` 图片转为 `data:image/*`，先调用 `/api/canvas/generate-prompt` 返回可编辑提示词草稿，点击 `确认生图` 后再调用 `/api/generate/tasks`，固定图片模型为 `gpt-image-2`。
-- 后端补齐：新增 `/api/canvas/generate-prompt`，优先使用文本线路 `/responses` 生成提示词；文本线路 mock 或失败时返回基础可编辑草稿，不再把 Provider 错误当成生成结果。正式生图仍复用现有 `/api/generate/tasks` 计费与 Provider 图片生成/编辑链路。
-- 边界：不改旧 Canvas 主 bundle，不新增依赖，不触发自动真实生图；真实外部调用只会在用户点击桥接层 `确认生图` 时发生。当前桥接层结果先显示在聊天面板中，后续如需“结果自动落成画布图片节点”，需要再补旧画布内部节点创建桥。
+- 触发背景：用户调整业务边界，要求 Canvas Chat 对话模式只负责“按图顺序 + 需求”生成可编辑提示词；实际生图由用户切到 `快速` 标签手动完成。
+- 完成内容：`assets/canvas-chat-prompt-flow.js/css` 升级为 `prompt3`，只在旧 Canvas Chat 的 `对话` 标签接管发送按钮和回车发送；桥接层按可见顺序收集参考图，必要时把浏览器 `blob:` 图片转为 `data:image/*`，调用 `/api/canvas/generate-prompt` 返回可编辑提示词草稿，并提供复制/重新生成/取消操作。
+- 后端保留：`/api/canvas/generate-prompt` 继续优先使用文本线路 `/responses` 生成提示词；文本线路 mock 或失败时返回基础可编辑草稿，不再把 Provider 错误当成生成结果。
+- 边界：不改旧 Canvas 主 bundle，不新增依赖，不触发 `/api/generate/tasks` 或任何真实图片生成；对话模式不再提供 `确认生图`，生图回到 `快速` 标签由用户手动执行。
 - 验证方式：`node --check "F:\dianshang\server.js"`；`node --check "F:\dianshang\assets\canvas-chat-prompt-flow.js"`；`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-backend-canvas-boundary.ps1"`；浏览器刷新当前画布后检查 `window.__hjmCanvasChatPromptFlow`、对话模式提示条和当前面板接管状态。

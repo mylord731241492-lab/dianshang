@@ -1,5 +1,5 @@
 (function () {
-  var FLOW_VERSION = '20260630prompt2';
+  var FLOW_VERSION = '20260630prompt3';
   var state = {
     busy: false,
     drafts: {},
@@ -149,11 +149,11 @@
     card.dataset.flowId = flowId;
     card.innerHTML = [
       '<div class="hjm-prompt-flow-head"><span>提示词草稿</span><time>' + nowText() + '</time></div>',
-      '<div class="hjm-prompt-flow-note">按图片顺序生成提示词，确认后才会调用图片模型。</div>',
+      '<div class="hjm-prompt-flow-note">按图片顺序生成可编辑提示词，生图请切到快速模式手动生成。</div>',
       '<textarea class="hjm-prompt-flow-textarea" spellcheck="false" placeholder="正在生成可编辑提示词..."></textarea>',
       '<div class="hjm-prompt-flow-status">正在生成提示词...</div>',
       '<div class="hjm-prompt-flow-actions">',
-      '<button type="button" data-hjm-prompt-flow-action="confirm" disabled>确认生图</button>',
+      '<button type="button" data-hjm-prompt-flow-action="copy" disabled>复制提示词</button>',
       '<button type="button" data-hjm-prompt-flow-action="regen" disabled>重新生成提示词</button>',
       '<button type="button" data-hjm-prompt-flow-action="cancel">取消</button>',
       '</div>'
@@ -205,8 +205,8 @@
         source: 'canvas-chat-prompt-flow'
       });
       var status = data.fallback && data.providerError
-        ? '文本模型暂不可用，已生成基础提示词，可直接编辑后确认。'
-        : '提示词已生成，可编辑后确认生图。';
+        ? '文本模型暂不可用，已生成基础提示词，可编辑后复制到快速模式。'
+        : '提示词已生成，可编辑后复制到快速模式生图。';
       updateDraft(flowId, { prompt: data.prompt || data.draftPrompt || '', loading: false, status: status, provider: data.provider });
     } catch (error) {
       var fallback = [
@@ -216,88 +216,6 @@
       ].join('\n');
       updateDraft(flowId, { prompt: fallback, loading: false, status: error.message || '提示词生成失败，已给出基础草稿。' });
     }
-  }
-
-  function normalizeGeneratedImages(data) {
-    var images = data.resultImages || data.images || data.results || [];
-    return (Array.isArray(images) ? images : []).map(function (item) {
-      var raw = item && typeof item === 'object' ? item : { url: item };
-      return raw.url || raw.imageUrl || raw.preview || raw.originalUrl || '';
-    }).filter(Boolean);
-  }
-
-  async function confirmGenerate(flowId) {
-    var draft = state.drafts[flowId];
-    if (!draft || !draft.card) return;
-    var textarea = draft.card.querySelector('.hjm-prompt-flow-textarea');
-    var prompt = textarea ? textarea.value.trim() : '';
-    if (!prompt) {
-      updateDraft(flowId, { loading: false, status: '请先填写提示词。' });
-      return;
-    }
-    updateDraft(flowId, { loading: true, status: '正在调用 GPT Image 2 生图...' });
-    try {
-      var data = await postJson('/api/generate/tasks', {
-        prompt: prompt,
-        selectedPrompt: prompt,
-        model: 'gpt-image-2',
-        modelKey: 'gpt-image-2',
-        imageModel: 'gpt-image-2',
-        imageModelKey: 'gpt-image-2',
-        routeId: 'pub_route_openai_gpt_image_2',
-        lineId: 'pub_route_openai_gpt_image_2',
-        routeKey: 'route_openai_gpt_image_2',
-        lineKey: 'route_openai_gpt_image_2',
-        size: '1:1',
-        ratio: '1:1',
-        quality: 'auto',
-        clarity: '1k',
-        imageCount: 1,
-        n: 1,
-        referenceImages: draft.references.map(function (ref) {
-          return {
-            dataUrl: ref.dataUrl || '',
-            url: ref.dataUrl || ref.url || '',
-            fileName: ref.fileName,
-            mimeType: ref.mimeType || ''
-          };
-        }),
-        source: 'canvas-chat-prompt-flow'
-      });
-      var imageUrls = normalizeGeneratedImages(data);
-      renderGenerated(flowId, imageUrls, data);
-    } catch (error) {
-      updateDraft(flowId, { loading: false, status: error.message || '确认生图失败' });
-    }
-  }
-
-  function renderGenerated(flowId, imageUrls, data) {
-    var draft = state.drafts[flowId];
-    if (!draft || !draft.card) return;
-    var html = imageUrls.map(function (url, index) {
-      return '<figure><img src="' + escapeHtml(url) + '" alt=""><figcaption>结果 ' + (index + 1) + '</figcaption></figure>';
-    }).join('');
-    draft.card.classList.remove('is-loading');
-    draft.card.classList.add('is-generated');
-    var status = draft.card.querySelector('.hjm-prompt-flow-status');
-    if (status) {
-      status.textContent = imageUrls.length
-        ? '图片生成完成，已返回 ' + imageUrls.length + ' 张结果。'
-        : '图片生成完成，但未读取到结果图。';
-    }
-    var actions = draft.card.querySelector('.hjm-prompt-flow-actions');
-    if (actions) {
-      actions.innerHTML = '<button type="button" data-hjm-prompt-flow-action="copy">复制提示词</button>';
-    }
-    if (html && !draft.card.querySelector('.hjm-prompt-flow-results')) {
-      var results = document.createElement('div');
-      results.className = 'hjm-prompt-flow-results';
-      results.innerHTML = html;
-      var statusNode = draft.card.querySelector('.hjm-prompt-flow-status');
-      draft.card.insertBefore(results, statusNode || actions);
-    }
-    draft.result = data;
-    scrollToBottom(getMessageList(getPanel()));
   }
 
   async function handleSubmit(event) {
@@ -353,7 +271,6 @@
       event.preventDefault();
       event.stopPropagation();
       if (event.stopImmediatePropagation) event.stopImmediatePropagation();
-      if (action === 'confirm') confirmGenerate(flowId);
       if (action === 'regen') generatePrompt(flowId);
       if (action === 'cancel' && card) {
         delete state.drafts[flowId];
@@ -362,7 +279,11 @@
       if (action === 'copy') {
         var textarea = card && card.querySelector('.hjm-prompt-flow-textarea');
         var text = textarea ? textarea.value : '';
-        if (text && navigator.clipboard) navigator.clipboard.writeText(text).catch(function () {});
+        if (text && navigator.clipboard) {
+          navigator.clipboard.writeText(text).then(function () {
+            updateDraft(flowId, { loading: false, status: '提示词已复制，请切到快速模式粘贴生图。' });
+          }).catch(function () {});
+        }
       }
       return;
     }
@@ -397,7 +318,7 @@
     if (!composer) return;
     var hint = document.createElement('div');
     hint.className = 'hjm-prompt-flow-hint';
-    hint.textContent = '对话模式：先生成可编辑提示词，确认后调用 GPT Image 2 生图。';
+    hint.textContent = '对话模式：只生成可编辑提示词；生图请切到快速模式手动生成。';
     composer.insertBefore(hint, composer.firstChild);
   }
 

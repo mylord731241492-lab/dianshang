@@ -3,10 +3,11 @@
   padding: 0 2px;
   border: 0;
   background: transparent;
-  color: rgba(82, 82, 91, 0.68);
+  color: #000;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
+  text-align: center;
 }
 
 .canvas-chat-panel .hjm-prompt-flow-user,
@@ -146,7 +147,7 @@
 
 .dark .canvas-chat-panel .hjm-prompt-flow-hint {
   background: transparent;
-  color: rgba(244, 244, 245, 0.54);
+  color: #000;
 }
 
 .dark .canvas-chat-panel .hjm-prompt-flow-textarea {

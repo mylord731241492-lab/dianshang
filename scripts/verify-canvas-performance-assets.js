@@ -8,6 +8,8 @@ const files = {
   perfCss: path.join(root, 'assets', 'canvas-performance-mode.css'),
   canvasA: path.join(root, 'assets', 'Canvas-B8bY9_QL.js'),
   canvasB: path.join(root, 'assets', 'Canvas-yGc8b2gf.js'),
+  promptFlowJs: path.join(root, 'assets', 'canvas-chat-prompt-flow.js'),
+  promptFlowCss: path.join(root, 'assets', 'canvas-chat-prompt-flow.css'),
   entryA: path.join(root, 'assets', 'index-DglIsp_g.js'),
   entryB: path.join(root, 'assets', 'index-ZrBcanD1.js'),
   frameBudgetPs: path.join(root, 'scripts', 'smoke-canvas-frame-budget-ui.ps1'),
@@ -36,6 +38,8 @@ const perfJs = read(files.perfJs);
 const perfCss = read(files.perfCss);
 const entryA = read(files.entryA);
 const entryB = read(files.entryB);
+const promptFlowJs = read(files.promptFlowJs);
+const promptFlowCss = read(files.promptFlowCss);
 const frameBudgetPs = read(files.frameBudgetPs);
 const frameBudgetRunner = read(files.frameBudgetRunner);
 const preflight = read(files.preflight);
@@ -46,10 +50,12 @@ const canvasBundles = [
 
 assertIncludes('index.html', html, 'canvas-performance-mode.js?v=20260629perf5');
 assertIncludes('index.html', html, 'canvas-performance-mode.css?v=20260629perf5');
-assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260630dialogagent1');
+assertIncludes('index.html', html, 'canvas-chat-prompt-flow.js?v=20260630dialogcard4');
+assertIncludes('index.html', html, 'canvas-chat-prompt-flow.css?v=20260630dialogcard4');
+assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260630dialogagent12');
 assertNotIncludes('index.html', html, 'index-DglIsp_g.js?v=20260629perf5');
-assertIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260630dialogagent1');
-assertIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260630dialogagent1');
+assertIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260630dialogagent9');
+assertIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260630dialogagent9');
 assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260629outpaint1');
 assertNotIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260629outpaint1');
 assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260629outpaint2');
@@ -82,6 +88,33 @@ assertIncludes('frame budget smoke ps1', frameBudgetPs, 'smoke-canvas-frame-budg
 assertIncludes('frame budget smoke runner', frameBudgetRunner, 'codex-canvas-frame-budget-probe');
 assertIncludes('frame budget smoke runner', frameBudgetRunner, 'longFramesOver100');
 assertIncludes('preflight', preflight, 'canvas frame budget UI smoke');
+assertIncludes('prompt flow script', promptFlowJs, "FLOW_VERSION = '20260630dialogcard4'");
+assertIncludes('prompt flow script', promptFlowJs, "var CANVAS_CHAT_SCOPE_ATTR = 'data-v-b10121f4'");
+assertIncludes('prompt flow script', promptFlowJs, 'function syncPromptFlowCardVisibility(panel)');
+assertIncludes('prompt flow script', promptFlowJs, "panel.classList.toggle('hjm-prompt-flow-dialog-active', dialogActive)");
+assertIncludes('prompt flow script', promptFlowJs, ".hjm-prompt-flow-card, .hjm-prompt-flow-user, .hjm-prompt-flow-agent");
+assertIncludes('prompt flow script', promptFlowJs, "var mode = card.getAttribute('data-hjm-prompt-flow-mode') || 'chat'");
+assertIncludes('prompt flow script', promptFlowJs, "var visible = dialogActive && mode === 'chat'");
+assertIncludes('prompt flow script', promptFlowJs, "card.style.display = visible ? '' : 'none'");
+assertIncludes('prompt flow script', promptFlowJs, "var emptyState = panel.querySelector('.message-list > .empty-state')");
+assertIncludes('prompt flow script', promptFlowJs, 'emptyState.hidden = hideEmpty');
+assertIncludes('prompt flow script', promptFlowJs, 'hjm-prompt-flow-card hjm-prompt-flow-user');
+assertIncludes('prompt flow script', promptFlowJs, 'hjm-prompt-flow-card hjm-prompt-flow-agent');
+assertIncludes('prompt flow script', promptFlowJs, "class=\"message-meta hjm-prompt-flow-head\"");
+assertIncludes('prompt flow script', promptFlowJs, "class=\"image-grid hjm-prompt-flow-result-grid\"");
+assertIncludes('prompt flow script', promptFlowJs, 'class="hjm-prompt-flow-progress" role="progressbar"');
+assertIncludes('prompt flow script', promptFlowJs, "progressBar.style.width = nextProgress + '%'");
+assertIncludes('prompt flow script', promptFlowJs, "class=\"cost-line hjm-prompt-flow-cost\"");
+assertIncludes('prompt flow script', promptFlowJs, 'applyCanvasChatScope(grid, getPanel())');
+assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel:not(.hjm-prompt-flow-dialog-active) .hjm-prompt-flow-card');
+assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel:not(.hjm-prompt-flow-dialog-active) .hjm-prompt-flow-user');
+assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel:not(.hjm-prompt-flow-dialog-active) .hjm-prompt-flow-agent');
+assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel .hjm-prompt-flow-progress');
+assertIncludes('prompt flow CSS', promptFlowCss, '@keyframes hjm-prompt-flow-progress-sheen');
+assertIncludes('prompt flow CSS', promptFlowCss, 'display: none !important');
+assertNotIncludes('prompt flow script', promptFlowJs, 'hjm-prompt-flow-settings-line');
+assertNotIncludes('prompt flow CSS', promptFlowCss, '.hjm-prompt-flow-result-grid figure');
+assertNotIncludes('prompt flow CSS', promptFlowCss, '.hjm-prompt-flow-images figure');
 
 for (const [name, bundle] of canvasBundles) {
   assertIncludes(name, bundle, 'const J4=1400');
@@ -98,8 +131,15 @@ for (const [name, bundle] of canvasBundles) {
   assertIncludes(name, bundle, 'class:"outpaint-stage",style:Qt(b.value),onPointerdown:xt(F,["prevent"]),onPointermove:D');
   assertIncludes(name, bundle, '/image-tools/reverse-prompt');
   assertIncludes(name, bundle, 'operation:"text_edit"');
+  assertIncludes(name, bundle, 'chatModeSessionStore');
+  assertIncludes(name, bundle, 'saveCurrentChatModeSession(se||l.value),loadChatModeSession(y)');
+  assertIncludes(name, bundle, 'appendChatModeMessage(y.mode');
+  assertIncludes(name, bundle, 'chatMessageModeById');
+  assertIncludes(name, bundle, 've=>{u.value=ve,saveCurrentChatModeSession(l.value)}');
+  assertIncludes(name, bundle, 'y.source==="canvas-chat"?c.value=[]');
   assertNotIncludes(name, bundle, 'const J4=900');
   assertNotIncludes(name, bundle, '},250)},l3=');
+  assertNotIncludes(name, bundle, 'Ze(l,y=>{Se(),o("mode-change",y),Qe()})');
   assertNotIncludes(name, bundle, 'b=V(()=>({aspectRatio:`${p.value.w} / ${p.value.h}`}))');
   assertNotIncludes(name, bundle, 'S=()=>{const E=$(),_={x:c.value.x+c.value.width/2');
   assertNotIncludes(name, bundle, 'type:"range",min:"35",max:"100",step:"1",onInput:S');
@@ -112,6 +152,6 @@ for (const [name, bundle] of canvasBundles) {
 console.log(JSON.stringify({
   ok: true,
   checked: Object.keys(files),
-  version: '20260629perf5+dialogagent1',
+  version: '20260629perf5+dialogagent12+canvasdialogagent9+dialogcard4',
   saveDeferral: true
 }, null, 2));

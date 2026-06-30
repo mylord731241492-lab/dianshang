@@ -7,6 +7,40 @@ export interface AdminImageToolSetting {
   promptTemplate?: string;
 }
 
+export interface EcommerceSuiteSectionSetting {
+  key: string;
+  name: string;
+  description?: string;
+  promptGuide?: string;
+  enabled?: boolean;
+  sort?: number;
+}
+
+export interface EcommerceSuiteSkillSetting {
+  id: string;
+  name: string;
+  avatarUrl?: string;
+  description?: string;
+  enabled?: boolean;
+  markdown?: string;
+}
+
+export interface EcommerceSuiteAgentSetting {
+  enabled?: boolean;
+  defaultSkillId?: string;
+  defaults?: {
+    brandName?: string;
+    platform?: string;
+    country?: string;
+    language?: string;
+    ratio?: string;
+    quality?: string;
+    imageCount?: number;
+  };
+  sections?: EcommerceSuiteSectionSetting[];
+  skills?: EcommerceSuiteSkillSetting[];
+}
+
 export interface AdminSettings {
   siteName?: string;
   registrationEnabled?: boolean;
@@ -23,6 +57,7 @@ export interface AdminSettings {
   smokeCheckedAt?: string;
   adminUiSaveEchoAt?: string;
   imageToolFeatures?: Record<string, AdminImageToolSetting>;
+  ecommerceSuiteAgent?: EcommerceSuiteAgentSetting;
   [key: string]: unknown;
 }
 

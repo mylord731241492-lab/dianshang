@@ -2528,3 +2528,87 @@
 
 - 文档本轮只固化维护边界，没有再次触发真实 Provider。
 - 业务链路稳定后，优先清理或收窄 `debugAnalysisOnly` 与普通错误里的 `responseShape`。
+
+## 2026-06-30 旧画布入口缓存版本复核
+
+### 已确认
+
+- `index.html` 当前加载 `assets/index-DglIsp_g.js?v=20260630dialogagent9`，与后端画布边界 smoke 的入口断言一致。
+- 旧入口 bundle 里的 `/canvas` 动态 import 已从 `Canvas-*.js?v=20260630dialogagent1` 同步到 `20260630dialogagent6`，避免浏览器继续使用旧查询串缓存画布 chunk。
+- `scripts/verify-canvas-performance-assets.js` 已覆盖主入口 `dialogagent9` 和两个 Canvas chunk `dialogagent6`，本轮重跑通过。
+- `scripts/smoke-canvas-performance-ui-runner.js` 的主入口版本断言已同步到 `dialogagent9`。
+
+### 需要继续验证
+
+- 项目未安装 `@playwright/cli`，现有画布 UI smoke 脚本会通过 `npx --package @playwright/cli` 取包；本轮按下载确认规则未执行该类 UI smoke。
+- 真实浏览器端还需在允许使用该 UI smoke 依赖后跑 `smoke-canvas-performance-ui.ps1`、`smoke-canvas-json-ui.ps1` 或等价人工页面复测。
+
+## 2026-06-30 Canvas Chat 三模式会话隔离复核
+
+### 已确认
+
+- `对话 / 快速 / 视频` 现在使用独立会话桶保存输入框、参考图、消息列表和 `sessionId`。
+- 切换模式时会先保存旧模式状态，再加载目标模式状态；不会把一个模式的消息列表直接渲染到另一个模式。
+- 生成任务回调按消息 id 查找原始模式会话并回写，降低“生成中切标签后结果写到当前标签”的风险。
+- `source:"canvas-chat"` 的未发送草稿刷新后不再自动转成用户消息；这避免输入框草稿污染消息历史。
+- 浏览器实测：三个模式分别输入不同文本，切换返回后各自保留；清空后三个模式输入均为空，消息数不串。
+
+### 需要继续验证
+
+- 本轮没有触发真实模型调用，未覆盖真实生成中长时间切换模式后的最终图片回写。
+- 若后续要验证完整 UI smoke，需要先确认是否允许 `npx --package @playwright/cli` 获取该依赖。
+
+## 2026-06-30 Canvas Chat 三模式隔离护栏复核
+
+### 已确认
+
+- `docs/canvas-maintenance-boundary.md` 已把三模式隔离提升为硬护栏：不能共享消息、输入、参考图、生成中状态或 `sessionId`。
+- `docs/canvas-maintenance-log.md` 已新增不可回退护栏，并把当前入口版本固定为 `dialogagent12 / canvasdialogagent9`。
+- 维护日志明确禁止把快速模式改成对话 Agent 链路，禁止视频模式复用 GPT Image 2 图片入口，禁止 Canvas Chat 草稿刷新后变成用户消息。
+- 后续如果改 Canvas Chat 状态管理，必须同步守护断言并跑旧画布边界 smoke。
+
+### 需要继续验证
+
+- 本轮是文档护栏固化，没有重新触发 UI 或真实 Provider 测试。
+
+## 2026-06-30 Canvas Chat 对话卡片 UI 复核
+
+### 已确认
+
+- 快速模式现有消息卡片来源为旧 `CanvasChatPanel` 的 `article.message-card`、`.message-meta`、`.image-grid` 和 `.cost-line`，对应样式是 Vue scoped 后的 `data-v-b10121f4` 选择器。
+- `assets/canvas-chat-prompt-flow.js` 已改为给桥接 DOM 补齐旧组件 scoped 样式标记，让对话桥接卡片直接吃快速模式现有 CSS。
+- 对话桥接不再生成单独的参数展示行，避免用户消息卡片和快速模式卡片出现不同信息层级。
+- `assets/canvas-chat-prompt-flow.css` 已删除对 `.hjm-prompt-flow-result-grid figure` 和 `.hjm-prompt-flow-images figure` 的二次图片网格覆盖，降低后续重复造轮子的风险。
+- `scripts/verify-canvas-performance-assets.js` 已增加结构锚点，后续若移除 scoped 复用或重新定义桥接图片网格会失败。
+- 验证已通过：桥接 JS 和两个旧 Canvas bundle 语法检查、资产守卫、旧画布边界 smoke、BOM 检查；浏览器已加载 `dialogcard1` 资源并能在对话模式显示桥接提示条。
+
+### 需要继续验证
+
+- 本轮不触发真实 Provider；完整成功图卡片仍需在用户允许真实生成或已有结果重放场景下做人工视觉复核。
+
+## 2026-06-30 Canvas Chat 对话桥接 DOM 隔离复核
+
+### 已确认
+
+- 上一版护栏缺口已定位：`assets/canvas-chat-prompt-flow.js` 直接向 `.message-list` append DOM，这条路径没有进入旧组件的三模式会话桶，因此切到 `快速` 时可能继续显示桥接卡片。
+- `dialogcard4` 已要求所有桥接卡片带 `hjm-prompt-flow-card` 和 `data-hjm-prompt-flow-mode="chat"`。
+- 新增 `syncPromptFlowCardVisibility`，根据当前标签给面板切换 `hjm-prompt-flow-dialog-active`，并把非对话状态下的桥接卡片隐藏。
+- CSS 已增加非对话模式兜底隐藏规则，防止 JS 时序落后一拍时卡片闪回。
+- `scripts/verify-canvas-performance-assets.js` 已把这些 DOM 隔离锚点加入守卫。
+
+### 需要继续验证
+
+- 浏览器已刷新到 `dialogcard4`；稳定重测 `快速` 模式 `bridgeTotal=0`、`bridgeVisible=0`，视频与对话无旧泄漏卡片。
+
+## 2026-06-30 Canvas Chat 对话任务进度 UI 复核
+
+### 已确认
+
+- `灵感不间断` 是旧 Canvas Chat 的 `.empty-state`，当桥接层直接插入任务卡片时，Vue 自身消息数组仍可能为空，因此必须由桥接层主动隐藏。
+- `syncPromptFlowCardVisibility` 已扩展为同时管理桥接卡片可见性和 `.message-list > .empty-state` 显隐。
+- 生成结果卡已新增 `hjm-prompt-flow-progress`，加载阶段可见，成功或失败后隐藏。
+- `scripts/verify-canvas-performance-assets.js` 已增加空状态隐藏和进度条相关锚点，防止退回纯文字状态。
+
+### 需要继续验证
+
+- 进度条结构已由资产守卫覆盖；完整真实生成过程的视觉确认仍需用户允许实际调用后再做。

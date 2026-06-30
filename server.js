@@ -181,6 +181,133 @@ function ensureState(key, fallback) {
   return writeState(key, fallback);
 }
 
+const defaultEcommerceSuiteSections = [
+  {
+    key: 'hero',
+    name: '首屏主视觉',
+    description: '用于商品首屏主 KV，突出产品、利益点和点击转化。',
+    promptGuide: '构建高转化电商首屏主视觉，产品居中或黄金分割构图，第一眼看清品类、品牌和核心卖点。',
+    enabled: true,
+    sort: 10
+  },
+  {
+    key: 'selling-points',
+    name: '核心卖点图',
+    description: '提炼 2-4 个核心卖点，适合详情页上半段承接。',
+    promptGuide: '围绕核心功能、成分、规格或体验收益组织画面，让卖点视觉层级清晰、文案克制可信。',
+    enabled: true,
+    sort: 20
+  },
+  {
+    key: 'effect-demo',
+    name: '效果展示图',
+    description: '表现使用前后、效果结果或体验变化。',
+    promptGuide: '展示产品带来的真实效果或使用结果，强调可感知变化，不虚构夸大功效。',
+    enabled: true,
+    sort: 30
+  },
+  {
+    key: 'tech-analysis',
+    name: '科技解析图',
+    description: '适合成分、结构、工艺、配方或技术拆解。',
+    promptGuide: '用高级但克制的解析视觉表现结构、成分、科技感或工艺，不生成复杂乱码标注。',
+    enabled: true,
+    sort: 40
+  },
+  {
+    key: 'usage-scene',
+    name: '使用场景图',
+    description: '展示产品在真实生活或商业场景中的使用方式。',
+    promptGuide: '构建自然可信的使用场景，保留产品主体识别，突出目标人群和使用情境。',
+    enabled: true,
+    sort: 50
+  }
+];
+
+const defaultEcommerceSuiteSkills = [
+  {
+    id: 'gloria',
+    name: 'Gloria',
+    avatarUrl: '',
+    description: '大厂王牌视觉设计师，精通电商详情页设计',
+    enabled: true,
+    markdown: [
+      '# Gloria',
+      '定位：大厂王牌视觉设计师，擅长高转化电商详情页和品牌主视觉。',
+      '风格：高级、稳定、商业化强，画面层级明确，产品识别优先。',
+      '要求：避免花哨堆砌，强调品牌信任、核心利益点和清晰购买理由。'
+    ].join('\n')
+  },
+  {
+    id: 'paload',
+    name: 'Paload',
+    avatarUrl: '',
+    description: '多年资深高级美工，擅长智能研判复杂设计',
+    enabled: true,
+    markdown: [
+      '# Paload',
+      '定位：资深高级美工，擅长拆解复杂参考图并转化为可执行电商画面。',
+      '风格：结构严谨、信息密度适中、构图稳健。',
+      '要求：先识别参考图的构图、光影、文字区和卖点区，再迁移到用户产品。'
+    ].join('\n')
+  },
+  {
+    id: 'lumi',
+    name: 'Lumi',
+    avatarUrl: '',
+    description: '资深电商设计师，构思严谨审美一流',
+    enabled: true,
+    markdown: [
+      '# Lumi',
+      '定位：资深电商设计师，擅长柔和高级、生活方式和精致氛围。',
+      '风格：干净、细腻、审美统一，适合女性消费品、家清、个护和种草视觉。',
+      '要求：光线柔和，色彩克制，产品材质真实，不牺牲商品识别。'
+    ].join('\n')
+  },
+  {
+    id: 'kira',
+    name: 'Kira',
+    avatarUrl: '',
+    description: '设计行业老油条，思维发散质量稳定',
+    enabled: true,
+    markdown: [
+      '# Kira',
+      '定位：经验丰富的电商视觉设计师，擅长快速给出稳定可落地方案。',
+      '风格：醒目、直接、有转化感，适合平台主图和活动图。',
+      '要求：强调点击动机，控制信息层级，避免过度装饰和无意义视觉噪声。'
+    ].join('\n')
+  },
+  {
+    id: 'rayyu',
+    name: 'RayYu',
+    avatarUrl: '',
+    description: '国字号视觉资深导师，创意无限',
+    enabled: true,
+    markdown: [
+      '# RayYu',
+      '定位：资深视觉导师，擅长创意概念、品牌叙事和高阶质感表达。',
+      '风格：更有设计感和差异化，但保持电商可用。',
+      '要求：用创意增强记忆点，不虚构功效、认证、价格和不存在的包装文字。'
+    ].join('\n')
+  }
+];
+
+const defaultEcommerceSuiteAgent = {
+  enabled: true,
+  defaultSkillId: 'gloria',
+  defaults: {
+    brandName: '',
+    platform: '拼多多',
+    country: '中国',
+    language: '中文',
+    ratio: '1:1',
+    quality: '1k',
+    imageCount: 1
+  },
+  sections: defaultEcommerceSuiteSections,
+  skills: defaultEcommerceSuiteSkills
+};
+
 const defaultAdminSettings = {
   siteName: '哈吉米 AI',
   registrationEnabled: true,
@@ -190,14 +317,108 @@ const defaultAdminSettings = {
   imageHistoryEnabled: true,
   mockMode: true,
   maxUploadSizeMb: 20,
-  defaultCredits: 50
+  defaultCredits: 50,
+  ecommerceSuiteAgent: defaultEcommerceSuiteAgent
 };
+
+function cleanSettingKey(value = '', fallback = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  const normalized = raw.replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+  return normalized || fallback;
+}
+
+function sanitizeSkillMarkdown(value = '') {
+  return String(value || '')
+    .replace(/^\uFEFF/, '')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object\b[^>]*>[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed\b[^>]*>[\s\S]*?<\/embed>/gi, '')
+    .slice(0, 20000);
+}
+
+function normalizeEcommerceSuiteSection(section = {}, fallback = {}, index = 0) {
+  const key = cleanSettingKey(section.key || fallback.key, fallback.key || `section-${index + 1}`);
+  return {
+    ...fallback,
+    ...section,
+    key,
+    name: String(section.name || fallback.name || key).trim(),
+    description: String(section.description || fallback.description || '').trim(),
+    promptGuide: String(section.promptGuide || section.prompt || fallback.promptGuide || '').trim(),
+    enabled: section.enabled !== false,
+    sort: Number(section.sort ?? fallback.sort ?? index + 1) || index + 1
+  };
+}
+
+function normalizeEcommerceSuiteSkill(skill = {}, fallback = {}, index = 0) {
+  const keyFallback = fallback.id || `skill-${index + 1}`;
+  const id = cleanSettingKey(skill.id || skill.key || fallback.id, keyFallback);
+  return {
+    ...fallback,
+    ...skill,
+    id,
+    name: String(skill.name || fallback.name || id).trim(),
+    avatarUrl: String(skill.avatarUrl || skill.avatar || fallback.avatarUrl || '').trim(),
+    description: String(skill.description || fallback.description || '').trim(),
+    enabled: skill.enabled !== false,
+    markdown: sanitizeSkillMarkdown(skill.markdown || skill.content || fallback.markdown || '')
+  };
+}
+
+function normalizeEcommerceSuiteAgentConfig(value = {}) {
+  const source = value && typeof value === 'object' ? value : {};
+  const storedSections = Array.isArray(source.sections) ? source.sections : [];
+  const sectionByKey = new Map(storedSections.map(item => [cleanSettingKey(item.key), item]));
+  const defaultSections = defaultEcommerceSuiteSections.map((fallback, index) =>
+    normalizeEcommerceSuiteSection(sectionByKey.get(fallback.key) || {}, fallback, index)
+  );
+  const extraSections = storedSections
+    .filter(item => item && item.key && !defaultEcommerceSuiteSections.some(fallback => fallback.key === cleanSettingKey(item.key)))
+    .map((item, index) => normalizeEcommerceSuiteSection(item, {}, defaultSections.length + index));
+
+  const storedSkills = Array.isArray(source.skills) ? source.skills : [];
+  const skillById = new Map(storedSkills.map(item => [cleanSettingKey(item.id || item.key), item]));
+  const defaultSkills = defaultEcommerceSuiteSkills.map((fallback, index) =>
+    normalizeEcommerceSuiteSkill(skillById.get(fallback.id) || {}, fallback, index)
+  );
+  const extraSkills = storedSkills
+    .filter(item => item && (item.id || item.key) && !defaultEcommerceSuiteSkills.some(fallback => fallback.id === cleanSettingKey(item.id || item.key)))
+    .map((item, index) => normalizeEcommerceSuiteSkill(item, {}, defaultSkills.length + index));
+
+  const defaults = source.defaults && typeof source.defaults === 'object' ? source.defaults : {};
+  return {
+    ...defaultEcommerceSuiteAgent,
+    ...source,
+    enabled: source.enabled !== false,
+    defaultSkillId: cleanSettingKey(source.defaultSkillId || source.defaultDesignerId || defaultEcommerceSuiteAgent.defaultSkillId, defaultEcommerceSuiteAgent.defaultSkillId),
+    defaults: {
+      ...defaultEcommerceSuiteAgent.defaults,
+      ...defaults,
+      quality: String(defaults.quality || defaultEcommerceSuiteAgent.defaults.quality).toLowerCase(),
+      imageCount: Math.max(1, Math.min(Number(defaults.imageCount || 1) || 1, 4))
+    },
+    sections: [...defaultSections, ...extraSections].sort((a, b) => (a.sort || 0) - (b.sort || 0)),
+    skills: [...defaultSkills, ...extraSkills]
+  };
+}
+
+function normalizeAdminSettings(settings = {}) {
+  const source = settings && typeof settings === 'object' ? settings : {};
+  return {
+    ...defaultAdminSettings,
+    ...source,
+    ecommerceSuiteAgent: normalizeEcommerceSuiteAgentConfig(source.ecommerceSuiteAgent)
+  };
+}
+
 const routeState = () => ensureState('admin.apiProviders', RTS);
 const saveRouteState = (routes) => writeState('admin.apiProviders', routes);
 const templateWorkflowState = () => ensureState('admin.templateWorkflows', TMPL);
 const saveTemplateWorkflowState = (value) => writeState('admin.templateWorkflows', value);
-const settingsState = () => ensureState('admin.settings', defaultAdminSettings);
-const saveSettingsState = (value) => writeState('admin.settings', value);
+const settingsState = () => normalizeAdminSettings(ensureState('admin.settings', defaultAdminSettings));
+const saveSettingsState = (value) => writeState('admin.settings', normalizeAdminSettings(value));
 const modelPriceState = () => ensureState('admin.modelPrices', []);
 const saveModelPriceState = (value) => writeState('admin.modelPrices', value);
 
@@ -614,6 +835,223 @@ function parseCanvasDialogAgentPlan(providerResult = {}, requirement = '', refer
     analysisSummary: analysisSummary || mockCanvasDialogAgentPlan(requirement, referenceCount).analysisSummary,
     finalPrompt
   };
+}
+
+function ecommerceSuiteAgentConfig() {
+  return normalizeEcommerceSuiteAgentConfig(settingsState().ecommerceSuiteAgent);
+}
+
+function ecommerceSuitePublicConfig() {
+  const config = ecommerceSuiteAgentConfig();
+  return {
+    ...config,
+    sections: config.sections.filter(section => section.enabled !== false),
+    skills: config.skills
+      .filter(skill => skill.enabled !== false)
+      .map(({ markdown, ...skill }) => skill)
+  };
+}
+
+function ecommerceSuiteSkillForId(config = {}, skillId = '') {
+  const skills = Array.isArray(config.skills) ? config.skills : [];
+  const requested = cleanSettingKey(skillId);
+  return skills.find(skill => skill.enabled !== false && skill.id === requested)
+    || skills.find(skill => skill.enabled !== false && skill.id === config.defaultSkillId)
+    || skills.find(skill => skill.enabled !== false)
+    || defaultEcommerceSuiteSkills[0];
+}
+
+function ecommerceSuiteSelectedSections(config = {}, sectionKeys = []) {
+  const enabled = (Array.isArray(config.sections) ? config.sections : [])
+    .filter(section => section.enabled !== false)
+    .sort((a, b) => (a.sort || 0) - (b.sort || 0));
+  const requested = new Set((Array.isArray(sectionKeys) ? sectionKeys : [])
+    .map(key => cleanSettingKey(key))
+    .filter(Boolean));
+  const selected = requested.size
+    ? enabled.filter(section => requested.has(section.key))
+    : enabled;
+  return selected.slice(0, 5);
+}
+
+function normalizeSuiteImageReference(item = {}, role = 'reference', index = 0) {
+  const raw = item && typeof item === 'object' ? item : { url: item };
+  const url = firstString(raw.url, raw.imageUrl, raw.image_url, raw.originalUrl, raw.original_url, raw.preview, raw.src);
+  const dataUrl = firstString(raw.dataUrl, raw.data_url, raw.base64, raw.b64_json, raw.b64Json);
+  if (!url && !dataUrl) return null;
+  return {
+    role,
+    index: index + 1,
+    label: role === 'product' ? `产品图${index + 1}` : `参考图${index + 1}`,
+    url,
+    dataUrl,
+    fileName: firstString(raw.fileName, raw.filename, raw.name, raw.title) || `${role}-${index + 1}.png`,
+    mimeType: firstString(raw.mimeType, raw.mime, raw.type)
+  };
+}
+
+function ecommerceSuiteImageBuckets(body = {}) {
+  const productSource = Array.isArray(body.productImages) ? body.productImages
+    : Array.isArray(body.product_images) ? body.product_images
+      : [];
+  const referenceSource = Array.isArray(body.referenceImages) ? body.referenceImages
+    : Array.isArray(body.reference_images) ? body.reference_images
+      : Array.isArray(body.images) ? body.images
+        : [];
+  const productImages = productSource
+    .map((item, index) => normalizeSuiteImageReference(item, 'product', index))
+    .filter(Boolean)
+    .slice(0, 8);
+  const referenceImages = referenceSource
+    .map((item, index) => normalizeSuiteImageReference(item, 'reference', index))
+    .filter(Boolean)
+    .slice(0, 8);
+  return {
+    productImages,
+    referenceImages,
+    all: [...productImages, ...referenceImages].slice(0, 12)
+  };
+}
+
+async function ecommerceSuiteReferencesForAnalysis(body = {}, req) {
+  const buckets = ecommerceSuiteImageBuckets(body);
+  const result = [];
+  for (let index = 0; index < buckets.all.length; index += 1) {
+    const source = buckets.all[index];
+    const file = await loadReferenceImageFile(source, req);
+    result.push({
+      ...source,
+      dataUrl: `data:${file.mime};base64,${file.buffer.toString('base64')}`,
+      mime: file.mime,
+      fileName: file.fileName || source.fileName
+    });
+  }
+  return result;
+}
+
+function ecommerceSuiteContextFromBody(body = {}, config = ecommerceSuiteAgentConfig()) {
+  const skill = ecommerceSuiteSkillForId(config, body.skillId || body.designerId);
+  const sections = ecommerceSuiteSelectedSections(config, body.sectionKeys || body.sections);
+  const defaults = config.defaults || defaultEcommerceSuiteAgent.defaults;
+  return {
+    requirement: String(body.requirement || body.prompt || body.message || body.text || '').trim(),
+    brandName: String(body.brandName || body.brand || defaults.brandName || '').trim(),
+    platform: String(body.platform || defaults.platform || '拼多多').trim(),
+    country: String(body.country || defaults.country || '中国').trim(),
+    language: String(body.language || defaults.language || '中文').trim(),
+    ratio: String(body.ratio || body.aspectRatio || defaults.ratio || '1:1').trim(),
+    quality: String(body.quality || body.clarity || defaults.quality || '1k').trim().toLowerCase(),
+    imageCount: Math.max(1, Math.min(Number(body.imageCount || body.count || body.n || defaults.imageCount || 1) || 1, 4)),
+    skill,
+    sections
+  };
+}
+
+function buildEcommerceSuitePromptInput(context = {}, references = []) {
+  const productLabels = references.filter(item => item.role === 'product').map(item => item.label);
+  const referenceLabels = references.filter(item => item.role !== 'product').map(item => item.label);
+  const sectionText = context.sections.map((section, index) =>
+    `${index + 1}. ${section.key} / ${section.name}：${section.promptGuide || section.description || ''}`
+  ).join('\n');
+  const skillMarkdown = sanitizeSkillMarkdown(context.skill?.markdown || '').slice(0, 8000);
+  const text = [
+    '你是电商套图 Agent，需要为用户生成一组可直接交给图片模型的电商套图板块提示词。',
+    '必须输出 JSON 对象，不要 Markdown，不要额外解释。',
+    'JSON 字段：promptPlans，数组长度必须与用户选择的板块一致。',
+    'promptPlans 每项字段：sectionKey、sectionName、title、prompt、negativePrompt、analysisSummary。',
+    '产品图规则：产品图用于锁定真实主体、包装结构、颜色、材质、品牌识别、可辨识文字和 SKU 信息。',
+    '参考图规则：参考图只用于迁移构图、光影、背景氛围、卖点表达和版式节奏，不要把参考图里的其他品牌或产品替换进来。',
+    '合规规则：不要虚构价格、认证、功效、活动标签、二维码、水印或参考图里没有且用户没要求的文字；不要生成乱码文字和畸形产品。',
+    `设计师 skill：${context.skill?.name || 'Gloria'}。`,
+    skillMarkdown ? `设计师 Markdown：\n${skillMarkdown}` : '设计师 Markdown：无。',
+    `品牌名：${context.brandName || '未填写'}`,
+    `平台：${context.platform || '拼多多'}；国家：${context.country || '中国'}；语言：${context.language || '中文'}；比例：${context.ratio || '1:1'}；清晰度：${context.quality || '1k'}`,
+    productLabels.length ? `产品图顺序：${productLabels.join('、')}` : '产品图顺序：无。',
+    referenceLabels.length ? `参考图顺序：${referenceLabels.join('、')}` : '参考图顺序：无。',
+    `用户产品信息和需求：${context.requirement || '生成一组高质量电商套图。'}`,
+    `需要生成的板块：\n${sectionText}`
+  ].join('\n');
+
+  if (!references.length) return text;
+  return [{
+    role: 'user',
+    content: [
+      { type: 'input_text', text },
+      ...references.map(item => ({
+        type: 'input_image',
+        image_url: item.dataUrl
+      }))
+    ]
+  }];
+}
+
+function mockEcommerceSuitePromptPlans(context = {}, referenceCount = 0) {
+  return context.sections.map((section, index) => {
+    const base = [
+      `板块：${section.name}。`,
+      context.brandName ? `品牌：${context.brandName}。` : '',
+      `平台：${context.platform}，国家：${context.country}，语言：${context.language}，比例：${context.ratio}，清晰度：${context.quality.toUpperCase()}。`,
+      referenceCount > 0 ? `参考输入包含 ${referenceCount} 张图片，请严格保留产品图中的主体、包装、颜色、材质、Logo、产品名和关键文字。` : '未提供参考图片时，根据用户描述生成清晰可信的商品视觉。',
+      section.promptGuide || section.description || '',
+      `用户需求：${context.requirement || '生成高质量电商套图。'}`,
+      `设计师风格：${context.skill?.name || 'Gloria'}，${context.skill?.description || ''}。`,
+      '画面要求：商品主体清晰，电商转化导向，商业摄影级光影，真实材质，版式干净高级。',
+      '负面约束：不要乱码、水印、二维码、畸形产品、多余主体、虚构价格、虚构认证或夸大功效。'
+    ].filter(Boolean).join('\n');
+    return {
+      id: `${section.key}_${index + 1}`,
+      sectionKey: section.key,
+      sectionName: section.name,
+      title: section.name,
+      prompt: base,
+      negativePrompt: '乱码文字，水印，二维码，畸形产品，多余主体，虚构价格，虚构认证，夸大功效，低清晰度，脏污背景',
+      analysisSummary: `已按 ${section.name} 生成提示词，将优先保持产品识别并迁移参考图的构图和电商表现。`,
+      selected: index === 0
+    };
+  });
+}
+
+function normalizeEcommerceSuitePromptPlan(raw = {}, section = {}, fallback = {}) {
+  const prompt = String(raw.prompt || raw.text || raw.finalPrompt || fallback.prompt || '').trim();
+  const negativePrompt = String(raw.negativePrompt || raw.negative_prompt || fallback.negativePrompt || '').trim();
+  return {
+    id: String(raw.id || fallback.id || section.key || uid('suite_plan_')),
+    sectionKey: cleanSettingKey(raw.sectionKey || raw.section_key || section.key || fallback.sectionKey),
+    sectionName: String(raw.sectionName || raw.section_name || section.name || fallback.sectionName || '').trim(),
+    title: String(raw.title || raw.label || section.name || fallback.title || '').trim(),
+    prompt,
+    negativePrompt,
+    analysisSummary: String(raw.analysisSummary || raw.analysis_summary || raw.summary || fallback.analysisSummary || summarizeText(prompt, 160)).trim(),
+    selected: raw.selected !== false
+  };
+}
+
+function parseEcommerceSuitePromptPlans(providerResult = {}, context = {}, referenceCount = 0) {
+  const text = imageToolOutputText(providerResult);
+  const parsed = parseJsonObjectFromText(text);
+  const rawPlans = Array.isArray(parsed?.promptPlans) ? parsed.promptPlans
+    : Array.isArray(parsed?.plans) ? parsed.plans
+      : Array.isArray(parsed?.sections) ? parsed.sections
+        : [];
+  const fallbackPlans = mockEcommerceSuitePromptPlans(context, referenceCount);
+  return context.sections.map((section, index) => {
+    const raw = rawPlans.find(item => cleanSettingKey(item?.sectionKey || item?.section_key) === section.key)
+      || rawPlans.find(item => String(item?.sectionName || item?.section_name || item?.title || '').trim() === section.name)
+      || rawPlans[index]
+      || {};
+    const fallback = fallbackPlans[index];
+    const normalized = normalizeEcommerceSuitePromptPlan(raw, section, fallback);
+    return normalized.prompt ? normalized : fallback;
+  });
+}
+
+function ecommerceSuiteGenerationPrompt(plan = {}, context = {}) {
+  return [
+    `套图板块：${plan.sectionName || plan.title || plan.sectionKey}`,
+    plan.prompt,
+    plan.negativePrompt ? `避免：${plan.negativePrompt}` : '',
+    `输出要求：生成一张适合 ${context.platform || '电商平台'} 使用的${plan.sectionName || '电商套图'}，比例 ${context.ratio || '1:1'}，语言 ${context.language || '中文'}。`
+  ].filter(Boolean).join('\n');
 }
 
 function providerImageMime(buffer, fallback = '') {
@@ -1600,9 +2038,10 @@ function createCompletedTask(req, source = {}) {
     updatedAt: new Date().toISOString()
   };
   tasks.set(taskId, task);
+  const recordCostDivisor = Math.max(1, images.length || imageCount);
   images.forEach(img => {
     db.prepare('INSERT INTO generations (id,user_id,model_key,prompt,result_url,cost,status) VALUES (?,?,?,?,?,?,?)')
-      .run(uid('gen_'), req.user.userId, modelKey, prompt, img.url, cost / imageCount, 'completed');
+      .run(uid('gen_'), req.user.userId, modelKey, prompt, img.url, cost / recordCostDivisor, 'completed');
   });
   return task;
 }
@@ -2013,6 +2452,229 @@ app.post('/api/canvas/generate-prompt', auth, async (req, res) => {
     textRouteId: route?.id || route?.routeId || '',
     provider: providerResult.provider,
     providerError: providerResult.success ? '' : (providerResult.message || providerResult.code || '文本模型暂不可用，已生成基础提示词草稿')
+  });
+});
+
+app.get('/api/canvas/ecommerce-suite/config', (req, res) => {
+  const config = ecommerceSuitePublicConfig();
+  const defaults = config.defaults || defaultEcommerceSuiteAgent.defaults;
+  const imageModel = resolveImageModelKey({ imageModelKey: defaults.imageModelKey || AI_IMAGE_MODEL });
+  const textModel = String(defaults.textModelKey || AI_TEXT_MODEL || 'gpt-5.5').trim();
+  res.json({
+    success: true,
+    enabled: config.enabled !== false,
+    sections: config.sections,
+    skills: config.skills,
+    defaultSkillId: config.defaultSkillId,
+    defaults,
+    textModel,
+    imageModel,
+    analysisCost: modelCost(textModel, 'text'),
+    estimatedImageCostPerSection: modelCost(imageModel, 'image') * Math.max(1, Math.min(Number(defaults.imageCount || 1) || 1, 4))
+  });
+});
+
+app.post('/api/canvas/ecommerce-suite/prompts', auth, async (req, res) => {
+  const body = req.body || {};
+  const config = ecommerceSuiteAgentConfig();
+  if (config.enabled === false) {
+    return res.status(403).json({ success: false, code: 'ECOMMERCE_SUITE_DISABLED', message: '电商套图 Agent 暂未启用' });
+  }
+
+  const context = ecommerceSuiteContextFromBody(body, config);
+  const buckets = ecommerceSuiteImageBuckets(body);
+  if (!context.sections.length) {
+    return res.status(400).json({ success: false, code: 'ECOMMERCE_SUITE_SECTION_REQUIRED', message: '请选择至少一个套图板块' });
+  }
+  if (!context.requirement && buckets.all.length <= 0) {
+    return res.status(400).json({ success: false, code: 'ECOMMERCE_SUITE_INPUT_REQUIRED', message: '请输入产品信息或上传产品图/参考图' });
+  }
+
+  const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.userId);
+  if (!u) return res.status(401).json({ success: false, code: 'AUTH_USER_NOT_FOUND', message: '登录状态已失效，请重新登录' });
+
+  const textRoute = resolveTextRoute(body);
+  const imageRoute = resolveImageRoute(body);
+  const textModel = String(body.textModel || body.textModelKey || textRoute?.dm || AI_TEXT_MODEL || 'gpt-5.5').trim();
+  const imageModel = resolveImageModelKey({ ...body, model: body.imageModel || body.imageModelKey || body.model || imageRoute?.dm || AI_IMAGE_MODEL });
+  const analysisCost = modelCost(textModel, 'text');
+  const estimatedImageCostPerSection = modelCost(imageModel, 'image') * context.imageCount;
+  if (u.balance < analysisCost) {
+    return res.status(400).json({ success: false, code: 'INSUFFICIENT_BALANCE', message: `算力不足，需要 ${analysisCost}，当前 ${u.balance}`, analysisCost });
+  }
+
+  let references = [];
+  try {
+    references = await ecommerceSuiteReferencesForAnalysis(body, req);
+  } catch (error) {
+    return res.status(400).json({ success: false, code: 'ECOMMERCE_SUITE_REFERENCE_UNREADABLE', message: error.message || '图片读取失败' });
+  }
+
+  const input = buildEcommerceSuitePromptInput(context, references);
+  const textResult = await callProviderResponses(input, {
+    route: textRoute,
+    model: textModel,
+    timeoutMs: CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS
+  });
+  if (!textResult.success) {
+    return res.status(502).json({
+      success: false,
+      code: textResult.code || 'ECOMMERCE_SUITE_PROMPT_FAILED',
+      message: textResult.message || '套图提示词生成失败，请稍后重试',
+      stage: 'prompt',
+      provider: textResult.provider,
+      analysisCost,
+      estimatedImageCostPerSection
+    });
+  }
+
+  const promptPlans = parseEcommerceSuitePromptPlans(textResult, context, references.length);
+  const nb = u.balance - analysisCost;
+  db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
+  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
+    .run(u.id, 'generation', -analysisCost, u.balance, nb, `电商套图提示词: ${textModel} x${context.sections.length}`);
+
+  res.json({
+    success: true,
+    mock: !!textResult.mock,
+    provider: textResult.provider,
+    promptPlans,
+    sections: context.sections,
+    skill: { id: context.skill.id, name: context.skill.name, avatarUrl: context.skill.avatarUrl, description: context.skill.description },
+    analysisCost,
+    estimatedImageCostPerSection,
+    textModel,
+    imageModel,
+    textRouteId: textRoute?.id || textRoute?.routeId || '',
+    imageRouteId: imageRoute?.id || imageRoute?.routeId || '',
+    remainingBalance: nb
+  });
+});
+
+app.post('/api/canvas/ecommerce-suite/generate', auth, async (req, res) => {
+  const body = req.body || {};
+  const config = ecommerceSuiteAgentConfig();
+  if (config.enabled === false) {
+    return res.status(403).json({ success: false, code: 'ECOMMERCE_SUITE_DISABLED', message: '电商套图 Agent 暂未启用' });
+  }
+
+  const context = ecommerceSuiteContextFromBody(body, config);
+  const plans = (Array.isArray(body.promptPlans) ? body.promptPlans
+    : Array.isArray(body.plans) ? body.plans
+      : Array.isArray(body.selectedPlans) ? body.selectedPlans
+        : [])
+    .map((plan, index) => normalizeEcommerceSuitePromptPlan(plan, context.sections[index] || {}, {}))
+    .filter(plan => plan.prompt)
+    .slice(0, 5);
+  if (!plans.length) {
+    return res.status(400).json({ success: false, code: 'ECOMMERCE_SUITE_PROMPT_PLAN_REQUIRED', message: '请选择至少一个已生成的板块提示词' });
+  }
+
+  const buckets = ecommerceSuiteImageBuckets(body);
+  const hasReferenceImages = buckets.all.length > 0;
+  const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.userId);
+  if (!u) return res.status(401).json({ success: false, code: 'AUTH_USER_NOT_FOUND', message: '登录状态已失效，请重新登录' });
+
+  const imageRoute = resolveImageRoute(body);
+  const imageModel = resolveImageModelKey({ ...body, model: body.imageModel || body.imageModelKey || body.model || imageRoute?.dm || AI_IMAGE_MODEL });
+  const imageCost = modelCost(imageModel, 'image') * context.imageCount * plans.length;
+  if (u.balance < imageCost) {
+    return res.status(400).json({ success: false, code: 'INSUFFICIENT_BALANCE', message: `算力不足，需要 ${imageCost}，当前 ${u.balance}`, imageCost });
+  }
+
+  const results = [];
+  const providers = [];
+  for (const plan of plans) {
+    const prompt = ecommerceSuiteGenerationPrompt(plan, context);
+    const providerOptions = {
+      ...body,
+      body: {
+        ...body,
+        referenceImages: buckets.all
+      },
+      req,
+      route: imageRoute,
+      model: imageModel,
+      modelKey: imageModel,
+      n: context.imageCount,
+      imageCount: context.imageCount,
+      ratio: context.ratio,
+      size: context.ratio,
+      quality: context.quality,
+      clarity: context.quality
+    };
+    const imageResult = hasReferenceImages
+      ? await callProviderImageEdit(prompt, providerOptions)
+      : await callProviderImageGeneration(prompt, providerOptions);
+    providers.push(imageResult.provider);
+    if (!imageResult.success) {
+      return res.status(502).json({
+        success: false,
+        code: imageResult.code || 'ECOMMERCE_SUITE_IMAGE_FAILED',
+        message: imageResult.message || `${plan.sectionName || '套图板块'} 生图失败，请稍后重试`,
+        provider: imageResult.provider,
+        sectionKey: plan.sectionKey,
+        sectionName: plan.sectionName,
+        imageCost
+      });
+    }
+    imageResult.images.forEach((image, index) => {
+      results.push({
+        ...image,
+        sectionKey: plan.sectionKey,
+        sectionName: plan.sectionName,
+        title: plan.title || plan.sectionName,
+        prompt,
+        negativePrompt: plan.negativePrompt || '',
+        meta: {
+          ...(image.meta || {}),
+          sectionKey: plan.sectionKey,
+          sectionName: plan.sectionName,
+          operation: 'canvas-ecommerce-suite-agent'
+        },
+        id: image.id || `${plan.sectionKey}_${index + 1}`
+      });
+    });
+  }
+
+  const task = createCompletedTask(req, {
+    prompt: plans.map(plan => `${plan.sectionName}: ${plan.prompt}`).join('\n\n'),
+    finalPrompt: plans.map(plan => ecommerceSuiteGenerationPrompt(plan, context)).join('\n\n---\n\n'),
+    analysisSummary: `已生成 ${plans.length} 个电商套图板块。`,
+    modelKey: imageModel,
+    imageCount: Math.max(1, results.length),
+    results,
+    cost: imageCost,
+    totalCost: imageCost,
+    imageCost,
+    operation: 'canvas-ecommerce-suite-agent',
+    source: 'canvas-ecommerce-suite-agent'
+  });
+  const nb = u.balance - imageCost;
+  db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
+  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
+    .run(u.id, 'generation', -imageCost, u.balance, nb, `电商套图生图: ${imageModel} x${results.length}`);
+
+  res.json({
+    success: true,
+    mock: providers.some(provider => provider && provider.mode === 'mock'),
+    provider: providers[providers.length - 1] || null,
+    imageModel,
+    imageRouteId: imageRoute?.id || imageRoute?.routeId || '',
+    images: task.images.map((image, index) => ({
+      ...image,
+      sectionKey: results[index]?.sectionKey || '',
+      sectionName: results[index]?.sectionName || '',
+      prompt: results[index]?.prompt || image.prompt || ''
+    })),
+    resultImages: task.images,
+    totalCost: imageCost,
+    imageCost,
+    remainingBalance: nb,
+    taskId: task.id,
+    id: task.id,
+    status: 'success',
+    progress: 100
   });
 });
 

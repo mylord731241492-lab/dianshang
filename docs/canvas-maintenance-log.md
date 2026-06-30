@@ -11,12 +11,22 @@
 
 | 资产 | 当前版本 | 说明 |
 | --- | --- | --- |
-| `assets/canvas-chat-prompt-flow.js/css` | `20260630dialogagent9` | 对话 Agent 桥接、New API GPT 5.5 文本端点修复 |
-| `assets/Canvas-B8bY9_QL.js` | `20260630dialogagent6` | 旧 Canvas Chat 原生参数控件在三种模式渲染 |
-| `assets/Canvas-yGc8b2gf.js` | `20260630dialogagent6` | 旧 Canvas Chat 原生参数控件在三种模式渲染 |
+| `assets/canvas-chat-prompt-flow.js/css` | `20260630dialogcard4` | 对话 Agent 桥接、复用快速模式消息卡片 UI、桥接卡片模式隔离、生成中进度条 |
+| `assets/index-DglIsp_g.js` | `20260630dialogagent12` | 旧画布主入口缓存版本，指向会话隔离后的 Canvas chunk |
+| `assets/Canvas-B8bY9_QL.js` | `20260630dialogagent9` | 旧 Canvas Chat 原生参数控件 + 三模式会话隔离 |
+| `assets/Canvas-yGc8b2gf.js` | `20260630dialogagent9` | 旧 Canvas Chat 原生参数控件 + 三模式会话隔离 |
 | `assets/canvas-performance-mode.js/css` | `20260629perf5` | 旧画布性能过渡层 |
 | `assets/canvas-image-node-polish.js/css` | `20260629image7` | 图片节点显示与工具条 polish |
 | `assets/admin-api-source-route-bridge.js` | `20260629sourceapi1` | 旧后台到源码后台桥接 |
+
+## 不可回退护栏
+
+- 三模式隔离是当前旧画布硬边界：`对话 / 快速 / 视频` 不能共享 `messages`、`input`、`images`、生成中状态或 `sessionId`。
+- `快速` 不是 `对话 Agent`，不能为了复用实现把快速模式改成 GPT 5.5 分析链路。
+- `视频` 不是图片生成占位的别名，后续接入视频 Provider 前必须单独写契约、成本规则和 smoke。
+- 刷新恢复时，`source:"canvas-chat"` 只能恢复草稿到输入框，不能自动新增用户消息。
+- `对话` 桥接消息卡片必须复用旧 Canvas Chat 快速模式的 `message-card / message-meta / image-grid / cost-line` 结构和 scoped 样式标记，禁止再自绘第二套卡片壳、图片网格和结果按钮视觉。
+- 任何修改旧 Canvas Chat 状态管理的 PR，都必须保留 `scripts/verify-canvas-performance-assets.js` 中的会话隔离锚点，并跑旧画布边界 smoke。
 
 ## 2026-06-30 对话 Agent 与 New API 文本端点
 
@@ -64,6 +74,129 @@
 
 - 如继续改底部布局，优先改 `assets/canvas-chat-prompt-flow.css` 的覆盖层，不要再移动原生控件 DOM。
 - 如要动 `Canvas-*.js`，只改必要渲染开关或事件监听，必须跑两个 Canvas bundle 的语法检查。
+
+## 2026-06-30 Canvas Chat 三模式会话隔离
+
+### 触发背景
+
+- 用户指出 `对话 / 快速 / 视频` 三个模式不是同一个会话，切标签时不应串消息、参考图、输入框和生成状态。
+
+### 当前实现
+
+- 主入口版本为 `index-DglIsp_g.js?v=20260630dialogagent12`。
+- 旧 Canvas chunk 版本为 `Canvas-B8bY9_QL.js?v=20260630dialogagent9` 和 `Canvas-yGc8b2gf.js?v=20260630dialogagent9`。
+- `CanvasChatPanel` 内部维护按模式分桶的 `input / images / messages / sessionId`，切模式时保存旧桶并加载新桶。
+- 异步生成结果不再直接写当前可见消息数组，而是通过消息 id 回写原始模式会话。
+- `source:"canvas-chat"` 的草稿恢复只回到输入框，不再自动生成用户消息。
+
+### 守护脚本
+
+- `scripts/verify-canvas-performance-assets.js` 已增加会话隔离、输入保存和草稿恢复断言。
+
+### 禁止回退
+
+- 禁止把 `input / images / messages / sessionId` 合并回单个共享状态。
+- 禁止只用 `mode` 字段区分 UI 文案，却复用同一份消息数组。
+- 禁止在生成回调里直接写当前可见标签的消息列表。
+
+## 2026-06-30 Canvas Chat 对话卡片 UI 复用快速模式
+
+### 触发背景
+
+- 用户要求 `对话` 模式消息改成与快速模式截图一致的清爽卡片 UI。
+- 用户进一步指出快速模式已经有对应 CSS，不应重复造轮子。
+
+### 当前实现
+
+- `assets/canvas-chat-prompt-flow.js` 升级为 `20260630dialogcard1`。
+- 对话桥接手工插入的用户卡片和生成结果卡片继续是 `article.message-card`，并补齐旧 `CanvasChatPanel` 的 scoped 样式标记。
+- 桥接内部类改为复用旧快速模式结构：头部使用 `message-meta`，正文使用 `message-text`，图片结果使用 `image-grid`，消耗行使用 `cost-line`。
+- `assets/canvas-chat-prompt-flow.css` 不再覆盖卡片壳、图片网格、结果图按钮等快速模式已有视觉，只保留对话 Agent 特有的分析提示、状态和加载态操作按钮。
+- 用户卡片不再重复显示 `1张 · 1K · 1:1`，参数仍从底部旧原生控件读取并传给后端。
+
+### 守护脚本
+
+- `scripts/verify-canvas-performance-assets.js` 已增加 `dialogcard1` 缓存版本、scoped 样式标记、`message-meta / image-grid / cost-line` 结构和禁止回退自绘图片网格的断言。
+
+### 验证命令
+
+- `node --check "F:\dianshang\assets\canvas-chat-prompt-flow.js"`
+- `node --check "F:\dianshang\assets\Canvas-B8bY9_QL.js"`
+- `node --check "F:\dianshang\assets\Canvas-yGc8b2gf.js"`
+- `node "F:\dianshang\scripts\verify-canvas-performance-assets.js"`
+- `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-backend-canvas-boundary.ps1"`
+- `git -C "F:\dianshang" diff --check`
+- 触达文本文件 UTF-8 BOM 检查。
+
+### 验证结果
+
+- 上述语法检查、资产守卫和旧画布边界 smoke 均通过。
+- `git diff --check` 仅提示既有 Windows LF/CRLF 转换 warning，无空白错误。
+- 触达文本文件 `HasBom=false`。
+- 内置浏览器刷新后确认页面加载 `/assets/canvas-chat-prompt-flow.js?v=20260630dialogcard1` 和 `/assets/canvas-chat-prompt-flow.css?v=20260630dialogcard1`；切到 `对话` 后桥接提示条正常出现，未点击发送，未触发真实 Provider。
+
+### 禁止回退
+
+- 禁止在 `canvas-chat-prompt-flow.css` 重新定义 `.hjm-prompt-flow-result-grid figure` 或 `.hjm-prompt-flow-images figure` 作为第二套图片网格。
+- 禁止移除 `applyCanvasChatScope`，否则桥接 DOM 会吃不到旧快速模式 scoped CSS。
+
+## 2026-06-30 Canvas Chat 对话桥接 DOM 隔离补丁
+
+### 触发背景
+
+- 用户复测发现：切到 `快速` 模式时，仍能看到 `对话` 桥接层直接插入的 “椒图AI 正在分析参考图和需求...” 生成卡片。
+- 上一版护栏只检查了三模式 Vue 会话桶和快速模式样式复用，没有检查桥接脚本手工插入的 DOM 是否受模式隔离约束。
+
+### 当前实现
+
+- `assets/canvas-chat-prompt-flow.js/css` 升级为 `20260630dialogcard4`。
+- 桥接插入的用户卡片和结果卡片统一增加 `hjm-prompt-flow-card` 和 `data-hjm-prompt-flow-mode="chat"`。
+- 对已泄漏在页面中的旧桥接 DOM 也做兼容：没有模式标记的 `.hjm-prompt-flow-user / .hjm-prompt-flow-agent` 默认按 `chat` 处理，只允许在对话模式显示。
+- 新增 `syncPromptFlowCardVisibility`：只有当前面板处于 `对话` 标签时，才显示 `data-hjm-prompt-flow-mode="chat"` 的桥接卡片。
+- 面板处于非对话模式时移除 `hjm-prompt-flow-dialog-active` 状态，并把桥接卡片 `hidden=true`、`display:none`。
+- CSS 增加兜底：`.canvas-chat-panel:not(.hjm-prompt-flow-dialog-active) .hjm-prompt-flow-card / .hjm-prompt-flow-user / .hjm-prompt-flow-agent { display: none !important; }`。
+- 点击标签、DOM 变更和初始化延迟检查都会同步执行卡片可见性刷新。
+
+### 守护脚本
+
+- `scripts/verify-canvas-performance-assets.js` 已增加 `dialogcard4` 版本、`syncPromptFlowCardVisibility`、`data-hjm-prompt-flow-mode`、非对话模式 CSS 隐藏规则和桥接卡片类名断言。
+
+### 禁止回退
+
+- 禁止桥接层直接插入没有模式标记的卡片。
+- 禁止只依赖 Vue 会话桶隔离而忽略桥接 DOM 隔离。
+- 禁止让 `.hjm-prompt-flow-card` 在 `快速` 或 `视频` 模式可见。
+
+## 2026-06-30 Canvas Chat 对话任务空状态与进度条补丁
+
+### 触发背景
+
+- 用户指出 `灵感不间断` 空状态应只在未开始任务时显示，生成任务开始后应消失。
+- 用户要求生成过程增加进度条 UI，而不是只显示文字状态。
+
+### 当前实现
+
+- `assets/canvas-chat-prompt-flow.js/css` 升级为 `20260630dialogcard4`。
+- `syncPromptFlowCardVisibility` 会统计当前对话模式可见桥接卡片数；只要存在桥接任务卡片，就隐藏 `.message-list > .empty-state`。
+- 生成结果卡新增 `hjm-prompt-flow-progress` 进度条，分析阶段约 `18%`，进入生图阶段约 `68%`，成功或失败时更新到 `100%` 并隐藏进度条。
+- 进度条为桥接层 UI 状态，不改变后端请求、不新增轮询、不触发额外 Provider 调用。
+
+### 守护脚本
+
+- `scripts/verify-canvas-performance-assets.js` 已增加空状态隐藏、进度条 DOM、进度条宽度更新和 CSS 动画断言。
+
+### 验证结果
+
+- `node --check "F:\dianshang\assets\canvas-chat-prompt-flow.js"` 通过。
+- 两个旧 Canvas bundle 语法检查通过。
+- `node "F:\dianshang\scripts\verify-canvas-performance-assets.js"` 通过，版本为 `dialogcard4`。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-backend-canvas-boundary.ps1"` 通过，确认服务端发出 `canvas-chat-prompt-flow.js/css?v=20260630dialogcard4`。
+- 浏览器刷新后确认加载 `dialogcard4` 资源；稳定重测 `快速` 模式 `bridgeTotal=0`、`bridgeVisible=0`；未点击发送，未触发真实 Provider。
+
+### 禁止回退
+
+- 禁止生成任务开始后仍显示 `灵感不间断` 空状态。
+- 禁止把生成中状态退回纯文字提示，必须保留进度条或等价可视进度 UI。
 
 ## 2026-06-30 Packy GPT Image 2 规则落地
 

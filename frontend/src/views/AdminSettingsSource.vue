@@ -3,10 +3,18 @@ import AdminSourceSidebar from '../components/AdminSourceSidebar.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NAlert, NButton, NInput, NInputNumber, NSelect, NSwitch, NTag, useMessage } from 'naive-ui';
-import { ArrowLeft, CheckCircle2, Coins, Image, RefreshCcw, Save, Search, Settings, ShieldCheck, ToggleLeft } from 'lucide-vue-next';
+import { ArrowLeft, CheckCircle2, Coins, FileText, Image, Plus, RefreshCcw, Save, Search, Settings, ShieldCheck, ToggleLeft, Trash2, UserRound } from 'lucide-vue-next';
 import { clearAuthSession } from '../api/auth';
 import { getAdminApiProviders, type AdminApiProvider } from '../api/adminApiProviders';
-import { getAdminSettings, updateAdminSettings, type AdminImageToolSetting, type AdminSettings } from '../api/adminSettings';
+import {
+  getAdminSettings,
+  updateAdminSettings,
+  type AdminImageToolSetting,
+  type AdminSettings,
+  type EcommerceSuiteAgentSetting,
+  type EcommerceSuiteSectionSetting,
+  type EcommerceSuiteSkillSetting
+} from '../api/adminSettings';
 import { getApiErrorMessage } from '../api/http';
 
 const router = useRouter();
@@ -33,6 +41,24 @@ const editableKeys = [
 ] as const;
 
 const defaultImageTools = ['outpaint', 'reversePrompt', 'smartErase', 'inpaint'];
+
+const defaultEcommerceSections: EcommerceSuiteSectionSetting[] = [
+  { key: 'hero', name: '首屏主视觉', description: '商品首屏主 KV', promptGuide: '突出产品、品牌和第一卖点', enabled: true, sort: 10 },
+  { key: 'selling-points', name: '核心卖点图', description: '核心功能和利益点', promptGuide: '组织 2-4 个可信核心卖点', enabled: true, sort: 20 },
+  { key: 'effect-demo', name: '效果展示图', description: '效果或体验结果', promptGuide: '表现使用结果，不夸大功效', enabled: true, sort: 30 },
+  { key: 'tech-analysis', name: '科技解析图', description: '结构、成分、工艺拆解', promptGuide: '高级克制地解析结构或技术', enabled: true, sort: 40 },
+  { key: 'usage-scene', name: '使用场景图', description: '真实使用场景', promptGuide: '突出目标人群和使用环境', enabled: true, sort: 50 }
+];
+
+const defaultEcommerceSkills: EcommerceSuiteSkillSetting[] = [
+  { id: 'gloria', name: 'Gloria', avatarUrl: '', description: '大厂王牌视觉设计师，精通电商详情页设计', enabled: true, markdown: '# Gloria\n大厂王牌视觉设计师，强调高转化、强识别和稳定商业质感。' },
+  { id: 'paload', name: 'Paload', avatarUrl: '', description: '多年资深高级美工，擅长智能研判复杂设计', enabled: true, markdown: '# Paload\n资深高级美工，擅长拆解参考图结构并迁移到用户产品。' },
+  { id: 'lumi', name: 'Lumi', avatarUrl: '', description: '资深电商设计师，构思严谨审美一流', enabled: true, markdown: '# Lumi\n资深电商设计师，偏柔和高级、生活方式和精致氛围。' },
+  { id: 'kira', name: 'Kira', avatarUrl: '', description: '设计行业老油条，思维发散质量稳定', enabled: true, markdown: '# Kira\n经验丰富的电商视觉设计师，强调醒目、直接和转化感。' },
+  { id: 'rayyu', name: 'RayYu', avatarUrl: '', description: '国字号视觉资深导师，创意无限', enabled: true, markdown: '# RayYu\n资深视觉导师，擅长创意概念、品牌叙事和高阶质感表达。' }
+];
+
+type EcommerceSuiteDefaults = NonNullable<EcommerceSuiteAgentSetting['defaults']>;
 
 const editableSwitches = [
   { key: 'registrationEnabled', label: '开放注册' },
@@ -80,6 +106,41 @@ const draftImageTools = computed(() => {
     value: source[key] || {}
   }));
 });
+
+const ecommerceDraft = computed(() => draft.value.ecommerceSuiteAgent || ensureEcommerceDraft());
+
+const ecommerceDefaults = computed<EcommerceSuiteDefaults>(() => {
+  const agent = ensureEcommerceDraft();
+  agent.defaults = agent.defaults || cloneEcommerceAgent().defaults || {};
+  return agent.defaults as EcommerceSuiteDefaults;
+});
+
+const ecommerceSections = computed(() => {
+  const agent = ensureEcommerceDraft();
+  agent.sections = agent.sections || [];
+  return agent.sections;
+});
+
+const ecommerceSkills = computed(() => {
+  const agent = ensureEcommerceDraft();
+  agent.skills = agent.skills || [];
+  return agent.skills;
+});
+
+const ecommerceSkillOptions = computed(() =>
+  ecommerceSkills.value.map((skill) => ({
+    label: skill.name || skill.id,
+    value: skill.id
+  })).filter((option) => option.value)
+);
+
+const ecommerceEnabledSections = computed(() =>
+  ecommerceSections.value.filter((section) => section.enabled !== false).length
+);
+
+const ecommerceEnabledSkills = computed(() =>
+  ecommerceSkills.value.filter((skill) => skill.enabled !== false).length
+);
 
 const imageRouteOptions = computed(() =>
   providers.value
@@ -134,13 +195,15 @@ const statCards = computed(() => {
     { label: '启用开关', value: enabled, icon: CheckCircle2 },
     { label: '图片工具', value: imageTools, icon: Image },
     { label: '工具启用', value: imageToolsEnabled, icon: ToggleLeft },
+    { label: '套图板块', value: ecommerceEnabledSections.value, icon: FileText },
+    { label: '设计师 Skills', value: ecommerceEnabledSkills.value, icon: UserRound },
     { label: '默认算力', value: Number(settings.value.defaultCredits || 0), icon: Coins },
     { label: '上传上限', value: Number(settings.value.maxUploadSizeMb || 0), icon: ShieldCheck }
   ];
 });
 
 const draftChanged = computed(() =>
-  editableKeys.some((key) => draft.value[key] !== settings.value[key]) || imageToolDraftChanged()
+  editableKeys.some((key) => draft.value[key] !== settings.value[key]) || imageToolDraftChanged() || ecommerceDraftChanged()
 );
 
 const saveDisabled = computed(() => saving.value || loading.value || !draftChanged.value);
@@ -194,6 +257,126 @@ function imageToolDraftChanged() {
   return JSON.stringify(draft.value.imageToolFeatures || {}) !== JSON.stringify(settings.value.imageToolFeatures || {});
 }
 
+function sanitizeMarkdown(value?: string) {
+  return String(value || '')
+    .replace(/^\uFEFF/, '')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object\b[^>]*>[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed\b[^>]*>[\s\S]*?<\/embed>/gi, '')
+    .slice(0, 20000);
+}
+
+function cloneEcommerceAgent(source?: EcommerceSuiteAgentSetting): EcommerceSuiteAgentSetting {
+  const incoming = source || {};
+  const sectionsByKey = new Map((incoming.sections || []).map((section) => [section.key, section]));
+  const defaultSections = defaultEcommerceSections.map((section) => ({
+    ...section,
+    ...(sectionsByKey.get(section.key) || {})
+  }));
+  const extraSections = (incoming.sections || []).filter((section) => section.key && !defaultEcommerceSections.some((item) => item.key === section.key));
+  const skillsById = new Map((incoming.skills || []).map((skill) => [skill.id, skill]));
+  const defaultSkills = defaultEcommerceSkills.map((skill) => ({
+    ...skill,
+    ...(skillsById.get(skill.id) || {}),
+    markdown: sanitizeMarkdown((skillsById.get(skill.id) || skill).markdown)
+  }));
+  const extraSkills = (incoming.skills || [])
+    .filter((skill) => skill.id && !defaultEcommerceSkills.some((item) => item.id === skill.id))
+    .map((skill) => ({ ...skill, markdown: sanitizeMarkdown(skill.markdown) }));
+  const defaults = incoming.defaults || {};
+  const skills = [...defaultSkills, ...extraSkills];
+  const defaultSkillId = incoming.defaultSkillId && skills.some((skill) => skill.id === incoming.defaultSkillId)
+    ? incoming.defaultSkillId
+    : skills[0]?.id || 'gloria';
+  return {
+    enabled: incoming.enabled !== false,
+    defaultSkillId,
+    defaults: {
+      brandName: String(defaults.brandName || ''),
+      platform: String(defaults.platform || '拼多多'),
+      country: String(defaults.country || '中国'),
+      language: String(defaults.language || '中文'),
+      ratio: String(defaults.ratio || '1:1'),
+      quality: String(defaults.quality || '1k').toLowerCase(),
+      imageCount: Math.max(1, Math.min(Number(defaults.imageCount || 1) || 1, 4))
+    },
+    sections: [...defaultSections, ...extraSections]
+      .map((section, index) => ({
+        ...section,
+        key: String(section.key || `section-${index + 1}`),
+        name: String(section.name || section.key || `板块 ${index + 1}`),
+        enabled: section.enabled !== false,
+        sort: Number(section.sort || index + 1)
+      }))
+      .sort((a, b) => Number(a.sort || 0) - Number(b.sort || 0)),
+    skills
+  };
+}
+
+function ensureEcommerceDraft() {
+  const next = cloneEcommerceAgent(draft.value.ecommerceSuiteAgent || settings.value.ecommerceSuiteAgent);
+  draft.value.ecommerceSuiteAgent = next;
+  return next;
+}
+
+function ecommerceDraftChanged() {
+  return JSON.stringify(cloneEcommerceAgent(draft.value.ecommerceSuiteAgent)) !== JSON.stringify(cloneEcommerceAgent(settings.value.ecommerceSuiteAgent));
+}
+
+function addEcommerceSkill() {
+  const agent = ensureEcommerceDraft();
+  const id = `designer-${Date.now().toString(36)}`;
+  agent.skills = [
+    ...(agent.skills || []),
+    {
+      id,
+      name: '新设计师',
+      avatarUrl: '',
+      description: '自定义电商视觉设计师',
+      enabled: true,
+      markdown: '# 新设计师\n请在这里填写该设计师的视觉风格、擅长品类、构图偏好和负面约束。'
+    }
+  ];
+  agent.defaultSkillId = agent.defaultSkillId || id;
+}
+
+function removeEcommerceSkill(index: number) {
+  const agent = ensureEcommerceDraft();
+  const skills = agent.skills || [];
+  if (skills.length <= 1) {
+    message.warning('至少保留一个设计师 skill');
+    return;
+  }
+  const removed = skills[index];
+  agent.skills = skills.filter((_, skillIndex) => skillIndex !== index);
+  if (removed?.id === agent.defaultSkillId) {
+    agent.defaultSkillId = agent.skills[0]?.id || '';
+  }
+}
+
+async function importSkillMarkdown(event: Event, skill: EcommerceSuiteSkillSetting) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (!/\.md$/i.test(file.name)) {
+    message.error('请上传 .md 文件');
+    return;
+  }
+  if (file.size > 512 * 1024) {
+    message.error('Markdown 文件不能超过 512KB');
+    return;
+  }
+  try {
+    skill.markdown = sanitizeMarkdown(await file.text());
+    message.success(`${skill.name || skill.id} 的 Markdown 已导入`);
+  } catch (error) {
+    message.error('Markdown 读取失败');
+  }
+}
+
 function formatNumber(value?: number) {
   return Number(value || 0).toLocaleString('zh-CN');
 }
@@ -228,7 +411,8 @@ function syncDraft() {
   }
   settings.value = {
     ...settings.value,
-    imageToolFeatures
+    imageToolFeatures,
+    ecommerceSuiteAgent: cloneEcommerceAgent(settings.value.ecommerceSuiteAgent)
   };
   draft.value = {
     siteName: String(settings.value.siteName || ''),
@@ -241,7 +425,8 @@ function syncDraft() {
     mockMode: settings.value.mockMode !== false,
     defaultCredits: Number(settings.value.defaultCredits || 0),
     maxUploadSizeMb: Number(settings.value.maxUploadSizeMb || 0),
-    imageToolFeatures
+    imageToolFeatures,
+    ecommerceSuiteAgent: cloneEcommerceAgent(settings.value.ecommerceSuiteAgent)
   };
 }
 
@@ -273,6 +458,7 @@ async function saveSettings() {
       payload[key] = draft.value[key] as never;
     }
     payload.imageToolFeatures = draft.value.imageToolFeatures;
+    payload.ecommerceSuiteAgent = cloneEcommerceAgent(draft.value.ecommerceSuiteAgent);
     const data = await updateAdminSettings(payload);
     settings.value = data.settings;
     syncDraft();
@@ -381,6 +567,139 @@ onMounted(loadSettings);
             </div>
           </label>
         </div>
+
+        <section class="admin-suite-agent-config" aria-label="电商套图 Agent 配置">
+          <div class="admin-suite-agent-head">
+            <div>
+              <p class="eyebrow">Ecommerce Suite Agent</p>
+              <h3>电商套图 Agent</h3>
+            </div>
+            <div class="admin-settings-toggle-control">
+              <span>启用</span>
+              <n-switch v-model:value="ecommerceDraft.enabled" />
+            </div>
+          </div>
+
+          <div class="admin-suite-default-grid">
+            <label>
+              <span>默认品牌名</span>
+              <n-input v-model:value="ecommerceDefaults.brandName" clearable placeholder="品牌名可为空" />
+            </label>
+            <label>
+              <span>默认平台</span>
+              <n-input v-model:value="ecommerceDefaults.platform" placeholder="拼多多 / 淘宝 / 京东" />
+            </label>
+            <label>
+              <span>国家</span>
+              <n-input v-model:value="ecommerceDefaults.country" placeholder="中国" />
+            </label>
+            <label>
+              <span>语言</span>
+              <n-input v-model:value="ecommerceDefaults.language" placeholder="中文" />
+            </label>
+            <label>
+              <span>默认比例</span>
+              <n-select
+                v-model:value="ecommerceDefaults.ratio"
+                :options="['1:1', '4:5', '3:4', '16:9', '9:16'].map((value) => ({ label: value, value }))"
+              />
+            </label>
+            <label>
+              <span>默认清晰度</span>
+              <n-select
+                v-model:value="ecommerceDefaults.quality"
+                :options="['1k', '2k', '4k'].map((value) => ({ label: value.toUpperCase(), value }))"
+              />
+            </label>
+            <label>
+              <span>每板块张数</span>
+              <n-input-number v-model:value="ecommerceDefaults.imageCount" :min="1" :max="4" />
+            </label>
+            <label>
+              <span>默认设计师</span>
+              <n-select v-model:value="ecommerceDraft.defaultSkillId" filterable :options="ecommerceSkillOptions" />
+            </label>
+          </div>
+
+          <div class="admin-suite-subhead">
+            <strong>套图板块</strong>
+            <span>{{ ecommerceEnabledSections }} 个启用</span>
+          </div>
+          <div class="admin-suite-section-list">
+            <article v-for="section in ecommerceSections" :key="section.key">
+              <label class="admin-suite-section-switch">
+                <span>{{ section.name }}</span>
+                <n-switch v-model:value="section.enabled" />
+              </label>
+              <n-input v-model:value="section.name" placeholder="板块名称" />
+              <n-input v-model:value="section.description" placeholder="板块说明" />
+              <n-input
+                v-model:value="section.promptGuide"
+                type="textarea"
+                :autosize="{ minRows: 2, maxRows: 4 }"
+                placeholder="提示词指导，例如该板块的构图、卖点和约束"
+              />
+            </article>
+          </div>
+
+          <div class="admin-suite-subhead">
+            <strong>设计师 Skills</strong>
+            <n-button size="small" secondary @click="addEcommerceSkill">
+              <template #icon><Plus :size="14" /></template>
+              新增
+            </n-button>
+          </div>
+          <div class="admin-suite-skill-list">
+            <article v-for="(skill, index) in ecommerceSkills" :key="skill.id || index">
+              <div class="admin-suite-skill-top">
+                <div class="admin-suite-skill-avatar">
+                  <img v-if="skill.avatarUrl" :src="skill.avatarUrl" alt="" />
+                  <UserRound v-else :size="18" />
+                </div>
+                <label>
+                  <span>名称</span>
+                  <n-input v-model:value="skill.name" placeholder="Gloria" />
+                </label>
+                <label>
+                  <span>ID</span>
+                  <n-input v-model:value="skill.id" placeholder="gloria" />
+                </label>
+                <label class="admin-suite-skill-enabled">
+                  <span>启用</span>
+                  <n-switch v-model:value="skill.enabled" />
+                </label>
+                <n-button size="small" tertiary type="error" @click="removeEcommerceSkill(index)">
+                  <template #icon><Trash2 :size="14" /></template>
+                  删除
+                </n-button>
+              </div>
+              <div class="admin-suite-skill-meta">
+                <label>
+                  <span>头像 URL</span>
+                  <n-input v-model:value="skill.avatarUrl" clearable placeholder="/uploads/avatar.png 或 https://..." />
+                </label>
+                <label>
+                  <span>简介</span>
+                  <n-input v-model:value="skill.description" placeholder="展示在前台设计师列表中" />
+                </label>
+              </div>
+              <label class="admin-suite-skill-markdown">
+                <span>Markdown Skill 文档</span>
+                <n-input
+                  v-model:value="skill.markdown"
+                  type="textarea"
+                  :autosize="{ minRows: 5, maxRows: 10 }"
+                  placeholder="# Gloria&#10;填写该设计师的视觉风格、品类偏好、构图策略和负面约束"
+                />
+              </label>
+              <label class="admin-suite-md-upload">
+                <FileText :size="15" />
+                <span>导入 .md</span>
+                <input type="file" accept=".md,text/markdown,text/plain" @change="(event) => importSkillMarkdown(event, skill)" />
+              </label>
+            </article>
+          </div>
+        </section>
 
         <div class="admin-settings-edit-actions">
           <n-button :disabled="loading || saving" @click="syncDraft">重置草稿</n-button>

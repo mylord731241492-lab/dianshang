@@ -1,10 +1,11 @@
 (function () {
-  var FLOW_VERSION = '20260630dialogagent9';
+  var FLOW_VERSION = '20260630dialogcard4';
   var state = {
     busy: false,
     runs: {},
     lastError: ''
   };
+  var CANVAS_CHAT_SCOPE_ATTR = 'data-v-b10121f4';
 
   function isCanvasPage() {
     return /^\/canvas(\/|$)/.test(window.location.pathname || '');
@@ -18,6 +19,24 @@
     return panel && panel.querySelector('.message-list');
   }
 
+  function getCanvasChatScopeAttr(panel) {
+    var attrs = panel && panel.attributes ? Array.from(panel.attributes) : [];
+    var scope = attrs.find(function (attr) { return /^data-v-/.test(attr.name); });
+    return scope ? scope.name : CANVAS_CHAT_SCOPE_ATTR;
+  }
+
+  function applyCanvasChatScope(root, panel) {
+    if (!root || root.nodeType !== 1) return root;
+    var scopeAttr = getCanvasChatScopeAttr(panel || getPanel());
+    root.setAttribute(scopeAttr, '');
+    if (root.querySelectorAll) {
+      Array.from(root.querySelectorAll('*')).forEach(function (node) {
+        node.setAttribute(scopeAttr, '');
+      });
+    }
+    return root;
+  }
+
   function getInput(panel) {
     return panel && panel.querySelector('.composer-input');
   }
@@ -29,6 +48,26 @@
 
   function shouldHandle(panel) {
     return !!panel && getActiveMode(panel) === '对话';
+  }
+
+  function syncPromptFlowCardVisibility(panel) {
+    if (!panel) return;
+    var dialogActive = shouldHandle(panel);
+    var visibleBridgeCount = 0;
+    panel.classList.toggle('hjm-prompt-flow-dialog-active', dialogActive);
+    Array.from(panel.querySelectorAll('.hjm-prompt-flow-card, .hjm-prompt-flow-user, .hjm-prompt-flow-agent')).forEach(function (card) {
+      var mode = card.getAttribute('data-hjm-prompt-flow-mode') || 'chat';
+      var visible = dialogActive && mode === 'chat';
+      card.hidden = !visible;
+      card.style.display = visible ? '' : 'none';
+      if (visible) visibleBridgeCount += 1;
+    });
+    var emptyState = panel.querySelector('.message-list > .empty-state');
+    if (emptyState) {
+      var hideEmpty = dialogActive && visibleBridgeCount > 0;
+      emptyState.hidden = hideEmpty;
+      emptyState.style.display = hideEmpty ? 'none' : '';
+    }
   }
 
   function getAuthHeaders() {
@@ -100,13 +139,6 @@
       ratio: ratio,
       aspectRatio: ratio
     };
-  }
-
-  function settingsLabel(settings) {
-    var count = clampNumber(settings && settings.imageCount, 1, 4, 1);
-    var quality = String((settings && (settings.quality || settings.clarity)) || '1k').toUpperCase();
-    var ratio = String((settings && (settings.ratio || settings.aspectRatio)) || '1:1');
-    return count + '张 · ' + quality + ' · ' + ratio;
   }
 
   function readAsDataUrl(blob) {
@@ -184,32 +216,36 @@
     return references;
   }
 
-  function makeUserCard(requirement, references, settings) {
+  function makeUserCard(panel, requirement, references) {
     var images = references.map(function (ref) {
-      return '<figure><img src="' + escapeHtml(ref.preview || ref.dataUrl || ref.url) + '" alt=""><figcaption>图' + ref.index + '</figcaption></figure>';
+      return '<figure><img src="' + escapeHtml(ref.preview || ref.dataUrl || ref.url) + '" alt=""></figure>';
     }).join('');
     var card = document.createElement('article');
-    card.className = 'message-card user hjm-prompt-flow-user';
+    card.className = 'message-card user hjm-prompt-flow-card hjm-prompt-flow-user';
+    card.dataset.hjmPromptFlowMode = 'chat';
     card.innerHTML = [
-      '<div class="hjm-prompt-flow-head"><span>你</span><time>' + nowText() + '</time></div>',
-      '<p>' + escapeHtml(requirement) + '</p>',
-      references.length ? '<div class="hjm-prompt-flow-images">' + images + '</div>' : '',
-      '<div class="hjm-prompt-flow-settings-line">' + escapeHtml(settingsLabel(settings)) + '</div>'
+      '<div class="message-meta hjm-prompt-flow-head"><span>你</span><time>' + nowText() + '</time></div>',
+      '<p class="message-text">' + escapeHtml(requirement) + '</p>',
+      references.length ? '<div class="image-grid hjm-prompt-flow-images">' + images + '</div>' : ''
     ].join('');
-    return card;
+    return applyCanvasChatScope(card, panel);
   }
 
-  function makeAgentCard(flowId, requirement, references, settings) {
+  function makeAgentCard(panel, flowId, requirement, references, settings) {
     var card = document.createElement('article');
-    card.className = 'message-card assistant hjm-prompt-flow-agent is-loading';
+    card.className = 'message-card assistant hjm-prompt-flow-card hjm-prompt-flow-agent is-loading';
     card.dataset.flowId = flowId;
+    card.dataset.hjmPromptFlowMode = 'chat';
     card.innerHTML = [
-      '<div class="hjm-prompt-flow-head"><span>生成结果</span><time>' + nowText() + '</time></div>',
-      '<div class="hjm-prompt-flow-note">椒图AI 正在分析参考图和需求，并自动生成图片。</div>',
-      '<div class="hjm-prompt-flow-summary" hidden></div>',
-      '<div class="hjm-prompt-flow-result-grid"></div>',
-      '<div class="hjm-prompt-flow-status">正在分析图片和需求...</div>',
-      '<div class="hjm-prompt-flow-cost" hidden></div>',
+      '<div class="message-meta hjm-prompt-flow-head"><span>生成结果</span><time>' + nowText() + '</time></div>',
+      '<p class="message-text hjm-prompt-flow-note">椒图AI 正在分析参考图和需求，并自动生成图片。</p>',
+      '<div class="message-text hjm-prompt-flow-summary" hidden></div>',
+      '<div class="image-grid hjm-prompt-flow-result-grid"></div>',
+      '<div class="message-text hjm-prompt-flow-status">正在分析图片和需求...</div>',
+      '<div class="hjm-prompt-flow-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="12">',
+      '<span class="hjm-prompt-flow-progress-bar" style="width:12%"></span>',
+      '</div>',
+      '<div class="cost-line hjm-prompt-flow-cost" hidden></div>',
       '<div class="hjm-prompt-flow-actions">',
       '<button type="button" data-hjm-prompt-flow-action="copy-prompt" disabled>复制提示词</button>',
       '<button type="button" data-hjm-prompt-flow-action="regen" disabled>重新生成</button>',
@@ -217,7 +253,7 @@
       '</div>'
     ].join('');
     state.runs[flowId] = { flowId: flowId, requirement: requirement, references: references, settings: settings, card: card, images: [], finalPrompt: '' };
-    return card;
+    return applyCanvasChatScope(card, panel);
   }
 
   function normalizeImages(data) {
@@ -260,6 +296,8 @@
     var summary = card.querySelector('.hjm-prompt-flow-summary');
     var grid = card.querySelector('.hjm-prompt-flow-result-grid');
     var status = card.querySelector('.hjm-prompt-flow-status');
+    var progress = card.querySelector('.hjm-prompt-flow-progress');
+    var progressBar = card.querySelector('.hjm-prompt-flow-progress-bar');
     var cost = card.querySelector('.hjm-prompt-flow-cost');
     var buttons = card.querySelectorAll('[data-hjm-prompt-flow-action]');
     if (summary && patch && patch.analysisSummary !== undefined) {
@@ -268,8 +306,18 @@
     }
     if (grid && patch && patch.images) {
       grid.innerHTML = run.images.map(resultFigure).join('');
+      applyCanvasChatScope(grid, getPanel());
     }
     if (status && patch && patch.status) status.textContent = patch.status;
+    if (progress && patch && patch.loading !== undefined) {
+      progress.hidden = !patch.loading;
+      progress.style.display = patch.loading ? '' : 'none';
+    }
+    if (progress && progressBar && patch && patch.progress !== undefined) {
+      var nextProgress = clampNumber(patch.progress, 0, 100, 12);
+      progress.setAttribute('aria-valuenow', String(nextProgress));
+      progressBar.style.width = nextProgress + '%';
+    }
     if (cost && patch && patch.totalCost !== undefined) {
       cost.textContent = '消耗 ' + patch.totalCost + ' 算力';
       cost.hidden = !patch.totalCost;
@@ -277,6 +325,8 @@
     if (patch && patch.loading !== undefined) {
       card.classList.toggle('is-loading', !!patch.loading);
       card.classList.toggle('is-failed', !!patch.failed);
+      card.classList.toggle('failed', !!patch.failed);
+      card.classList.toggle('success', !patch.loading && !patch.failed && run.images.length > 0);
       buttons.forEach(function (button) {
         var action = button.getAttribute('data-hjm-prompt-flow-action');
         var needsResult = ['copy-prompt', 'regen', 'download', 'copy-link', 'add-canvas', 'again'].indexOf(action) >= 0;
@@ -333,11 +383,11 @@
   async function runDialogAgent(flowId) {
     var run = state.runs[flowId];
     if (!run) return;
-    updateAgent(flowId, { loading: true, failed: false, status: '正在分析图片和需求...', images: [], analysisSummary: '', totalCost: 0 });
+    updateAgent(flowId, { loading: true, failed: false, status: '正在分析图片和需求...', progress: 18, images: [], analysisSummary: '', totalCost: 0 });
     var generationTimer = window.setTimeout(function () {
       var pending = state.runs[flowId];
       if (pending && pending.card && pending.card.classList.contains('is-loading')) {
-        updateAgent(flowId, { loading: true, failed: false, status: '正在生成图片...' });
+        updateAgent(flowId, { loading: true, failed: false, status: '正在生成图片...', progress: 68 });
       }
     }, 900);
     try {
@@ -357,6 +407,7 @@
       updateAgent(flowId, {
         loading: false,
         status: images.length ? '生成完成，结果已放入画布。' : '生成完成，但没有解析到图片。',
+        progress: 100,
         analysisSummary: data.analysisSummary || '',
         finalPrompt: data.finalPrompt || data.prompt || '',
         totalCost: data.totalCost || data.costPoints || data.cost || 0,
@@ -370,6 +421,7 @@
         loading: false,
         failed: true,
         status: error.message || '对话 Agent 生成失败，请稍后重试。',
+        progress: 100,
         analysisSummary: errorData.analysisSummary || '',
         finalPrompt: errorData.finalPrompt || errorData.prompt || '',
         totalCost: 0
@@ -404,9 +456,10 @@
       var list = getMessageList(panel);
       if (!list) return;
       var flowId = uuid('dialog_agent');
-      list.appendChild(makeUserCard(requirement, references, settings));
-      var agentCard = makeAgentCard(flowId, requirement, references, settings);
+      list.appendChild(makeUserCard(panel, requirement, references));
+      var agentCard = makeAgentCard(panel, flowId, requirement, references, settings);
       list.appendChild(agentCard);
+      syncPromptFlowCardVisibility(panel);
       if (input) {
         input.value = '';
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -468,7 +521,10 @@
   }
 
   function handleClick(event) {
-    setTimeout(function () { updateHints(document); }, 0);
+    setTimeout(function () {
+      updateHints(document);
+      syncPromptFlowCardVisibility(getPanel());
+    }, 0);
     var actionTarget = event.target && event.target.closest && event.target.closest('[data-hjm-prompt-flow-action]');
     if (actionTarget) {
       handleAction(event, actionTarget);
@@ -501,6 +557,7 @@
   function updateHints(root) {
     var panel = panelFromRoot(root);
     if (!panel) return;
+    syncPromptFlowCardVisibility(panel);
     cleanupInjectedSettings(panel);
     var existing = panel.querySelector('.hjm-prompt-flow-hint');
     if (!shouldHandle(panel)) {
@@ -530,13 +587,21 @@
     document.addEventListener('click', handleClick, true);
     document.addEventListener('keydown', handleKeydown, true);
     updateHints(document);
-    setTimeout(function () { updateHints(document); }, 300);
-    setTimeout(function () { updateHints(document); }, 1200);
+    syncPromptFlowCardVisibility(getPanel());
+    setTimeout(function () { updateHints(document); syncPromptFlowCardVisibility(getPanel()); }, 300);
+    setTimeout(function () { updateHints(document); syncPromptFlowCardVisibility(getPanel()); }, 1200);
     var observer = new MutationObserver(function (mutations) {
       for (var i = 0; i < mutations.length; i += 1) {
+        if (mutations[i].type === 'attributes') {
+          updateHints(mutations[i].target);
+          syncPromptFlowCardVisibility(getPanel());
+        }
         var nodes = mutations[i].addedNodes || [];
         for (var j = 0; j < nodes.length; j += 1) {
-          if (nodes[j] && nodes[j].nodeType === 1) updateHints(nodes[j]);
+          if (nodes[j] && nodes[j].nodeType === 1) {
+            updateHints(nodes[j]);
+            syncPromptFlowCardVisibility(panelFromRoot(nodes[j]));
+          }
         }
       }
     });

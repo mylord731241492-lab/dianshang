@@ -1740,3 +1740,4 @@
 - 完成内容：新增 `docs/provider-packy-gpt-image-2.md`，记录 `gpt-image-2` 文生图 `/v1/images/generations`、图生图 `/v1/images/edits`、`size/quality/output_format/response_format/n/input_fidelity` 等参数和本项目映射。
 - 后端同步：`providerImageSize` 改为按 `图片大小档位 + 比例` 自动换算合法 Packy `size`，保证最大边、16 倍数、长短边比例和总像素范围；`1K/2K/4K` 不再直接映射为 Packy `quality`，无单独质量选择时 `quality` 使用 `auto`。
 - 边界：不触发真实 Provider 付费测试；旧前端字段名仍兼容 `quality/clarity`，业务语义改按图片大小处理。
+- 追加守护：新增 `scripts/check-packy-gpt-image-size.js`，覆盖旧画布比例菜单全部 13 个比例在 `1K/2K/4K` 下的 39 个换算结果，并接入 `scripts/smoke-backend-canvas-boundary.ps1`。

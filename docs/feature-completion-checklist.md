@@ -177,3 +177,4 @@
 - 新增本地技术档案 `docs/provider-packy-gpt-image-2.md`，后续 GPT Image 2 接口参数以该文件和 Packy 官方链接为优先参考。
 - `1K / 2K / 4K` 明确为图片大小档位；比例自动换算为 Packy 合法 `size`。
 - Packy `quality` 与图片大小解耦，默认使用 `auto`，避免把 `1K` 误发成低质量。
+- 旧画布比例菜单 13 个比例已全部纳入 `scripts/check-packy-gpt-image-size.js`，并接入后端画布边界 smoke。

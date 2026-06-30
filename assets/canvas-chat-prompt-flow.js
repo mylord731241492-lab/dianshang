@@ -1,35 +1,10 @@
 (function () {
-  var FLOW_VERSION = '20260630dialogagent5';
+  var FLOW_VERSION = '20260630dialogagent6';
   var state = {
     busy: false,
     runs: {},
     lastError: ''
   };
-  var DIALOG_COUNT_OPTIONS = [
-    { value: '1', label: '1张' },
-    { value: '2', label: '2张' },
-    { value: '4', label: '4张' }
-  ];
-  var DIALOG_QUALITY_OPTIONS = [
-    { value: '1k', label: '1K' },
-    { value: '2k', label: '2K' },
-    { value: '4k', label: '4K' }
-  ];
-  var DIALOG_RATIO_OPTIONS = [
-    { value: '1:1', label: '1:1' },
-    { value: '2:3', label: '2:3' },
-    { value: '3:2', label: '3:2' },
-    { value: '3:4', label: '3:4' },
-    { value: '4:3', label: '4:3' },
-    { value: '4:5', label: '4:5' },
-    { value: '5:4', label: '5:4' },
-    { value: '9:16', label: '9:16' },
-    { value: '16:9', label: '16:9' },
-    { value: '1:2', label: '1:2' },
-    { value: '2:1', label: '2:1' },
-    { value: '9:21', label: '9:21' },
-    { value: '21:9', label: '21:9' }
-  ];
 
   function isCanvasPage() {
     return /^\/canvas(\/|$)/.test(window.location.pathname || '');
@@ -75,35 +50,6 @@
     });
   }
 
-  function optionLabel(options, value, fallback) {
-    var match = options.find(function (item) { return item.value === value; });
-    return match ? match.label : fallback;
-  }
-
-  function ratioShapeStyle(value, options) {
-    var parts = String(value || '1:1').split(':');
-    var w = Math.max(1, Number(parts[0]) || 1);
-    var h = Math.max(1, Number(parts[1]) || 1);
-    var max = Number(options && options.max) || 24;
-    var min = Number(options && options.min) || 8;
-    var width = max;
-    var height = max;
-    if (w >= h) {
-      height = Math.max(min, Math.round(max * (h / w)));
-    } else {
-      width = Math.max(min, Math.round(max * (w / h)));
-    }
-    var color = options && options.active ? '#ff8a1f' : '#94a3b8';
-    return [
-      'display:inline-block',
-      'width:' + width + 'px',
-      'height:' + height + 'px',
-      'border:1.5px solid ' + color,
-      'background:rgba(255,255,255,0.35)',
-      'box-sizing:border-box'
-    ].join(';');
-  }
-
   function uuid(prefix) {
     return (prefix || 'flow') + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
   }
@@ -114,181 +60,37 @@
     return Math.max(min, Math.min(max, num));
   }
 
-  function closeDialogMenu(root) {
-    if (!root) return;
-    var menu = root.querySelector('.hjm-dialog-agent-menu');
-    root.classList.remove('is-menu-open');
-    root.removeAttribute('data-open-param');
-    Array.from(root.querySelectorAll('[data-hjm-dialog-param]')).forEach(function (button) {
-      button.setAttribute('aria-expanded', 'false');
-    });
-    if (menu) {
-      menu.hidden = true;
-      menu.innerHTML = '';
-      menu.removeAttribute('data-param');
-      menu.className = 'hjm-dialog-agent-menu';
-      menu.removeAttribute('style');
-    }
-  }
-
-  function closeAllDialogMenus(exceptRoot) {
-    Array.from(document.querySelectorAll('.hjm-dialog-agent-settings')).forEach(function (root) {
-      if (root !== exceptRoot) closeDialogMenu(root);
-    });
-  }
-
-  function refreshDialogSettings(root) {
-    if (!root) return;
-    var count = String(root.dataset.imageCount || '1');
-    var quality = String(root.dataset.quality || '1k').toLowerCase();
-    var ratio = String(root.dataset.ratio || '1:1');
-    var countLabel = root.querySelector('[data-hjm-dialog-label="imageCount"]');
-    var qualityLabel = root.querySelector('[data-hjm-dialog-label="quality"]');
-    var ratioLabel = root.querySelector('[data-hjm-dialog-label="ratio"]');
-    var ratioIcon = root.querySelector('[data-hjm-dialog-ratio-icon]');
-    if (countLabel) countLabel.textContent = optionLabel(DIALOG_COUNT_OPTIONS, count, count + '张');
-    if (qualityLabel) qualityLabel.textContent = optionLabel(DIALOG_QUALITY_OPTIONS, quality, quality.toUpperCase());
-    if (ratioLabel) ratioLabel.textContent = ratio;
-    if (ratioIcon) ratioIcon.setAttribute('style', ratioShapeStyle(ratio, { max: 16, min: 6, active: true }));
-    Array.from(root.querySelectorAll('[data-hjm-dialog-param]')).forEach(function (button) {
-      var active = root.dataset.openParam === button.getAttribute('data-hjm-dialog-param');
-      button.classList.toggle('active', active);
-      button.setAttribute('aria-expanded', active ? 'true' : 'false');
-    });
-  }
-
-  function renderDialogMenu(root, param) {
-    var menu = root && root.querySelector('.hjm-dialog-agent-menu');
-    if (!menu) return;
-    var options = param === 'imageCount'
-      ? DIALOG_COUNT_OPTIONS
-      : param === 'quality'
-        ? DIALOG_QUALITY_OPTIONS
-        : DIALOG_RATIO_OPTIONS;
-    var current = param === 'imageCount'
-      ? String(root.dataset.imageCount || '1')
-      : param === 'quality'
-        ? String(root.dataset.quality || '1k').toLowerCase()
-        : String(root.dataset.ratio || '1:1');
-    var isRatio = param === 'ratio';
-    menu.className = 'hjm-dialog-agent-menu ' + (isRatio ? 'canvas-ratio-popover hjm-dialog-ratio-menu' : 'hjm-dialog-simple-menu');
-    menu.dataset.param = param;
-    menu.hidden = false;
-    if (isRatio) {
-      menu.style.left = '0px';
-      menu.style.bottom = 'calc(100% + 8px)';
-      menu.innerHTML = options.map(function (option) {
-        var active = current === option.value;
-        return [
-          '<button type="button" class="canvas-ratio-option hjm-dialog-ratio-option',
-          active ? ' active' : '',
-          '" data-hjm-dialog-option="' + escapeHtml(param) + '" data-value="' + escapeHtml(option.value) + '">',
-          '<span class="canvas-ratio-rect-wrap"><span style="' + ratioShapeStyle(option.value, { max: 24, min: 8, active: active }) + '"></span></span>',
-          '<span>' + escapeHtml(option.label) + '</span>',
-          '</button>'
-        ].join('');
-      }).join('');
-      return;
-    }
-    var button = root.querySelector('[data-hjm-dialog-param="' + param + '"]');
-    menu.style.left = (button && button.offsetLeft ? button.offsetLeft : 0) + 'px';
-    menu.style.bottom = 'calc(100% + 8px)';
-    menu.innerHTML = options.map(function (option) {
-      var active = current === option.value;
-      return [
-        '<button type="button" class="hjm-dialog-simple-option',
-        active ? ' active' : '',
-        '" data-hjm-dialog-option="' + escapeHtml(param) + '" data-value="' + escapeHtml(option.value) + '">',
-        escapeHtml(option.label),
-        '</button>'
-      ].join('');
-    }).join('');
-  }
-
-  function toggleDialogMenu(root, param) {
-    if (!root || !param) return;
-    if (root.dataset.openParam === param) {
-      closeDialogMenu(root);
-      return;
-    }
-    closeAllDialogMenus(root);
-    root.dataset.openParam = param;
-    root.classList.add('is-menu-open');
-    renderDialogMenu(root, param);
-    refreshDialogSettings(root);
-  }
-
-  function setDialogSetting(root, param, value) {
-    if (!root || !param) return;
-    if (param === 'imageCount') root.dataset.imageCount = String(clampNumber(value, 1, 4, 1));
-    if (param === 'quality') root.dataset.quality = String(value || '1k').toLowerCase();
-    if (param === 'ratio') root.dataset.ratio = String(value || '1:1');
-    closeDialogMenu(root);
-    refreshDialogSettings(root);
-  }
-
-  function ensureDialogSettings(panel) {
-    var mode = getActiveMode(panel);
-    var existing = panel && panel.querySelector('.hjm-dialog-agent-settings');
-    if (!panel || (mode !== '对话' && mode !== '视频')) {
-      if (existing) existing.remove();
-      return;
-    }
-    var row = panel.querySelector('.config-row.text-mode');
-    if (!row) return;
-    if (existing && existing.querySelector('[data-hjm-dialog-param]')) {
-      refreshDialogSettings(existing);
-      return;
-    }
-    if (existing) existing.remove();
-    var host = document.createElement('div');
-    host.className = 'hjm-dialog-agent-settings';
-    host.dataset.imageCount = '1';
-    host.dataset.quality = '1k';
-    host.dataset.ratio = '1:1';
-    host.innerHTML = [
-      '<button type="button" class="canvas-chat-control compact-control hjm-dialog-agent-param" title="张数" aria-expanded="false" data-hjm-dialog-param="imageCount">',
-      '<span class="control-text" data-hjm-dialog-label="imageCount">1张</span><span class="control-chevron">⌄</span>',
-      '</button>',
-      '<button type="button" class="canvas-chat-control compact-control hjm-dialog-agent-param" title="清晰度" aria-expanded="false" data-hjm-dialog-param="quality">',
-      '<span class="control-text" data-hjm-dialog-label="quality">1K</span><span class="control-chevron">⌄</span>',
-      '</button>',
-      '<button type="button" class="canvas-chat-control compact-control ratio-control hjm-dialog-agent-param" title="比例" aria-expanded="false" data-hjm-dialog-param="ratio">',
-      '<span class="ratio-control-icon" data-hjm-dialog-ratio-icon></span><span class="control-text" data-hjm-dialog-label="ratio">1:1</span><span class="control-chevron">⌄</span>',
-      '</button>',
-      '<div class="hjm-dialog-agent-menu" hidden></div>'
-    ].join('');
-    refreshDialogSettings(host);
-    var send = row.querySelector('.canvas-chat-send-btn.send-button');
-    row.insertBefore(host, send || null);
-  }
-
-  function ensureNativeParamSettings(panel) {
+  function cleanupInjectedSettings(panel) {
     if (!panel) return;
-    var row = panel.querySelector('.config-row:not(.text-mode)');
-    if (!row) return;
-    var controls = Array.from(row.querySelectorAll('.compact-control'));
-    var host = row.querySelector('.hjm-native-param-settings');
-    if (!controls.length) {
-      if (host) host.remove();
-      return;
-    }
-    if (!host) {
-      host = document.createElement('div');
-      host.className = 'hjm-native-param-settings';
-      row.insertBefore(host, controls[0]);
-    }
-    controls.forEach(function (control) {
-      if (control.parentElement !== host) host.appendChild(control);
+    Array.from(panel.querySelectorAll('.hjm-dialog-agent-settings')).forEach(function (node) {
+      node.remove();
     });
+    Array.from(panel.querySelectorAll('.hjm-native-param-settings')).forEach(function (host) {
+      Array.from(host.children).forEach(function (child) {
+        host.parentNode.insertBefore(child, host);
+      });
+      host.remove();
+    });
+  }
+
+  function controlValue(panel, title, fallback) {
+    var row = panel && panel.querySelector('.config-row');
+    var button = row && row.querySelector('.compact-control[title="' + title + '"]');
+    var text = (button && button.textContent ? button.textContent : '').replace(/\s+/g, ' ').trim();
+    return text || fallback;
   }
 
   function readDialogSettings(panel) {
-    ensureDialogSettings(panel);
-    var root = panel && panel.querySelector('.hjm-dialog-agent-settings');
-    var imageCount = clampNumber(root && root.dataset.imageCount, 1, 4, 1);
-    var quality = String((root && root.dataset.quality) || '1k').toLowerCase();
-    var ratio = String((root && root.dataset.ratio) || '1:1');
+    cleanupInjectedSettings(panel);
+    var countText = controlValue(panel, '张数', '1张');
+    var qualityText = controlValue(panel, '清晰度', '1K');
+    var ratioText = controlValue(panel, '比例', '1:1');
+    var countMatch = countText.match(/\d+/);
+    var qualityMatch = qualityText.match(/[124]\s*K/i);
+    var ratioMatch = ratioText.match(/\d+\s*:\s*\d+/);
+    var imageCount = clampNumber(countMatch && countMatch[0], 1, 4, 1);
+    var quality = String((qualityMatch && qualityMatch[0]) || '1K').replace(/\s+/g, '').toLowerCase();
+    var ratio = String((ratioMatch && ratioMatch[0]) || '1:1').replace(/\s+/g, '');
     return {
       imageCount: imageCount,
       count: imageCount,
@@ -656,30 +458,6 @@
 
   function handleClick(event) {
     setTimeout(function () { updateHints(document); }, 0);
-    var dialogOption = event.target && event.target.closest && event.target.closest('[data-hjm-dialog-option]');
-    if (dialogOption) {
-      event.preventDefault();
-      event.stopPropagation();
-      setDialogSetting(
-        dialogOption.closest('.hjm-dialog-agent-settings'),
-        dialogOption.getAttribute('data-hjm-dialog-option'),
-        dialogOption.getAttribute('data-value')
-      );
-      return;
-    }
-    var dialogParam = event.target && event.target.closest && event.target.closest('[data-hjm-dialog-param]');
-    if (dialogParam) {
-      event.preventDefault();
-      event.stopPropagation();
-      toggleDialogMenu(
-        dialogParam.closest('.hjm-dialog-agent-settings'),
-        dialogParam.getAttribute('data-hjm-dialog-param')
-      );
-      return;
-    }
-    if (!(event.target && event.target.closest && event.target.closest('.hjm-dialog-agent-settings'))) {
-      closeAllDialogMenus();
-    }
     var actionTarget = event.target && event.target.closest && event.target.closest('[data-hjm-prompt-flow-action]');
     if (actionTarget) {
       handleAction(event, actionTarget);
@@ -712,8 +490,7 @@
   function updateHints(root) {
     var panel = panelFromRoot(root);
     if (!panel) return;
-    ensureDialogSettings(panel);
-    ensureNativeParamSettings(panel);
+    cleanupInjectedSettings(panel);
     var existing = panel.querySelector('.hjm-prompt-flow-hint');
     if (!shouldHandle(panel)) {
       if (existing) existing.remove();

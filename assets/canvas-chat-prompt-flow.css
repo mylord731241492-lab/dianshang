@@ -10,159 +10,6 @@
   text-align: center;
 }
 
-.canvas-chat-panel .hjm-dialog-agent-settings,
-.canvas-chat-panel .hjm-native-param-settings {
-  grid-column: 1 / 5;
-  display: grid;
-  grid-template-columns: repeat(3, var(--hjm-chat-param-width, 76px));
-  align-items: center;
-  gap: 10px;
-}
-
-.canvas-chat-panel .hjm-dialog-agent-settings {
-  position: relative;
-  overflow: visible;
-}
-
-.canvas-chat-panel .hjm-dialog-agent-param {
-  display: inline-flex;
-  width: var(--hjm-chat-param-width, 76px) !important;
-  min-width: 0 !important;
-  height: 44px !important;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 138, 31, 0.18);
-  border-radius: 16px !important;
-  background: rgba(255, 255, 255, 0.76);
-  color: #2a1b10;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.72);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 850;
-  line-height: 1;
-  margin: 0 !important;
-  outline: none;
-  padding: 0 7px;
-  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
-  white-space: nowrap;
-}
-
-.canvas-chat-panel .hjm-dialog-agent-param:hover,
-.canvas-chat-panel .hjm-dialog-agent-param.active {
-  border-color: rgba(255, 138, 31, 0.62);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 20px rgba(255, 138, 31, 0.12);
-  transform: translateY(-1px);
-}
-
-.canvas-chat-panel .hjm-dialog-agent-param .control-text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.canvas-chat-panel .hjm-dialog-agent-param .control-chevron {
-  flex: 0 0 auto;
-  opacity: 0.62;
-}
-
-.canvas-chat-panel .hjm-dialog-agent-param .ratio-control-icon {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-}
-
-.canvas-chat-panel .hjm-dialog-agent-menu {
-  position: absolute;
-  z-index: 80;
-}
-
-.canvas-chat-panel .hjm-dialog-agent-menu[hidden] {
-  display: none !important;
-}
-
-.canvas-chat-panel .hjm-dialog-simple-menu {
-  display: flex;
-  width: var(--hjm-chat-param-width, 76px);
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
-  background: #3f3f46;
-  box-shadow: 0 14px 34px rgba(17, 24, 39, 0.28);
-  padding: 8px 0;
-}
-
-.canvas-chat-panel .hjm-dialog-simple-option {
-  min-height: 34px;
-  border: 0;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.86);
-  cursor: pointer;
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1;
-  padding: 0 14px;
-  text-align: left;
-}
-
-.canvas-chat-panel .hjm-dialog-simple-option:hover,
-.canvas-chat-panel .hjm-dialog-simple-option.active {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
-}
-
-.canvas-chat-panel .hjm-dialog-ratio-menu {
-  display: grid;
-  width: min(320px, calc(100vw - 36px));
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  border: 1px solid rgba(255, 138, 31, 0.18);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 18px 50px rgba(31, 23, 16, 0.18);
-  padding: 10px;
-}
-
-.canvas-chat-panel .hjm-dialog-ratio-option {
-  display: flex;
-  min-width: 0;
-  height: 64px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1px solid rgba(255, 138, 31, 0.14);
-  border-radius: 12px;
-  background: rgba(255, 247, 237, 0.72);
-  color: rgba(42, 27, 16, 0.72);
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 850;
-  outline: none;
-  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
-}
-
-.canvas-chat-panel .hjm-dialog-ratio-option:hover,
-.canvas-chat-panel .hjm-dialog-ratio-option.active {
-  border-color: rgba(255, 138, 31, 0.62);
-  background: #fff;
-  color: #a8550c;
-  transform: translateY(-1px);
-}
-
-.canvas-chat-panel .hjm-dialog-ratio-option .canvas-ratio-rect-wrap {
-  display: inline-flex;
-  width: 30px;
-  height: 24px;
-  align-items: center;
-  justify-content: center;
-}
-
 .canvas-chat-panel .hjm-prompt-flow-settings-line {
   margin-top: 8px;
   color: #64748b;
@@ -173,7 +20,7 @@
 
 .canvas-chat-panel .composer .config-row {
   --hjm-chat-icon-width: 44px;
-  --hjm-chat-param-width: 76px;
+  --hjm-chat-param-width: 82px;
   display: grid !important;
   grid-template-columns:
     var(--hjm-chat-icon-width)
@@ -201,6 +48,7 @@
 
 .canvas-chat-panel .composer .config-row .model-control {
   grid-column: 2 / -1;
+  grid-row: 1;
   width: 100% !important;
   min-width: 0 !important;
   height: 44px !important;
@@ -223,7 +71,19 @@
   margin: 0 !important;
 }
 
+.canvas-chat-panel .composer .config-row .compact-control[title="张数"] {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.canvas-chat-panel .composer .config-row .compact-control[title="清晰度"] {
+  grid-column: 2;
+  grid-row: 2;
+}
+
 .canvas-chat-panel .composer .config-row .ratio-control {
+  grid-column: 3;
+  grid-row: 2;
   width: var(--hjm-chat-param-width) !important;
 }
 
@@ -416,39 +276,6 @@
 .dark .canvas-chat-panel .hjm-prompt-flow-hint {
   background: transparent;
   color: #000;
-}
-
-.dark .canvas-chat-panel .hjm-dialog-agent-param {
-  border-color: rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-  box-shadow: none;
-}
-
-.dark .canvas-chat-panel .hjm-dialog-agent-param:hover,
-.dark .canvas-chat-panel .hjm-dialog-agent-param.active {
-  border-color: rgba(255, 181, 69, 0.58);
-  background: rgba(255, 255, 255, 0.21);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
-}
-
-.dark .canvas-chat-panel .hjm-dialog-ratio-menu {
-  border-color: rgba(255, 255, 255, 0.12);
-  background: rgba(18, 18, 18, 0.96);
-  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.45);
-}
-
-.dark .canvas-chat-panel .hjm-dialog-ratio-option {
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.dark .canvas-chat-panel .hjm-dialog-ratio-option:hover,
-.dark .canvas-chat-panel .hjm-dialog-ratio-option.active {
-  border-color: rgba(255, 181, 69, 0.58);
-  background: rgba(255, 255, 255, 0.14);
-  color: #ffcf78;
 }
 
 .dark .canvas-chat-panel .hjm-prompt-flow-summary {

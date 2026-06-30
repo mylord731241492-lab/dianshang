@@ -1712,3 +1712,10 @@
 - 完成内容：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260630dialogagent5`；对话和视频底部参数改为旧式 `canvas-chat-control compact-control` 风格按钮，不再使用原生 `select`。`张数`、`清晰度` 菜单恢复为深色竖向浮层，`比例` 菜单恢复为浅色比例卡片网格。
 - 快速模式：保留旧 Canvas Chat 原生快速控件，只做布局归组，避免重复、挤压和与对话参数状态串用。
 - 边界：只修旧画布桥接层和入口缓存版本，不改后端 Provider、不触发真实生图、不改旧 Canvas 主 bundle。
+
+## 2026-06-30 Canvas Chat 参数控件去桥接层修复
+
+- 触发背景：用户复核指出 `dialogagent5` 仍是桥接层自造控件，且快速模式参数按钮仍然重叠。
+- 完成内容：`assets/Canvas-B8bY9_QL.js` 和 `assets/Canvas-yGc8b2gf.js` 将 Canvas Chat 原生参数控件从“仅快速模式渲染”改为三种模式都渲染；`assets/canvas-chat-prompt-flow.js` 升级为 `20260630dialogagent6`，撤掉 `hjm-dialog-agent-settings`/`hjm-native-param-settings` 注入逻辑，只清理旧残留并读取旧控件文本。
+- 布局修复：`assets/canvas-chat-prompt-flow.css` 不再包裹和移动快速模式控件，只固定旧组件自身的网格位置：上传+模型在第一行，`张数 / 清晰度 / 比例` 在第二行，避免按钮重叠。
+- 边界：未改后端 Provider、未触发真实生图；本轮触及旧 Canvas bundle，但只改参数控件渲染开关和桥接布局。

@@ -33,8 +33,13 @@ const AI_TEXT_MODEL = process.env.AI_TEXT_MODEL || 'gpt-5.5';
 const AI_PROVIDER_GATEWAY = process.env.AI_PROVIDER_GATEWAY || 'new-api';
 const NEW_API_BASE = process.env.NEW_API_BASE || AI_API_BASE;
 const NEW_API_KEY = process.env.NEW_API_KEY || process.env.AI_API_KEY || AI_TEXT_KEY;
-const PROVIDER_TIMEOUT_MS = Number(process.env.PROVIDER_TIMEOUT_MS || 30000);
-const IMAGE_PROVIDER_TIMEOUT_MS = Number(process.env.IMAGE_PROVIDER_TIMEOUT_MS || process.env.PROVIDER_IMAGE_TIMEOUT_MS || 180000);
+const positiveNumber = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+const PROVIDER_TIMEOUT_MS = positiveNumber(process.env.PROVIDER_TIMEOUT_MS, 120000);
+const IMAGE_PROVIDER_TIMEOUT_MS = positiveNumber(process.env.IMAGE_PROVIDER_TIMEOUT_MS || process.env.PROVIDER_IMAGE_TIMEOUT_MS, 180000);
+const CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS = positiveNumber(process.env.CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS || process.env.PROVIDER_ANALYSIS_TIMEOUT_MS, PROVIDER_TIMEOUT_MS);
 const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : __dirname;
 const DB_PATH = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(DATA_DIR, 'data.db');
 const UPLOAD_DIR = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.join(__dirname, 'uploads');
@@ -670,20 +675,22 @@ async function callProviderChat(messages, options = {}) {
 
 async function callProviderResponses(input, options = {}) {
   const status = options.status || routeProviderStatus(options.route, 'text');
+  const timeoutMs = positiveNumber(options.timeoutMs, status.timeoutMs || PROVIDER_TIMEOUT_MS);
+  const requestStatus = { ...status, timeoutMs };
   const model = options.model || AI_TEXT_MODEL;
   if (!status.enabled) {
     return {
       success: true,
       mock: true,
-      provider: status,
+      provider: requestStatus,
       output_text: `本地 mock 回复：${String(input || 'ping').slice(0, 80)}`
     };
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), status.timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const requestUrl = joinProviderUrl(status.baseUrl, routeTextEndpoint(options.route));
+    const requestUrl = joinProviderUrl(requestStatus.baseUrl, routeTextEndpoint(options.route));
     const resp = await fetch(requestUrl, {
       method: 'POST',
       headers: {
@@ -699,18 +706,18 @@ async function callProviderResponses(input, options = {}) {
         success: false,
         code: 'PROVIDER_RESPONSES_FAILED',
         message: data.message || data.error?.message || `Provider returned ${resp.status}`,
-        provider: status,
+        provider: requestStatus,
         upstreamStatus: resp.status,
         upstream: data
       };
     }
-    return { success: true, provider: status, ...data };
+    return { success: true, provider: requestStatus, ...data };
   } catch (error) {
     return {
       success: false,
       code: error.name === 'AbortError' ? 'PROVIDER_TIMEOUT' : 'PROVIDER_REQUEST_FAILED',
-      message: error.name === 'AbortError' ? 'AI Provider 请求超时' : `AI Provider 调用失败: ${error.message}`,
-      provider: status
+      message: error.name === 'AbortError' ? `AI Provider 请求超时（已等待 ${Math.round(timeoutMs / 1000)} 秒）` : `AI Provider 调用失败: ${error.message}`,
+      provider: requestStatus
     };
   } finally {
     clearTimeout(timer);
@@ -1751,12 +1758,20 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
   }
 
   const analysisInput = buildCanvasDialogAgentInput(requirement, analysisReferences);
-  const textResult = await callProviderResponses(analysisInput, { route: textRoute, model: textModel });
+  const textResult = await callProviderResponses(analysisInput, {
+    route: textRoute,
+    model: textModel,
+    timeoutMs: CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS
+  });
   if (!textResult.success) {
+    const analysisTimedOut = textResult.code === 'PROVIDER_TIMEOUT';
     return res.status(502).json({
       success: false,
-      code: textResult.code || 'CANVAS_DIALOG_ANALYSIS_FAILED',
-      message: textResult.message || 'GPT 5.5 分析失败，请稍后重试',
+      code: analysisTimedOut ? 'CANVAS_DIALOG_ANALYSIS_TIMEOUT' : (textResult.code || 'CANVAS_DIALOG_ANALYSIS_FAILED'),
+      message: analysisTimedOut
+        ? `GPT 5.5 分析超时（已等待 ${Math.round(CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS / 1000)} 秒），请稍后重试或减少参考图/提示词长度`
+        : (textResult.message || 'GPT 5.5 分析失败，请稍后重试'),
+      stage: 'analysis',
       provider: textResult.provider,
       analysisCost,
       imageCost,

@@ -2342,3 +2342,17 @@
 
 - 强刷当前画布后，用真实登录态在 `对话` 标签上传参考图并输入需求，确认前端依次显示分析、生成、结果，并且结果图自动落到画布。
 - 真实 Provider 模式下点击会产生 GPT 5.5 和 GPT Image 2 上游调用及算力扣除；本轮自动验证只跑 mock，不做真实付费点测。
+
+## 2026-06-30 Canvas Chat 对话 Agent GPT 5.5 超时复核
+
+### 已确认
+
+- 用户截图中的上游后台记录显示 GPT 5.5 请求耗时可达 42 秒；后端此前文本 Provider 默认超时为 30 秒。
+- 本地超时由 `callProviderResponses` 的 `AbortController` 主动触发；上游记录存在不代表本地仍能拿到响应，Provider 可能在连接断开后继续完成并记账。
+- 已将文本 Provider 默认等待时间调为 120 秒，并让对话 Agent 分析阶段显式传入 `CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS`。
+- 分析阶段再次超时时，后端返回 `CANVAS_DIALOG_ANALYSIS_TIMEOUT`、`stage: analysis` 和明确文案，避免继续显示泛化的 “AI Provider 请求超时”。
+
+### 需要继续验证
+
+- 真实登录态下再次发起对话 Agent 生图，确认 42 秒级 GPT 5.5 分析能正常进入后续 GPT Image 2 生图阶段。
+- 若 GPT 5.5 超过 120 秒仍超时，需要再评估是否改为异步任务轮询，避免 HTTP 长连接等待。

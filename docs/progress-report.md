@@ -1676,3 +1676,11 @@
 - 边界：快速模式保持旧的快速生图逻辑，不走 GPT 5.5 分析；视频模式不改；不改 Provider 配置，不主动触发真实 GPT 5.5 或 GPT Image 2 付费测试。
 - 验证方式：`node --check "F:\dianshang\server.js"`；`node --check "F:\dianshang\assets\canvas-chat-prompt-flow.js"`；两个旧 Canvas bundle 语法检查；`node "F:\dianshang\scripts\verify-canvas-performance-assets.js"`；`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-backend-canvas-boundary.ps1"`；`git -C "F:\dianshang" diff --check`；触达文本文件 BOM 检查。
 - 验证结果：上述语法检查、资产校验、backend/canvas boundary smoke 和 disposable API smoke 均通过；boundary smoke 确认新入口未登录为 `401`，mock 登录后返回 `analysisSummary/finalPrompt/resultImages`，成本字段为 `analysisCost=5`、`imageCost=10`、`totalCost=15`；`diff --check` 仅有既有 CRLF 提示，触达文本文件 BOM 均为 false。
+
+## 2026-06-30 Canvas Chat 对话 Agent GPT 5.5 超时修复
+
+- 触发背景：真实 Provider 后台可看到 GPT 5.5 请求记录，且耗时出现 42 秒，但旧画布对话卡片仍显示 “AI Provider 请求超时”。
+- 定位结论：后端文本 Provider 默认 `PROVIDER_TIMEOUT_MS` 为 30 秒；上游即使在本地 fetch abort 后继续完成并记账，本地也已经收不到响应，因此出现“后台有记录但前端超时”的现象。
+- 完成内容：将文本 Provider 默认等待时间提高到 120 秒；`callProviderResponses` 支持单次 `timeoutMs` 覆盖；`/api/canvas/dialog-agent-generate` 的 GPT 5.5 分析阶段显式使用 `CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS`，超时时返回 `CANVAS_DIALOG_ANALYSIS_TIMEOUT` 和 `stage: analysis`，前端可明确知道是分析阶段超时。
+- 边界：不改 Provider 配置、不改 API Key、不触发真实 GPT 5.5 或 GPT Image 2 测试；本地余额仍只在端到端成功后扣除，但上游在本地超时后是否继续记账取决于 Provider。
+- 验证方式：`node --check "F:\dianshang\server.js"`；`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-backend-canvas-boundary.ps1"`；`powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-api-disposable.ps1"`；浏览器刷新旧画布入口确认可打开。

@@ -1719,3 +1719,10 @@
 - 完成内容：`assets/Canvas-B8bY9_QL.js` 和 `assets/Canvas-yGc8b2gf.js` 将 Canvas Chat 原生参数控件从“仅快速模式渲染”改为三种模式都渲染；`assets/canvas-chat-prompt-flow.js` 升级为 `20260630dialogagent6`，撤掉 `hjm-dialog-agent-settings`/`hjm-native-param-settings` 注入逻辑，只清理旧残留并读取旧控件文本。
 - 布局修复：`assets/canvas-chat-prompt-flow.css` 不再包裹和移动快速模式控件，只固定旧组件自身的网格位置：上传+模型在第一行，`张数 / 清晰度 / 比例` 在第二行，避免按钮重叠。
 - 边界：未改后端 Provider、未触发真实生图；本轮触及旧 Canvas bundle，但只改参数控件渲染开关和桥接布局。
+
+## 2026-06-30 Canvas Chat 快速参数按钮对齐修复
+
+- 触发背景：用户再次确认最终要求：快速模式设置按钮必须对齐不重叠，同时把快速模式同一套设置控件放到对话模式。
+- 完成内容：`assets/canvas-chat-prompt-flow.css` 将底部设置区改为 3 个完整参数列 + 余量列，第二行 `1张 / 1K / 1:1` 各占完整 96px 列，避免第一列沿用上传按钮 44px 宽度导致溢出重叠。
+- 入口版本：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260630dialogagent7`，HTML 入口和 boundary smoke 同步更新；旧 Canvas 原生控件渲染开关仍沿用 `dialogagent6` 的改动。
+- 边界：不再新增桥接控件，不改 Provider，不触发真实生图。

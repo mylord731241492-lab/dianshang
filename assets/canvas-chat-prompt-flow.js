@@ -1,5 +1,5 @@
 (function () {
-  var FLOW_VERSION = '20260630prompt3';
+  var FLOW_VERSION = '20260630prompt4';
   var state = {
     busy: false,
     drafts: {},
@@ -318,7 +318,7 @@
     if (!composer) return;
     var hint = document.createElement('div');
     hint.className = 'hjm-prompt-flow-hint';
-    hint.textContent = '对话模式：只生成可编辑提示词；生图请切到快速模式手动生成。';
+    hint.textContent = '对话仅生成提示词，生图请到快速模式。';
     composer.insertBefore(hint, composer.firstChild);
   }
 

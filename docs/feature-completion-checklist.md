@@ -197,3 +197,10 @@
 - `/api/canvas/dialog-agent-generate` 支持管理员诊断参数 `debugAnalysisOnly:true`，仅跑 GPT 5.5 分析，不进入 GPT Image 2 生图。
 - 诊断返回 `parseOk`、`finalPrompt`、`extractedTextLength`、`extractedTextPreview` 和脱敏后的 `responseShape`，用于定位真实上游返回结构。
 - backend/canvas boundary smoke 已覆盖 mock 下的 analysis-only 响应，确认不影响正常对话 Agent mock 成功路径。
+
+## 2026-06-30 Canvas Chat New API 文本端点清单追加
+
+- New API 文本线路下 `callProviderResponses` 改用 `/chat/completions` 获取 GPT 5.5 提示词，避免 `/responses` 扣费但 `output=[]`。
+- Responses 风格输入会自动转换为 Chat Completions `messages`，支持 `input_text` 和 `input_image`。
+- JSON 解析已支持从重复 JSON 输出中提取第一个完整对象，保证 `analysisSummary/finalPrompt` 干净可用。
+- 入口版本升级为 `assets/canvas-chat-prompt-flow.js/css?v=20260630dialogagent9`。

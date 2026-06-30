@@ -1765,3 +1765,11 @@
 - 完成内容：`/api/canvas/dialog-agent-generate` 增加管理员诊断参数 `debugAnalysisOnly:true`；该模式只执行 GPT 5.5 分析并返回 `parseOk/finalPrompt/extractedTextLength/responseShape`，不会调用 GPT Image 2，不扣本地余额。
 - 安全处理：`responseShape` 只返回字段形状和字符串长度，并对 `key/token/secret/authorization/password` 类字段做 redacted，不返回 API Key。
 - 验证方式：`node --check server.js`、`scripts/check-provider-text-extraction.js`、Packy GPT Image 2 尺寸/入口覆盖脚本、`scripts/smoke-backend-canvas-boundary.ps1`、`scripts/smoke-api-disposable.ps1` 均通过；真实 GPT 5.5 诊断调用需用户确认上游消耗后再执行。
+
+## 2026-06-30 Canvas Chat 对话 Agent New API 文本端点修复
+
+- 触发背景：真实 New API 消费日志能看到 GPT 5.5 请求扣费，但前端仍提示 “GPT 5.5 未返回可用的生图提示词”；用户指出当前问题是出提示词，不是 GPT Image 2 生图。
+- 定位结论：同一条 New API 文本线路下，`/responses` 对字符串输入返回 `400 openai_error`，对 message array 返回 `200 completed` 但 `output=[]`；而 `/chat/completions` 能正常返回 `choices[0].message.content`。
+- 完成内容：`callProviderResponses` 在 New API 文本线路下改走 `/chat/completions`，并把 Responses 风格输入自动转换为 Chat Completions `messages`；`input_text` 转为 `text`，`input_image` 转为 `image_url`。
+- 解析修复：`parseJsonObjectFromText` 改为扫描首个完整 JSON 对象，兼容 GPT 5.5 偶发重复输出两个 JSON 的情况；前端桥接版本升级为 `20260630dialogagent9`。
+- 验证结果：用真实 GPT 5.5 analysis-only 诊断测试同一张参考图和“把图1改为详情页长图”，返回 `textEndpoint=chat/completions`、`parseOk=true`、`extractedTextLength=1615`，并得到干净 `analysisSummary/finalPrompt`；未触发 GPT Image 2 生图。

@@ -289,6 +289,11 @@ function routeTextEndpoint(route = {}) {
   return candidates.find(value => /\/responses\b/i.test(String(value))) || '/responses';
 }
 
+function routeTextChatEndpoint(route = {}) {
+  const candidates = [route.chatEndpoint, route.endpoint, route.requestPath].filter(Boolean);
+  return candidates.find(value => /\/chat\/completions\b/i.test(String(value))) || '/chat/completions';
+}
+
 function routeImageGenerationEndpoint(route = {}) {
   const candidates = [route.imageGenerationEndpoint, route.generationEndpoint, route.imageEndpoint, route.endpoint, route.requestPath].filter(Boolean);
   const generation = candidates.find(value => /\/images\/generations\b/i.test(String(value)));
@@ -499,6 +504,36 @@ function parseJsonObjectFromText(text = '') {
   const start = raw.indexOf('{');
   const end = raw.lastIndexOf('}');
   if (start >= 0 && end > start) candidates.push(raw.slice(start, end + 1));
+  for (let i = 0; i < raw.length; i += 1) {
+    if (raw[i] !== '{') continue;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let j = i; j < raw.length; j += 1) {
+      const char = raw[j];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (char === '\\') {
+          escaped = true;
+        } else if (char === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (char === '"') {
+        inString = true;
+      } else if (char === '{') {
+        depth += 1;
+      } else if (char === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          candidates.push(raw.slice(i, j + 1));
+          break;
+        }
+      }
+    }
+  }
   for (const candidate of candidates) {
     try {
       const parsed = JSON.parse(candidate);
@@ -750,6 +785,37 @@ async function callProviderChat(messages, options = {}) {
   }
 }
 
+function responsesInputToChatMessages(input) {
+  if (typeof input === 'string') return [{ role: 'user', content: input }];
+  if (!Array.isArray(input)) {
+    return [{ role: 'user', content: String(input || '') }];
+  }
+  return input.map((message) => {
+    const role = ['system', 'user', 'assistant'].includes(message?.role) ? message.role : 'user';
+    const content = Array.isArray(message?.content)
+      ? message.content.map((item) => {
+        if (typeof item === 'string') return { type: 'text', text: item };
+        const type = String(item?.type || '').toLowerCase();
+        if (type === 'input_image' || type === 'image_url') {
+          const url = item.image_url || item.imageUrl || item.url || item.dataUrl || '';
+          return url ? { type: 'image_url', image_url: { url } } : null;
+        }
+        if (type === 'input_text' || type === 'text') {
+          return { type: 'text', text: String(item.text || item.value || '') };
+        }
+        if (item?.text || item?.value) return { type: 'text', text: String(item.text || item.value) };
+        return null;
+      }).filter(Boolean)
+      : String(message?.content || '');
+    return { role, content };
+  });
+}
+
+function shouldUseChatForTextRoute(route = {}, status = {}) {
+  if (String(route.chatEndpoint || '').includes('/chat/completions')) return true;
+  return String(status.gateway || '').toLowerCase() === 'new-api';
+}
+
 async function callProviderResponses(input, options = {}) {
   const status = options.status || routeProviderStatus(options.route, 'text');
   const timeoutMs = positiveNumber(options.timeoutMs, status.timeoutMs || PROVIDER_TIMEOUT_MS);
@@ -767,28 +833,32 @@ async function callProviderResponses(input, options = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const requestUrl = joinProviderUrl(requestStatus.baseUrl, routeTextEndpoint(options.route));
+    const useChat = shouldUseChatForTextRoute(options.route, requestStatus);
+    const requestUrl = joinProviderUrl(requestStatus.baseUrl, useChat ? routeTextChatEndpoint(options.route) : routeTextEndpoint(options.route));
+    const requestBody = useChat
+      ? { model, messages: responsesInputToChatMessages(input), stream: false }
+      : { model, input };
     const resp = await fetch(requestUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${providerAuthKey('text', options.route)}`
       },
-      body: JSON.stringify({ model, input }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal
     });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {
       return {
         success: false,
-        code: 'PROVIDER_RESPONSES_FAILED',
+        code: useChat ? 'PROVIDER_CHAT_FAILED' : 'PROVIDER_RESPONSES_FAILED',
         message: data.message || data.error?.message || `Provider returned ${resp.status}`,
         provider: requestStatus,
         upstreamStatus: resp.status,
         upstream: data
       };
     }
-    return { success: true, provider: requestStatus, ...data };
+    return { success: true, provider: { ...requestStatus, textEndpoint: useChat ? 'chat/completions' : 'responses' }, ...data };
   } catch (error) {
     return {
       success: false,

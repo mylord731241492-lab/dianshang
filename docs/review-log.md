@@ -2501,3 +2501,17 @@
 
 - 待用户确认允许一次真实 GPT 5.5 上游调用后，用诊断模式跑当前失败请求，查看 `responseShape` 和 `extractedTextPreview`。
 - 如果 `parseOk=false` 且 `responseShape` 显示新的字段路径，把该结构加入 `scripts/check-provider-text-extraction.js` 再修复。
+
+## 2026-06-30 Canvas Chat New API 文本端点复核
+
+### 已确认
+
+- 本轮真实 API 对照显示：New API 的 `gpt-5.5 /responses` 会产生消费但可能返回 `completed + output=[]`，导致本地拿不到提示词。
+- 同一条文本线路改用 `/chat/completions` 后能正常返回 `choices[0].message.content`，并且支持把参考图按 `image_url` 传给 GPT 5.5。
+- `callProviderResponses` 现保留函数名以减少影响面，但 New API 文本线路内部走 Chat Completions；普通非 New API 路线仍保留 Responses 逻辑。
+- `parseJsonObjectFromText` 已兼容连续两个 JSON 对象，只取第一个完整对象，避免把重复 JSON 整段塞进 `finalPrompt`。
+
+### 需要继续验证
+
+- 用户刷新旧画布后重新走对话模式，应先出现 GPT 5.5 生成的真实提示词并继续进入后续图片生成。
+- 后续如果 New API 后台把 GPT 5.5 路线切回真正可用的 `/responses`，再评估是否需要配置化端点选择。

@@ -1,5 +1,5 @@
 (function () {
-  var FLOW_VERSION = '20260630dialogagent8';
+  var FLOW_VERSION = '20260630dialogagent9';
   var state = {
     busy: false,
     runs: {},
@@ -293,7 +293,10 @@
     });
     var data = await response.json().catch(function () { return {}; });
     if (!response.ok || data.success === false) {
-      throw new Error(data.message || data.error || ('请求失败: ' + response.status));
+      var error = new Error(data.message || data.error || ('请求失败: ' + response.status));
+      error.data = data;
+      error.status = response.status;
+      throw error;
     }
     return data;
   }
@@ -362,7 +365,15 @@
       });
       images.forEach(function (image) { emitAddToCanvas(image, state.runs[flowId]); });
     } catch (error) {
-      updateAgent(flowId, { loading: false, failed: true, status: error.message || '对话 Agent 生成失败，请稍后重试。' });
+      var errorData = error && error.data || {};
+      updateAgent(flowId, {
+        loading: false,
+        failed: true,
+        status: error.message || '对话 Agent 生成失败，请稍后重试。',
+        analysisSummary: errorData.analysisSummary || '',
+        finalPrompt: errorData.finalPrompt || errorData.prompt || '',
+        totalCost: 0
+      });
     } finally {
       window.clearTimeout(generationTimer);
     }

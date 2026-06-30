@@ -21,12 +21,13 @@ function extractFunction(name, nextAnchor) {
 const sandbox = { module: { exports: {} } };
 vm.runInNewContext([
   extractFunction('firstString', 'function imageReferenceCandidates'),
+  extractFunction('parseJsonObjectFromText', 'function summarizeText'),
   extractFunction('normalizeProviderContentText', 'function imageToolOutputText'),
   extractFunction('imageToolOutputText', 'function imageToolSize'),
-  'module.exports = { imageToolOutputText };'
+  'module.exports = { imageToolOutputText, parseJsonObjectFromText };'
 ].join('\n'), sandbox);
 
-const { imageToolOutputText } = sandbox.module.exports;
+const { imageToolOutputText, parseJsonObjectFromText } = sandbox.module.exports;
 
 const cases = [
   {
@@ -87,5 +88,9 @@ for (const item of cases) {
   const text = imageToolOutputText(item.data);
   assert(text.includes(item.expected), `${item.label} failed: ${text}`);
 }
+
+const duplicateJson = '{"analysisSummary":"摘要1","finalPrompt":"提示词1"}\n{"analysisSummary":"摘要2","finalPrompt":"提示词2"}';
+const parsed = parseJsonObjectFromText(duplicateJson);
+assert(parsed && parsed.finalPrompt === '提示词1', `duplicate JSON parse failed: ${JSON.stringify(parsed)}`);
 
 console.log(`Provider text extraction passed: ${cases.length} cases`);

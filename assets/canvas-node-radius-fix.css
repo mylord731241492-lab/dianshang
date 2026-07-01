@@ -32,6 +32,31 @@
   overflow: hidden;
 }
 
+.vue-flow__node [data-hjm-node-title-lock="true"],
+.vue-flow__node .hjm-node-title-static,
+.vue-flow__node [title="双击编辑名称"] {
+  cursor: default !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  pointer-events: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.vue-flow__node [data-hjm-node-title-lock="true"]:hover,
+.vue-flow__node .hjm-node-title-static:hover,
+.vue-flow__node [title="双击编辑名称"]:hover {
+  background: transparent !important;
+}
+
+.vue-flow__node [data-hjm-node-title-lock="true"]::selection,
+.vue-flow__node .hjm-node-title-static::selection,
+.vue-flow__node [title="双击编辑名称"]::selection {
+  background: transparent !important;
+  color: inherit !important;
+}
+
 /* Canvas polish: keep the minimap and chat panel from fighting the dark board. */
 .vue-flow__minimap {
   overflow: hidden !important;

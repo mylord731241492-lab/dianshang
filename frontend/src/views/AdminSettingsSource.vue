@@ -42,11 +42,11 @@ const editableKeys = [
 const defaultImageTools = ['outpaint', 'reversePrompt', 'smartErase', 'inpaint'];
 
 const defaultEcommerceSkills: EcommerceSuiteSkillSetting[] = [
-  { id: 'gloria', name: 'Gloria', avatarUrl: '', description: '大厂王牌视觉设计师，精通电商详情页设计', enabled: true, markdown: '# Gloria\n大厂王牌视觉设计师，强调高转化、强识别和稳定商业质感。' },
-  { id: 'paload', name: 'Paload', avatarUrl: '', description: '多年资深高级美工，擅长智能研判复杂设计', enabled: true, markdown: '# Paload\n资深高级美工，擅长拆解参考图结构并迁移到用户产品。' },
-  { id: 'lumi', name: 'Lumi', avatarUrl: '', description: '资深电商设计师，构思严谨审美一流', enabled: true, markdown: '# Lumi\n资深电商设计师，偏柔和高级、生活方式和精致氛围。' },
-  { id: 'kira', name: 'Kira', avatarUrl: '', description: '设计行业老油条，思维发散质量稳定', enabled: true, markdown: '# Kira\n经验丰富的电商视觉设计师，强调醒目、直接和转化感。' },
-  { id: 'rayyu', name: 'RayYu', avatarUrl: '', description: '国字号视觉资深导师，创意无限', enabled: true, markdown: '# RayYu\n资深视觉导师，擅长创意概念、品牌叙事和高阶质感表达。' }
+  { id: 'gloria', name: 'Gloria', avatarUrl: '/assets/ecommerce-suite-skills/gloria-avatar.svg', description: '大厂王牌视觉设计师，精通电商详情页设计', enabled: true, markdown: '# Gloria\n大厂王牌视觉设计师，强调高转化、强识别和稳定商业质感。' },
+  { id: 'paload', name: 'Paload', avatarUrl: '/assets/ecommerce-suite-skills/paload-avatar.svg', description: '多年资深高级美工，擅长智能研判复杂设计', enabled: true, markdown: '# Paload\n资深高级美工，擅长拆解参考图结构并迁移到用户产品。' },
+  { id: 'lumi', name: 'Lumi', avatarUrl: '/assets/ecommerce-suite-skills/lumi-avatar.svg', description: '资深电商设计师，构思严谨审美一流', enabled: true, markdown: '# Lumi\n资深电商设计师，偏柔和高级、生活方式和精致氛围。' },
+  { id: 'kira', name: 'Kira', avatarUrl: '/assets/ecommerce-suite-skills/kira-avatar.svg', description: '设计行业老油条，思维发散质量稳定', enabled: true, markdown: '# Kira\n经验丰富的电商视觉设计师，强调醒目、直接和转化感。' },
+  { id: 'rayyu', name: 'RayYu', avatarUrl: '/assets/ecommerce-suite-skills/rayyu-avatar.svg', description: '国字号视觉资深导师，创意无限', enabled: true, markdown: '# RayYu\n资深视觉导师，擅长创意概念、品牌叙事和高阶质感表达。' }
 ];
 
 type EcommerceSuiteDefaults = NonNullable<EcommerceSuiteAgentSetting['defaults']>;

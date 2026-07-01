@@ -189,6 +189,7 @@
 }
 
 .canvas-chat-panel .hjm-suite-agent .hjm-suite-result-card {
+  position: relative;
   min-width: 0;
   margin: 0;
   overflow: hidden;
@@ -207,22 +208,43 @@
 }
 
 .canvas-chat-panel .hjm-suite-agent .hjm-suite-result-card figcaption {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  left: 10px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px 8px;
-  padding: 10px 12px 12px;
-  background: #fff;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(10px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.canvas-chat-panel .hjm-suite-agent .hjm-suite-result-card.is-success:hover figcaption,
+.canvas-chat-panel .hjm-suite-agent .hjm-suite-result-card.is-success:focus-within figcaption,
+.canvas-chat-panel .hjm-suite-agent .hjm-suite-result-card.is-success.is-action-open figcaption {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 .canvas-chat-panel .hjm-suite-agent .hjm-suite-result-card figcaption button {
-  min-height: 32px;
+  min-height: 30px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
   color: #201a16;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
+  padding: 5px 6px;
 }
 
 .canvas-chat-panel .hjm-suite-agent .hjm-suite-result-card figcaption button:hover:not(:disabled) {
@@ -409,7 +431,7 @@
   text-align: center;
 }
 
-.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-select {
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-picker {
   display: block;
   flex: 1 1 100%;
   position: relative;
@@ -417,39 +439,132 @@
   min-width: 0;
 }
 
-.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-select select {
-  appearance: none;
-  -webkit-appearance: none;
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-current {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 10px;
   width: 100%;
-  height: 44px;
+  min-height: 54px;
   border: 0;
   border-radius: 16px;
   background: #f7f7f8 !important;
   color: #201a16 !important;
   color-scheme: light;
+  cursor: pointer;
   font: inherit;
-  font-size: 13px;
-  font-weight: 900;
   box-shadow: inset 0 0 0 1px rgba(255, 138, 31, 0.16);
-  padding: 0 42px 0 14px;
+  padding: 7px 12px 7px 8px;
+  text-align: left;
 }
 
-.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-select select option {
-  background: #fff;
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-current:hover,
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-current:focus-visible {
+  box-shadow: inset 0 0 0 1px rgba(255, 138, 31, 0.34), 0 10px 24px rgba(255, 138, 31, 0.1);
+  outline: none;
+}
+
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-current img,
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-option img {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  object-fit: cover;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.12);
+}
+
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-current span,
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-option span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-current strong,
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-option strong {
+  overflow: hidden;
   color: #201a16;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-select::after {
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-current small,
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-option small {
+  overflow: hidden;
+  color: #6b625b;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-current i {
   position: absolute;
-  top: 50%;
-  right: 16px;
-  width: 8px;
-  height: 8px;
-  border-right: 2px solid #5f5a55;
-  border-bottom: 2px solid #5f5a55;
-  content: "";
-  pointer-events: none;
-  transform: translateY(-65%) rotate(45deg);
+  top: 19px;
+  right: 13px;
+  color: #8a8178;
+  font-size: 15px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1;
+  transition: transform 0.16s ease;
+}
+
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-picker.is-open .hjm-suite-skill-current i {
+  transform: rotate(180deg);
+}
+
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  gap: 6px;
+  max-height: 238px;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 138, 31, 0.2);
+  border-radius: 16px;
+  background: rgba(247, 247, 248, 0.98);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
+  padding: 8px;
+}
+
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-menu::before {
+  color: #6b625b;
+  content: "设计师";
+  font-size: 12px;
+  font-weight: 900;
+  padding: 2px 4px 4px;
+}
+
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-option {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  padding: 8px;
+  text-align: left;
+}
+
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-option:hover,
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-option.is-selected {
+  background: rgba(255, 138, 31, 0.12);
+}
+
+.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-option.is-selected {
+  box-shadow: inset 0 0 0 1px rgba(255, 138, 31, 0.24);
 }
 
 .canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-workflow {
@@ -572,7 +687,8 @@
   color: #f8fafc;
 }
 
-.dark .canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-select select {
+.dark .canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-current,
+.dark .canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-menu {
   background: #f7f7f8 !important;
   color: #201a16 !important;
   color-scheme: light;

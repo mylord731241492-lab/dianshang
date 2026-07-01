@@ -1877,5 +1877,23 @@
 
 - 触发背景：用户指出生成提示词后不需要展示标题、prompt 和负面词编辑区，只需要类似旧模板的板块选择卡并直接出图，且颜色应符合当前浅色画布 UI。
 - 完成内容：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260701suite15`；结果改为浅色两列选择卡，只展示动态板块名称，不再渲染 `套图模板` 标题；生图阶段按选中板块拆成独立并发请求，每次只提交一个 `promptPlan`，选中 4 个板块即直接发出 4 个单板块任务；成功图自动添加到画布，失败板块显示单独 `重新生成` 按钮；上游 `request id` 改为小字展示，卡片主错误文案压缩为“上游图生图请求失败”等可读短句；成功状态显示完整四按钮图片卡。
+- 追加调整：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260701suite16`；成功图四按钮从图片下方白色区域改为图片内部白色半透明浮层，hover/focus/触摸图片卡时显示，减少结果模块高度。
+- 追加调整：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260701suite17`；新增 Gloria / Paload / Lumi / Kira / RayYu 五个本地 SVG 头像，skill 选择从原生下拉改为浅色设计师头像列表，点击当前设计师展开列表，选中项用浅橙色高亮。
 - 护栏调整：`scripts/verify-canvas-performance-assets.js` 增加选择卡 DOM 锚点、禁止 `data-suite-plan-prompt/negative` 和 `hjm-suite-plan-heading` 回退、禁止黑底计划卡样式回退。
 - 边界：只改视频 tab 内电商套图 Agent 的结果卡与资产版本，不改 `对话 / 快速` 捕获逻辑，不触发真实 Provider。
+
+## 2026-07-01 图片节点卡片精简
+
+- 触发背景：用户指出画布 `图片节点` 卡片不够干净，顶部 `图片节点` 名称和 `正常` 状态也可以去掉。
+- 完成内容：`assets/canvas-image-node-polish.css` 清理图片节点视觉，隐藏图片节点顶部 header，不再显示节点名称和顶部状态徽标；同时隐藏底部重复 `正常` 状态栏；上传区高度由 270px 收到 230px，背景和阴影改轻。
+- 缓存与护栏：`index.html` 和旧画布边界 smoke 将 `canvas-image-node-polish` 查询串升级到 `20260701image10`；`scripts/verify-canvas-performance-assets.js` 增加图片节点 polish 资产读取、图片节点 header 隐藏和空态底部状态栏隐藏锚点。
+- 验证结果：`node --check` 后端、套图桥接和图片节点 polish 脚本通过；资产护栏、旧画布边界 smoke、`npm run build --prefix "F:\dianshang\frontend"`、`git diff --check` 和触达文件 BOM 检查均通过。浏览器已加载 `canvas-image-node-polish.js/css?v=20260701image10` 和 `canvas-node-radius-fix.css?v=20260701title1`；当前项目刷新后没有图片节点 DOM，未做真实节点视觉截图复核。
+- 边界：只改图片节点 polish 过渡层，不改旧 Canvas 主 bundle，不影响 `对话 / 快速 / 视频` 发送链路，不触发真实 Provider。
+
+## 2026-07-01 节点标题重命名入口关闭
+
+- 触发背景：用户指出节点卡片顶部标题区不应再像可重命名输入框，也不要被选中文字。
+- 完成内容：`assets/canvas-image-node-polish.js` 增加标题锁定扫描，把旧节点标题上的 `双击编辑名称` 移除并标记为 `data-hjm-node-title-lock="true"`；捕获并拦截标题区双击，避免进入旧重命名逻辑。
+- 样式调整：`assets/canvas-node-radius-fix.css` 增加通用节点标题锁定样式，移除 text cursor、hover 灰底和文字选择；资源查询串升级为 `canvas-image-node-polish?v=20260701image10` 与 `canvas-node-radius-fix.css?v=20260701title1`。
+- 护栏调整：`scripts/verify-canvas-performance-assets.js` 增加标题锁脚本、标题不可选 CSS 和新查询串断言；旧画布边界 smoke 同步新资源。
+- 边界：不改旧 Canvas 主 bundle，不移除节点本身的选中/拖拽能力，只关闭标题重命名和文本选中。

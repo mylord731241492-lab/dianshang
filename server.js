@@ -185,7 +185,7 @@ const defaultEcommerceSuiteSkills = [
   {
     id: 'gloria',
     name: 'Gloria',
-    avatarUrl: '',
+    avatarUrl: '/assets/ecommerce-suite-skills/gloria-avatar.svg',
     description: '大厂王牌视觉设计师，精通电商详情页设计',
     enabled: true,
     markdown: [
@@ -198,7 +198,7 @@ const defaultEcommerceSuiteSkills = [
   {
     id: 'paload',
     name: 'Paload',
-    avatarUrl: '',
+    avatarUrl: '/assets/ecommerce-suite-skills/paload-avatar.svg',
     description: '多年资深高级美工，擅长智能研判复杂设计',
     enabled: true,
     markdown: [
@@ -211,7 +211,7 @@ const defaultEcommerceSuiteSkills = [
   {
     id: 'lumi',
     name: 'Lumi',
-    avatarUrl: '',
+    avatarUrl: '/assets/ecommerce-suite-skills/lumi-avatar.svg',
     description: '资深电商设计师，构思严谨审美一流',
     enabled: true,
     markdown: [
@@ -224,7 +224,7 @@ const defaultEcommerceSuiteSkills = [
   {
     id: 'kira',
     name: 'Kira',
-    avatarUrl: '',
+    avatarUrl: '/assets/ecommerce-suite-skills/kira-avatar.svg',
     description: '设计行业老油条，思维发散质量稳定',
     enabled: true,
     markdown: [
@@ -237,7 +237,7 @@ const defaultEcommerceSuiteSkills = [
   {
     id: 'rayyu',
     name: 'RayYu',
-    avatarUrl: '',
+    avatarUrl: '/assets/ecommerce-suite-skills/rayyu-avatar.svg',
     description: '国字号视觉资深导师，创意无限',
     enabled: true,
     markdown: [

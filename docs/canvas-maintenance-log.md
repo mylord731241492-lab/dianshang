@@ -11,12 +11,12 @@
 
 | 资产 | 当前版本 | 说明 |
 | --- | --- | --- |
-| `assets/canvas-chat-prompt-flow.js/css` | `20260701suite15` | 对话 Agent 桥接、套图 Agent 视频 tab 接线、动态板块提示词、隐藏原生视频模型控件、参考图多槽、浅色板块选择卡、单板块独立并发生图任务、失败单独重试、失败 request id 精简展示和成功自动上画布 |
+| `assets/canvas-chat-prompt-flow.js/css` | `20260701suite17` | 对话 Agent 桥接、套图 Agent 视频 tab 接线、动态板块提示词、隐藏原生视频模型控件、参考图多槽、浅色设计师头像选择器、浅色板块选择卡、单板块独立并发生图任务、失败单独重试、失败 request id 精简展示、成功图内悬浮操作层和成功自动上画布 |
 | `assets/index-DglIsp_g.js` | `20260630dialogagent12` | 旧画布主入口缓存版本，指向会话隔离后的 Canvas chunk |
 | `assets/Canvas-B8bY9_QL.js` | `20260630dialogagent9` | 旧 Canvas Chat 原生参数控件 + 三模式会话隔离 |
 | `assets/Canvas-yGc8b2gf.js` | `20260630dialogagent9` | 旧 Canvas Chat 原生参数控件 + 三模式会话隔离 |
 | `assets/canvas-performance-mode.js/css` | `20260629perf5` | 旧画布性能过渡层 |
-| `assets/canvas-image-node-polish.js/css` | `20260629image7` | 图片节点显示与工具条 polish |
+| `assets/canvas-image-node-polish.js/css` | `20260701image10` | 图片节点显示与工具条 polish |
 | `assets/admin-api-source-route-bridge.js` | `20260629sourceapi1` | 旧后台到源码后台桥接 |
 
 ## 不可回退护栏
@@ -245,7 +245,7 @@
 
 ### 当前实现
 
-- `assets/canvas-chat-prompt-flow.js/css` 升级为 `20260701suite15`。
+- `assets/canvas-chat-prompt-flow.js/css` 升级为 `20260701suite17`。
 - 套图模式隐藏旧 Canvas Chat 原生视频模型控件，不再显示 `Seedance Pro`，请求体固定文本模型 `gpt-5.5`、图片模型 `gpt-image-2`。
 - 上传区改为 `产品图 + 参考图组`，参考图逐张显示独立槽位，最多 4 张，不再显示流程说明文字。
 - skill 下拉改为 100% 宽度，与下方文本输入框同列对齐。
@@ -259,6 +259,8 @@
 - 生图阶段按选中板块拆成多个独立请求，每次只向 `/api/canvas/ecommerce-suite/generate` 提交一个 `promptPlan`，由后端生成独立任务并分别扣费/记录。
 - 按用户确认的工作链，前端会立即并发发出多个单板块任务，不等待上一个板块生成完成。
 - 失败卡片精简上游错误展示：主文案显示可读短句，`request id` 以小字保留，原始错误保存在卡片 `title`。
+- 成功图片卡四个操作按钮改为图片内白色半透明浮层，hover/focus/触摸时显示，压缩结果卡高度。
+- 新增 `assets/ecommerce-suite-skills/*-avatar.svg` 五个本地设计师头像；前台 skill 选择从原生下拉改为浅色头像列表，选中项浅橙高亮。
 - 生图结果区改为任务卡：生成中显示 loading，失败显示单板块 `重新生成`，成功显示完整图片卡并自动添加到画布。
 - 后端 `/api/canvas/ecommerce-suite/prompts` 和 `/api/canvas/ecommerce-suite/generate` 增加产品图必填校验，Provider 和扣费仍走既有适配器。
 
@@ -287,6 +289,27 @@
 | `callProviderResponses` 名称 | New API 下实际走 Chat Completions | 后端模块化时重命名为 `callProviderText` |
 | 旧打包资产修补 | 当前不得继续扩大 | 仅阻塞级 bug 可短期修，复杂能力应先写边界 |
 | `image[]` 多参考图字段名 | 未做真实兼容性确认 | 用户确认额度后点测，必要时配置化 |
+
+## 2026-07-01 图片节点 polish 边界补充
+
+### 当前实现
+
+- `assets/canvas-image-node-polish.js/css` 升级到 `20260701image10`，只负责旧画布图片节点视觉清理。
+- 图片节点顶部 header 已隐藏，不再显示 `图片节点` 名称和右上 `正常` 徽标。
+- 空态图片节点隐藏底部状态栏，避免重复输出 `正常`。
+- 空态上传框收窄高度和阴影，减少卡片臃肿感；已加载图片节点仍保持图片主体优先。
+- `assets/canvas-node-radius-fix.css?v=20260701title1` 锁定通用节点标题，移除 text cursor、hover 灰底和文本选择。
+
+### 守护
+
+- `scripts/verify-canvas-performance-assets.js` 已纳入 `canvas-image-node-polish.js/css` 检查。
+- `scripts/smoke-backend-canvas-boundary.ps1` 已同步 `image10` 和 `title1` 资源查询串。
+
+### 禁止回退
+
+- 不要为图片节点另写独立节点实现。
+- 不要直接改旧 Canvas 主 bundle 来处理空态视觉。
+- 不要让图片节点重新显示顶部标题或顶部/底部 `正常` 文案。
 
 ## 下一轮修改前检查
 

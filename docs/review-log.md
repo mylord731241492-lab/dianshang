@@ -2669,9 +2669,28 @@
 - 生图链路仍使用后端返回的 `promptPlans[]`，勾选状态只决定哪些板块提交给 `/api/canvas/ecommerce-suite/generate`。
 - 生图提交已改为每个板块一个独立请求，4 个板块会形成 4 次后端 generate 调用；suite14 按用户确认的工作链恢复为前端立即并发发出多个单板块任务，不等待上一个完成。
 - suite15 只优化失败卡片展示：上游 `upstream error: do request failed (request id: ...)` 不再整段占满卡片，主文案压缩为“上游图生图请求失败”，request id 小字保留，原始错误放在卡片 title 中。
+- suite16 只优化成功卡片布局：图片下方四按钮白色区域改为图片内白色半透明浮层，hover/focus/触摸打开，压缩套图结果卡高度；不改变生图请求和自动上画布逻辑。
+- suite17 只优化 skill 选择体验：五个默认设计师补本地头像，前台从原生 select 改为浅色头像列表，后台默认 skill 也补 avatarUrl；不改变 prompts/generate 请求体和 skill Markdown 拼装逻辑。
 - 成功图片会自动触发旧画布 `canvas:add-generated-image-to-canvas` 事件；失败任务保留单板块重试按钮，重试成功后替换为完整图片卡。
 - 护栏新增禁止编辑字段和黑底卡片回退的断言，范围仍限制在 `视频 / 电商套图Agent` 模式。
 
 ### 需要继续验证
 
 - 需要在浏览器中用实际产品图、参考图和 skill 生成一次模板，人工确认卡片数量、名称和浅色视觉符合预期。
+
+## 2026-07-01 图片节点卡片精简复核
+
+### 已确认
+
+- 图片节点空态 DOM 中右上徽标和底部状态栏会同时输出 `正常`，重复文字来自底部 `.flex.h-8` 状态栏。
+- 用户后续明确要求顶部 `图片节点` 名称和顶部 `正常` 徽标也去掉，因此图片节点顶部 header 已整体隐藏。
+- 本轮只通过 `assets/canvas-image-node-polish.css` 精简图片节点卡片，没有改旧 Canvas 主 bundle。
+- `canvas-image-node-polish` 资源查询串已升级为 `20260701image10`，避免浏览器继续缓存旧空态样式。
+- 静态护栏已增加图片节点 polish 资产读取、`image10` 版本、图片节点 header 隐藏和空态底部状态栏隐藏选择器检查。
+- `assets/canvas-node-radius-fix.css?v=20260701title1` 负责通用节点标题锁定，移除 text cursor、hover 灰底和文本选择。
+- 验证已通过：后端/桥接/图片节点 polish 语法检查、资产护栏、旧画布边界 smoke、前端 build、`git diff --check` 和 BOM 检查。
+- 浏览器刷新后确认已加载 `canvas-image-node-polish.js/css?v=20260701image10` 和 `canvas-node-radius-fix.css?v=20260701title1`；当前项目刷新后没有图片节点 DOM 可做实时视觉断言。
+
+### 需要继续验证
+
+- 浏览器刷新后确认图片节点不再显示顶部 `图片节点` 名称和 `正常` 徽标，底部也不显示重复 `正常`。

@@ -22,7 +22,7 @@
 ### 对话模式
 
 - 入口：旧 Canvas Chat 的 `对话` 标签。
-- 前端桥接：`assets/canvas-chat-prompt-flow.js`，当前版本 `20260701suite15`。
+- 前端桥接：`assets/canvas-chat-prompt-flow.js`，当前版本 `20260701suite17`。
 - 后端接口：`POST /api/canvas/dialog-agent-generate`。
 - 编排流程：参考图和用户需求 -> GPT 5.5 分析 -> `analysisSummary/finalPrompt` -> GPT Image 2 生图 -> 对话结果卡 -> 自动落到画布。
 - 文本线路：New API 网关下 GPT 5.5 使用 `/chat/completions`，不是 `/responses`。
@@ -79,6 +79,7 @@
 
 - 修复旧画布阻塞级 bug。
 - 调整旧画布桥接层样式、缓存版本和小范围 DOM 接线。
+- 调整图片节点视觉时优先使用 `assets/canvas-image-node-polish.js/css` 过渡层，不直接改旧 Canvas 主 bundle。
 - 在 `server.js` 现有 Provider Adapter 内补齐参数映射、返回解析和边界错误。
 - 增加不会触发真实付费调用的 smoke、静态检查和文档。
 - 更新 `docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md` 和本文件。

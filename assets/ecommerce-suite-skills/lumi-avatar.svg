@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Lumi avatar">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dbeafe"/>
+      <stop offset="1" stop-color="#bae6fd"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="30" fill="url(#bg)"/>
+  <path d="M28 60c0-24 16-41 38-41s33 17 31 42c-15-21-47-20-69-1z" fill="#3b2f2f"/>
+  <circle cx="62" cy="62" r="31" fill="#ffd4ad"/>
+  <path d="M31 61c6-28 22-39 46-36 13 9 19 22 18 38-15-18-43-22-64-2z" fill="#2f2626"/>
+  <circle cx="50" cy="68" r="4" fill="#3b2f2f"/>
+  <circle cx="75" cy="68" r="4" fill="#3b2f2f"/>
+  <path d="M54 91c7 6 18 6 25 0" fill="none" stroke="#b4532d" stroke-width="4" stroke-linecap="round"/>
+  <path d="M25 105c8-18 22-27 39-27s31 9 39 27" fill="#2563eb"/>
+  <path d="M33 105c7-11 18-17 31-17s24 6 31 17" fill="#93c5fd"/>
+</svg>

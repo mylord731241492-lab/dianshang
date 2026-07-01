@@ -1,5 +1,5 @@
 (function () {
-  var FLOW_VERSION = '20260701suite15';
+  var FLOW_VERSION = '20260701suite17';
   var state = {
     busy: false,
     runs: {},
@@ -8,6 +8,7 @@
       config: null,
       configPromise: null,
       selectedSkillId: '',
+      skillMenuOpen: false,
       productImage: null,
       referenceImages: [],
       status: '',
@@ -33,11 +34,11 @@
     sectionMode: 'dynamic',
     sections: [],
     skills: [
-      { id: 'gloria', name: 'Gloria', description: '大厂王牌视觉设计师' },
-      { id: 'paload', name: 'Paload', description: '多年资深高级美工' },
-      { id: 'lumi', name: 'Lumi', description: '资深电商设计师' },
-      { id: 'kira', name: 'Kira', description: '设计行业老油条' },
-      { id: 'rayyu', name: 'RayYu', description: '国字号视觉资深导师' }
+      { id: 'gloria', name: 'Gloria', avatarUrl: '/assets/ecommerce-suite-skills/gloria-avatar.svg', description: '大厂王牌视觉设计师，精通电商详情页设计' },
+      { id: 'paload', name: 'Paload', avatarUrl: '/assets/ecommerce-suite-skills/paload-avatar.svg', description: '多年资深高级美工，擅长智能研判复杂设计' },
+      { id: 'lumi', name: 'Lumi', avatarUrl: '/assets/ecommerce-suite-skills/lumi-avatar.svg', description: '资深电商设计师，构思严谨审美一流' },
+      { id: 'kira', name: 'Kira', avatarUrl: '/assets/ecommerce-suite-skills/kira-avatar.svg', description: '设计行业老油条，思维发散质量稳定' },
+      { id: 'rayyu', name: 'RayYu', avatarUrl: '/assets/ecommerce-suite-skills/rayyu-avatar.svg', description: '国字号视觉资深导师，创意无限' }
     ]
   };
 
@@ -101,6 +102,11 @@
 
   function suiteConfig() {
     return state.suite.config || DEFAULT_SUITE_CONFIG;
+  }
+
+  function suiteSkillAvatar(skill) {
+    var id = skill && skill.id || 'gloria';
+    return skill && skill.avatarUrl || '/assets/ecommerce-suite-skills/' + id + '-avatar.svg';
   }
 
   function syncPromptFlowCardVisibility(panel) {
@@ -368,8 +374,9 @@
       referenceKey,
       state.suite.referenceImages.length,
       state.suite.selectedSkillId,
+      state.suite.skillMenuOpen ? 'skill-open' : 'skill-closed',
       state.suite.status,
-      skills.map(function (skill) { return skill.id + ':' + skill.name; }).join('|')
+      skills.map(function (skill) { return [skill.id, skill.name, skill.description, skill.avatarUrl].join(':'); }).join('|')
     ].join('::');
     var host = composer.querySelector('.hjm-suite-composer');
     if (!host) {
@@ -379,10 +386,15 @@
     }
     if (!force && host.dataset.renderKey === renderKey) return;
     host.dataset.renderKey = renderKey;
-    var skillOptions = skills.map(function (skill) {
-      var selected = skill.id === state.suite.selectedSkillId ? ' selected' : '';
-      var label = skill.name + (skill.description ? ' · ' + skill.description : '');
-      return '<option value="' + escapeHtml(skill.id) + '"' + selected + '>' + escapeHtml(label) + '</option>';
+    var selectedSkill = skills.find(function (skill) { return skill.id === state.suite.selectedSkillId; }) || skills[0] || DEFAULT_SUITE_CONFIG.skills[0];
+    var skillItems = skills.map(function (skill) {
+      var selected = skill.id === selectedSkill.id;
+      return [
+        '<button type="button" class="hjm-suite-skill-option' + (selected ? ' is-selected' : '') + '" data-hjm-suite-skill-option="' + escapeHtml(skill.id) + '" role="option" aria-selected="' + (selected ? 'true' : 'false') + '">',
+        '<img src="' + escapeHtml(suiteSkillAvatar(skill)) + '" alt="">',
+        '<span><strong>' + escapeHtml(skill.name || skill.id) + '</strong><small>' + escapeHtml(skill.description || '') + '</small></span>',
+        '</button>'
+      ].join('');
     }).join('');
     host.innerHTML = [
       '<div class="hjm-suite-assets">',
@@ -391,7 +403,14 @@
       suiteReferenceButtons(),
       '</div>',
       '<div class="hjm-suite-skill-row">',
-      '<label class="hjm-suite-skill-select"><select data-hjm-suite-skill>' + skillOptions + '</select></label>',
+      '<div class="hjm-suite-skill-picker' + (state.suite.skillMenuOpen ? ' is-open' : '') + '">',
+      '<button type="button" class="hjm-suite-skill-current" data-hjm-suite-skill-toggle aria-expanded="' + (state.suite.skillMenuOpen ? 'true' : 'false') + '">',
+      '<img src="' + escapeHtml(suiteSkillAvatar(selectedSkill)) + '" alt="">',
+      '<span><strong>' + escapeHtml(selectedSkill.name || selectedSkill.id) + '</strong><small>' + escapeHtml(selectedSkill.description || '') + '</small></span>',
+      '<i aria-hidden="true">⌄</i>',
+      '</button>',
+      state.suite.skillMenuOpen ? '<div class="hjm-suite-skill-menu" role="listbox">' + skillItems + '</div>' : '',
+      '</div>',
       '</div>',
       state.suite.status ? '<div class="hjm-suite-status">' + escapeHtml(state.suite.status) + '</div>' : '',
       '<input type="file" accept="image/*" data-hjm-suite-file="product" hidden>',
@@ -663,7 +682,7 @@
     return [
       '<figure class="hjm-suite-result-card is-success" data-image-index="' + index + '">',
       '<img src="' + escapeHtml(image.preview || image.url) + '" alt="">',
-      '<figcaption>',
+      '<figcaption class="hjm-suite-action-overlay">',
       '<button type="button" data-hjm-prompt-flow-action="download" data-image-index="' + index + '">下载</button>',
       '<button type="button" data-hjm-prompt-flow-action="copy-link" data-image-index="' + index + '">复制链接</button>',
       '<button type="button" data-hjm-prompt-flow-action="add-canvas" data-image-index="' + index + '">添加到画布</button>',
@@ -1293,9 +1312,46 @@
       if (input) input.click();
       return;
     }
+    var suiteSkillOption = event.target && event.target.closest && event.target.closest('[data-hjm-suite-skill-option]');
+    if (suiteSkillOption) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+      state.suite.selectedSkillId = suiteSkillOption.getAttribute('data-hjm-suite-skill-option') || state.suite.selectedSkillId;
+      state.suite.skillMenuOpen = false;
+      suiteStatus('');
+      renderSuiteComposer(getPanel(), true);
+      return;
+    }
+    var suiteSkillToggle = event.target && event.target.closest && event.target.closest('[data-hjm-suite-skill-toggle]');
+    if (suiteSkillToggle) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+      state.suite.skillMenuOpen = !state.suite.skillMenuOpen;
+      renderSuiteComposer(getPanel(), true);
+      return;
+    }
+    if (state.suite.skillMenuOpen && isSuiteMode(getPanel()) && !(event.target && event.target.closest && event.target.closest('.hjm-suite-skill-picker'))) {
+      state.suite.skillMenuOpen = false;
+      renderSuiteComposer(getPanel(), true);
+    }
     var actionTarget = event.target && event.target.closest && event.target.closest('[data-hjm-prompt-flow-action]');
     if (actionTarget) {
       handleAction(event, actionTarget);
+      return;
+    }
+
+    var suiteResultCard = event.target && event.target.closest && event.target.closest('.hjm-suite-result-card.is-success');
+    if (suiteResultCard && isSuiteMode(getPanel())) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+      var wasOpen = suiteResultCard.classList.contains('is-action-open');
+      Array.from(suiteResultCard.parentNode ? suiteResultCard.parentNode.querySelectorAll('.hjm-suite-result-card.is-action-open') : []).forEach(function (card) {
+        if (card !== suiteResultCard) card.classList.remove('is-action-open');
+      });
+      suiteResultCard.classList.toggle('is-action-open', !wasOpen);
       return;
     }
 
@@ -1331,10 +1387,6 @@
     if (target.matches('[data-hjm-suite-file]')) {
       readSuiteFiles(target);
       return;
-    }
-    if (target.matches('[data-hjm-suite-skill]')) {
-      state.suite.selectedSkillId = target.value || '';
-      suiteStatus('');
     }
   }
 

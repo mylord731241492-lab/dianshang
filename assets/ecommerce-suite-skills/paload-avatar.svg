@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Paload avatar">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#cbd5e1"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="30" fill="url(#bg)"/>
+  <circle cx="62" cy="61" r="30" fill="#f0c59f"/>
+  <path d="M30 53c4-24 18-34 36-34 20 0 31 12 31 31-14-12-37-17-67 3z" fill="#111827"/>
+  <path d="M35 33c9-12 28-16 44-8-12 1-25 5-44 8z" fill="#020617"/>
+  <path d="M34 67c6-8 20-8 28 0-7 8-21 8-28 0zm31 0c7-8 21-8 28 0-7 8-21 8-28 0z" fill="#0f172a"/>
+  <path d="M61 68h4" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/>
+  <path d="M53 92c7 5 17 5 24 0" fill="none" stroke="#9a5b3a" stroke-width="4" stroke-linecap="round"/>
+  <path d="M22 105c7-19 21-28 42-28s35 9 43 28" fill="#111827"/>
+  <path d="M42 105l18-26 18 26" fill="#475569"/>
+</svg>

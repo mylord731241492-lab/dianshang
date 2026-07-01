@@ -1,5 +1,6 @@
 (function () {
   var SELECTOR = '.vue-flow__node-image .image-node img';
+  var TITLE_RENAME_SELECTOR = '.vue-flow__node [title="双击编辑名称"], .vue-flow__node [data-hjm-node-title-lock="true"]';
   var scanTimer = null;
 
   function classify(width, height) {
@@ -44,8 +45,26 @@
     node.classList.toggle('image-node-is-selected', card.classList.contains('image-node-selected') || node.classList.contains('selected'));
   }
 
+  function lockNodeTitleRename(title) {
+    if (!title || !title.setAttribute) return;
+    var text = (title.textContent || '').replace(/\s+/g, ' ').trim();
+    title.classList.add('hjm-node-title-static');
+    title.setAttribute('data-hjm-node-title-lock', 'true');
+    title.removeAttribute('title');
+    if (text && !title.getAttribute('aria-label')) {
+      title.setAttribute('aria-label', text);
+    }
+  }
+
+  function markNodeTitles(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    if (scope.matches && scope.matches(TITLE_RENAME_SELECTOR)) lockNodeTitleRename(scope);
+    if (scope.querySelectorAll) scope.querySelectorAll(TITLE_RENAME_SELECTOR).forEach(lockNodeTitleRename);
+  }
+
   function markAll(root) {
     var scope = root && root.querySelectorAll ? root : document;
+    markNodeTitles(scope);
     if (scope.matches && scope.matches(SELECTOR)) markImage(scope);
     if (scope.querySelectorAll) scope.querySelectorAll(SELECTOR).forEach(markImage);
   }
@@ -65,6 +84,17 @@
         markImage(event.target);
       }
     }, true);
+    document.addEventListener('dblclick', function (event) {
+      var target = event.target;
+      if (!target || !target.closest) return;
+      if (target.closest('button, input, textarea, select, [contenteditable="true"], [role="textbox"]')) return;
+      var header = target.closest('.relative.flex.h-12, .node-header');
+      if (!header || !header.closest('.vue-flow__node')) return;
+      if (!header.querySelector('[data-hjm-node-title-lock="true"], .hjm-node-title-static')) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    }, true);
 
     var observer = new MutationObserver(function (mutations) {
       for (var i = 0; i < mutations.length; i += 1) {
@@ -79,12 +109,13 @@
         }
       }
     });
-    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+    observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'title'] });
 
     window.__hjmCanvasImageNodePolish = {
       classify: classify,
       markAll: markAll,
-      markImage: markImage
+      markImage: markImage,
+      markNodeTitles: markNodeTitles
     };
   }
 

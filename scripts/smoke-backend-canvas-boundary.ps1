@@ -132,18 +132,25 @@ try {
 
   $canvasHtml = Invoke-BoundaryRequest -Method "GET" -Path "/canvas?backend-canvas-boundary-smoke=1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-performance-mode.js?v=20260629perf5"
-  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-image-node-polish.js?v=20260629image7"
-  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-chat-prompt-flow.js?v=20260701suite15"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-image-node-polish.js?v=20260701image10"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-chat-prompt-flow.js?v=20260701suite17"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "admin-api-source-route-bridge.js?v=20260629sourceapi1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "index-DglIsp_g.js?v=20260630dialogagent12"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-node-radius-fix.css?v=20260701title1"
 
   $assetPaths = @(
     "/assets/canvas-performance-mode.js?v=20260629perf5",
     "/assets/canvas-performance-mode.css?v=20260629perf5",
-    "/assets/canvas-image-node-polish.js?v=20260629image7",
-    "/assets/canvas-image-node-polish.css?v=20260629image7",
-    "/assets/canvas-chat-prompt-flow.js?v=20260701suite15",
-    "/assets/canvas-chat-prompt-flow.css?v=20260701suite15",
+    "/assets/canvas-image-node-polish.js?v=20260701image10",
+    "/assets/canvas-image-node-polish.css?v=20260701image10",
+    "/assets/canvas-node-radius-fix.css?v=20260701title1",
+    "/assets/canvas-chat-prompt-flow.js?v=20260701suite17",
+    "/assets/canvas-chat-prompt-flow.css?v=20260701suite17",
+    "/assets/ecommerce-suite-skills/gloria-avatar.svg",
+    "/assets/ecommerce-suite-skills/paload-avatar.svg",
+    "/assets/ecommerce-suite-skills/lumi-avatar.svg",
+    "/assets/ecommerce-suite-skills/kira-avatar.svg",
+    "/assets/ecommerce-suite-skills/rayyu-avatar.svg",
     "/assets/admin-api-source-route-bridge.js?v=20260629sourceapi1",
     "/assets/index-DglIsp_g.js?v=20260630dialogagent12",
     "/assets/Canvas-B8bY9_QL.js?v=20260630dialogagent9",

@@ -6,6 +6,9 @@ const files = {
   html: path.join(root, 'index.html'),
   perfJs: path.join(root, 'assets', 'canvas-performance-mode.js'),
   perfCss: path.join(root, 'assets', 'canvas-performance-mode.css'),
+  imagePolishJs: path.join(root, 'assets', 'canvas-image-node-polish.js'),
+  imagePolishCss: path.join(root, 'assets', 'canvas-image-node-polish.css'),
+  nodeRadiusCss: path.join(root, 'assets', 'canvas-node-radius-fix.css'),
   canvasA: path.join(root, 'assets', 'Canvas-B8bY9_QL.js'),
   canvasB: path.join(root, 'assets', 'Canvas-yGc8b2gf.js'),
   promptFlowJs: path.join(root, 'assets', 'canvas-chat-prompt-flow.js'),
@@ -36,6 +39,9 @@ function assertNotIncludes(label, text, needle) {
 const html = read(files.html);
 const perfJs = read(files.perfJs);
 const perfCss = read(files.perfCss);
+const imagePolishJs = read(files.imagePolishJs);
+const imagePolishCss = read(files.imagePolishCss);
+const nodeRadiusCss = read(files.nodeRadiusCss);
 const entryA = read(files.entryA);
 const entryB = read(files.entryB);
 const promptFlowJs = read(files.promptFlowJs);
@@ -50,8 +56,11 @@ const canvasBundles = [
 
 assertIncludes('index.html', html, 'canvas-performance-mode.js?v=20260629perf5');
 assertIncludes('index.html', html, 'canvas-performance-mode.css?v=20260629perf5');
-assertIncludes('index.html', html, 'canvas-chat-prompt-flow.js?v=20260701suite15');
-assertIncludes('index.html', html, 'canvas-chat-prompt-flow.css?v=20260701suite15');
+assertIncludes('index.html', html, 'canvas-image-node-polish.js?v=20260701image10');
+assertIncludes('index.html', html, 'canvas-image-node-polish.css?v=20260701image10');
+assertIncludes('index.html', html, 'canvas-node-radius-fix.css?v=20260701title1');
+assertIncludes('index.html', html, 'canvas-chat-prompt-flow.js?v=20260701suite17');
+assertIncludes('index.html', html, 'canvas-chat-prompt-flow.css?v=20260701suite17');
 assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260630dialogagent12');
 assertNotIncludes('index.html', html, 'canvas-ecommerce-suite-agent.js');
 assertNotIncludes('index.html', html, 'canvas-ecommerce-suite-agent.css');
@@ -86,11 +95,22 @@ assertNotIncludes('performance CSS', perfCss, 'html.canvas-performance-active .v
 assertIncludes('performance CSS', perfCss, '.vue-flow__node:has(.image-node-toolbar)');
 assertIncludes('performance CSS', perfCss, 'overflow: visible !important');
 assertIncludes('performance CSS', perfCss, '.image-node-toolbar');
+assertIncludes('image node polish script', imagePolishJs, 'window.__hjmCanvasImageNodePolish');
+assertIncludes('image node polish script', imagePolishJs, 'function lockNodeTitleRename');
+assertIncludes('image node polish script', imagePolishJs, 'data-hjm-node-title-lock');
+assertIncludes('image node polish script', imagePolishJs, 'event.stopImmediatePropagation');
+assertIncludes('image node polish CSS', imagePolishCss, '.vue-flow__node-image:not(.image-node-has-image) .image-node:not(:has(img)) > .flex.h-8');
+assertIncludes('image node polish CSS', imagePolishCss, 'display: none !important');
+assertIncludes('image node polish CSS', imagePolishCss, '.vue-flow__node-image .image-node:has(img) > .relative.flex.h-12');
+assertIncludes('image node polish CSS', imagePolishCss, 'min-height: 230px !important');
+assertIncludes('canvas node radius CSS', nodeRadiusCss, '.vue-flow__node [data-hjm-node-title-lock="true"]');
+assertIncludes('canvas node radius CSS', nodeRadiusCss, 'pointer-events: none !important');
+assertIncludes('canvas node radius CSS', nodeRadiusCss, 'user-select: none !important');
 assertIncludes('frame budget smoke ps1', frameBudgetPs, 'smoke-canvas-frame-budget-ui-runner.js');
 assertIncludes('frame budget smoke runner', frameBudgetRunner, 'codex-canvas-frame-budget-probe');
 assertIncludes('frame budget smoke runner', frameBudgetRunner, 'longFramesOver100');
 assertIncludes('preflight', preflight, 'canvas frame budget UI smoke');
-assertIncludes('prompt flow script', promptFlowJs, "FLOW_VERSION = '20260701suite15'");
+assertIncludes('prompt flow script', promptFlowJs, "FLOW_VERSION = '20260701suite17'");
 assertIncludes('prompt flow script', promptFlowJs, 'var SUITE_MAX_REFERENCE_IMAGES = 4');
 assertIncludes('prompt flow script', promptFlowJs, "var CANVAS_CHAT_SCOPE_ATTR = 'data-v-b10121f4'");
 assertIncludes('prompt flow script', promptFlowJs, 'function syncPromptFlowCardVisibility(panel)');
@@ -113,6 +133,10 @@ assertIncludes('prompt flow script', promptFlowJs, "hjm-suite-composer");
 assertIncludes('prompt flow script', promptFlowJs, "hjm-suite-asset-plus");
 assertIncludes('prompt flow script', promptFlowJs, "hjm-suite-reference-list");
 assertIncludes('prompt flow script', promptFlowJs, "hjm-suite-upload' + (preview ? ' has-image' : '')");
+assertIncludes('prompt flow script', promptFlowJs, "hjm-suite-skill-current");
+assertIncludes('prompt flow script', promptFlowJs, "hjm-suite-skill-menu");
+assertIncludes('prompt flow script', promptFlowJs, "data-hjm-suite-skill-option");
+assertIncludes('prompt flow script', promptFlowJs, "/assets/ecommerce-suite-skills/gloria-avatar.svg");
 assertIncludes('prompt flow script', promptFlowJs, "card.dataset.hjmPromptFlowMode = 'suite'");
 assertIncludes('prompt flow script', promptFlowJs, "/api/canvas/ecommerce-suite/prompts");
 assertIncludes('prompt flow script', promptFlowJs, "/api/canvas/ecommerce-suite/generate");
@@ -129,6 +153,8 @@ assertIncludes('prompt flow script', promptFlowJs, 'promptPlans: [plan]');
 assertIncludes('prompt flow script', promptFlowJs, 'function suiteErrorInfo');
 assertIncludes('prompt flow script', promptFlowJs, '上游图生图请求失败');
 assertIncludes('prompt flow script', promptFlowJs, 'class="hjm-suite-error-id"');
+assertIncludes('prompt flow script', promptFlowJs, 'class="hjm-suite-action-overlay"');
+assertIncludes('prompt flow script', promptFlowJs, "suiteResultCard.classList.toggle('is-action-open', !wasOpen)");
 assertIncludes('prompt flow script', promptFlowJs, "data-hjm-prompt-flow-action=\"retry-suite-plan\"");
 assertIncludes('prompt flow script', promptFlowJs, 'function autoAddSuiteImage');
 assertIncludes('prompt flow script', promptFlowJs, 'autoAddSuiteImage(image, run)');
@@ -153,12 +179,18 @@ assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel.hjm-prompt-
 assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-asset-plus');
 assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-upload.has-image');
 assertIncludes('prompt flow CSS', promptFlowCss, 'color-scheme: light');
-assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-select::after');
+assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-current');
+assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-menu');
+assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-skill-option.is-selected');
+assertNotIncludes('prompt flow CSS', promptFlowCss, '.hjm-suite-skill-select select');
 assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel .hjm-suite-plan');
 assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel .hjm-suite-plan-check');
 assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel .hjm-suite-plan-name');
 assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel .hjm-suite-agent .hjm-suite-result-card');
 assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel .hjm-suite-agent .hjm-suite-result-card.is-failed .hjm-suite-error-id');
+assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel .hjm-suite-agent .hjm-suite-result-card.is-success:hover figcaption');
+assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel .hjm-suite-agent .hjm-suite-result-card.is-success.is-action-open figcaption');
+assertIncludes('prompt flow CSS', promptFlowCss, 'background: rgba(255, 255, 255, 0.82)');
 assertIncludes('prompt flow CSS', promptFlowCss, '@keyframes hjm-suite-spin');
 assertNotIncludes('prompt flow CSS', promptFlowCss, 'background: rgba(31, 31, 31, 0.72)');
 assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel.hjm-prompt-flow-suite-active .composer .config-row .model-control');
@@ -205,6 +237,6 @@ for (const [name, bundle] of canvasBundles) {
 console.log(JSON.stringify({
   ok: true,
   checked: Object.keys(files),
-  version: '20260629perf5+dialogagent12+canvasdialogagent9+suite15',
+  version: '20260629perf5+20260701image10+20260701title1+dialogagent12+canvasdialogagent9+suite17',
   saveDeferral: true
 }, null, 2));

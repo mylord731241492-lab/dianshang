@@ -2612,3 +2612,66 @@
 ### 需要继续验证
 
 - 进度条结构已由资产守卫覆盖；完整真实生成过程的视觉确认仍需用户允许实际调用后再做。
+
+## 2026-07-01 视频 Tab 电商套图 Agent 复核
+
+### 已确认
+
+- 本轮重新实现前已回滚上一轮越界改动，旧画布刷新恢复。
+- 新实现只挂在 `assets/canvas-chat-prompt-flow.js/css`，没有新增独立 `canvas-ecommerce-suite-agent.js/css`，没有改主入口 bundle 和旧 Canvas chunk。
+- `shouldHandle(panel)` 仍严格只匹配 `对话`，新增 `isSuiteMode(panel)` 只匹配 `视频 / 电商套图Agent`。
+- 发送按钮和回车提交已显式分流：对话走原 `handleSubmit`，视频走 `handleSuiteSubmit`，快速不被桥接层接管。
+- 套图模式已隐藏原生视频模型控件，不显示 `Seedance Pro`；请求体固定传 `gpt-5.5` 生成提示词、`gpt-image-2` 做图生图。
+- 上传区已改为产品图和参考图中间独立 `+` 号；参考图逐张新增独立槽位，最多 4 张。
+- skill 下拉已改为 100% 宽度，与下方文本输入框对齐。
+- 已上传图片槽位只显示整图铺满圆角卡片，不显示 `产品图 / 参考图` 文字，也不再缩成小图。
+- 后端套图接口 mock smoke 已覆盖：config 正常、未登录 401、缺产品图 400、生成提示词成功、mock 生图成功。
+
+### 需要继续验证
+
+- 当前环境没有本地 Playwright 依赖，本轮未下载新包做 UI 自动化。
+- 需要用户在浏览器里人工验证：`对话 / 快速` 能正常切换和点击；视频 tab 能上传产品图、参考图，发送后出现 `套图模板` 卡片；勾选板块后 mock/真实生图路径按预期。
+- 真实 GPT 5.5 或 GPT Image 2 链路会产生上游请求和可能扣费，未在本轮触发。
+
+## 2026-07-01 电商套图 Agent 动态板块复核
+
+### 已确认
+
+- 业务链路应为：产品图 + 参考图 + 用户需求 + 所选 skill Markdown -> GPT 动态生成本次板块提示词 -> 用户勾选/编辑 -> img2 根据产品图和参考图生成对应板块图片。
+- 后台不再展示固定“套图板块/板块集合”编辑列表；后台只维护默认参数和设计师 skills。
+- `/api/canvas/ecommerce-suite/config` 已返回 `sectionMode:"dynamic"`，并对前台暴露空 `sections`，防止前端按默认模板集合渲染或提交。
+- 旧画布过渡层已移除生成模板请求里的默认 `sectionKeys`，不会再默认发送 `hero/selling-points/effect/tech/scene`。
+- `scripts/verify-canvas-performance-assets.js` 已增加“不发送默认 sectionKeys”和动态模式锚点，`scripts/smoke-backend-canvas-boundary.ps1` 已用不带 sectionKeys 的请求覆盖 prompt mock。
+
+### 需要继续验证
+
+- 真实 GPT 返回的动态板块名称和数量需要用户用实际产品图、参考图和 skill 文档人工验收；本轮只覆盖 mock 与接口边界。
+
+## 2026-07-01 电商套图 Skill Markdown 复核
+
+### 已确认
+
+- Skill Markdown 会被后端作为 `设计师 Markdown` 拼入 `/api/canvas/ecommerce-suite/prompts` 的文本模型上下文，不会在前台执行。
+- 新增测试稿统一强调动态板块：根据产品图、参考图、用户需求和所选 skill 生成 3-5 个板块，不套固定五件套。
+- 五个角色差异已拉开：Gloria 偏高转化品牌视觉，Paload 偏参考图结构拆解，Lumi 偏柔和生活方式，Kira 偏平台点击转化，RayYu 偏创意概念和品牌叙事。
+- 新增文件已检查 UTF-8 无 BOM，并扫描危险脚本片段为空。
+
+### 需要继续验证
+
+- 需要用户在后台逐个上传 `.md` 后，用真实产品图和参考图观察动态板块是否符合各角色差异。
+
+## 2026-07-01 电商套图模板选择卡复核
+
+### 已确认
+
+- 结果卡从 prompt 编辑器改为浅色板块选择卡，避免用户直接面对标题、prompt 和负面词输入区。
+- 选择卡内部已移除 `套图模板` 标题，避免标题占用 grid 单元导致首个板块错位到右侧。
+- 生图链路仍使用后端返回的 `promptPlans[]`，勾选状态只决定哪些板块提交给 `/api/canvas/ecommerce-suite/generate`。
+- 生图提交已改为每个板块一个独立请求，4 个板块会形成 4 次后端 generate 调用；suite14 按用户确认的工作链恢复为前端立即并发发出多个单板块任务，不等待上一个完成。
+- suite15 只优化失败卡片展示：上游 `upstream error: do request failed (request id: ...)` 不再整段占满卡片，主文案压缩为“上游图生图请求失败”，request id 小字保留，原始错误放在卡片 title 中。
+- 成功图片会自动触发旧画布 `canvas:add-generated-image-to-canvas` 事件；失败任务保留单板块重试按钮，重试成功后替换为完整图片卡。
+- 护栏新增禁止编辑字段和黑底卡片回退的断言，范围仍限制在 `视频 / 电商套图Agent` 模式。
+
+### 需要继续验证
+
+- 需要在浏览器中用实际产品图、参考图和 skill 生成一次模板，人工确认卡片数量、名称和浅色视觉符合预期。

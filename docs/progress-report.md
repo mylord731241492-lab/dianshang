@@ -1845,3 +1845,37 @@
 - 验证方式：`node --check assets/canvas-chat-prompt-flow.js`；两个旧 Canvas bundle `node --check`；`node scripts/verify-canvas-performance-assets.js`；`scripts/smoke-backend-canvas-boundary.ps1`；浏览器刷新确认 `dialogcard4` 资源和三模式桥接卡片可见数；`git diff --check`；触达文本文件 BOM 检查。
 - 验证结果：语法检查、资产守卫和旧画布边界 smoke 均通过；浏览器加载 `/assets/canvas-chat-prompt-flow.js/css?v=20260630dialogcard4`，稳定重测快速模式 `bridgeTotal=0/bridgeVisible=0`，视频与对话无旧泄漏卡片；未点击发送，未触发真实 Provider。
 - 边界：只改对话桥接 UI，不改快速/视频会话，不触发真实模型调用。
+
+## 2026-07-01 视频 Tab 电商套图 Agent 对话式接入
+
+- 触发背景：前一轮把套图 Agent 做成了偏独立表单的 UI，并一度影响旧画布刷新和 `对话 / 快速` 切换；用户要求总结教训、做好护栏边界后，只针对视频 tab 重新实现。
+- 完成内容：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260701suite5`，保留旧 Canvas Chat 结构，只在 `视频 / 电商套图Agent` 模式插入产品图、参考图和 skill 选择；隐藏原生视频模型控件，固定文本模型 `gpt-5.5` 和图片模型 `gpt-image-2`；上传区显示 `产品图 + 参考图组`，参考图逐张增加独立槽位且最多 4 张；skill 下拉与下方文本输入框同宽对齐；已上传图片整图铺满圆角槽位且不显示槽位文字；发送后生成 `套图模板` 消息卡，支持勾选/编辑板块提示词，再按选中板块调用套图生图。
+- 后端补强：`/api/canvas/ecommerce-suite/prompts` 和 `/api/canvas/ecommerce-suite/generate` 增加产品图必填校验；真实 Provider 路径仍复用既有 `callProviderResponses`、`callProviderImageEdit`、`callProviderImageGeneration` 和扣费/任务记录逻辑。
+- 护栏补强：`scripts/verify-canvas-performance-assets.js` 固定主入口和 Canvas chunk 版本，禁止加载独立 `canvas-ecommerce-suite-agent.*`，并断言 `shouldHandle` 只属于对话、`isSuiteMode` 只属于视频；`scripts/smoke-backend-canvas-boundary.ps1` 增加套图 config、缺产品图、mock prompts、mock generate 覆盖。
+- 修改文件：`assets/canvas-chat-prompt-flow.js`、`assets/canvas-chat-prompt-flow.css`、`index.html`、`server.js`、`scripts/verify-canvas-performance-assets.js`、`scripts/smoke-backend-canvas-boundary.ps1`、`docs/canvas-maintenance-boundary.md`、`docs/canvas-maintenance-log.md`、`docs/progress-report.md`、`docs/review-log.md`。
+- 验证方式：`node --check` 前端桥接和后端；资产护栏；旧画布后端边界 smoke；后续还需用户在浏览器内人工验证视频 tab 的真实交互。
+- 边界：未改 `assets/index-DglIsp_g.js`、`assets/Canvas-B8bY9_QL.js`、`assets/Canvas-yGc8b2gf.js`；未运行真实 GPT 5.5 或 GPT Image 2 付费调用。
+
+## 2026-07-01 电商套图 Agent 动态板块修正
+
+- 触发背景：用户在后台设置页指出“板块集合”不应是默认模板集合，而应由所选 skill 和用户产品需求共同生成。
+- 完成内容：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260701suite8`；旧画布视频 tab 生成模板时不再发送默认 `sectionKeys`；`GET /api/canvas/ecommerce-suite/config` 返回 `sectionMode:"dynamic"` 和空 `sections`；`POST /api/canvas/ecommerce-suite/prompts` 改为让 GPT 根据 skill Markdown、产品图、参考图和用户输入动态规划 3-5 个板块提示词。
+- 后台调整：`frontend/src/views/AdminSettingsSource.vue` 移除固定“套图板块”编辑列表，改为说明“板块集合由 Agent 动态生成”；后台仍维护默认参数和设计师 skills，保存时不再写回五个默认板块。
+- 护栏调整：`scripts/verify-canvas-performance-assets.js` 增加 `sectionMode` 与“不得发送默认 sectionKeys”的断言；`scripts/smoke-backend-canvas-boundary.ps1` 的套图 smoke 不再传 `hero`，并校验动态模式。
+- 验证结果：`node --check "F:\dianshang\server.js"`、`node --check "F:\dianshang\assets\canvas-chat-prompt-flow.js"`、`npm run build --prefix "F:\dianshang\frontend"`、资产护栏和旧画布后端边界 smoke 均通过；本地 3456 服务已重启，config 实测 `sectionMode=dynamic`、`sectionsCount=0`。
+- 边界：未触发真实 GPT 5.5 或 GPT Image 2 付费调用；未改旧画布主入口 bundle 和 Canvas chunk。
+
+## 2026-07-01 电商套图 Agent Skill Markdown 测试稿
+
+- 触发背景：用户要求先给出后台 skill Markdown 生成规范，并基于当前 Gloria / Paload / Lumi / Kira / RayYu 角色生成一版可上传测试内容，后续再自行上传调试。
+- 完成内容：新增 `docs/ecommerce-suite-skills/00-skill-markdown-spec.md`，定义后台字段、推荐结构、动态板块规则、产品图/参考图优先级、合规边界和好 skill 标准。
+- 角色稿：新增 `gloria.md`、`paload.md`、`lumi.md`、`kira.md`、`rayyu.md`，分别覆盖高转化品牌视觉、复杂参考图拆解、柔和生活方式、平台转化图、创意品牌叙事五种风格。
+- 边界：本轮只产出可上传 Markdown 文档，不改运行时代码、不触发真实模型调用。
+- 验证结果：`git diff --check -- docs/ecommerce-suite-skills` 通过；新增 Markdown 文件均为 UTF-8 无 BOM；未检出 `<script`、`javascript:`、`iframe/object/embed` 等危险片段。
+
+## 2026-07-01 电商套图模板选择卡
+
+- 触发背景：用户指出生成提示词后不需要展示标题、prompt 和负面词编辑区，只需要类似旧模板的板块选择卡并直接出图，且颜色应符合当前浅色画布 UI。
+- 完成内容：`assets/canvas-chat-prompt-flow.js/css` 升级为 `20260701suite15`；结果改为浅色两列选择卡，只展示动态板块名称，不再渲染 `套图模板` 标题；生图阶段按选中板块拆成独立并发请求，每次只提交一个 `promptPlan`，选中 4 个板块即直接发出 4 个单板块任务；成功图自动添加到画布，失败板块显示单独 `重新生成` 按钮；上游 `request id` 改为小字展示，卡片主错误文案压缩为“上游图生图请求失败”等可读短句；成功状态显示完整四按钮图片卡。
+- 护栏调整：`scripts/verify-canvas-performance-assets.js` 增加选择卡 DOM 锚点、禁止 `data-suite-plan-prompt/negative` 和 `hjm-suite-plan-heading` 回退、禁止黑底计划卡样式回退。
+- 边界：只改视频 tab 内电商套图 Agent 的结果卡与资产版本，不改 `对话 / 快速` 捕获逻辑，不触发真实 Provider。

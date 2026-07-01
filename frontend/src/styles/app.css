@@ -2102,6 +2102,27 @@ a {
   font-weight: 900;
 }
 
+.admin-suite-dynamic-note {
+  display: grid;
+  gap: 6px;
+  border: 1px solid #dbeee6;
+  border-radius: 8px;
+  background: #f7fbf9;
+  padding: 14px 16px;
+}
+
+.admin-suite-dynamic-note strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.admin-suite-dynamic-note span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
 .admin-suite-skill-list article {
   background: #fbfdfc;
 }

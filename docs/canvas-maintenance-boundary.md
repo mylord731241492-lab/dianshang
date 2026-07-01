@@ -13,7 +13,7 @@
 - `对话 / 快速 / 视频` 必须是三套独立会话，不允许共享同一份消息列表、输入框草稿、参考图列表、生成中状态或 `sessionId`。
 - 切换模式时必须先保存当前模式状态，再加载目标模式状态；不能只切 `mode` 字段后继续渲染同一个 `messages/images/input` 引用。
 - 生成任务、轮询任务和回调必须按任务创建时的原始模式回写，不能写入用户当前可见模式。
-- `对话` 模式可以走 GPT 5.5 分析 + GPT Image 2 生图；`快速` 模式不能被改成对话 Agent 链路；`视频` 模式不能复用 GPT Image 2 图片生成入口。
+- `对话` 模式可以走 GPT 5.5 分析 + GPT Image 2 生图；`快速` 模式不能被改成对话 Agent 链路；`视频` 模式当前只允许作为“电商套图 Agent”入口，不能复用快速或对话的发送链路。
 - `source:"canvas-chat"` 的未发送草稿只能恢复到输入框，不能刷新后自动转成一条用户消息。
 - 如需改动上述隔离机制，必须先更新本文件、`docs/canvas-maintenance-log.md` 和 `scripts/verify-canvas-performance-assets.js` 的守护断言，并重新跑旧画布边界 smoke。
 
@@ -22,7 +22,7 @@
 ### 对话模式
 
 - 入口：旧 Canvas Chat 的 `对话` 标签。
-- 前端桥接：`assets/canvas-chat-prompt-flow.js`，当前版本 `20260630dialogagent9`。
+- 前端桥接：`assets/canvas-chat-prompt-flow.js`，当前版本 `20260701suite15`。
 - 后端接口：`POST /api/canvas/dialog-agent-generate`。
 - 编排流程：参考图和用户需求 -> GPT 5.5 分析 -> `analysisSummary/finalPrompt` -> GPT Image 2 生图 -> 对话结果卡 -> 自动落到画布。
 - 文本线路：New API 网关下 GPT 5.5 使用 `/chat/completions`，不是 `/responses`。
@@ -37,11 +37,15 @@
 - 参数来源：使用旧 Canvas Chat 原生设置控件，不在桥接层重造控件。
 - 会话边界：只读取快速模式自己的输入、参考图、消息和生成状态，不继承对话或视频模式状态。
 
-### 视频模式
+### 视频模式 / 电商套图 Agent
 
 - 入口：旧 Canvas Chat 的 `视频` 标签。
-- 当前边界：保留独立会话和占位，不复用对话或快速的消息、参考图、输入框和模型配置。
-- 后续如接视频 Provider，必须单独写接口契约、成本规则和 smoke，不复用 GPT Image 2 生图入口。
+- 当前边界：第三个标签承载电商套图 Agent，对话形态不变，不切独立表单页，不改主画布 bundle。
+- 前端桥接：仍使用 `assets/canvas-chat-prompt-flow.js/css`，只在 `isSuiteMode(panel)` 命中 `视频 / 电商套图Agent` 时插入产品图、参考图和 skill 选择。
+- 工作链路：产品图必填，参考图可多张；先调用 `/api/canvas/ecommerce-suite/prompts`，由 GPT 根据当前 skill、产品图、参考图和用户需求动态生成本次板块提示词，再由用户勾选/编辑板块后调用 `/api/canvas/ecommerce-suite/generate` 生图。
+- 板块边界：后台不维护固定“首屏/卖点/效果/科技/场景”模板集合；`/api/canvas/ecommerce-suite/config` 对前台暴露 `sectionMode:"dynamic"` 和空 `sections`，禁止前端默认发送固定 `sectionKeys`。
+- 后端边界：套图链路可以通过 `callProviderResponses` 生成提示词，并通过 `callProviderImageEdit` 或 `callProviderImageGeneration` 生图；不得绕过统一 Provider Adapter。
+- 会话边界：不得读取或污染 `对话 / 快速` 的消息、输入框草稿、参考图、参数控件状态；发送按钮分支必须保持 `对话 -> handleSubmit`、`视频 -> handleSuiteSubmit`、其他模式放行。
 
 ### 提示词草稿接口
 
@@ -92,6 +96,7 @@
 - 继续开发 Vue Flow 新画布或 Infinite-Canvas 迁移。
 - 新增第二套画布拖拽、连线、缩放、小地图和视口系统。
 - 在桥接层重造快速模式已有参数控件。
+- 新增独立的 `canvas-ecommerce-suite-agent.js/css` 或独立套图工作台。
 - 绕过 `callProviderImageGeneration` / `callProviderImageEdit` 直连 GPT Image 2。
 - 未经用户确认触发真实付费批量测试。
 - 未记录 API 契约就新增重要生图接口。
@@ -101,6 +106,7 @@
 ```powershell
 node --check "F:\dianshang\server.js"
 node --check "F:\dianshang\assets\canvas-chat-prompt-flow.js"
+node "F:\dianshang\scripts\verify-canvas-performance-assets.js"
 node "F:\dianshang\scripts\check-packy-gpt-image-size.js"
 node "F:\dianshang\scripts\check-packy-gpt-image-adapter-coverage.js"
 node "F:\dianshang\scripts\check-provider-text-extraction.js"

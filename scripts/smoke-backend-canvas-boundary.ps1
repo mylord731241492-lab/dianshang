@@ -133,7 +133,7 @@ try {
   $canvasHtml = Invoke-BoundaryRequest -Method "GET" -Path "/canvas?backend-canvas-boundary-smoke=1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-performance-mode.js?v=20260629perf5"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-image-node-polish.js?v=20260629image7"
-  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-chat-prompt-flow.js?v=20260630dialogcard4"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-chat-prompt-flow.js?v=20260701suite15"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "admin-api-source-route-bridge.js?v=20260629sourceapi1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "index-DglIsp_g.js?v=20260630dialogagent12"
 
@@ -142,8 +142,8 @@ try {
     "/assets/canvas-performance-mode.css?v=20260629perf5",
     "/assets/canvas-image-node-polish.js?v=20260629image7",
     "/assets/canvas-image-node-polish.css?v=20260629image7",
-    "/assets/canvas-chat-prompt-flow.js?v=20260630dialogcard4",
-    "/assets/canvas-chat-prompt-flow.css?v=20260630dialogcard4",
+    "/assets/canvas-chat-prompt-flow.js?v=20260701suite15",
+    "/assets/canvas-chat-prompt-flow.css?v=20260701suite15",
     "/assets/admin-api-source-route-bridge.js?v=20260629sourceapi1",
     "/assets/index-DglIsp_g.js?v=20260630dialogagent12",
     "/assets/Canvas-B8bY9_QL.js?v=20260630dialogagent9",
@@ -168,6 +168,8 @@ try {
   Invoke-BoundaryRequest -Method "POST" -Path "/api/image-tools/erase" -ExpectedStatus 401 -Body @{ prompt = "boundary smoke" } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/generate-prompt" -ExpectedStatus 401 -Body @{ requirement = "boundary smoke"; imageCount = 2 } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/dialog-agent-generate" -ExpectedStatus 401 -Body @{ requirement = "boundary smoke"; imageCount = 1 } | Out-Null
+  Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/ecommerce-suite/prompts" -ExpectedStatus 401 -Body @{ requirement = "boundary smoke" } | Out-Null
+  Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/ecommerce-suite/generate" -ExpectedStatus 401 -Body @{ promptPlans = @(@{ prompt = "boundary smoke" }) } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/upload/image" -ExpectedStatus 401 | Out-Null
 
   $adminLoginContent = Invoke-BoundaryRequest -Method "POST" -Path "/api/admin/login" -Body @{
@@ -223,6 +225,50 @@ try {
     throw "Canvas dialog agent analysis-only debug response is invalid"
   }
   Write-Host "OK POST /api/canvas/dialog-agent-generate analysis debug mock response"
+
+  $suiteConfigContent = Invoke-BoundaryRequest -Method "GET" -Path "/api/canvas/ecommerce-suite/config"
+  $suiteConfig = $suiteConfigContent | ConvertFrom-Json
+  if (-not $suiteConfig.success -or $suiteConfig.sectionMode -ne "dynamic" -or -not $suiteConfig.skills -or $suiteConfig.skills.Count -lt 1) {
+    throw "Ecommerce suite config did not expose dynamic section mode and skills"
+  }
+  Write-Host "OK GET /api/canvas/ecommerce-suite/config"
+
+  Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/ecommerce-suite/prompts" -Headers $headers -ExpectedStatus 400 -Body @{
+    requirement = "suite smoke missing product"
+    skillId = "gloria"
+  } | Out-Null
+
+  $suiteProductDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+  $suitePromptContent = Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/ecommerce-suite/prompts" -Headers $headers -Body @{
+    requirement = "create ecommerce suite hero image"
+    productImages = @(@{ dataUrl = $suiteProductDataUrl; fileName = "product.png"; mimeType = "image/png" })
+    referenceImages = @()
+    skillId = "gloria"
+    imageCount = 1
+    ratio = "1:1"
+    quality = "1k"
+  }
+  $suitePrompt = $suitePromptContent | ConvertFrom-Json
+  if (-not $suitePrompt.success -or -not $suitePrompt.promptPlans -or $suitePrompt.promptPlans.Count -lt 1 -or -not $suitePrompt.promptPlans[0].prompt) {
+    throw "Ecommerce suite prompts did not return dynamic prompt plans"
+  }
+  Write-Host "OK POST /api/canvas/ecommerce-suite/prompts mock response"
+
+  $suiteGenerateContent = Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/ecommerce-suite/generate" -Headers $headers -Body @{
+    requirement = "create ecommerce suite hero image"
+    productImages = @(@{ dataUrl = $suiteProductDataUrl; fileName = "product.png"; mimeType = "image/png" })
+    referenceImages = @()
+    skillId = "gloria"
+    promptPlans = @($suitePrompt.promptPlans[0])
+    imageCount = 1
+    ratio = "1:1"
+    quality = "1k"
+  }
+  $suiteGenerate = $suiteGenerateContent | ConvertFrom-Json
+  if (-not $suiteGenerate.success -or -not $suiteGenerate.images -or $suiteGenerate.images.Count -lt 1 -or -not $suiteGenerate.taskId) {
+    throw "Ecommerce suite generate did not return mock image and task id"
+  }
+  Write-Host "OK POST /api/canvas/ecommerce-suite/generate mock response"
 
   Invoke-BoundaryRequest -Method "POST" -Path "/api/upload/image" -Headers $headers -ExpectedStatus 400 | Out-Null
 

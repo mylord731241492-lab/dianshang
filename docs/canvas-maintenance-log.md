@@ -11,7 +11,7 @@
 
 | 资产 | 当前版本 | 说明 |
 | --- | --- | --- |
-| `assets/canvas-chat-prompt-flow.js/css` | `20260630dialogcard4` | 对话 Agent 桥接、复用快速模式消息卡片 UI、桥接卡片模式隔离、生成中进度条 |
+| `assets/canvas-chat-prompt-flow.js/css` | `20260701suite15` | 对话 Agent 桥接、套图 Agent 视频 tab 接线、动态板块提示词、隐藏原生视频模型控件、参考图多槽、浅色板块选择卡、单板块独立并发生图任务、失败单独重试、失败 request id 精简展示和成功自动上画布 |
 | `assets/index-DglIsp_g.js` | `20260630dialogagent12` | 旧画布主入口缓存版本，指向会话隔离后的 Canvas chunk |
 | `assets/Canvas-B8bY9_QL.js` | `20260630dialogagent9` | 旧 Canvas Chat 原生参数控件 + 三模式会话隔离 |
 | `assets/Canvas-yGc8b2gf.js` | `20260630dialogagent9` | 旧 Canvas Chat 原生参数控件 + 三模式会话隔离 |
@@ -23,7 +23,7 @@
 
 - 三模式隔离是当前旧画布硬边界：`对话 / 快速 / 视频` 不能共享 `messages`、`input`、`images`、生成中状态或 `sessionId`。
 - `快速` 不是 `对话 Agent`，不能为了复用实现把快速模式改成 GPT 5.5 分析链路。
-- `视频` 不是图片生成占位的别名，后续接入视频 Provider 前必须单独写契约、成本规则和 smoke。
+- `视频` 当前只允许承载电商套图 Agent；不能回退成共享图片生成占位，后续如接视频 Provider 必须单独写契约、成本规则和 smoke。
 - 刷新恢复时，`source:"canvas-chat"` 只能恢复草稿到输入框，不能自动新增用户消息。
 - `对话` 桥接消息卡片必须复用旧 Canvas Chat 快速模式的 `message-card / message-meta / image-grid / cost-line` 结构和 scoped 样式标记，禁止再自绘第二套卡片壳、图片网格和结果按钮视觉。
 - 任何修改旧 Canvas Chat 状态管理的 PR，都必须保留 `scripts/verify-canvas-performance-assets.js` 中的会话隔离锚点，并跑旧画布边界 smoke。
@@ -234,6 +234,49 @@
 
 - 如果 Packy 实测不接受 `image[]`，需要根据真实错误改为重复 `image` 字段或把字段名做成线路配置。
 - 多参考图真实兼容性必须在用户确认额度后点测。
+
+## 2026-07-01 视频 Tab 电商套图 Agent 边界
+
+### 本次教训
+
+- 不应把视频 tab 改成独立表单页或另起一套 UI 组件；旧画布应继续使用 Canvas Chat 的消息流、composer 和旧按钮/控件风格。
+- 不能为了套图 Agent 扩大 `对话` 桥接层的捕获范围；发送按钮必须显式分支，`对话` 只走 `handleSubmit`，`视频` 只走 `handleSuiteSubmit`，`快速` 必须放行给原生逻辑。
+- 不能改主入口 bundle、旧 Canvas chunk 或加载独立套图脚本；套图只能作为 `canvas-chat-prompt-flow` 的小范围过渡能力。
+
+### 当前实现
+
+- `assets/canvas-chat-prompt-flow.js/css` 升级为 `20260701suite15`。
+- 套图模式隐藏旧 Canvas Chat 原生视频模型控件，不再显示 `Seedance Pro`，请求体固定文本模型 `gpt-5.5`、图片模型 `gpt-image-2`。
+- 上传区改为 `产品图 + 参考图组`，参考图逐张显示独立槽位，最多 4 张，不再显示流程说明文字。
+- skill 下拉改为 100% 宽度，与下方文本输入框同列对齐。
+- 已上传图片槽改为整图铺满圆角卡片，不再显示槽位文字和缩小缩略图；空槽仍显示加号与标签。
+- skill 下拉在 `.dark` 环境下仍保持浅色底，和文本输入框/参数按钮视觉一致。
+- skill 原生 select 增加 `color-scheme: light`、浅色 option 和自绘箭头，避免浏览器暗色模式把控件皮肤渲染成深色。
+- 板块集合不再从后台固定模板启用列表读取；后台只维护 skills，提示词接口让 GPT 根据当前 skill、产品图、参考图和用户需求动态生成 3-5 个板块。
+- `shouldHandle(panel)` 仍严格等于 `对话`；新增 `isSuiteMode(panel)` 只识别 `视频 / 电商套图Agent`。
+- 视频模式 composer 顶部插入产品图、参考图和设计师 skill；产品图必填，参考图最多 4 张。
+- 视频模式发送后先生成浅色板块选择卡，用户只勾选板块并直接生成图片；prompt 由后端返回并在内部传给生图接口，不在前台暴露编辑框，也不渲染 `套图模板` 标题。
+- 生图阶段按选中板块拆成多个独立请求，每次只向 `/api/canvas/ecommerce-suite/generate` 提交一个 `promptPlan`，由后端生成独立任务并分别扣费/记录。
+- 按用户确认的工作链，前端会立即并发发出多个单板块任务，不等待上一个板块生成完成。
+- 失败卡片精简上游错误展示：主文案显示可读短句，`request id` 以小字保留，原始错误保存在卡片 `title`。
+- 生图结果区改为任务卡：生成中显示 loading，失败显示单板块 `重新生成`，成功显示完整图片卡并自动添加到画布。
+- 后端 `/api/canvas/ecommerce-suite/prompts` 和 `/api/canvas/ecommerce-suite/generate` 增加产品图必填校验，Provider 和扣费仍走既有适配器。
+
+### 守护脚本
+
+- `scripts/verify-canvas-performance-assets.js` 固定主入口 `index-DglIsp_g.js?v=20260630dialogagent12` 和 Canvas chunk `20260630dialogagent9`，并禁止加载 `canvas-ecommerce-suite-agent.js/css`。
+- 守护脚本断言 `shouldHandle` 未放宽、`isSuiteMode` 独立存在、chat/suite 桥接卡按模式显示。
+- `scripts/smoke-backend-canvas-boundary.ps1` 覆盖套图 config、未登录 401、缺产品图 400、mock 提示词和 mock 生图。
+- `scripts/verify-canvas-performance-assets.js` 断言套图模式必须是浅色选择卡，不得回退到 `套图模板` 标题、可编辑 prompt textarea 或黑底计划卡。
+- `scripts/verify-canvas-performance-assets.js` 断言套图生图必须使用 `promptPlans: [plan]` 单板块提交，禁止回退到 `promptPlans: plans` 聚合请求。
+- `scripts/verify-canvas-performance-assets.js` 断言套图生图必须使用 `Promise.all(taskPromises)` 并发发送多个单板块任务，同时继续禁止 `promptPlans: plans` 聚合请求。
+- `scripts/verify-canvas-performance-assets.js` 断言失败重试按钮、自动添加到画布函数和套图结果卡样式存在。
+
+### 禁止回退
+
+- 禁止把套图 Agent 变成浅色独立工作台。
+- 禁止让套图桥接卡在 `对话 / 快速` 模式可见。
+- 禁止让 `快速` 进入套图或对话 Agent 的发送处理。
 
 ## 当前临时技术债
 

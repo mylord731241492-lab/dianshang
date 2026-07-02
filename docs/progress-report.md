@@ -1919,3 +1919,25 @@
 - 完成内容：`assets/canvas-chat-prompt-flow.js` 增加 `SUITE_TAB_LABEL`、`SUITE_MODE_ALIASES` 和 `syncSuiteTabLabel()`，在现有同步周期里把第三个 tab 文案显示为 `agent电商套图`；`isSuiteMode()` 改为别名判断，继续兼容旧 `视频` 和旧 `电商套图Agent` 文案。
 - 缓存与护栏：`canvas-chat-prompt-flow` 资源查询串升级到 `20260701suite20`；`scripts/verify-canvas-performance-assets.js` 增加新 tab 文案、别名集合、同步函数和禁止旧硬编码判断回退的断言。
 - 边界：只改第三个 tab 展示文案和套图模式识别别名，不改 `对话 / 快速`，不改电商套图 prompts/generate 工作链，不触发真实 Provider。
+
+## 2026-07-02 首页历史画布删除按钮修复
+
+- 触发背景：用户反馈首页“我的历史画布项目”卡片右上角删除画布按钮点击无反应。
+- 完成内容：`assets/home-overrides.css` 增加历史项目删除按钮层级、默认可见度与指针事件覆盖，确保 `.history-delete` 始终高于卡片 hover 覆盖层，并让 `.history-hover` 不接收指针事件；`assets/home-carousel-inertia.js` 遇到按钮、链接和输入控件时不启动历史横向拖拽，也不在捕获阶段吞掉删除按钮 click；`index.html` 将首页覆盖 CSS 和轮播脚本查询串升级到 `20260702delete1`。
+- 验证结果：浏览器刷新首页后确认加载 `/assets/home-carousel-inertia.js?v=20260702delete1` 和 `/assets/home-overrides.css?v=20260702delete1`；删除按钮 computed `opacity=0.78`、`z-index=5`、`pointer-events=auto`；通过 UI 新建临时画布后直接点击删除，卡片数量从 4 回到 3；再新建临时画布，先拖动历史列表再点击删除，卡片数量仍从 4 回到 3，页面停留在首页并显示“项目已删除”。
+- 边界：只修首页旧资产交互层，不改项目数据结构、不改旧 Canvas 主 bundle、不触发真实 Provider。
+
+## 2026-07-02 首页模型下拉同步后端
+
+- 触发背景：用户确认首页模型下拉需要跟后台/后端模型同步，不再展示前端固定模型清单。
+- 完成内容：`server.js` 增加后端模型归一化层，`/api/model-routes`、`/api/public/models`、`/api/user/models` 和 `/api/user/api-status` 均统一读取 `admin.modelPrices` 覆盖后的模型；`/api/generation/estimate-cost` 改为按同一模型价格估费；后台模型价格列表避免递归读取自身覆盖结果。
+- 首页调整：`assets/HomeIndex-DAjDt0aj.js` 不再合并 `fixedImageModels` 清单，不再优先选择固定默认模型 `nano-banana-2`；`assets/index-DglIsp_g.js` 和 `index.html` 增加 `20260702modelsync1` 查询串刷新首页 chunk。
+- 验证结果：本地服务重启后，`GET /api/model-routes?group=image` 返回当前后端 1 个图像模型 `GPT Image 2:10`；`GET /api/public/models?routeId=pub_route_openai_gpt_image_2` 返回同一模型；`POST /api/generation/estimate-cost` 以 2 张图估费为 20 点；浏览器首页模型按钮显示 `GPT Image 2`，页面不再出现 `Nano Banana`、`Gemini`、`Comfly` 固定模型文本。
+- 边界：本轮不新增后台模型数据、不触发真实 Provider 或付费调用；当前 `admin.modelPrices` 为空，所以首页会先只显示后端默认模型，后续后台新增/启停/改价后再同步到首页。
+
+## 2026-07-02 首页顶部播放样式按钮移除
+
+- 触发背景：用户指出首页顶部栏中位于“历史记录”和“AI”之间的圆形播放按钮需要删除。
+- 完成内容：`assets/HomeLayout-BeS5XdE3.js` 移除 `header-icon-button visual-mode` 按钮渲染；`assets/index-DglIsp_g.js` 将 HomeLayout 动态 chunk 加 `20260702removeplay1` 查询串；`index.html` 主入口查询串同步升级。
+- 验证结果：浏览器刷新首页后，顶部按钮只剩 `导出`、`保存`、`历史记录` 和用户/AI入口；DOM 中不存在 `.header-icon-button.visual-mode`，也不存在 `样式 1：视频播放` 按钮标题。
+- 边界：只删除顶部样式切换入口，不改背景视频资源、不改首页业务按钮、不触发真实 Provider。

@@ -7,6 +7,9 @@
   const MOMENTUM_GAIN = 18;
 
   const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+  const isInteractiveTarget = (target) => !!target?.closest?.(
+    'button, a, input, textarea, select, [role="button"], .history-delete'
+  );
 
   function animateTo(track, target, duration = 320) {
     const start = track.scrollLeft;
@@ -110,6 +113,7 @@
 
     track.addEventListener('pointerdown', (event) => {
       if (event.button !== undefined && event.button !== 0) return;
+      if (isInteractiveTarget(event.target)) return;
       cancelMomentum();
       clearElastic();
       pointerId = event.pointerId;
@@ -188,6 +192,10 @@
     }, { passive: true });
 
     track.addEventListener('click', (event) => {
+      if (isInteractiveTarget(event.target)) {
+        didDrag = false;
+        return;
+      }
       if (!didDrag) return;
       event.preventDefault();
       event.stopPropagation();

@@ -227,6 +227,22 @@
   border-color: rgba(255, 255, 255, .86) !important;
 }
 
+.history-delete {
+  z-index: 5 !important;
+  opacity: .78 !important;
+  pointer-events: auto !important;
+}
+
+.history-card:hover .history-delete,
+.history-delete:hover,
+.history-delete:focus-visible {
+  opacity: 1 !important;
+}
+
+.history-hover {
+  pointer-events: none !important;
+}
+
 .history-thumb {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, .68), rgba(247, 250, 249, .42)),

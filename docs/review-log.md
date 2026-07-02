@@ -2734,3 +2734,48 @@
 ### 需要继续验证
 
 - 浏览器刷新后确认 tab 显示为 `对话 / 快速 / agent电商套图`，点击第三个 tab 后电商套图 composer 仍出现，`对话 / 快速` 仍可切换。
+
+## 2026-07-02 首页历史画布删除按钮复核
+
+### 已确认
+
+- 首页历史项目删除函数已在旧 HomeIndex bundle 中存在，后端 `DELETE /api/user/projects/:id` 也存在；本轮问题定位为首页卡片 hover 层与按钮层级/指针事件需要加固。
+- `assets/home-overrides.css` 已补 `.history-delete { z-index: 5; pointer-events: auto; }` 和 `.history-hover { pointer-events: none; }`，不改旧 HomeIndex JS 和项目存储模块。
+- 浏览器刷新后 computed style 确认新规则生效。
+- UI 验证中先新建临时画布，再点击第一张临时卡片删除按钮；删除后卡片数从 3 降回 2，当前 URL 保持 `http://localhost:3456/`，页面提示“项目已删除”。
+- 追加复核后确认：多个同名空白画布会让删除成功看起来像无变化；同时历史横向拖拽脚本可能在捕获阶段吞掉拖拽后的第一次 click。
+- `assets/home-carousel-inertia.js` 已对 `button/a/input/textarea/select/[role="button"]/.history-delete` 放行，避免删除按钮参与横向拖拽；捕获 click 遇到交互元素时直接放行并清理拖拽状态。
+- `assets/home-overrides.css` 已让删除按钮默认可见，减少必须 hover 才能精确点击的问题；`index.html` 已给首页覆盖 CSS 和轮播脚本加 `20260702delete1` 查询串，避免缓存旧交互脚本。
+- 浏览器验证：直接点击临时画布删除按钮，卡片数 `4 -> 3`；先拖动历史列表再点击临时画布删除按钮，卡片数仍 `4 -> 3`；两次均停留首页并提示“项目已删除”。
+
+### 需要继续验证
+
+- 用户后续可在自己的目标画布卡片上再点一次删除，确认右上角按钮无需确认即可直接删除对应卡片。
+
+## 2026-07-02 首页模型同步后端复核
+
+### 已确认
+
+- 首页旧 `HomeIndex` 原先把后端线路模型与 `fixedImageModels` 固定清单合并，导致页面出现 `Nano Banana`、`Gemini`、`Comfly` 等不完全来自后端的选项。
+- `server.js` 原先 `/api/model-routes`、`/api/public/models`、`/api/user/models` 只读取 `IMG/TXT` 常量，后台 `admin.modelPrices` 只在后台模型价格页使用。
+- 本轮新增统一模型归一化层：基础模型先来自路线默认模型，再叠加 `admin.modelPrices` 的价格、启停和新增模型覆盖。
+- 首页旧包已改为不再合并固定图片模型，不再使用 `nano-banana-2` 固定默认值；刷新入口为 `HomeIndex-DAjDt0aj.js?v=20260702modelsync1`。
+- 本地接口验证：当前后端图像模型列表只有 `GPT Image 2`，价格 10 点；估费接口 2 张图返回 20 点。
+- 浏览器验证：首页模型按钮显示 `GPT Image 2`，页面文本中不再出现固定清单里的 `Nano Banana`、`Gemini`、`Comfly`。
+
+### 需要继续验证
+
+- 后续在后台新增一个测试模型并启用后，刷新首页确认新模型出现在下拉；再禁用该模型，确认首页不再展示。
+
+## 2026-07-02 首页顶部播放按钮移除复核
+
+### 已确认
+
+- 用户截图箭头指向的按钮对应旧 HomeLayout 的 `header-icon-button visual-mode`，标题为 `样式 1：视频播放`。
+- 本轮已从 `assets/HomeLayout-BeS5XdE3.js` 渲染结构中移除该按钮，并将 HomeLayout 动态 import 升级为 `HomeLayout-BeS5XdE3.js?v=20260702removeplay1`。
+- `index.html` 主入口已升级到 `index-DglIsp_g.js?v=20260702removeplay1`，避免浏览器继续加载旧依赖表。
+- 浏览器刷新后确认顶部按钮只剩 `导出`、`保存`、`历史记录` 和用户/AI入口；`.header-icon-button.visual-mode` 不存在，`样式 1：视频播放` 标题也不存在。
+
+### 需要继续验证
+
+- 用户刷新当前首页后确认截图中箭头位置不再出现圆形播放按钮。

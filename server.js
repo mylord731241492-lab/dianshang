@@ -662,9 +662,14 @@ function buildCanvasPromptInput(body = {}) {
 }
 
 function modelCost(modelKey = '', kind = 'image') {
-  const list = kind === 'text' ? TXT : IMG;
   const fallback = kind === 'text' ? 5 : 15;
   const key = String(modelKey || '').trim();
+  const priced = findPricedModel(key, kind);
+  if (priced) {
+    const value = Number(priced.pricePoints ?? priced.pointCost ?? priced.price ?? priced.baseCredits);
+    if (Number.isFinite(value)) return value;
+  }
+  const list = kind === 'text' ? TXT : IMG;
   const found = list.find(item => item.k === key || item.n === key) || list[0];
   return found ? found.p : fallback;
 }
@@ -1622,16 +1627,154 @@ function fmt(m, route = RTS[0]) {
     variants:[{id:`pub_model_${mid}`,modelId:`pub_model_${mid}`,modelKey:m.k,key:m.k,realName:m.k,realModelName:m.k,displayName:m.n,label:m.n,clarity:'1k',routeId,lineId:routeId,routeKey,lineKey:routeKey}]
   };
 }
-function routePayload(route = RTS[0]) {
+
+function routeIdentity(route = RTS[0]) {
+  const id = String(route.id || route.routeId || route.lineId || route.rk || '').trim();
+  const key = String(route.rk || route.routeKey || route.lineKey || route.code || id).trim();
+  return { id, key };
+}
+
+function baseModelsForRoute(route = RTS[0]) {
   const kind = routeKind(route);
   const sourceModels = kind === 'text' ? TXT : IMG;
-  const defaultRaw = sourceModels.find(m => m.k === route.dm || m.n === route.dm) || sourceModels[0];
-  const models = sourceModels.map(m => fmt(m, route));
-  const defaultModel = fmt(defaultRaw, route);
+  return sourceModels.map(m => fmt(m, route));
+}
+
+function numericModelValue(...values) {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return 0;
+}
+
+function routeMatchesModelRow(row = {}, route = RTS[0]) {
+  const { id, key } = routeIdentity(route);
+  const routeValues = [id, key, route.routeId, route.lineId, route.routeKey, route.lineKey, route.code, route.rk]
+    .filter(Boolean)
+    .map(String);
+  const rowValues = [row.routeId, row.lineId, row.routeKey, row.lineKey, row.providerId, row.providerKey]
+    .filter(Boolean)
+    .map(String);
+  const rowIdPrefix = String(row.id || '').split(':')[0];
+  if (rowIdPrefix) rowValues.push(rowIdPrefix);
+  return rowValues.some(value => routeValues.includes(value));
+}
+
+function modelMatchesRow(model = {}, row = {}) {
+  const modelValues = [model.modelKey, model.key, model.realName, model.realModelName, model.modelId, model.id]
+    .filter(Boolean)
+    .map(String);
+  const rowValues = [row.modelKey, row.key, row.realName, row.realModelName, row.providerModelId, row.modelId, row.id]
+    .filter(Boolean)
+    .map(String);
+  return rowValues.some(value => modelValues.includes(value) || modelValues.some(modelValue => String(value).endsWith(`:${modelValue}`)));
+}
+
+function normalizeRouteModel(row = {}, route = RTS[0], baseModel = null) {
+  const kind = routeKind(route);
+  const { id: routeId, key: routeKey } = routeIdentity(route);
+  const rawModelKey = row.modelKey || row.key || row.frontendModelKey || row.realName || row.realModelName || row.providerModelId || baseModel?.modelKey || baseModel?.key || '';
+  const modelKey = String(rawModelKey || '').trim();
+  const realName = String(row.realName || row.realModelName || row.providerModelId || row.model || baseModel?.realName || modelKey).trim();
+  const displayName = String(row.displayName || row.frontName || row.label || row.name || baseModel?.displayName || realName || modelKey || '可用模型').trim();
+  const id = String(row.id || baseModel?.id || (routeId && modelKey ? `${routeId}:${modelKey}` : modelKey)).trim();
+  const modelId = String(row.modelId || baseModel?.modelId || id).trim();
+  const price = numericModelValue(row.pointCost, row.pricePoints, row.price, row.baseCredits, baseModel?.pointCost, baseModel?.pricePoints, baseModel?.price, baseModel?.baseCredits);
+  const enabled = row.enabled !== false && row.status !== 'disabled';
+  const qualities = Array.isArray(row.qualities)
+    ? row.qualities
+    : Array.isArray(baseModel?.qualities)
+      ? baseModel.qualities
+      : ['1k'];
+  return {
+    ...(baseModel || {}),
+    ...row,
+    id,
+    modelId,
+    key: modelKey,
+    name: displayName,
+    modelName: displayName,
+    modelKey,
+    realName,
+    realModelName: realName,
+    providerModelId: row.providerModelId || baseModel?.providerModelId || realName,
+    publicModelId: row.publicModelId || baseModel?.publicModelId || modelId,
+    defaultModelId: row.defaultModelId || baseModel?.defaultModelId || modelId,
+    routeId: row.routeId || baseModel?.routeId || routeId,
+    lineId: row.lineId || baseModel?.lineId || routeId,
+    routeKey: row.routeKey || baseModel?.routeKey || routeKey,
+    lineKey: row.lineKey || baseModel?.lineKey || routeKey,
+    routeName: row.routeName || baseModel?.routeName || route.displayName || route.dn || route.name || routeKey,
+    frontendModelKey: row.frontendModelKey || baseModel?.frontendModelKey || modelKey,
+    modelFamilyKey: row.modelFamilyKey || baseModel?.modelFamilyKey || modelKey,
+    displayName,
+    label: row.label || displayName,
+    price,
+    pointCost: price,
+    pricePoints: price,
+    baseCredits: price,
+    modelType: row.modelType || baseModel?.modelType || kind,
+    type: row.type || baseModel?.type || kind,
+    group: row.group || baseModel?.group || kind,
+    category: row.category || baseModel?.category || kind,
+    enabled,
+    status: enabled ? (row.status || 'active') : 'disabled',
+    qualities,
+    defaultParams: row.defaultParams || baseModel?.defaultParams || { size: '1x1', quality: 'standard', clarity: qualities[0] || '1k' },
+    variants: Array.isArray(row.variants)
+      ? row.variants
+      : Array.isArray(baseModel?.variants)
+        ? baseModel.variants
+        : [{ id, modelId, modelKey, key: modelKey, realName, realModelName: realName, displayName, label: displayName, clarity: qualities[0] || '1k', routeId, lineId: routeId, routeKey, lineKey: routeKey }],
+    raw: row.raw || row
+  };
+}
+
+function modelRowsForRoute(route = RTS[0], options = {}) {
+  const baseModels = baseModelsForRoute(route);
+  const overrides = modelPriceState().filter(row => routeMatchesModelRow(row, route));
+  const usedOverrideIds = new Set();
+  const mergedModels = baseModels.map(model => {
+    const override = overrides.find(row => modelMatchesRow(model, row));
+    if (override && override.id) usedOverrideIds.add(override.id);
+    return normalizeRouteModel(override || {}, route, model);
+  });
+  const extraModels = overrides
+    .filter(row => !row.id || !usedOverrideIds.has(row.id))
+    .filter(row => !baseModels.some(model => modelMatchesRow(model, row)))
+    .map(row => normalizeRouteModel(row, route));
+  const models = [...mergedModels, ...extraModels];
+  return options.includeDisabled ? models : models.filter(model => model.enabled !== false && model.status !== 'disabled');
+}
+
+function findPricedModel(modelKey = '', kind = 'image', preferredRoute = null) {
+  const key = String(modelKey || '').trim();
+  if (!key) return null;
+  const routes = preferredRoute
+    ? [preferredRoute]
+    : routeState().filter(route => !kind || routeKind(route) === kind);
+  const models = routes.flatMap(route => modelRowsForRoute(route));
+  return models.find(model =>
+    [model.modelKey, model.realName, model.realModelName, model.providerModelId, model.modelId, model.id, model.displayName]
+      .filter(Boolean)
+      .some(value => String(value) === key)
+  ) || models.find(model => String(model.id || '').endsWith(`:${key}`));
+}
+
+function routePayload(route = RTS[0], options = {}) {
+  const kind = routeKind(route);
+  const baseModels = baseModelsForRoute(route);
+  const models = options.includeModelOverrides === false
+    ? baseModels
+    : modelRowsForRoute(route, { includeDisabled: !!options.includeDisabledModels });
   const id = route.id || route.routeId || route.lineId || route.rk || uid('route_');
   const key = route.rk || route.routeKey || route.lineKey || route.code || id;
   const name = route.name || route.dn || route.displayName || key;
   const displayName = route.displayName || route.routeDisplayName || route.dn || name;
+  const defaultModel = models.find(model =>
+    [model.modelKey, model.realName, model.realModelName, model.displayName, model.modelId, model.id].filter(Boolean).includes(route.dm)
+  ) || baseModels.find(model => [model.modelKey, model.realName, model.displayName].includes(route.dm)) || models[0] || baseModels[0] || null;
   const officialRoute = RTS.find(item =>
     [item.id, item.rk].includes(id) ||
     [item.id, item.rk].includes(key) ||
@@ -1665,10 +1808,10 @@ function routePayload(route = RTS[0]) {
     priority: Number(route.pri || route.priority || 0),
     isDefault: !!route.def,
     defaultModel,
-    defaultModelId: defaultModel.modelId,
-    defaultModelKey: defaultModel.modelKey,
-    defaultModelRealName: defaultModel.realName,
-    defaultModelDisplayName: defaultModel.displayName,
+    defaultModelId: defaultModel?.modelId || '',
+    defaultModelKey: defaultModel?.modelKey || '',
+    defaultModelRealName: defaultModel?.realName || '',
+    defaultModelDisplayName: defaultModel?.displayName || '',
     apiKey: maskSecret(route.apiKey),
     hasApiKey: hasStoredSecret(route.apiKey),
     apiFormat: route.apiFormat || officialRoute?.apiFormat || '',
@@ -1680,11 +1823,11 @@ function routePayload(route = RTS[0]) {
     models
   };
 }
-function filteredRoutes(group) {
+function filteredRoutes(group, options = {}) {
   const g = String(group || '').toLowerCase();
   return routeState()
     .filter(r => !g || routeKind(r) === g || String(r.g || r.cat || '').toLowerCase() === g)
-    .map(routePayload);
+    .map(route => routePayload(route, options));
 }
 function san(u) {
   return {id:u.id,username:u.username,email:u.email,emailVerified:true,role:u.role,
@@ -1766,8 +1909,9 @@ app.get('/api/public/routes', (req, res) => res.json({ items: filteredRoutes(req
 app.get('/api/public/models', (req, res) => {
   const rid = req.query.routeId || req.query.lineId || req.query.routeKey || req.query.lineKey;
   const routes = routeState();
-  const rt = routes.find(r=>[r.id,r.rk].includes(rid)) || routes[0] || RTS[0];
-  res.json({ items: (rt&&rt.cat==='text'?TXT:IMG).map(m=>fmt(m, rt)) });
+  const rt = routes.find(r=>[r.id,r.rk,r.routeId,r.lineId,r.routeKey,r.lineKey].includes(rid)) || routes[0] || RTS[0];
+  const models = modelRowsForRoute(rt);
+  res.json({ success: true, items: models, data: models });
 });
 app.get('/api/model-routes', (req, res) => {
   res.json({ items: filteredRoutes(req.query.group) });
@@ -1785,14 +1929,17 @@ app.get('/api/user/routes', auth, (req, res) => res.json({ success: true, data: 
 app.get('/api/user/models', auth, (req, res) => {
   const rid = req.query.routeId || req.query.lineId || req.query.routeKey || req.query.lineKey || 'pub_route_64f93e01e8f3';
   const routes = routeState();
-  const rt = routes.find(r=>[r.id,r.rk].includes(rid)) || routes[0] || RTS[0];
-  res.json({ success: true, data: (rt&&rt.cat==='text'?TXT:IMG).map(m=>fmt(m, rt)) });
+  const rt = routes.find(r=>[r.id,r.rk,r.routeId,r.lineId,r.routeKey,r.lineKey].includes(rid)) || routes[0] || RTS[0];
+  const models = modelRowsForRoute(rt);
+  res.json({ success: true, data: models, items: models });
 });
 app.get('/api/user/api-status', optionalAuth, (req, res) => {
   const rt = routeState()[0] || RTS[0];
+  const models = modelRowsForRoute(rt);
+  const defaultImageModel = models[0]?.displayName || 'GPT Image 2';
   res.json({ success: true, status: 'active', mode: 'auto', mock: !req.user,
     provider: { id:rt.id, routeId:rt.id, lineId:rt.id, routeKey:rt.rk, lineKey:rt.rk, name:rt.dn, displayName:rt.dn,
-      defaultImageModel:'GPT Image 2', models: IMG.map(m=>fmt(m, rt)), supportsChat:true, supportsImage:true }
+      defaultImageModel, models, supportsChat:true, supportsImage:true }
   });
 });
 app.get('/api/user/balance-logs', auth, (req, res) => {
@@ -1875,9 +2022,13 @@ const fetch = (...args) => import('node-fetch').then(({default:f})=>f(...args));
 app.post('/api/generation/estimate-cost', optionalAuth, (req, res) => {
   const modelKey = req.body.modelKey || req.body.model || req.body.realName || req.body.realModelName || req.body.imageModelKey || IMG[0].k;
   const imageCount = Number(req.body.imageCount || req.body.count || req.body.n || 1) || 1;
-  const all = [...IMG, ...TXT];
-  const m = all.find(x=>x.k===modelKey) || all.find(x=>modelKey.startsWith(x.k)) || IMG[0];
-  const cost = m ? m.p : 15;
+  const routeId = req.body.routeId || req.body.lineId || req.body.routeKey || req.body.lineKey || '';
+  const route = routeId ? findRouteByAnyId(routeId) : null;
+  const kind = route ? routeKind(route) : (req.body.textModel || req.body.textModelKey ? 'text' : 'image');
+  const model = findPricedModel(modelKey, kind, route);
+  const cost = model
+    ? Number(model.pricePoints ?? model.pointCost ?? model.price ?? model.baseCredits)
+    : modelCost(modelKey, kind);
   const cnt = imageCount || 1;
   const u = req.user?.userId ? db.prepare('SELECT balance FROM users WHERE id=?').get(req.user.userId) : null;
   const totalCost = cost * cnt;
@@ -3219,32 +3370,28 @@ function mockOrders() {
 function modelPriceRows() {
   const overrides = modelPriceState();
   const overrideMap = new Map(overrides.map(row => [row.id, row]));
-  const baseRows = filteredRoutes().flatMap(route => route.models.map(model => {
+  const baseRows = filteredRoutes('', { includeModelOverrides: false, includeDisabledModels: true }).flatMap(route => route.models.map(model => {
     const id = `${route.id}:${model.modelKey}`;
     const override = overrideMap.get(id) || {};
-    return {
+    return normalizeRouteModel({
       ...override,
       id,
       routeId: route.id,
       routeKey: route.routeKey,
-      routeName: route.displayName,
-      modelId: model.modelId,
-      modelKey: model.modelKey,
-      realName: model.realName,
-      displayName: model.displayName,
-      modelType: model.modelType,
-      price: Number(override.price ?? override.pricePoints ?? model.pricePoints),
-      pricePoints: Number(override.pricePoints ?? override.price ?? model.pricePoints),
-      baseCredits: Number(override.baseCredits ?? model.baseCredits),
-      enabled: override.enabled !== false,
-      status: override.status || 'active',
-      qualities: override.qualities || model.qualities || []
-    };
+      routeName: route.displayName
+    }, route, model);
   }));
   const baseIds = new Set(baseRows.map(row => row.id));
+  const routes = filteredRoutes('', { includeModelOverrides: false, includeDisabledModels: true });
+  const extraRows = overrides
+    .filter(row => !baseIds.has(row.id))
+    .map(row => {
+      const route = routes.find(item => routeMatchesModelRow(row, item)) || routes[0] || routePayload(RTS[0], { includeModelOverrides: false, includeDisabledModels: true });
+      return normalizeRouteModel(row, route);
+    });
   return [
     ...baseRows,
-    ...overrides.filter(row => !baseIds.has(row.id))
+    ...extraRows
   ];
 }
 
@@ -3303,7 +3450,7 @@ app.get('/api/admin/dashboard', auth, admin, (req, res) => {
     apiFailures: 0,
     activeUsers: db.prepare("SELECT COUNT(*) as c FROM users WHERE status='active'").get().c,
     routeCount: routeState().length,
-    modelCount: IMG.length + TXT.length
+    modelCount: modelPriceRows().length
   };
   const dashboardStats = {
     ...stats,

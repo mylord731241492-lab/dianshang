@@ -15,6 +15,10 @@
   display: none !important;
 }
 
+.canvas-chat-panel .message-list > .empty-state {
+  display: none !important;
+}
+
 .canvas-chat-panel .composer .config-row {
   --hjm-chat-icon-width: 44px;
   --hjm-chat-param-width: 96px;

@@ -2694,3 +2694,43 @@
 ### 需要继续验证
 
 - 浏览器刷新后确认图片节点不再显示顶部 `图片节点` 名称和 `正常` 徽标，底部也不显示重复 `正常`。
+
+## 2026-07-01 Canvas Chat 三模式空状态文案复核
+
+### 已确认
+
+- 空状态文案位于旧 Canvas Chat 的 `.message-list > .empty-state`，会在 `对话 / 快速 / 视频` 没有消息时显示。
+- 本轮用 `assets/canvas-chat-prompt-flow.css` 统一隐藏该空状态，不改旧 Canvas 主 bundle。
+- `canvas-chat-prompt-flow.js/css` 资源查询串已升级到 `20260701suite18`。
+- 静态护栏已增加 `.canvas-chat-panel .message-list > .empty-state` 选择器检查。
+- 浏览器刷新后确认已加载 `canvas-chat-prompt-flow.js/css?v=20260701suite18`，空状态元素仍在 DOM 中但 computed display 为 `none`。
+
+### 需要继续验证
+
+- 浏览器刷新后切换三个 tab，确认 `👋 / 灵感不间断 / 对话模式会保留你的上下文与参考图` 均不再显示。
+
+## 2026-07-01 Canvas Chat 输入框默认文案复核
+
+### 已确认
+
+- 底部输入框默认文案来自旧 Canvas Chat composer 的原生 `placeholder`，不能通过重写 composer 解决。
+- 本轮只在 `assets/canvas-chat-prompt-flow.js` 的现有同步周期里补 `syncComposerPlaceholder()`，把 `placeholder/data-placeholder` 统一为 `请输出你的提示词`。
+- `canvas-chat-prompt-flow.js/css` 资源查询串已升级到 `20260701suite19`。
+- 静态护栏已增加 `CANVAS_CHAT_PLACEHOLDER`、`syncComposerPlaceholder()` 和 placeholder 赋值锚点检查。
+
+### 需要继续验证
+
+- 浏览器刷新后确认底部输入框显示 `请输出你的提示词`，并切换 `对话 / 快速 / 视频` 后文案不回退。
+
+## 2026-07-01 第三个 Tab 文案复核
+
+### 已确认
+
+- 第三个 tab 的旧底层文案可能仍由旧 Canvas 主 bundle 输出为 `视频`，因此本轮只在 `assets/canvas-chat-prompt-flow.js` 过渡层同步展示文案。
+- 前台展示文案统一为 `agent电商套图`，`isSuiteMode()` 继续兼容旧 `视频`、旧 `电商套图Agent` 和当前 `agent电商套图` 三个别名。
+- `canvas-chat-prompt-flow.js/css` 资源查询串已升级到 `20260701suite20`。
+- 静态护栏已增加 `SUITE_TAB_LABEL`、`SUITE_MODE_ALIASES`、`syncSuiteTabLabel()` 和禁止旧硬编码 suite 判断回退的断言。
+
+### 需要继续验证
+
+- 浏览器刷新后确认 tab 显示为 `对话 / 快速 / agent电商套图`，点击第三个 tab 后电商套图 composer 仍出现，`对话 / 快速` 仍可切换。

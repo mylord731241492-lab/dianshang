@@ -1897,3 +1897,25 @@
 - 样式调整：`assets/canvas-node-radius-fix.css` 增加通用节点标题锁定样式，移除 text cursor、hover 灰底和文字选择；资源查询串升级为 `canvas-image-node-polish?v=20260701image10` 与 `canvas-node-radius-fix.css?v=20260701title1`。
 - 护栏调整：`scripts/verify-canvas-performance-assets.js` 增加标题锁脚本、标题不可选 CSS 和新查询串断言；旧画布边界 smoke 同步新资源。
 - 边界：不改旧 Canvas 主 bundle，不移除节点本身的选中/拖拽能力，只关闭标题重命名和文本选中。
+
+## 2026-07-01 Canvas Chat 三模式空状态文案隐藏
+
+- 触发背景：用户指出三个 tab 中间的 `👋 / 灵感不间断 / 对话模式会保留你的上下文与参考图` 文案都不要显示。
+- 完成内容：`assets/canvas-chat-prompt-flow.css` 增加 `.canvas-chat-panel .message-list > .empty-state { display:none !important; }`，让 `对话 / 快速 / 视频` 三个 tab 的空状态说明统一隐藏。
+- 缓存与护栏：`canvas-chat-prompt-flow` 资源查询串升级到 `20260701suite18`；`scripts/verify-canvas-performance-assets.js` 增加空状态隐藏选择器断言，旧画布边界 smoke 同步新版本。
+- 验证结果：`node --check` 后端、套图桥接和图片节点 polish 脚本通过；资产护栏、旧画布边界 smoke、`npm run build --prefix "F:\dianshang\frontend"`、`git diff --check` 和触达文件 BOM 检查均通过。浏览器已加载 `canvas-chat-prompt-flow.js/css?v=20260701suite18`，`.message-list > .empty-state` computed display 为 `none`。
+- 边界：只隐藏旧 Canvas Chat 空状态文案，不改消息流、不改 composer、不触发真实 Provider。
+
+## 2026-07-01 Canvas Chat 输入框默认文案统一
+
+- 触发背景：用户指出底部对话框默认文案仍是 `输入您想要的修改效果（可选择生成图片）`，需要统一改为 `请输出你的提示词`。
+- 完成内容：`assets/canvas-chat-prompt-flow.js` 增加 `CANVAS_CHAT_PLACEHOLDER` 和 `syncComposerPlaceholder()`，在现有 `syncPromptFlowCardVisibility` 周期内同步旧 composer 的 `placeholder/data-placeholder`，覆盖 `对话 / 快速 / 视频` 三个 tab。
+- 缓存与护栏：`canvas-chat-prompt-flow` 资源查询串升级到 `20260701suite19`；`scripts/verify-canvas-performance-assets.js` 增加 placeholder 常量、同步函数和赋值锚点断言，旧画布边界 smoke 同步新版本。
+- 边界：只改旧画布过渡层，不改旧 Canvas 主 bundle，不改变发送链路、模型链路和电商套图工作链，不触发真实 Provider。
+
+## 2026-07-01 第三个 Tab 文案改为 agent电商套图
+
+- 触发背景：用户要求把旧画布第三个 tab 的展示文案从 `视频` 改为 `agent电商套图`。
+- 完成内容：`assets/canvas-chat-prompt-flow.js` 增加 `SUITE_TAB_LABEL`、`SUITE_MODE_ALIASES` 和 `syncSuiteTabLabel()`，在现有同步周期里把第三个 tab 文案显示为 `agent电商套图`；`isSuiteMode()` 改为别名判断，继续兼容旧 `视频` 和旧 `电商套图Agent` 文案。
+- 缓存与护栏：`canvas-chat-prompt-flow` 资源查询串升级到 `20260701suite20`；`scripts/verify-canvas-performance-assets.js` 增加新 tab 文案、别名集合、同步函数和禁止旧硬编码判断回退的断言。
+- 边界：只改第三个 tab 展示文案和套图模式识别别名，不改 `对话 / 快速`，不改电商套图 prompts/generate 工作链，不触发真实 Provider。

@@ -1,5 +1,5 @@
 (function () {
-  var FLOW_VERSION = '20260701suite17';
+  var FLOW_VERSION = '20260701suite20';
   var state = {
     busy: false,
     runs: {},
@@ -16,6 +16,9 @@
     }
   };
   var CANVAS_CHAT_SCOPE_ATTR = 'data-v-b10121f4';
+  var CANVAS_CHAT_PLACEHOLDER = '请输出你的提示词';
+  var SUITE_TAB_LABEL = 'agent电商套图';
+  var SUITE_MODE_ALIASES = ['视频', '电商套图Agent', SUITE_TAB_LABEL];
   var SUITE_MAX_REFERENCE_IMAGES = 4;
   var DEFAULT_SUITE_CONFIG = {
     enabled: true,
@@ -76,9 +79,71 @@
     return panel && panel.querySelector('.composer-input');
   }
 
+  function normalizeModeText(value) {
+    return String(value || '').replace(/\s+/g, '').trim();
+  }
+
+  function isSuiteModeName(mode) {
+    return SUITE_MODE_ALIASES.indexOf(normalizeModeText(mode)) >= 0;
+  }
+
+  function setTabText(tab, label) {
+    var changed = false;
+    Array.from(tab.childNodes || []).forEach(function (node) {
+      if (node.nodeType === 3 && normalizeModeText(node.textContent)) {
+        node.textContent = node.textContent.replace(/\S[\s\S]*\S|\S/, label);
+        changed = true;
+      }
+    });
+    if (changed) return;
+    var textNode = Array.from(tab.querySelectorAll('span, strong, b')).find(function (node) {
+      return isSuiteModeName(node.textContent);
+    });
+    if (textNode) {
+      textNode.textContent = label;
+      changed = true;
+    }
+    if (!changed) {
+      tab.setAttribute('aria-label', label);
+      tab.title = label;
+    }
+  }
+
+  function syncSuiteTabLabel(panel) {
+    if (!panel) return;
+    Array.from(panel.querySelectorAll('.canvas-chat-tab')).forEach(function (tab) {
+      if (!isSuiteModeName(tab.textContent)) return;
+      if (normalizeModeText(tab.textContent) !== SUITE_TAB_LABEL) {
+        setTabText(tab, SUITE_TAB_LABEL);
+      }
+      tab.setAttribute('data-hjm-suite-tab-label', SUITE_TAB_LABEL);
+    });
+  }
+
+  function syncComposerPlaceholder(panel) {
+    if (!panel) return;
+    var composer = panel.querySelector('.composer');
+    if (!composer) return;
+    var fields = [];
+    var mainInput = getInput(panel);
+    if (mainInput) fields.push(mainInput);
+    Array.from(composer.querySelectorAll('textarea, input[placeholder], [contenteditable="true"][data-placeholder]')).forEach(function (field) {
+      if (fields.indexOf(field) === -1) fields.push(field);
+    });
+    fields.forEach(function (field) {
+      if (!field) return;
+      if ('placeholder' in field && field.placeholder !== CANVAS_CHAT_PLACEHOLDER) {
+        field.placeholder = CANVAS_CHAT_PLACEHOLDER;
+      }
+      if (field.getAttribute && field.hasAttribute && field.hasAttribute('data-placeholder')) {
+        field.setAttribute('data-placeholder', CANVAS_CHAT_PLACEHOLDER);
+      }
+    });
+  }
+
   function getActiveMode(panel) {
     var active = panel && panel.querySelector('.canvas-chat-tab.active');
-    return (active && active.textContent ? active.textContent : '').replace(/\s+/g, '').trim();
+    return normalizeModeText(active && active.textContent ? active.textContent : '');
   }
 
   function shouldHandle(panel) {
@@ -87,7 +152,7 @@
 
   function isSuiteMode(panel) {
     var mode = getActiveMode(panel);
-    return !!panel && (mode === '视频' || mode === '电商套图Agent');
+    return !!panel && isSuiteModeName(mode);
   }
 
   function enabledSuiteSections(config) {
@@ -111,6 +176,8 @@
 
   function syncPromptFlowCardVisibility(panel) {
     if (!panel) return;
+    syncSuiteTabLabel(panel);
+    syncComposerPlaceholder(panel);
     var dialogActive = shouldHandle(panel);
     var suiteActive = isSuiteMode(panel);
     var visibleBridgeCount = 0;

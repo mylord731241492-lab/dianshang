@@ -11,7 +11,7 @@
 
 | 资产 | 当前版本 | 说明 |
 | --- | --- | --- |
-| `assets/canvas-chat-prompt-flow.js/css` | `20260701suite17` | 对话 Agent 桥接、套图 Agent 视频 tab 接线、动态板块提示词、隐藏原生视频模型控件、参考图多槽、浅色设计师头像选择器、浅色板块选择卡、单板块独立并发生图任务、失败单独重试、失败 request id 精简展示、成功图内悬浮操作层和成功自动上画布 |
+| `assets/canvas-chat-prompt-flow.js/css` | `20260701suite20` | 对话 Agent 桥接、套图 Agent 第三 tab 接线、动态板块提示词、隐藏原生视频模型控件、参考图多槽、浅色设计师头像选择器、浅色板块选择卡、单板块独立并发生图任务、失败单独重试、失败 request id 精简展示、成功图内悬浮操作层、成功自动上画布、三模式空状态隐藏、composer 默认文案统一和第三 tab 文案同步为 `agent电商套图` |
 | `assets/index-DglIsp_g.js` | `20260630dialogagent12` | 旧画布主入口缓存版本，指向会话隔离后的 Canvas chunk |
 | `assets/Canvas-B8bY9_QL.js` | `20260630dialogagent9` | 旧 Canvas Chat 原生参数控件 + 三模式会话隔离 |
 | `assets/Canvas-yGc8b2gf.js` | `20260630dialogagent9` | 旧 Canvas Chat 原生参数控件 + 三模式会话隔离 |
@@ -23,7 +23,7 @@
 
 - 三模式隔离是当前旧画布硬边界：`对话 / 快速 / 视频` 不能共享 `messages`、`input`、`images`、生成中状态或 `sessionId`。
 - `快速` 不是 `对话 Agent`，不能为了复用实现把快速模式改成 GPT 5.5 分析链路。
-- `视频` 当前只允许承载电商套图 Agent；不能回退成共享图片生成占位，后续如接视频 Provider 必须单独写契约、成本规则和 smoke。
+- 第三个 tab 当前展示为 `agent电商套图`，底层仍兼容旧 `视频` 文案；该 tab 只允许承载电商套图 Agent，不能回退成共享图片生成占位，后续如接视频 Provider 必须单独写契约、成本规则和 smoke。
 - 刷新恢复时，`source:"canvas-chat"` 只能恢复草稿到输入框，不能自动新增用户消息。
 - `对话` 桥接消息卡片必须复用旧 Canvas Chat 快速模式的 `message-card / message-meta / image-grid / cost-line` 结构和 scoped 样式标记，禁止再自绘第二套卡片壳、图片网格和结果按钮视觉。
 - 任何修改旧 Canvas Chat 状态管理的 PR，都必须保留 `scripts/verify-canvas-performance-assets.js` 中的会话隔离锚点，并跑旧画布边界 smoke。
@@ -245,7 +245,7 @@
 
 ### 当前实现
 
-- `assets/canvas-chat-prompt-flow.js/css` 升级为 `20260701suite17`。
+- `assets/canvas-chat-prompt-flow.js/css` 升级为 `20260701suite20`。
 - 套图模式隐藏旧 Canvas Chat 原生视频模型控件，不再显示 `Seedance Pro`，请求体固定文本模型 `gpt-5.5`、图片模型 `gpt-image-2`。
 - 上传区改为 `产品图 + 参考图组`，参考图逐张显示独立槽位，最多 4 张，不再显示流程说明文字。
 - skill 下拉改为 100% 宽度，与下方文本输入框同列对齐。
@@ -253,7 +253,8 @@
 - skill 下拉在 `.dark` 环境下仍保持浅色底，和文本输入框/参数按钮视觉一致。
 - skill 原生 select 增加 `color-scheme: light`、浅色 option 和自绘箭头，避免浏览器暗色模式把控件皮肤渲染成深色。
 - 板块集合不再从后台固定模板启用列表读取；后台只维护 skills，提示词接口让 GPT 根据当前 skill、产品图、参考图和用户需求动态生成 3-5 个板块。
-- `shouldHandle(panel)` 仍严格等于 `对话`；新增 `isSuiteMode(panel)` 只识别 `视频 / 电商套图Agent`。
+- `shouldHandle(panel)` 仍严格等于 `对话`；`isSuiteMode(panel)` 识别旧 `视频`、旧 `电商套图Agent` 和当前 `agent电商套图` 三个别名。
+- 第三个 tab 的展示文案由过渡层同步为 `agent电商套图`，不改旧 Canvas 主 bundle。
 - 视频模式 composer 顶部插入产品图、参考图和设计师 skill；产品图必填，参考图最多 4 张。
 - 视频模式发送后先生成浅色板块选择卡，用户只勾选板块并直接生成图片；prompt 由后端返回并在内部传给生图接口，不在前台暴露编辑框，也不渲染 `套图模板` 标题。
 - 生图阶段按选中板块拆成多个独立请求，每次只向 `/api/canvas/ecommerce-suite/generate` 提交一个 `promptPlan`，由后端生成独立任务并分别扣费/记录。
@@ -263,6 +264,8 @@
 - 新增 `assets/ecommerce-suite-skills/*-avatar.svg` 五个本地设计师头像；前台 skill 选择从原生下拉改为浅色头像列表，选中项浅橙高亮。
 - 生图结果区改为任务卡：生成中显示 loading，失败显示单板块 `重新生成`，成功显示完整图片卡并自动添加到画布。
 - 后端 `/api/canvas/ecommerce-suite/prompts` 和 `/api/canvas/ecommerce-suite/generate` 增加产品图必填校验，Provider 和扣费仍走既有适配器。
+- `对话 / 快速 / agent电商套图` 三个 tab 的 `.message-list > .empty-state` 空状态说明统一隐藏，不再显示 `👋 / 灵感不间断` 这组文案。
+- `对话 / 快速 / agent电商套图` 三个 tab 的 composer 输入框默认文案统一为 `请输出你的提示词`。
 
 ### 守护脚本
 
@@ -279,6 +282,7 @@
 - 禁止把套图 Agent 变成浅色独立工作台。
 - 禁止让套图桥接卡在 `对话 / 快速` 模式可见。
 - 禁止让 `快速` 进入套图或对话 Agent 的发送处理。
+- 禁止恢复三个 tab 中间的 `灵感不间断` 空状态说明文案。
 
 ## 当前临时技术债
 

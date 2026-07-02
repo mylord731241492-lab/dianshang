@@ -59,8 +59,8 @@ assertIncludes('index.html', html, 'canvas-performance-mode.css?v=20260629perf5'
 assertIncludes('index.html', html, 'canvas-image-node-polish.js?v=20260701image10');
 assertIncludes('index.html', html, 'canvas-image-node-polish.css?v=20260701image10');
 assertIncludes('index.html', html, 'canvas-node-radius-fix.css?v=20260701title1');
-assertIncludes('index.html', html, 'canvas-chat-prompt-flow.js?v=20260701suite17');
-assertIncludes('index.html', html, 'canvas-chat-prompt-flow.css?v=20260701suite17');
+assertIncludes('index.html', html, 'canvas-chat-prompt-flow.js?v=20260701suite20');
+assertIncludes('index.html', html, 'canvas-chat-prompt-flow.css?v=20260701suite20');
 assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260630dialogagent12');
 assertNotIncludes('index.html', html, 'canvas-ecommerce-suite-agent.js');
 assertNotIncludes('index.html', html, 'canvas-ecommerce-suite-agent.css');
@@ -110,13 +110,22 @@ assertIncludes('frame budget smoke ps1', frameBudgetPs, 'smoke-canvas-frame-budg
 assertIncludes('frame budget smoke runner', frameBudgetRunner, 'codex-canvas-frame-budget-probe');
 assertIncludes('frame budget smoke runner', frameBudgetRunner, 'longFramesOver100');
 assertIncludes('preflight', preflight, 'canvas frame budget UI smoke');
-assertIncludes('prompt flow script', promptFlowJs, "FLOW_VERSION = '20260701suite17'");
+assertIncludes('prompt flow script', promptFlowJs, "FLOW_VERSION = '20260701suite20'");
 assertIncludes('prompt flow script', promptFlowJs, 'var SUITE_MAX_REFERENCE_IMAGES = 4');
 assertIncludes('prompt flow script', promptFlowJs, "var CANVAS_CHAT_SCOPE_ATTR = 'data-v-b10121f4'");
+assertIncludes('prompt flow script', promptFlowJs, "var CANVAS_CHAT_PLACEHOLDER = '请输出你的提示词'");
+assertIncludes('prompt flow script', promptFlowJs, "var SUITE_TAB_LABEL = 'agent电商套图'");
+assertIncludes('prompt flow script', promptFlowJs, "var SUITE_MODE_ALIASES = ['视频', '电商套图Agent', SUITE_TAB_LABEL]");
+assertIncludes('prompt flow script', promptFlowJs, 'function syncSuiteTabLabel(panel)');
+assertIncludes('prompt flow script', promptFlowJs, "tab.setAttribute('data-hjm-suite-tab-label', SUITE_TAB_LABEL)");
+assertIncludes('prompt flow script', promptFlowJs, 'function syncComposerPlaceholder(panel)');
+assertIncludes('prompt flow script', promptFlowJs, 'field.placeholder = CANVAS_CHAT_PLACEHOLDER');
+assertIncludes('prompt flow script', promptFlowJs, "field.setAttribute('data-placeholder', CANVAS_CHAT_PLACEHOLDER)");
 assertIncludes('prompt flow script', promptFlowJs, 'function syncPromptFlowCardVisibility(panel)');
 assertIncludes('prompt flow script', promptFlowJs, "function isSuiteMode(panel)");
 assertIncludes('prompt flow script', promptFlowJs, "return !!panel && getActiveMode(panel) === '对话'");
-assertIncludes('prompt flow script', promptFlowJs, "return !!panel && (mode === '视频' || mode === '电商套图Agent')");
+assertIncludes('prompt flow script', promptFlowJs, "return !!panel && isSuiteModeName(mode)");
+assertNotIncludes('prompt flow script', promptFlowJs, "return !!panel && (mode === '视频' || mode === '电商套图Agent')");
 assertIncludes('prompt flow script', promptFlowJs, "panel.classList.toggle('hjm-prompt-flow-dialog-active', dialogActive)");
 assertIncludes('prompt flow script', promptFlowJs, "panel.classList.toggle('hjm-prompt-flow-suite-active', suiteActive)");
 assertIncludes('prompt flow script', promptFlowJs, ".hjm-prompt-flow-card, .hjm-prompt-flow-user, .hjm-prompt-flow-agent");
@@ -174,6 +183,7 @@ assertIncludes('prompt flow script', promptFlowJs, "class=\"cost-line hjm-prompt
 assertIncludes('prompt flow script', promptFlowJs, 'applyCanvasChatScope(grid, getPanel())');
 assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel:not(.hjm-prompt-flow-dialog-active) [data-hjm-prompt-flow-mode="chat"]');
 assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel:not(.hjm-prompt-flow-suite-active) [data-hjm-prompt-flow-mode="suite"]');
+assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel .message-list > .empty-state');
 assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-composer');
 assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-reference-list');
 assertIncludes('prompt flow CSS', promptFlowCss, '.canvas-chat-panel.hjm-prompt-flow-suite-active .hjm-suite-asset-plus');
@@ -237,6 +247,6 @@ for (const [name, bundle] of canvasBundles) {
 console.log(JSON.stringify({
   ok: true,
   checked: Object.keys(files),
-  version: '20260629perf5+20260701image10+20260701title1+dialogagent12+canvasdialogagent9+suite17',
+  version: '20260629perf5+20260701image10+20260701title1+dialogagent12+canvasdialogagent9+suite20',
   saveDeferral: true
 }, null, 2));

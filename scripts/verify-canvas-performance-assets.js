@@ -57,16 +57,16 @@ const canvasBundles = [
 assertIncludes('index.html', html, 'canvas-performance-mode.js?v=20260629perf5');
 assertIncludes('index.html', html, 'canvas-performance-mode.css?v=20260629perf5');
 assertIncludes('index.html', html, 'canvas-image-node-polish.js?v=20260701image10');
-assertIncludes('index.html', html, 'canvas-image-node-polish.css?v=20260701image10');
+assertIncludes('index.html', html, 'canvas-image-node-polish.css?v=20260702fulltext1');
 assertIncludes('index.html', html, 'canvas-node-radius-fix.css?v=20260701title1');
 assertIncludes('index.html', html, 'canvas-chat-prompt-flow.js?v=20260701suite20');
 assertIncludes('index.html', html, 'canvas-chat-prompt-flow.css?v=20260701suite20');
-assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260630dialogagent12');
+assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260702toolbar1');
 assertNotIncludes('index.html', html, 'canvas-ecommerce-suite-agent.js');
 assertNotIncludes('index.html', html, 'canvas-ecommerce-suite-agent.css');
 assertNotIncludes('index.html', html, 'index-DglIsp_g.js?v=20260629perf5');
-assertIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260630dialogagent9');
-assertIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260630dialogagent9');
+assertIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260702toolbar1');
+assertIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260702toolbar1');
 assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260629outpaint1');
 assertNotIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260629outpaint1');
 assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260629outpaint2');
@@ -103,6 +103,12 @@ assertIncludes('image node polish CSS', imagePolishCss, '.vue-flow__node-image:n
 assertIncludes('image node polish CSS', imagePolishCss, 'display: none !important');
 assertIncludes('image node polish CSS', imagePolishCss, '.vue-flow__node-image .image-node:has(img) > .relative.flex.h-12');
 assertIncludes('image node polish CSS', imagePolishCss, 'min-height: 230px !important');
+assertIncludes('image node polish CSS', imagePolishCss, 'bottom: calc(100% + 16px) !important');
+assertIncludes('image node polish CSS', imagePolishCss, '.image-edit-overlay:has(.convert-panel)');
+assertIncludes('image node polish CSS', imagePolishCss, 'left: calc(100% + 16px) !important');
+assertIncludes('image node polish CSS', imagePolishCss, 'flex-wrap: nowrap !important');
+assertIncludes('image node polish CSS', imagePolishCss, 'transform: translateX(-50%) translateY(0) !important');
+assertIncludes('image node polish CSS', imagePolishCss, 'text-overflow: clip !important');
 assertIncludes('canvas node radius CSS', nodeRadiusCss, '.vue-flow__node [data-hjm-node-title-lock="true"]');
 assertIncludes('canvas node radius CSS', nodeRadiusCss, 'pointer-events: none !important');
 assertIncludes('canvas node radius CSS', nodeRadiusCss, 'user-select: none !important');
@@ -225,7 +231,8 @@ for (const [name, bundle] of canvasBundles) {
   assertIncludes(name, bundle, 'type:"range",min:"20",max:"300",step:"1",onInput:S');
   assertIncludes(name, bundle, 'class:"outpaint-stage",style:Qt(b.value),onPointerdown:xt(F,["prevent"]),onPointermove:D');
   assertIncludes(name, bundle, '/image-tools/reverse-prompt');
-  assertIncludes(name, bundle, 'operation:"text_edit"');
+  assertNotIncludes(name, bundle, 'operation:"text_edit"');
+  assertNotIncludes(name, bundle, 'key:"video",label:"生成视频",shortLabel:"视",action:"video"');
   assertIncludes(name, bundle, 'chatModeSessionStore');
   assertIncludes(name, bundle, 'saveCurrentChatModeSession(se||l.value),loadChatModeSession(y)');
   assertIncludes(name, bundle, 'appendChatModeMessage(y.mode');
@@ -247,6 +254,6 @@ for (const [name, bundle] of canvasBundles) {
 console.log(JSON.stringify({
   ok: true,
   checked: Object.keys(files),
-  version: '20260629perf5+20260701image10+20260701title1+dialogagent12+canvasdialogagent9+suite20',
+  version: '20260629perf5+20260701image10+20260702fulltext1+20260702toolbar1+20260701title1+suite20',
   saveDeferral: true
 }, null, 2));

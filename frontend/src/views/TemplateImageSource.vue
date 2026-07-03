@@ -36,7 +36,7 @@ const activeTemplateKey = ref('');
 const fieldValues = reactive<Record<string, string>>({});
 const slotFiles = reactive<Record<string, LocalFile[]>>({});
 const promptSuggestions = ref<PromptSuggestion[]>([]);
-const selectedPromptId = ref('');
+const selectedPromptIds = ref<string[]>([]);
 const generatedImages = ref<GeneratedImage[]>([]);
 const errorMessage = ref('');
 
@@ -60,9 +60,9 @@ const templateCategories = computed(() => {
   return Array.from(groups.entries()).map(([name, items]) => ({ name, items }));
 });
 
-const selectedPrompt = computed(() => {
-  return promptSuggestions.value.find((item) => item.id === selectedPromptId.value) || promptSuggestions.value[0];
-});
+const selectedPrompts = computed(() => promptSuggestions.value.filter((item) => selectedPromptIds.value.includes(item.id)));
+
+const primaryPrompt = computed(() => selectedPrompts.value[0] || promptSuggestions.value[0]);
 
 const imageRouteOptions = computed(() => {
   return imageRoutes.value.map((route) => ({
@@ -94,7 +94,7 @@ const qualityOptions = ['1K', '2K', '4K'].map((value) => ({ label: value, value 
 watch(activeTemplate, (template) => {
   if (!template) return;
   promptSuggestions.value = [];
-  selectedPromptId.value = '';
+  selectedPromptIds.value = [];
   generatedImages.value = [];
   form.platform = template.generateDefaults?.platform || form.platform || '京东';
   form.ratio = template.generateDefaults?.ratio || template.ratioOptions?.[0]?.value || '1:1';
@@ -180,8 +180,20 @@ function buildPayload() {
     imageRouteId: form.imageRouteId,
     imageModelKey: form.imageModelKey,
     imageModel: form.imageModelKey,
-    prompt: selectedPrompt.value?.prompt || fieldValues.userPrompt || activeTemplate.value?.desc || ''
+    prompt: primaryPrompt.value?.prompt || fieldValues.userPrompt || activeTemplate.value?.desc || ''
   };
+}
+
+function promptSummary(prompt: PromptSuggestion) {
+  return String(prompt.summary || prompt.description || prompt.prompt || prompt.text || '点击选择后用于本次生成。')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function togglePrompt(promptId: string) {
+  selectedPromptIds.value = selectedPromptIds.value.includes(promptId)
+    ? selectedPromptIds.value.filter((id) => id !== promptId)
+    : [...selectedPromptIds.value, promptId].slice(0, 4);
 }
 
 async function reversePrompt() {
@@ -196,23 +208,33 @@ async function reversePrompt() {
       label: item.label || item.title || `方案 ${index + 1}`,
       prompt: item.prompt || item.text || ''
     }));
-    selectedPromptId.value = promptSuggestions.value[0]?.id || '';
-    message.success('反推提示词已生成');
+    const defaultSelectedIds = promptSuggestions.value.filter((item) => item.selected !== false).map((item) => item.id);
+    selectedPromptIds.value = (defaultSelectedIds.length ? defaultSelectedIds : promptSuggestions.value.map((item) => item.id)).slice(0, 4);
+    message.success('提示词已生成');
   } catch (error) {
-    errorMessage.value = friendlyError(error, '反推提示词失败');
+    errorMessage.value = friendlyError(error, '生成提示词失败');
     message.error(errorMessage.value);
   } finally {
     reverseLoading.value = false;
   }
 }
 
+function promptsForGeneration() {
+  return selectedPrompts.value.slice(0, 4);
+}
+
 async function generateImage() {
+  const selectedPrompts = promptsForGeneration();
+  if (!selectedPrompts.length) {
+    message.warning('请先点击“生成提示词”，选择至少一组提示词后再生成图片');
+    return;
+  }
   generateLoading.value = true;
   errorMessage.value = '';
   try {
     const data = await generateTemplateImage({
       ...buildPayload(),
-      selectedPrompts: selectedPrompt.value ? [selectedPrompt.value] : []
+      selectedPrompts
     });
     generatedImages.value = data.resultImages || data.images || data.results || [];
     message.success('生成任务已完成');
@@ -269,7 +291,7 @@ onMounted(loadPage);
           <div>
             <p class="eyebrow">{{ activeTemplate?.categoryName || '模板' }}</p>
             <h2>{{ activeTemplate?.name }}</h2>
-            <p>{{ activeTemplate?.desc || '选择素材、补充需求，然后反推或生成图片。' }}</p>
+            <p>{{ activeTemplate?.desc || '选择素材、补充需求，先生成提示词，再生成图片。' }}</p>
           </div>
           <div class="template-tags">
             <span v-for="tag in activeTemplate?.tags || []" :key="tag">{{ tag }}</span>
@@ -347,9 +369,9 @@ onMounted(loadPage);
         <section class="source-actions">
           <n-button size="large" secondary :loading="reverseLoading" @click="reversePrompt">
             <template #icon><Wand2 :size="16" /></template>
-            反推提示词
+            生成提示词
           </n-button>
-          <n-button size="large" type="primary" :loading="generateLoading" @click="generateImage">
+          <n-button size="large" type="primary" :loading="generateLoading" :disabled="!selectedPrompts.length" @click="generateImage">
             <template #icon><Sparkles :size="16" /></template>
             生成图片
           </n-button>
@@ -366,13 +388,13 @@ onMounted(loadPage);
             v-for="prompt in promptSuggestions"
             :key="prompt.id"
             type="button"
-            :class="{ active: selectedPromptId === prompt.id }"
-            @click="selectedPromptId = prompt.id"
+            :class="{ active: selectedPromptIds.includes(prompt.id) }"
+            @click="togglePrompt(prompt.id)"
           >
             <strong>{{ prompt.label || prompt.title }}</strong>
-            <span>{{ prompt.prompt }}</span>
+            <span>{{ promptSummary(prompt) }}</span>
           </button>
-          <p v-if="!promptSuggestions.length">点击反推提示词后，这里会显示可选方案。</p>
+          <p v-if="!promptSuggestions.length">点击生成提示词后，这里会显示 4 个可选方案。</p>
         </div>
 
         <div class="panel-title result-title">

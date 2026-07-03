@@ -39,13 +39,16 @@ function Invoke-PlaywrightCli {
   if (Test-Path $stderr) { $errText = Get-Content -Encoding UTF8 -Raw $stderr }
   if ($outText -and $outText.Trim()) { Write-Host $outText.Trim() }
   if ($errText -and $errText.Trim()) { Write-Host $errText.Trim() }
+  if ($outText -match "### Error" -or $errText -match "### Error") {
+    throw "playwright-cli $Step reported an error"
+  }
   if ($process.ExitCode -ne 0) {
     throw "playwright-cli $Step failed with exit code $($process.ExitCode)"
   }
 }
 
 Write-Host "Running full admin page screenshots with Playwright session: $session"
-$openArgs = @("--yes", "--package", "@playwright/cli", "playwright-cli", "--session", $session, "open", "$baseUrl/admin/login?admin-pages-smoke=open")
+$openArgs = @("--yes", "--package", "@playwright/cli", "playwright-cli", "--session", $session, "open", "$baseUrl/?admin-pages-smoke=open")
 Start-Process -FilePath "npx.cmd" -ArgumentList $openArgs -WorkingDirectory $root -WindowStyle Hidden | Out-Null
 Start-Sleep -Seconds 8
 Invoke-PlaywrightCli -Step "run-code" -Arguments @("--yes", "--package", "@playwright/cli", "playwright-cli", "--session", $session, "run-code", "--filename", $runnerScript)

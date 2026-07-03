@@ -142,7 +142,7 @@ function admin(req, res, next) {
 
 // ===================== DATA =====================
 const IMG = [
-  {k:"gpt-image-2",n:"GPT Image 2",p:10,q:["low","medium","high","auto"]},
+  {k:"gpt-image-2",n:"GPT Image 2",p:10,q:["1k","2k","4k"]},
 ];
 const TXT = [
   {k:"gpt-5.5",n:"GPT 5.5",p:5,q:["1k"]},
@@ -1612,19 +1612,81 @@ function routeKind(route = {}) {
   if (raw.includes('video')) return 'video';
   return 'image';
 }
+const IMAGE_CLARITY_OPTIONS = ['1k', '2k', '4k'];
+const IMAGE_CLARITY_ALIASES = {
+  '1k': '1k',
+  '1024': '1k',
+  '1024x1024': '1k',
+  '2k': '2k',
+  '2048': '2k',
+  '2048x2048': '2k',
+  '4k': '4k',
+  '3840': '4k',
+  '3840x3840': '4k',
+  '4096': '4k',
+  '4096x4096': '4k'
+};
+function modelQualityValue(value) {
+  if (value && typeof value === 'object') return value.key || value.value || value.label || '';
+  return value;
+}
+function normalizeImageClarities(values = []) {
+  const source = Array.isArray(values) ? values : [];
+  const selected = new Set(source
+    .map(modelQualityValue)
+    .map(value => String(value || '').trim().toLowerCase())
+    .map(value => IMAGE_CLARITY_ALIASES[value])
+    .filter(Boolean));
+  return selected.size
+    ? IMAGE_CLARITY_OPTIONS.filter(value => selected.has(value))
+    : [...IMAGE_CLARITY_OPTIONS];
+}
+function normalizeModelQualities(values = [], kind = 'image') {
+  if (kind === 'image') return normalizeImageClarities(values);
+  const source = Array.isArray(values) ? values : [];
+  const cleaned = source
+    .map(modelQualityValue)
+    .map(value => String(value || '').trim())
+    .filter(Boolean);
+  return cleaned.length ? Array.from(new Set(cleaned)) : ['1k'];
+}
+function defaultModelClarity(qualities = []) {
+  return qualities.includes('1k') ? '1k' : qualities[0] || '1k';
+}
+function buildImageModelVariants(model = {}, qualities = []) {
+  return normalizeImageClarities(qualities).map(clarity => ({
+    id: `${model.id}_${clarity}`,
+    modelId: model.modelId,
+    modelKey: model.modelKey,
+    key: model.modelKey,
+    realName: model.realName,
+    realModelName: model.realModelName || model.realName,
+    displayName: model.displayName,
+    label: model.label || model.displayName,
+    clarity,
+    routeId: model.routeId,
+    lineId: model.lineId || model.routeId,
+    routeKey: model.routeKey,
+    lineKey: model.lineKey || model.routeKey
+  }));
+}
 function fmt(m, route = RTS[0]) {
   const kind = routeKind(route);
   const mid = m.k.replace(/[.-]/g,'_');
   const routeId = route && route.id ? route.id : 'pub_route_64f93e01e8f3';
   const routeKey = route && route.rk ? route.rk : 'route_6789';
+  const modelId = `pub_model_${mid}`;
+  const qualities = normalizeModelQualities(m.q, kind);
+  const clarity = defaultModelClarity(qualities);
+  const variantBase = { id: modelId, modelId, modelKey: m.k, realName: m.k, realModelName: m.k, displayName: m.n, label: m.n, routeId, lineId: routeId, routeKey, lineKey: routeKey };
   return {
-    id:`pub_model_${mid}`,modelId:`pub_model_${mid}`,key:m.k,name:m.n,modelName:m.n,modelKey:m.k,realName:m.k,realModelName:m.k,
-    publicModelId:`pub_model_${mid}`,defaultModelId:`pub_model_${mid}`,providerModelId:m.k,
+    id:modelId,modelId,key:m.k,name:m.n,modelName:m.n,modelKey:m.k,realName:m.k,realModelName:m.k,
+    publicModelId:modelId,defaultModelId:modelId,providerModelId:m.k,
     routeId,lineId:routeId,routeKey,lineKey:routeKey,routeName:route && route.dn ? route.dn : '6789',
     frontendModelKey:m.k,modelFamilyKey:m.k,clarityOverride:'',imageSizeOverride:'',
     displayName:m.n,label:m.n,price:m.p,pointCost:m.p,pricePoints:m.p,baseCredits:m.p,modelType:kind,type:kind,group:kind,category:kind,enabled:true,status:'active',
-    qualities:m.q||['1k'],defaultParams:{size:'1x1',quality:'standard',clarity:'1k'},
-    variants:[{id:`pub_model_${mid}`,modelId:`pub_model_${mid}`,modelKey:m.k,key:m.k,realName:m.k,realModelName:m.k,displayName:m.n,label:m.n,clarity:'1k',routeId,lineId:routeId,routeKey,lineKey:routeKey}]
+    qualities,defaultParams:{size:'1x1',quality:'standard',clarity},
+    variants:kind === 'image' ? buildImageModelVariants(variantBase, qualities) : [{...variantBase,clarity}]
   };
 }
 
@@ -1682,11 +1744,13 @@ function normalizeRouteModel(row = {}, route = RTS[0], baseModel = null) {
   const modelId = String(row.modelId || baseModel?.modelId || id).trim();
   const price = numericModelValue(row.pointCost, row.pricePoints, row.price, row.baseCredits, baseModel?.pointCost, baseModel?.pricePoints, baseModel?.price, baseModel?.baseCredits);
   const enabled = row.enabled !== false && row.status !== 'disabled';
-  const qualities = Array.isArray(row.qualities)
-    ? row.qualities
-    : Array.isArray(baseModel?.qualities)
-      ? baseModel.qualities
-      : ['1k'];
+  const qualities = normalizeModelQualities(Array.isArray(row.qualities) ? row.qualities : baseModel?.qualities, kind);
+  const clarity = defaultModelClarity(qualities);
+  const defaultParams = row.defaultParams || baseModel?.defaultParams || { size: '1x1', quality: 'standard' };
+  const normalizedDefaultParams = kind === 'image'
+    ? { ...defaultParams, clarity: normalizeImageClarities([defaultParams.clarity])[0] || clarity }
+    : { ...defaultParams, clarity: defaultParams.clarity || clarity };
+  const variantBase = { id, modelId, modelKey, realName, realModelName: realName, displayName, label: row.label || displayName, routeId, lineId: routeId, routeKey, lineKey: routeKey };
   return {
     ...(baseModel || {}),
     ...row,
@@ -1721,12 +1785,14 @@ function normalizeRouteModel(row = {}, route = RTS[0], baseModel = null) {
     enabled,
     status: enabled ? (row.status || 'active') : 'disabled',
     qualities,
-    defaultParams: row.defaultParams || baseModel?.defaultParams || { size: '1x1', quality: 'standard', clarity: qualities[0] || '1k' },
-    variants: Array.isArray(row.variants)
-      ? row.variants
-      : Array.isArray(baseModel?.variants)
-        ? baseModel.variants
-        : [{ id, modelId, modelKey, key: modelKey, realName, realModelName: realName, displayName, label: displayName, clarity: qualities[0] || '1k', routeId, lineId: routeId, routeKey, lineKey: routeKey }],
+    defaultParams: normalizedDefaultParams,
+    variants: kind === 'image'
+      ? buildImageModelVariants(variantBase, qualities)
+      : Array.isArray(row.variants)
+        ? row.variants
+        : Array.isArray(baseModel?.variants)
+          ? baseModel.variants
+          : [{ ...variantBase, key: modelKey, clarity }],
     raw: row.raw || row
   };
 }
@@ -2270,13 +2336,11 @@ function buildImageToolPrompt(body = {}, type = 'inpaint') {
   const userPrompt = String(body.prompt || '').trim();
   const baseByType = {
     erase: '请根据原图上下文，只重绘 mask 白色区域，移除涂抹区域内的对象并自然补全背景。未涂抹区域必须保持不变。',
-    text_edit: '请只重绘 mask 白色区域内的文字或排版，按用户提示替换文字内容、字体、颜色和版式。未涂抹区域必须保持不变。',
     outpaint: '请基于原图自然扩展画面，保持主体、透视、材质、光线、商品包装和整体电商视觉风格一致。原图主体不得变形，新增区域需要自然补全背景。'
   };
   const base = baseByType[type] || '请根据用户提示和参考图，只重绘 mask 白色区域。未涂抹区域必须保持不变，产品包装、主体结构、文字和品牌识别尽量保持一致。';
   const fallbackByType = {
     erase: '自然消除涂抹区域',
-    text_edit: '按涂抹区域修改文字',
     outpaint: '自然扩展画布背景'
   };
   return `${base}\n用户提示：${userPrompt || fallbackByType[type] || '按涂抹区域进行局部修改'}`;
@@ -2453,8 +2517,7 @@ async function runImageToolEdit(req, res, type = 'inpaint') {
 
     const route = resolveRequestImageRoute(req.body);
     const model = resolveImageModelKey(req.body);
-    const requestedType = String(req.body.type || req.body.operation || type).trim();
-    const operationType = requestedType === 'text_edit' && type === 'inpaint' ? 'text_edit' : type;
+    const operationType = type;
     const prompt = buildImageToolPrompt(req.body, operationType);
     const providerResult = await callProviderImageEdit(prompt, {
       ...req.body,
@@ -2591,12 +2654,9 @@ app.get('/api/image-tools/settings', auth, (req, res) => {
       reversePrompt: { enabled: true, mode: 'responses' },
       smartErase: { enabled: true, mode: 'image-edit' },
       inpaint: { enabled: true, mode: 'image-edit' },
-      textEdit: { enabled: true, mode: 'image-edit' },
       compress: { enabled: true, mode: 'local' },
       resize: { enabled: true, mode: 'local' },
-      crop: { enabled: true, mode: 'local' },
-      upscale: { enabled: false, mode: 'planned' },
-      removeBg: { enabled: false, mode: 'planned' }
+      crop: { enabled: true, mode: 'local' }
     }
   });
 });
@@ -3833,7 +3893,8 @@ app.get('/api/admin/model-prices', auth, admin, (req, res) => {
 });
 app.post('/api/admin/routes/:id/models', auth, admin, (req, res) => {
   const route = findRouteByAnyId(req.params.id);
-  const model = fmt({ k: req.body.modelKey || req.body.realName || 'custom-model', n: req.body.displayName || req.body.name || req.body.modelKey || 'Custom Model', p: Number(req.body.pricePoints || req.body.price || 10), q: req.body.qualities || ['1k'] }, route);
+  const defaultQualities = routeKind(route) === 'image' ? IMAGE_CLARITY_OPTIONS : ['1k'];
+  const model = fmt({ k: req.body.modelKey || req.body.realName || 'custom-model', n: req.body.displayName || req.body.name || req.body.modelKey || 'Custom Model', p: Number(req.body.pricePoints || req.body.price || 10), q: req.body.qualities || defaultQualities }, route);
   const rows = modelPriceState();
   const nextRows = rows.filter(row => row.id !== `${route.id}:${model.modelKey}`);
   nextRows.push({

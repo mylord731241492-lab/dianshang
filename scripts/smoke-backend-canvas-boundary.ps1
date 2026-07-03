@@ -135,14 +135,14 @@ try {
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-image-node-polish.js?v=20260701image10"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-chat-prompt-flow.js?v=20260701suite20"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "admin-api-source-route-bridge.js?v=20260629sourceapi1"
-  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "index-DglIsp_g.js?v=20260630dialogagent12"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "index-DglIsp_g.js?v=20260702toolbar1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-node-radius-fix.css?v=20260701title1"
 
   $assetPaths = @(
     "/assets/canvas-performance-mode.js?v=20260629perf5",
     "/assets/canvas-performance-mode.css?v=20260629perf5",
     "/assets/canvas-image-node-polish.js?v=20260701image10",
-    "/assets/canvas-image-node-polish.css?v=20260701image10",
+    "/assets/canvas-image-node-polish.css?v=20260702fulltext1",
     "/assets/canvas-node-radius-fix.css?v=20260701title1",
     "/assets/canvas-chat-prompt-flow.js?v=20260701suite20",
     "/assets/canvas-chat-prompt-flow.css?v=20260701suite20",
@@ -152,9 +152,9 @@ try {
     "/assets/ecommerce-suite-skills/kira-avatar.svg",
     "/assets/ecommerce-suite-skills/rayyu-avatar.svg",
     "/assets/admin-api-source-route-bridge.js?v=20260629sourceapi1",
-    "/assets/index-DglIsp_g.js?v=20260630dialogagent12",
-    "/assets/Canvas-B8bY9_QL.js?v=20260630dialogagent9",
-    "/assets/Canvas-yGc8b2gf.js?v=20260630dialogagent9"
+    "/assets/index-DglIsp_g.js?v=20260702toolbar1",
+    "/assets/Canvas-B8bY9_QL.js?v=20260702toolbar1",
+    "/assets/Canvas-yGc8b2gf.js?v=20260702toolbar1"
   )
 
   foreach ($assetPath in $assetPaths) {

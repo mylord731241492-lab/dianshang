@@ -2,7 +2,7 @@
 import AdminSourceSidebar from '../components/AdminSourceSidebar.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { NButton, NInput, NSelect, NTag } from 'naive-ui';
+import { NButton, NInput, NSelect, NTag, useMessage } from 'naive-ui';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -12,13 +12,19 @@ import {
   RefreshCcw,
   Search,
   Settings2,
-  Tags
+  Tags,
+  Upload
 } from 'lucide-vue-next';
 import { clearAuthSession } from '../api/auth';
-import { getAdminTemplateWorkflows, type AdminTemplateWorkflow } from '../api/adminTemplateWorkflows';
+import {
+  getAdminTemplateWorkflows,
+  uploadAdminTemplateSkill,
+  type AdminTemplateWorkflow
+} from '../api/adminTemplateWorkflows';
 import { getApiErrorMessage } from '../api/http';
 
 const router = useRouter();
+const message = useMessage();
 const loading = ref(true);
 const errorMessage = ref('');
 const templates = ref<AdminTemplateWorkflow[]>([]);
@@ -28,6 +34,7 @@ const ratios = ref<string[]>([]);
 const modelConfigs = ref<Record<string, unknown>>({});
 const keyword = ref('');
 const categoryFilter = ref('all');
+const uploadingSkillKey = ref('');
 
 const categoryOptions = computed(() => {
   const categories = Array.from(new Set(templates.value.map((template) => template.categoryName || template.categoryId || '未分类')));
@@ -101,6 +108,41 @@ function fieldSummary(template: AdminTemplateWorkflow) {
   return fields.map((field) => `${field.label || field.key}${field.required ? '*' : ''}`).join(' / ');
 }
 
+function skillPromptSummary(template: AdminTemplateWorkflow) {
+  const prompts = template.presetPrompts || template.skillPrompts || [];
+  if (prompts.length) {
+    return prompts.map((prompt) => prompt.title || prompt.label || prompt.id || '提示词').join(' / ');
+  }
+  return template.promptBlocks?.templateSkillName || template.promptBlocks?.taskGoal || '未同步';
+}
+
+function skillFileLabel(template: AdminTemplateWorkflow) {
+  return template.skillFile?.path || `${template.key}.skill.json`;
+}
+
+async function uploadSkillFile(template: AdminTemplateWorkflow, event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file || !template.key) return;
+  uploadingSkillKey.value = template.key;
+  errorMessage.value = '';
+  try {
+    const data = await uploadAdminTemplateSkill(template.key, file);
+    if (data.template) {
+      templates.value = templates.value.map((item) => item.key === template.key ? data.template as AdminTemplateWorkflow : item);
+    } else {
+      await loadWorkflows();
+    }
+    message.success(`${templateNameOf(template)} Skills 已替换`);
+  } catch (error) {
+    errorMessage.value = friendlyError(error);
+    message.error(errorMessage.value);
+  } finally {
+    uploadingSkillKey.value = '';
+    input.value = '';
+  }
+}
+
 async function loadWorkflows() {
   loading.value = true;
   errorMessage.value = '';
@@ -140,7 +182,7 @@ onMounted(loadWorkflows);
           <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
           <p class="eyebrow">Template Workflows</p>
           <h1>模板工作流</h1>
-          <span>只读迁移版：查看模板、素材槽、字段、平台、比例和模型配置摘要，不保存、不新增、不删除。</span>
+          <span>查看模板、素材槽、字段、平台、比例和 Skills 文件；支持上传 JSON 替换单个模板 Skills。</span>
         </div>
         <div class="admin-source-actions">
           <n-button secondary :loading="loading" @click="loadWorkflows">
@@ -164,10 +206,10 @@ onMounted(loadWorkflows);
       <section class="admin-source-panel admin-template-workflows-panel">
         <div class="admin-panel-head">
           <div>
-            <p class="eyebrow">Read Only Workflows</p>
+            <p class="eyebrow">Template Skills</p>
             <h2>模板列表</h2>
           </div>
-          <n-tag type="info" :bordered="false">只读</n-tag>
+          <n-tag type="success" :bordered="false">可替换 Skills</n-tag>
         </div>
 
         <div class="admin-template-workflows-toolbar">
@@ -208,6 +250,28 @@ onMounted(loadWorkflows);
               <span>字段 / 输出</span>
               <strong>{{ template.fields?.length || 0 }} / {{ template.outputSchema?.maxItems || 0 }}</strong>
               <span>{{ fieldSummary(template) }}</span>
+            </div>
+            <div class="admin-template-workflow-fields">
+              <span>Skills 提示词</span>
+              <strong>{{ template.presetPrompts?.length || template.skillPrompts?.length || 0 }} 条</strong>
+              <span>{{ skillPromptSummary(template) }}</span>
+            </div>
+            <div class="admin-template-workflow-skill-file">
+              <span>Skills 文件</span>
+              <strong>{{ template.skillFile?.fileName || `${template.key}.skill.json` }}</strong>
+              <span>{{ skillFileLabel(template) }}</span>
+            </div>
+            <div class="admin-template-workflow-actions">
+              <label class="admin-template-skill-upload" :class="{ disabled: uploadingSkillKey === template.key }">
+                <Upload :size="14" />
+                <span>{{ uploadingSkillKey === template.key ? '上传中' : '上传替换' }}</span>
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  :disabled="uploadingSkillKey === template.key"
+                  @change="(event) => uploadSkillFile(template, event)"
+                />
+              </label>
             </div>
           </article>
           <p v-if="!visibleTemplates.length && !loading" class="admin-empty">暂无匹配模板工作流</p>

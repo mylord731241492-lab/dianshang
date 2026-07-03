@@ -70,6 +70,8 @@ export interface PromptSuggestion {
   title?: string;
   prompt: string;
   text?: string;
+  summary?: string;
+  description?: string;
   negativePrompt?: string;
   ratio?: string;
   selected?: boolean;

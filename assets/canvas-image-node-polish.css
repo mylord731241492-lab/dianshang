@@ -396,3 +396,70 @@
 .vue-flow__node-image .image-node-toolbar-wrap {
   z-index: 1200 !important;
 }
+
+/* 2026-07-02: keep selected image tools close to the image and inside the viewport. */
+.vue-flow__node-image.image-node-has-image .image-node-toolbar,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar,
+.vue-flow__node-image .image-node:has(img) .image-node-toolbar {
+  left: 50% !important;
+  bottom: calc(100% + 16px) !important;
+  transform: translateX(-50%) translateY(4px) !important;
+  flex-wrap: nowrap !important;
+  align-content: center !important;
+  width: max-content !important;
+  max-width: calc(100vw - 64px) !important;
+  height: auto !important;
+  min-height: 44px !important;
+  max-height: 52px !important;
+  overflow: visible !important;
+}
+
+.vue-flow__node-image.image-node-has-image.image-node-is-selected .image-node-toolbar,
+.vue-flow__node-image.image-node-has-image:hover .image-node-toolbar,
+.vue-flow__node-image.image-node-has-image .image-node-toolbar:hover,
+.vue-flow__node-image:has(.image-node-selected) .image-node-toolbar,
+.vue-flow__node-image .image-node-selected:has(img) .image-node-toolbar,
+.vue-flow__node-image .image-node:has(img):hover .image-node-toolbar,
+.vue-flow__node-image .image-node:has(img) .image-node-toolbar:hover,
+.vue-flow__node-image .image-node[data-toolbar-open="true"]:has(img) .image-node-toolbar {
+  transform: translateX(-50%) translateY(0) !important;
+}
+
+.vue-flow__node-image.image-node-has-image .image-node-toolbar .image-node-tool-button,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar .image-node-tool-button {
+  max-width: none !important;
+}
+
+.vue-flow__node-image.image-node-has-image .image-node-toolbar .tool-text,
+.vue-flow__node-image:has(.image-node img) .image-node-toolbar .tool-text {
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+}
+
+.vue-flow__node-image.image-node-has-image .image-edit-overlay:has(.convert-panel),
+.vue-flow__node-image:has(.image-node img) .image-edit-overlay:has(.convert-panel),
+.vue-flow__node-image .image-node:has(img) ~ .image-edit-overlay:has(.convert-panel) {
+  left: calc(100% + 16px) !important;
+  top: 76px !important;
+  right: auto !important;
+  bottom: auto !important;
+  z-index: 1240 !important;
+  width: min(420px, calc(100vw - 64px)) !important;
+  max-height: min(720px, calc(100vh - 96px)) !important;
+}
+
+.vue-flow__node-image .image-edit-overlay:has(.convert-panel) .overlay-body {
+  max-height: calc(100vh - 190px) !important;
+  overflow-y: auto !important;
+}
+
+@media (max-width: 1180px) {
+  .vue-flow__node-image.image-node-has-image .image-edit-overlay:has(.convert-panel),
+  .vue-flow__node-image:has(.image-node img) .image-edit-overlay:has(.convert-panel),
+  .vue-flow__node-image .image-node:has(img) ~ .image-edit-overlay:has(.convert-panel) {
+    left: 0 !important;
+    top: calc(100% + 18px) !important;
+  }
+}

@@ -48,9 +48,9 @@ async page => {
       hasCanvasText: text.includes('画布') || text.includes('AI') || text.includes('新增节点') || text.includes('图片生成'),
       perfScriptLoaded: scripts.some((src) => src.includes('/assets/canvas-performance-mode.js?v=20260629perf5')),
       perfCssLoaded: styles.some((src) => src.includes('/assets/canvas-performance-mode.css?v=20260629perf5')),
-      imageNodePolishCssLoaded: styles.some((src) => src.includes('/assets/canvas-image-node-polish.css?v=20260629image7')),
-      imageNodePolishJsLoaded: scripts.some((src) => src.includes('/assets/canvas-image-node-polish.js?v=20260629image7')),
-      appBundlePerfVersion: scripts.some((src) => src.includes('/assets/index-DglIsp_g.js?v=20260630dialogagent12')),
+      imageNodePolishCssLoaded: styles.some((src) => src.includes('/assets/canvas-image-node-polish.css?v=20260702fulltext1')),
+      imageNodePolishJsLoaded: scripts.some((src) => src.includes('/assets/canvas-image-node-polish.js?v=20260701image10')),
+      appBundlePerfVersion: scripts.some((src) => src.includes('/assets/index-DglIsp_g.js?v=20260702toolbar1')),
       hasPerfApi: !!window.__hjmCanvasPerformanceMode,
       hasImagePolishApi: !!window.__hjmCanvasImageNodePolish,
       hasPerfIsActive: typeof window.__hjmCanvasPerformanceMode?.isActive === 'function',
@@ -300,6 +300,7 @@ async page => {
       imageHeight: Math.round(img.getBoundingClientRect().height),
       imageObjectFit: getComputedStyle(img).objectFit,
       imageMaxHeight: getComputedStyle(img).maxHeight,
+      headerDisplay: getComputedStyle(header).display,
       headerPosition: getComputedStyle(header).position,
       headerTop: getComputedStyle(header).top,
       metaPosition: getComputedStyle(meta).position,
@@ -319,7 +320,7 @@ async page => {
     loadedImageNodeProbe.imageObjectFit !== 'contain' ||
     loadedImageNodeProbe.imageHeight <= 220 ||
     loadedImageNodeProbe.stageHeight <= 220 ||
-    loadedImageNodeProbe.headerPosition !== 'absolute' ||
+    (loadedImageNodeProbe.headerDisplay !== 'none' && loadedImageNodeProbe.headerPosition !== 'absolute') ||
     loadedImageNodeProbe.metaPosition !== 'absolute' ||
     loadedImageNodeProbe.orientation !== 'portrait' ||
     !loadedImageNodeProbe.toolbarAboveStage ||

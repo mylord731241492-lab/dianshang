@@ -726,6 +726,7 @@ a {
   margin: 0;
   color: #0f172a;
   font-size: 28px;
+  font-weight: 900;
   line-height: 1.15;
 }
 
@@ -1453,6 +1454,10 @@ a {
   grid-template-columns: 48px minmax(0, 1.15fr) 96px 118px minmax(190px, 0.9fr) minmax(142px, 0.6fr) 132px;
 }
 
+.admin-template-workflows-list article {
+  grid-template-columns: 48px minmax(0, 1.2fr) 112px 120px minmax(190px, 0.8fr) minmax(210px, 0.9fr) 142px;
+}
+
 .admin-api-providers-panel {
   margin-top: 14px;
 }
@@ -1705,6 +1710,8 @@ a {
 .admin-template-workflow-category,
 .admin-template-workflow-slots,
 .admin-template-workflow-fields,
+.admin-template-workflow-skill-file,
+.admin-template-workflow-actions,
 .admin-recycle-user-main,
 .admin-recycle-user-role,
 .admin-recycle-user-balance,
@@ -1722,6 +1729,7 @@ a {
 .admin-template-workflow-main strong,
 .admin-template-workflow-slots strong,
 .admin-template-workflow-fields strong,
+.admin-template-workflow-skill-file strong,
 .admin-recycle-user-main strong,
 .admin-recycle-user-balance strong,
 .admin-recycle-user-time strong {
@@ -1794,6 +1802,7 @@ a {
 .admin-template-workflow-category span,
 .admin-template-workflow-slots span,
 .admin-template-workflow-fields span,
+.admin-template-workflow-skill-file span,
 .admin-recycle-user-main span,
 .admin-recycle-user-main small,
 .admin-recycle-user-role span,
@@ -1815,6 +1824,7 @@ a {
 .admin-template-workflow-category,
 .admin-template-workflow-slots,
 .admin-template-workflow-fields,
+.admin-template-workflow-skill-file,
 .admin-recycle-user-role,
 .admin-recycle-user-balance,
 .admin-recycle-user-time {
@@ -1825,9 +1835,54 @@ a {
 .admin-model-price-points strong,
 .admin-template-workflow-slots strong,
 .admin-template-workflow-fields strong,
+.admin-template-workflow-skill-file strong,
 .admin-recycle-user-balance strong {
   color: #047857;
   font-size: 18px;
+}
+
+.admin-template-workflow-skill-file strong {
+  color: #1f3a5f;
+  font-size: 13px;
+}
+
+.admin-template-workflow-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-template-skill-upload {
+  position: relative;
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  overflow: hidden;
+  border: 1px solid #bdebd9;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #047857;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 1000;
+}
+
+.admin-template-skill-upload:hover {
+  border-color: #31d79b;
+  background: #dcfce7;
+}
+
+.admin-template-skill-upload.disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.admin-template-skill-upload input {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  opacity: 0;
 }
 
 .admin-model-price-meta span {
@@ -2812,7 +2867,27 @@ a {
 }
 
 .prompt-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
   margin-top: 12px;
+}
+
+.prompt-list button {
+  min-height: 112px;
+  margin-bottom: 0;
+  align-content: start;
+}
+
+.prompt-list span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.prompt-list > p {
+  grid-column: 1 / -1;
 }
 
 .result-title {

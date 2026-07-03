@@ -1941,3 +1941,58 @@
 - 完成内容：`assets/HomeLayout-BeS5XdE3.js` 移除 `header-icon-button visual-mode` 按钮渲染；`assets/index-DglIsp_g.js` 将 HomeLayout 动态 chunk 加 `20260702removeplay1` 查询串；`index.html` 主入口查询串同步升级。
 - 验证结果：浏览器刷新首页后，顶部按钮只剩 `导出`、`保存`、`历史记录` 和用户/AI入口；DOM 中不存在 `.header-icon-button.visual-mode`，也不存在 `样式 1：视频播放` 按钮标题。
 - 边界：只删除顶部样式切换入口，不改背景视频资源、不改首页业务按钮、不触发真实 Provider。
+
+## 2026-07-02 画布图片节点工具入口回滚
+
+- 触发背景：用户决定暂不在画布内继续做文字编辑能力，并要求图片节点底部工具栏删除 `文字编辑`、`一键抠图`、`AI 超清放大`。
+- 完成内容：回滚上一轮新增的文字编辑后端接口和样式；`assets/Canvas-B8bY9_QL.js` 与 `assets/Canvas-yGc8b2gf.js` 的图片节点工具栏移除 `textEdit/removeBg/upscale` 三个入口；`/api/image-tools/settings` 不再返回 `textEdit/upscale/removeBg` 能力声明；Canvas 动态 chunk 查询串升级到 `20260702remove-tools`。
+- 验证结果：`node --check` 覆盖 `server.js`、两个 Canvas bundle 和两个 index bundle；`scripts/smoke-api-disposable.ps1` 通过；浏览器在 3456 图片节点实测工具栏只剩 `AI 扩图 / 格式压缩 / 反推提示词 / AI 智能消除 / 局部修改 / 尺寸 / 裁剪 / 添加到聊天 / 生成视频`，且 `局部修改` 面板仍可打开。
+- 边界：只删除这三个图片节点入口，不改右侧新增节点面板，不改画布 JSON 结构，不触发真实 Provider。
+
+## 2026-07-02 图片节点工具排版修复
+
+- 触发背景：用户截图指出图片节点顶部工具条左侧被裁切，`格式/压缩` 弹层离图片过远，排版需要收紧。
+- 完成内容：`assets/canvas-image-node-polish.css` 增加图片节点工具排版覆盖：顶部工具条从居中展开改为贴图片左上方并允许换行，避免靠左图片被视口裁掉；同时压掉旧竖向工具栏遗留高度，避免工具条背景被拉成大面板；`格式/压缩` 弹层改为紧贴图片右侧，窄屏时落到图片下方；弹层内容区增加最大高度滚动保护。`index.html` 将该 CSS 查询串升级到 `20260702layout2`。
+- 护栏调整：同步更新 `scripts/smoke-backend-canvas-boundary.ps1` 与 `scripts/verify-canvas-performance-assets.js` 的当前资源版本，并补充工具条位置和压缩弹层位置锚点。
+- 验证结果：`node scripts/verify-canvas-performance-assets.js` 通过；`scripts/smoke-backend-canvas-boundary.ps1` 通过，确认 `/assets/canvas-image-node-polish.css?v=20260702layout2` 返回 200；触达文件 `git diff --check` 通过且无 BOM。当前浏览器刷新后目标项目没有图片节点 DOM，未能继续做真实图片节点几何读数。
+- 边界：只改旧画布图片节点 polish 样式层和静态断言，不改 Canvas 主 bundle、不改图片工具功能、不触发真实 Provider。
+
+## 2026-07-02 图片节点工具条单行与生成视频移除
+
+- 触发背景：用户要求图片节点工具条做成一行，并取消 `生成视频`。
+- 完成内容：`assets/Canvas-B8bY9_QL.js` 与 `assets/Canvas-yGc8b2gf.js` 仅移除图片节点工具条数组里的 `video/生成视频` 项；保留其它视频节点和右侧新增节点能力不变。`assets/canvas-image-node-polish.css` 将图片工具条改为 `flex-wrap: nowrap`，高度收回单行。`index.html`、`assets/index-DglIsp_g.js`、`assets/index-ZrBcanD1.js` 查询串统一升级到 `20260702toolbar1`。
+- 护栏调整：`scripts/verify-canvas-performance-assets.js` 增加单行工具条样式和禁止图片工具条 `生成视频` 回退断言；旧后端边界 smoke 同步 `toolbar1` 资源版本。
+- 验证结果：两个 Canvas bundle 与入口 bundle `node --check` 通过；资产护栏通过；旧后端边界 smoke 通过并确认 `index-DglIsp_g.js`、两个 Canvas bundle 和 `canvas-image-node-polish.css` 的 `toolbar1` 资源均可返回 200；浏览器刷新当前画布后已加载 `toolbar1` 主入口和 CSS，页面正文不再包含 `生成视频`。当前项目刷新后没有图片节点 DOM，未能继续量真实工具条宽高。
+- 边界：只改图片节点顶部工具条，不改右侧新增节点、不改视频节点内部生成按钮、不触发真实 Provider。
+
+## 2026-07-02 图片节点工具条居中修正
+
+- 触发背景：用户截图指出单行工具条偏左、未以图片居中，`格式/压缩` 面板贴近顶边。
+- 完成内容：`assets/canvas-image-node-polish.css` 将图片工具条锚点改回 `left:50%` + `translateX(-50%)`，继续保持单行；按钮最大宽度和文字宽度略收紧，确保 8 个工具在一行内居中。`格式/压缩` 面板顶部偏移从 `20px` 调整为 `76px`，避免贴顶。CSS 查询串升级到 `20260702center1`。
+- 护栏调整：`scripts/verify-canvas-performance-assets.js` 增加居中 transform 锚点，旧后端边界 smoke 同步 `center1` CSS 资源版本。
+- 验证结果：资产护栏通过；旧后端边界 smoke 通过并确认 `/assets/canvas-image-node-polish.css?v=20260702center1` 返回 200；浏览器刷新后确认加载 `center1` CSS。当前项目刷新后没有图片节点 DOM，未能继续读取真实工具条中心点。
+- 边界：只改旧画布图片工具条和格式压缩面板的样式定位，不改功能、不恢复 `生成视频`。
+
+## 2026-07-02 图片节点工具条文字完整显示
+
+- 触发背景：用户截图指出单行工具条中文案被省略号截断，例如 `AI 智能...`、`图片尺寸...`。
+- 完成内容：`assets/canvas-image-node-polish.css` 放开图片工具条按钮和 `.tool-text` 最大宽度，取消 `text-overflow: ellipsis`，改为 `text-overflow: clip` 与可见溢出；工具条仍保持单行居中。CSS 查询串升级到 `20260702fulltext1`。
+- 护栏调整：`scripts/verify-canvas-performance-assets.js` 增加 `text-overflow: clip` 锚点；旧后端边界 smoke 同步 `fulltext1` CSS 资源版本。
+- 验证结果：资产护栏通过；旧后端边界 smoke 通过并确认 `/assets/canvas-image-node-polish.css?v=20260702fulltext1` 返回 200；浏览器刷新后确认加载 `fulltext1` CSS。当前项目刷新后没有图片节点 DOM，未能直接读取按钮文字裁切状态。
+- 边界：只改图片节点顶部工具条文字显示，不改工具项、不恢复 `生成视频`、不触发真实 Provider。
+
+## 2026-07-03 生产状态可靠性验收
+
+- 触发背景：用户要求按真实生产环境测试所有功能可靠性，并确保网站以生产状态运行。
+- 服务状态：已停止非主目录旧服务，并从 `F:\dianshang` 启动 `node server.js`；当前 `GET /api/health` 返回 `mode=real-provider-ready`，数据库、上传和日志目录分别为 `F:\dianshang\data.db`、`F:\dianshang\uploads`、`F:\dianshang\logs`。
+- 修复内容：后台源码页标题字重补齐到生产视觉验收要求；后台页面 smoke wrapper 增加 Playwright CLI 错误捕获；画布性能 smoke 同步当前资源版本，并兼容图片节点加载后隐藏标题栏的现有设计。
+- 验证结果：前端构建、后端语法检查、API disposable smoke、前端路由 smoke、真实 Provider 护栏、旧画布后端边界 smoke、首页/画布 UI smoke、移动端 UI smoke、画布性能 UI smoke、画布帧预算 smoke、后台 dashboard DOM 探针和 `git diff --check` 均通过。
+- 边界：未触发真实 AI 生图/文本付费调用；邮件、支付、对象存储仍为 `enabled=false`；完整后台截图 smoke 在 Playwright CLI run-code 层存在挂住风险，暂不作为稳定 CI 门禁。
+
+## 2026-07-03 画布清晰度三档统一
+
+- 触发背景：用户在旧画布图片生成节点发现清晰度下拉只有 `1K`，需要统一为可测试的生产配置。
+- 完成内容：`server.js` 将图片模型清晰度统一为 `1k / 2k / 4k`，新增模型清晰度归一化和 variants 展开逻辑；后台新增模型接口默认清晰度也同步为三档。
+- 护栏调整：`scripts/smoke-api.ps1` 增加 `/api/model-routes?group=image` 与 `/api/public/models` 的清晰度/variants 三档断言，防止画布再次只拿到 `1k`。
+- 验证结果：`node --check "F:\dianshang\server.js"` 通过；`scripts\smoke-api-disposable.ps1` 通过；当前 3456 服务重启后接口返回 `qualities=[1k,2k,4k]`、`variantClarities=[1k,2k,4k]`。
+- 边界：只改模型能力配置和接口归一化，不改价格倍率、不改生成尺寸算法、不触发真实 Provider 生图。

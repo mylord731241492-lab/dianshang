@@ -5,8 +5,7 @@ async page => {
   const results = [];
 
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(baseUrl + '/admin/login?admin-pages-smoke=seed');
-  await page.waitForLoadState('load');
+  await page.goto(baseUrl + '/admin/login?admin-pages-smoke=seed', { waitUntil: 'domcontentloaded', timeout: 20000 });
 
   const loginResult = await page.evaluate(async () => {
     const response = await fetch('/api/admin/login', {
@@ -40,11 +39,10 @@ async page => {
   ];
 
   for (const item of pages) {
-    await page.goto(baseUrl + item.route + '?admin-pages-smoke=1');
-    await page.waitForLoadState('load');
+    await page.goto(baseUrl + item.route + '?admin-pages-smoke=1', { waitUntil: 'domcontentloaded', timeout: 20000 });
     await page.waitForTimeout(850);
 
-    const bodyText = await page.locator('body').innerText();
+    const bodyText = await page.evaluate(() => document.body?.innerText || '');
     if (!bodyText.includes(item.expected)) {
       throw new Error(item.slug + ' missing expected text: ' + item.expected);
     }
@@ -58,7 +56,7 @@ async page => {
         const style = getComputedStyle(el);
         return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
       };
-      const title = document.querySelector('header div.text-lg');
+      const title = document.querySelector('header.admin-source-topbar h1, header div.text-lg');
       const buttons = Array.from(document.querySelectorAll('button'));
       const visibleButtons = buttons.filter(isVisible);
       const svgCount = document.querySelectorAll('svg').length;

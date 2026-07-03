@@ -46,7 +46,7 @@
       ],
       "outputSchema": {
         "type": "json-array",
-        "maxItems": 5,
+        "maxItems": 4,
         "itemShape": {
           "title": "方案A",
           "prompt": "图片模型可直接使用的完整提示词",
@@ -61,7 +61,8 @@
       "tags": [
         "主图",
         "复刻",
-        "高转化"
+        "高转化",
+        "四图套图"
       ],
       "platformTags": [
         "淘宝",
@@ -92,7 +93,181 @@
         "imageCount": 1
       },
       "thumbnail": "/templates/covers/main-image.svg",
-      "previewImage": "/templates/covers/main-image.svg"
+      "previewImage": "/templates/covers/main-image.svg",
+      "promptBlocks": {
+        "rolePrompt": "你是一名主图反推复刻提示词工程师，熟悉国内外电商平台图片转化逻辑。",
+        "taskGoal": "复刻参考主图的结构、卖点层级和转化表达，同时严格替换为用户上传的自家产品。 必须固定产出 4 条提示词，分别覆盖：高点击主图 / 卖点强化主图 / 场景承接主图 / 细节信任主图。",
+        "imageMapping": "后台会把上传素材映射为产品素材图和参考图：产品素材用于保持主体、包装、材质、颜色、品牌识别；参考图用于学习构图、场景、光影、排版和风格。不要要求用户手动描述图一图二。",
+        "userFields": "融合用户填写的平台、比例、补充要求、卖点、人群和风格描述；用户没有提供的信息不要擅自编造。",
+        "outputFormat": "必须返回 JSON 数组，固定 4 项，顺序为：高点击主图 / 卖点强化主图 / 场景承接主图 / 细节信任主图。每项包含 title、prompt、negativePrompt、ratio、styleTags、referenceImageIndex。",
+        "constraints": "保持自家产品外观、结构、颜色、包装文字和关键识别准确；不要虚构价格、认证、功效、活动、Logo、水印、二维码或不存在的文案；不要生成畸形产品、错别字和低清晰度画面。",
+        "skillPrompts": "1. 高点击主图：复刻参考主图的主体比例、构图重心和卖点视觉层级，产品居中偏大，背景干净有轻微空间感，适合搜索货架首图。\n2. 卖点强化主图：保留产品外观和关键包装文字，围绕核心卖点做清晰信息层级和辅助视觉元素，画面直接、有冲击力但不堆砌。\n3. 场景承接主图：在主图结构基础上加入轻量真实使用场景，产品仍为绝对主体，背景服务于消费理由，适合主图第二张或活动承接图。\n4. 细节信任主图：突出产品材质、包装边缘、容量规格或核心部件的可信细节，商业摄影布光，画面清爽，强化品质和购买信任。",
+        "templateSkillName": "一键主图反推复刻 · 四图预设"
+      },
+      "presetPrompts": [
+        {
+          "id": "main-image_suite_1",
+          "title": "高点击主图",
+          "label": "高点击主图",
+          "prompt": "复刻参考主图的主体比例、构图重心和卖点视觉层级，产品居中偏大，背景干净有轻微空间感，适合搜索货架首图。",
+          "text": "复刻参考主图的主体比例、构图重心和卖点视觉层级，产品居中偏大，背景干净有轻微空间感，适合搜索货架首图。",
+          "negativePrompt": "模糊，产品变形，水印，乱码文字，虚构价格，虚构认证，多余主体",
+          "negative_prompt": "模糊，产品变形，水印，乱码文字，虚构价格，虚构认证，多余主体",
+          "styleTags": [
+            "主图",
+            "高点击"
+          ],
+          "style_tags": [
+            "主图",
+            "高点击"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "main-image_suite_2",
+          "title": "卖点强化主图",
+          "label": "卖点强化主图",
+          "prompt": "保留产品外观和关键包装文字，围绕核心卖点做清晰信息层级和辅助视觉元素，画面直接、有冲击力但不堆砌。",
+          "text": "保留产品外观和关键包装文字，围绕核心卖点做清晰信息层级和辅助视觉元素，画面直接、有冲击力但不堆砌。",
+          "negativePrompt": "虚假功效，信息拥挤，低清晰度，错别字，遮挡产品",
+          "negative_prompt": "虚假功效，信息拥挤，低清晰度，错别字，遮挡产品",
+          "styleTags": [
+            "卖点",
+            "转化"
+          ],
+          "style_tags": [
+            "卖点",
+            "转化"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "main-image_suite_3",
+          "title": "场景承接主图",
+          "label": "场景承接主图",
+          "prompt": "在主图结构基础上加入轻量真实使用场景，产品仍为绝对主体，背景服务于消费理由，适合主图第二张或活动承接图。",
+          "text": "在主图结构基础上加入轻量真实使用场景，产品仍为绝对主体，背景服务于消费理由，适合主图第二张或活动承接图。",
+          "negativePrompt": "背景杂乱，喧宾夺主，人物畸形，品牌错字，过度滤镜",
+          "negative_prompt": "背景杂乱，喧宾夺主，人物畸形，品牌错字，过度滤镜",
+          "styleTags": [
+            "场景",
+            "主图"
+          ],
+          "style_tags": [
+            "场景",
+            "主图"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "main-image_suite_4",
+          "title": "细节信任主图",
+          "label": "细节信任主图",
+          "prompt": "突出产品材质、包装边缘、容量规格或核心部件的可信细节，商业摄影布光，画面清爽，强化品质和购买信任。",
+          "text": "突出产品材质、包装边缘、容量规格或核心部件的可信细节，商业摄影布光，画面清爽，强化品质和购买信任。",
+          "negativePrompt": "细节糊，过曝，噪点，产品结构错误，水印",
+          "negative_prompt": "细节糊，过曝，噪点，产品结构错误，水印",
+          "styleTags": [
+            "细节",
+            "信任"
+          ],
+          "style_tags": [
+            "细节",
+            "信任"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ],
+      "skillPrompts": [
+        {
+          "id": "main-image_suite_1",
+          "title": "高点击主图",
+          "label": "高点击主图",
+          "prompt": "复刻参考主图的主体比例、构图重心和卖点视觉层级，产品居中偏大，背景干净有轻微空间感，适合搜索货架首图。",
+          "text": "复刻参考主图的主体比例、构图重心和卖点视觉层级，产品居中偏大，背景干净有轻微空间感，适合搜索货架首图。",
+          "negativePrompt": "模糊，产品变形，水印，乱码文字，虚构价格，虚构认证，多余主体",
+          "negative_prompt": "模糊，产品变形，水印，乱码文字，虚构价格，虚构认证，多余主体",
+          "styleTags": [
+            "主图",
+            "高点击"
+          ],
+          "style_tags": [
+            "主图",
+            "高点击"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "main-image_suite_2",
+          "title": "卖点强化主图",
+          "label": "卖点强化主图",
+          "prompt": "保留产品外观和关键包装文字，围绕核心卖点做清晰信息层级和辅助视觉元素，画面直接、有冲击力但不堆砌。",
+          "text": "保留产品外观和关键包装文字，围绕核心卖点做清晰信息层级和辅助视觉元素，画面直接、有冲击力但不堆砌。",
+          "negativePrompt": "虚假功效，信息拥挤，低清晰度，错别字，遮挡产品",
+          "negative_prompt": "虚假功效，信息拥挤，低清晰度，错别字，遮挡产品",
+          "styleTags": [
+            "卖点",
+            "转化"
+          ],
+          "style_tags": [
+            "卖点",
+            "转化"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "main-image_suite_3",
+          "title": "场景承接主图",
+          "label": "场景承接主图",
+          "prompt": "在主图结构基础上加入轻量真实使用场景，产品仍为绝对主体，背景服务于消费理由，适合主图第二张或活动承接图。",
+          "text": "在主图结构基础上加入轻量真实使用场景，产品仍为绝对主体，背景服务于消费理由，适合主图第二张或活动承接图。",
+          "negativePrompt": "背景杂乱，喧宾夺主，人物畸形，品牌错字，过度滤镜",
+          "negative_prompt": "背景杂乱，喧宾夺主，人物畸形，品牌错字，过度滤镜",
+          "styleTags": [
+            "场景",
+            "主图"
+          ],
+          "style_tags": [
+            "场景",
+            "主图"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "main-image_suite_4",
+          "title": "细节信任主图",
+          "label": "细节信任主图",
+          "prompt": "突出产品材质、包装边缘、容量规格或核心部件的可信细节，商业摄影布光，画面清爽，强化品质和购买信任。",
+          "text": "突出产品材质、包装边缘、容量规格或核心部件的可信细节，商业摄影布光，画面清爽，强化品质和购买信任。",
+          "negativePrompt": "细节糊，过曝，噪点，产品结构错误，水印",
+          "negative_prompt": "细节糊，过曝，噪点，产品结构错误，水印",
+          "styleTags": [
+            "细节",
+            "信任"
+          ],
+          "style_tags": [
+            "细节",
+            "信任"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ]
     },
     {
       "key": "baiditu",
@@ -126,13 +301,14 @@
       ],
       "outputSchema": {
         "type": "json-array",
-        "maxItems": 5
+        "maxItems": 4
       },
       "categoryId": "main",
       "categoryName": "主图生成",
       "tags": [
         "白底图",
-        "平台规范"
+        "平台规范",
+        "四图套图"
       ],
       "platformTags": [
         "Amazon",
@@ -142,7 +318,187 @@
       "sort": 9,
       "coverImage": "/templates/covers/baiditu.svg",
       "thumbnail": "/templates/covers/baiditu.svg",
-      "previewImage": "/templates/covers/baiditu.svg"
+      "previewImage": "/templates/covers/baiditu.svg",
+      "generateDefaults": {
+        "platform": "Amazon",
+        "ratio": "1:1",
+        "quality": "1K",
+        "imageCount": 1
+      },
+      "promptBlocks": {
+        "rolePrompt": "你是一名平台白底图批量生成提示词工程师，熟悉国内外电商平台图片转化逻辑。",
+        "taskGoal": "基于产品素材批量生成符合电商平台规范的白底图，保持产品真实结构和材质。 必须固定产出 4 条提示词，分别覆盖：标准白底图 / 45度质感白底 / 组合陈列白底 / 细节特写白底。",
+        "imageMapping": "后台会把上传素材映射为产品素材图和参考图：产品素材用于保持主体、包装、材质、颜色、品牌识别；参考图用于学习构图、场景、光影、排版和风格。不要要求用户手动描述图一图二。",
+        "userFields": "融合用户填写的平台、比例、补充要求、卖点、人群和风格描述；用户没有提供的信息不要擅自编造。",
+        "outputFormat": "必须返回 JSON 数组，固定 4 项，顺序为：标准白底图 / 45度质感白底 / 组合陈列白底 / 细节特写白底。每项包含 title、prompt、negativePrompt、ratio、styleTags、referenceImageIndex。",
+        "constraints": "保持自家产品外观、结构、颜色、包装文字和关键识别准确；不要虚构价格、认证、功效、活动、Logo、水印、二维码或不存在的文案；不要生成畸形产品、错别字和低清晰度画面。",
+        "skillPrompts": "1. 标准白底图：生成标准平台白底图，纯白背景，产品居中，占画面约 75%，边缘锐利，阴影轻微自然，完整展示主体。\n2. 45度质感白底：生成 45 度轻透视白底图，突出产品立体结构、材质光泽和包装轮廓，保持平台白底规范。\n3. 组合陈列白底：在白底规范下展示产品组合、配件或多规格陈列，排布整齐，主体关系明确，不添加不存在的配件。\n4. 细节特写白底：生成白底细节特写图，突出包装文字、材质纹理、接口、瓶口或关键工艺，局部清晰且结构准确。",
+        "templateSkillName": "白底图 · 四图预设"
+      },
+      "presetPrompts": [
+        {
+          "id": "baiditu_suite_1",
+          "title": "标准白底图",
+          "label": "标准白底图",
+          "prompt": "生成标准平台白底图，纯白背景，产品居中，占画面约 75%，边缘锐利，阴影轻微自然，完整展示主体。",
+          "text": "生成标准平台白底图，纯白背景，产品居中，占画面约 75%，边缘锐利，阴影轻微自然，完整展示主体。",
+          "negativePrompt": "灰背景，脏污背景，裁切产品，水印，虚假文字，低清晰度",
+          "negative_prompt": "灰背景，脏污背景，裁切产品，水印，虚假文字，低清晰度",
+          "styleTags": [
+            "白底",
+            "标准"
+          ],
+          "style_tags": [
+            "白底",
+            "标准"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "baiditu_suite_2",
+          "title": "45度质感白底",
+          "label": "45度质感白底",
+          "prompt": "生成 45 度轻透视白底图，突出产品立体结构、材质光泽和包装轮廓，保持平台白底规范。",
+          "text": "生成 45 度轻透视白底图，突出产品立体结构、材质光泽和包装轮廓，保持平台白底规范。",
+          "negativePrompt": "过度透视，产品变形，反光过曝，背景不纯，噪点",
+          "negative_prompt": "过度透视，产品变形，反光过曝，背景不纯，噪点",
+          "styleTags": [
+            "白底",
+            "质感"
+          ],
+          "style_tags": [
+            "白底",
+            "质感"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "baiditu_suite_3",
+          "title": "组合陈列白底",
+          "label": "组合陈列白底",
+          "prompt": "在白底规范下展示产品组合、配件或多规格陈列，排布整齐，主体关系明确，不添加不存在的配件。",
+          "text": "在白底规范下展示产品组合、配件或多规格陈列，排布整齐，主体关系明确，不添加不存在的配件。",
+          "negativePrompt": "虚构配件，布局凌乱，比例失真，遮挡主体，乱码文字",
+          "negative_prompt": "虚构配件，布局凌乱，比例失真，遮挡主体，乱码文字",
+          "styleTags": [
+            "组合",
+            "陈列"
+          ],
+          "style_tags": [
+            "组合",
+            "陈列"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "baiditu_suite_4",
+          "title": "细节特写白底",
+          "label": "细节特写白底",
+          "prompt": "生成白底细节特写图，突出包装文字、材质纹理、接口、瓶口或关键工艺，局部清晰且结构准确。",
+          "text": "生成白底细节特写图，突出包装文字、材质纹理、接口、瓶口或关键工艺，局部清晰且结构准确。",
+          "negativePrompt": "文字错误，局部糊，产品结构错位，过曝，水印",
+          "negative_prompt": "文字错误，局部糊，产品结构错位，过曝，水印",
+          "styleTags": [
+            "细节",
+            "特写"
+          ],
+          "style_tags": [
+            "细节",
+            "特写"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ],
+      "skillPrompts": [
+        {
+          "id": "baiditu_suite_1",
+          "title": "标准白底图",
+          "label": "标准白底图",
+          "prompt": "生成标准平台白底图，纯白背景，产品居中，占画面约 75%，边缘锐利，阴影轻微自然，完整展示主体。",
+          "text": "生成标准平台白底图，纯白背景，产品居中，占画面约 75%，边缘锐利，阴影轻微自然，完整展示主体。",
+          "negativePrompt": "灰背景，脏污背景，裁切产品，水印，虚假文字，低清晰度",
+          "negative_prompt": "灰背景，脏污背景，裁切产品，水印，虚假文字，低清晰度",
+          "styleTags": [
+            "白底",
+            "标准"
+          ],
+          "style_tags": [
+            "白底",
+            "标准"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "baiditu_suite_2",
+          "title": "45度质感白底",
+          "label": "45度质感白底",
+          "prompt": "生成 45 度轻透视白底图，突出产品立体结构、材质光泽和包装轮廓，保持平台白底规范。",
+          "text": "生成 45 度轻透视白底图，突出产品立体结构、材质光泽和包装轮廓，保持平台白底规范。",
+          "negativePrompt": "过度透视，产品变形，反光过曝，背景不纯，噪点",
+          "negative_prompt": "过度透视，产品变形，反光过曝，背景不纯，噪点",
+          "styleTags": [
+            "白底",
+            "质感"
+          ],
+          "style_tags": [
+            "白底",
+            "质感"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "baiditu_suite_3",
+          "title": "组合陈列白底",
+          "label": "组合陈列白底",
+          "prompt": "在白底规范下展示产品组合、配件或多规格陈列，排布整齐，主体关系明确，不添加不存在的配件。",
+          "text": "在白底规范下展示产品组合、配件或多规格陈列，排布整齐，主体关系明确，不添加不存在的配件。",
+          "negativePrompt": "虚构配件，布局凌乱，比例失真，遮挡主体，乱码文字",
+          "negative_prompt": "虚构配件，布局凌乱，比例失真，遮挡主体，乱码文字",
+          "styleTags": [
+            "组合",
+            "陈列"
+          ],
+          "style_tags": [
+            "组合",
+            "陈列"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "baiditu_suite_4",
+          "title": "细节特写白底",
+          "label": "细节特写白底",
+          "prompt": "生成白底细节特写图，突出包装文字、材质纹理、接口、瓶口或关键工艺，局部清晰且结构准确。",
+          "text": "生成白底细节特写图，突出包装文字、材质纹理、接口、瓶口或关键工艺，局部清晰且结构准确。",
+          "negativePrompt": "文字错误，局部糊，产品结构错位，过曝，水印",
+          "negative_prompt": "文字错误，局部糊，产品结构错位，过曝，水印",
+          "styleTags": [
+            "细节",
+            "特写"
+          ],
+          "style_tags": [
+            "细节",
+            "特写"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ]
     },
     {
       "key": "sub-image-replica",
@@ -213,14 +569,16 @@
       ],
       "outputSchema": {
         "type": "json-array",
-        "maxItems": 50
+        "maxItems": 4
       },
       "categoryId": "replica",
       "categoryName": "爆款复刻",
       "tags": [
         "参考图复刻",
         "副图",
-        "批量"
+        "批量",
+        "四图套图",
+        "逐张复刻"
       ],
       "platformTags": [
         "淘宝",
@@ -230,7 +588,187 @@
       "sort": 8,
       "coverImage": "/templates/covers/sub-image-replica.svg",
       "thumbnail": "/templates/covers/sub-image-replica.svg",
-      "previewImage": "/templates/covers/sub-image-replica.svg"
+      "previewImage": "/templates/covers/sub-image-replica.svg",
+      "generateDefaults": {
+        "platform": "拼多多",
+        "ratio": "1:1",
+        "quality": "1K",
+        "imageCount": 1
+      },
+      "promptBlocks": {
+        "rolePrompt": "你是一名电商副图逐张复刻提示词工程师，熟悉国内外电商平台图片转化逻辑。",
+        "taskGoal": "逐张复刻参考副图的构图、场景、信息层级和视觉风格，每条提示词对应一张参考图。 必须固定产出 4 条提示词，分别覆盖：副图结构复刻 / 卖点信息复刻 / 场景副图复刻 / 细节局部复刻。",
+        "imageMapping": "后台会把上传素材映射为产品素材图和参考图：产品素材用于保持主体、包装、材质、颜色、品牌识别；参考图用于学习构图、场景、光影、排版和风格。不要要求用户手动描述图一图二。",
+        "userFields": "融合用户填写的平台、比例、补充要求、卖点、人群和风格描述；用户没有提供的信息不要擅自编造。",
+        "outputFormat": "必须返回 JSON 数组，固定 4 项，顺序为：副图结构复刻 / 卖点信息复刻 / 场景副图复刻 / 细节局部复刻。每项包含 title、prompt、negativePrompt、ratio、styleTags、referenceImageIndex。",
+        "constraints": "保持自家产品外观、结构、颜色、包装文字和关键识别准确；不要虚构价格、认证、功效、活动、Logo、水印、二维码或不存在的文案；不要生成畸形产品、错别字和低清晰度画面。",
+        "skillPrompts": "1. 副图结构复刻：复刻对应参考副图的版式结构、主体摆位、背景层次和视觉节奏，把参考产品替换为用户产品。\n2. 卖点信息复刻：复刻参考图的信息卡片、标签、卖点分区和阅读顺序，卖点表达简洁可信，不编造价格和功效。\n3. 场景副图复刻：复刻参考图的使用场景、道具关系、光影氛围和景别，产品融入自然但仍清晰突出。\n4. 细节局部复刻：复刻参考图的局部展示方式，突出材质、结构、接口、包装边缘或使用细节，画面干净有品质感。",
+        "templateSkillName": "副图复刻 · 四图预设"
+      },
+      "presetPrompts": [
+        {
+          "id": "sub-image-replica_suite_1",
+          "title": "副图结构复刻",
+          "label": "副图结构复刻",
+          "prompt": "复刻对应参考副图的版式结构、主体摆位、背景层次和视觉节奏，把参考产品替换为用户产品。",
+          "text": "复刻对应参考副图的版式结构、主体摆位、背景层次和视觉节奏，把参考产品替换为用户产品。",
+          "negativePrompt": "保留参考图原产品，产品变形，构图错乱，水印，乱码",
+          "negative_prompt": "保留参考图原产品，产品变形，构图错乱，水印，乱码",
+          "styleTags": [
+            "副图",
+            "结构"
+          ],
+          "style_tags": [
+            "副图",
+            "结构"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "sub-image-replica_suite_2",
+          "title": "卖点信息复刻",
+          "label": "卖点信息复刻",
+          "prompt": "复刻参考图的信息卡片、标签、卖点分区和阅读顺序，卖点表达简洁可信，不编造价格和功效。",
+          "text": "复刻参考图的信息卡片、标签、卖点分区和阅读顺序，卖点表达简洁可信，不编造价格和功效。",
+          "negativePrompt": "虚假功效，虚构价格，信息拥挤，错别字，低清晰度",
+          "negative_prompt": "虚假功效，虚构价格，信息拥挤，错别字，低清晰度",
+          "styleTags": [
+            "卖点",
+            "信息"
+          ],
+          "style_tags": [
+            "卖点",
+            "信息"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "sub-image-replica_suite_3",
+          "title": "场景副图复刻",
+          "label": "场景副图复刻",
+          "prompt": "复刻参考图的使用场景、道具关系、光影氛围和景别，产品融入自然但仍清晰突出。",
+          "text": "复刻参考图的使用场景、道具关系、光影氛围和景别，产品融入自然但仍清晰突出。",
+          "negativePrompt": "背景杂乱，主体不清，人物畸形，产品错色，过度滤镜",
+          "negative_prompt": "背景杂乱，主体不清，人物畸形，产品错色，过度滤镜",
+          "styleTags": [
+            "场景",
+            "复刻"
+          ],
+          "style_tags": [
+            "场景",
+            "复刻"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "sub-image-replica_suite_4",
+          "title": "细节局部复刻",
+          "label": "细节局部复刻",
+          "prompt": "复刻参考图的局部展示方式，突出材质、结构、接口、包装边缘或使用细节，画面干净有品质感。",
+          "text": "复刻参考图的局部展示方式，突出材质、结构、接口、包装边缘或使用细节，画面干净有品质感。",
+          "negativePrompt": "细节糊，结构错误，文字乱码，噪点，水印",
+          "negative_prompt": "细节糊，结构错误，文字乱码，噪点，水印",
+          "styleTags": [
+            "细节",
+            "局部"
+          ],
+          "style_tags": [
+            "细节",
+            "局部"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ],
+      "skillPrompts": [
+        {
+          "id": "sub-image-replica_suite_1",
+          "title": "副图结构复刻",
+          "label": "副图结构复刻",
+          "prompt": "复刻对应参考副图的版式结构、主体摆位、背景层次和视觉节奏，把参考产品替换为用户产品。",
+          "text": "复刻对应参考副图的版式结构、主体摆位、背景层次和视觉节奏，把参考产品替换为用户产品。",
+          "negativePrompt": "保留参考图原产品，产品变形，构图错乱，水印，乱码",
+          "negative_prompt": "保留参考图原产品，产品变形，构图错乱，水印，乱码",
+          "styleTags": [
+            "副图",
+            "结构"
+          ],
+          "style_tags": [
+            "副图",
+            "结构"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "sub-image-replica_suite_2",
+          "title": "卖点信息复刻",
+          "label": "卖点信息复刻",
+          "prompt": "复刻参考图的信息卡片、标签、卖点分区和阅读顺序，卖点表达简洁可信，不编造价格和功效。",
+          "text": "复刻参考图的信息卡片、标签、卖点分区和阅读顺序，卖点表达简洁可信，不编造价格和功效。",
+          "negativePrompt": "虚假功效，虚构价格，信息拥挤，错别字，低清晰度",
+          "negative_prompt": "虚假功效，虚构价格，信息拥挤，错别字，低清晰度",
+          "styleTags": [
+            "卖点",
+            "信息"
+          ],
+          "style_tags": [
+            "卖点",
+            "信息"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "sub-image-replica_suite_3",
+          "title": "场景副图复刻",
+          "label": "场景副图复刻",
+          "prompt": "复刻参考图的使用场景、道具关系、光影氛围和景别，产品融入自然但仍清晰突出。",
+          "text": "复刻参考图的使用场景、道具关系、光影氛围和景别，产品融入自然但仍清晰突出。",
+          "negativePrompt": "背景杂乱，主体不清，人物畸形，产品错色，过度滤镜",
+          "negative_prompt": "背景杂乱，主体不清，人物畸形，产品错色，过度滤镜",
+          "styleTags": [
+            "场景",
+            "复刻"
+          ],
+          "style_tags": [
+            "场景",
+            "复刻"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "sub-image-replica_suite_4",
+          "title": "细节局部复刻",
+          "label": "细节局部复刻",
+          "prompt": "复刻参考图的局部展示方式，突出材质、结构、接口、包装边缘或使用细节，画面干净有品质感。",
+          "text": "复刻参考图的局部展示方式，突出材质、结构、接口、包装边缘或使用细节，画面干净有品质感。",
+          "negativePrompt": "细节糊，结构错误，文字乱码，噪点，水印",
+          "negative_prompt": "细节糊，结构错误，文字乱码，噪点，水印",
+          "styleTags": [
+            "细节",
+            "局部"
+          ],
+          "style_tags": [
+            "细节",
+            "局部"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ]
     },
     {
       "key": "detail-page",
@@ -274,14 +812,15 @@
       ],
       "outputSchema": {
         "type": "json-array",
-        "maxItems": 5
+        "maxItems": 4
       },
       "categoryId": "detail",
       "categoryName": "详情页套图",
       "tags": [
         "详情页",
         "套图",
-        "模块拆解"
+        "模块拆解",
+        "四图套图"
       ],
       "platformTags": [
         "淘宝",
@@ -291,7 +830,187 @@
       "sort": 7,
       "coverImage": "/templates/covers/detail-page.svg",
       "thumbnail": "/templates/covers/detail-page.svg",
-      "previewImage": "/templates/covers/detail-page.svg"
+      "previewImage": "/templates/covers/detail-page.svg",
+      "generateDefaults": {
+        "platform": "天猫",
+        "ratio": "1:1",
+        "quality": "1K",
+        "imageCount": 1
+      },
+      "promptBlocks": {
+        "rolePrompt": "你是一名电商详情页模块拆解提示词工程师，熟悉国内外电商平台图片转化逻辑。",
+        "taskGoal": "把参考详情页拆成可生图的模块化提示词，适合长图详情页分镜和模块批量生成。 必须固定产出 4 条提示词，分别覆盖：首屏利益模块 / 核心卖点模块 / 使用场景模块 / 细节参数模块。",
+        "imageMapping": "后台会把上传素材映射为产品素材图和参考图：产品素材用于保持主体、包装、材质、颜色、品牌识别；参考图用于学习构图、场景、光影、排版和风格。不要要求用户手动描述图一图二。",
+        "userFields": "融合用户填写的平台、比例、补充要求、卖点、人群和风格描述；用户没有提供的信息不要擅自编造。",
+        "outputFormat": "必须返回 JSON 数组，固定 4 项，顺序为：首屏利益模块 / 核心卖点模块 / 使用场景模块 / 细节参数模块。每项包含 title、prompt、negativePrompt、ratio、styleTags、referenceImageIndex。",
+        "constraints": "保持自家产品外观、结构、颜色、包装文字和关键识别准确；不要虚构价格、认证、功效、活动、Logo、水印、二维码或不存在的文案；不要生成畸形产品、错别字和低清晰度画面。",
+        "skillPrompts": "1. 首屏利益模块：生成详情页首屏模块，产品主体清晰，标题利益点突出，背景高级有品牌感，适合长图开头承接。\n2. 核心卖点模块：生成核心卖点说明模块，用清晰视觉分区表达 2-4 个卖点，图文层级有序，适合详情页中段。\n3. 使用场景模块：生成使用场景模块，展示产品在真实环境中的使用价值和人群代入，氛围自然，产品识别稳定。\n4. 细节参数模块：生成细节参数模块，突出材质、结构、规格、容量或工艺细节，画面可信，适合详情页品质说明。",
+        "templateSkillName": "电商详情页复刻 · 四图预设"
+      },
+      "presetPrompts": [
+        {
+          "id": "detail-page_suite_1",
+          "title": "首屏利益模块",
+          "label": "首屏利益模块",
+          "prompt": "生成详情页首屏模块，产品主体清晰，标题利益点突出，背景高级有品牌感，适合长图开头承接。",
+          "text": "生成详情页首屏模块，产品主体清晰，标题利益点突出，背景高级有品牌感，适合长图开头承接。",
+          "negativePrompt": "标题乱码，产品变形，信息过载，虚构活动，水印",
+          "negative_prompt": "标题乱码，产品变形，信息过载，虚构活动，水印",
+          "styleTags": [
+            "详情页",
+            "首屏"
+          ],
+          "style_tags": [
+            "详情页",
+            "首屏"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "detail-page_suite_2",
+          "title": "核心卖点模块",
+          "label": "核心卖点模块",
+          "prompt": "生成核心卖点说明模块，用清晰视觉分区表达 2-4 个卖点，图文层级有序，适合详情页中段。",
+          "text": "生成核心卖点说明模块，用清晰视觉分区表达 2-4 个卖点，图文层级有序，适合详情页中段。",
+          "negativePrompt": "虚假功效，文字拥挤，版式混乱，低清晰度，错别字",
+          "negative_prompt": "虚假功效，文字拥挤，版式混乱，低清晰度，错别字",
+          "styleTags": [
+            "卖点",
+            "模块"
+          ],
+          "style_tags": [
+            "卖点",
+            "模块"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "detail-page_suite_3",
+          "title": "使用场景模块",
+          "label": "使用场景模块",
+          "prompt": "生成使用场景模块，展示产品在真实环境中的使用价值和人群代入，氛围自然，产品识别稳定。",
+          "text": "生成使用场景模块，展示产品在真实环境中的使用价值和人群代入，氛围自然，产品识别稳定。",
+          "negativePrompt": "人物畸形，场景杂乱，主体被遮挡，产品错色，过度滤镜",
+          "negative_prompt": "人物畸形，场景杂乱，主体被遮挡，产品错色，过度滤镜",
+          "styleTags": [
+            "场景",
+            "详情"
+          ],
+          "style_tags": [
+            "场景",
+            "详情"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "detail-page_suite_4",
+          "title": "细节参数模块",
+          "label": "细节参数模块",
+          "prompt": "生成细节参数模块，突出材质、结构、规格、容量或工艺细节，画面可信，适合详情页品质说明。",
+          "text": "生成细节参数模块，突出材质、结构、规格、容量或工艺细节，画面可信，适合详情页品质说明。",
+          "negativePrompt": "参数虚构，细节模糊，产品结构错误，过曝，水印",
+          "negative_prompt": "参数虚构，细节模糊，产品结构错误，过曝，水印",
+          "styleTags": [
+            "参数",
+            "细节"
+          ],
+          "style_tags": [
+            "参数",
+            "细节"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ],
+      "skillPrompts": [
+        {
+          "id": "detail-page_suite_1",
+          "title": "首屏利益模块",
+          "label": "首屏利益模块",
+          "prompt": "生成详情页首屏模块，产品主体清晰，标题利益点突出，背景高级有品牌感，适合长图开头承接。",
+          "text": "生成详情页首屏模块，产品主体清晰，标题利益点突出，背景高级有品牌感，适合长图开头承接。",
+          "negativePrompt": "标题乱码，产品变形，信息过载，虚构活动，水印",
+          "negative_prompt": "标题乱码，产品变形，信息过载，虚构活动，水印",
+          "styleTags": [
+            "详情页",
+            "首屏"
+          ],
+          "style_tags": [
+            "详情页",
+            "首屏"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "detail-page_suite_2",
+          "title": "核心卖点模块",
+          "label": "核心卖点模块",
+          "prompt": "生成核心卖点说明模块，用清晰视觉分区表达 2-4 个卖点，图文层级有序，适合详情页中段。",
+          "text": "生成核心卖点说明模块，用清晰视觉分区表达 2-4 个卖点，图文层级有序，适合详情页中段。",
+          "negativePrompt": "虚假功效，文字拥挤，版式混乱，低清晰度，错别字",
+          "negative_prompt": "虚假功效，文字拥挤，版式混乱，低清晰度，错别字",
+          "styleTags": [
+            "卖点",
+            "模块"
+          ],
+          "style_tags": [
+            "卖点",
+            "模块"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "detail-page_suite_3",
+          "title": "使用场景模块",
+          "label": "使用场景模块",
+          "prompt": "生成使用场景模块，展示产品在真实环境中的使用价值和人群代入，氛围自然，产品识别稳定。",
+          "text": "生成使用场景模块，展示产品在真实环境中的使用价值和人群代入，氛围自然，产品识别稳定。",
+          "negativePrompt": "人物畸形，场景杂乱，主体被遮挡，产品错色，过度滤镜",
+          "negative_prompt": "人物畸形，场景杂乱，主体被遮挡，产品错色，过度滤镜",
+          "styleTags": [
+            "场景",
+            "详情"
+          ],
+          "style_tags": [
+            "场景",
+            "详情"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "detail-page_suite_4",
+          "title": "细节参数模块",
+          "label": "细节参数模块",
+          "prompt": "生成细节参数模块，突出材质、结构、规格、容量或工艺细节，画面可信，适合详情页品质说明。",
+          "text": "生成细节参数模块，突出材质、结构、规格、容量或工艺细节，画面可信，适合详情页品质说明。",
+          "negativePrompt": "参数虚构，细节模糊，产品结构错误，过曝，水印",
+          "negative_prompt": "参数虚构，细节模糊，产品结构错误，过曝，水印",
+          "styleTags": [
+            "参数",
+            "细节"
+          ],
+          "style_tags": [
+            "参数",
+            "细节"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ]
     },
     {
       "key": "scene",
@@ -335,14 +1054,17 @@
       ],
       "outputSchema": {
         "type": "json-array",
-        "maxItems": 5
+        "maxItems": 4
       },
       "categoryId": "refine",
       "categoryName": "产品精修",
       "tags": [
         "精修",
         "质感",
-        "场景"
+        "场景",
+        "场景图",
+        "四图套图",
+        "氛围"
       ],
       "platformTags": [
         "淘宝",
@@ -352,7 +1074,187 @@
       "sort": 6,
       "coverImage": "/templates/covers/scene.svg",
       "thumbnail": "/templates/covers/scene.svg",
-      "previewImage": "/templates/covers/scene.svg"
+      "previewImage": "/templates/covers/scene.svg",
+      "generateDefaults": {
+        "platform": "小红书",
+        "ratio": "1:1",
+        "quality": "1K",
+        "imageCount": 1
+      },
+      "promptBlocks": {
+        "rolePrompt": "你是一名电商场景图复刻提示词工程师，熟悉国内外电商平台图片转化逻辑。",
+        "taskGoal": "复刻参考图的环境、光影和构图，让产品自然进入可转化的真实使用场景。 必须固定产出 4 条提示词，分别覆盖：居家使用场景 / 空间氛围场景 / 光影质感场景 / 人群代入场景。",
+        "imageMapping": "后台会把上传素材映射为产品素材图和参考图：产品素材用于保持主体、包装、材质、颜色、品牌识别；参考图用于学习构图、场景、光影、排版和风格。不要要求用户手动描述图一图二。",
+        "userFields": "融合用户填写的平台、比例、补充要求、卖点、人群和风格描述；用户没有提供的信息不要擅自编造。",
+        "outputFormat": "必须返回 JSON 数组，固定 4 项，顺序为：居家使用场景 / 空间氛围场景 / 光影质感场景 / 人群代入场景。每项包含 title、prompt、negativePrompt、ratio、styleTags、referenceImageIndex。",
+        "constraints": "保持自家产品外观、结构、颜色、包装文字和关键识别准确；不要虚构价格、认证、功效、活动、Logo、水印、二维码或不存在的文案；不要生成畸形产品、错别字和低清晰度画面。",
+        "skillPrompts": "1. 居家使用场景：生成居家生活方式场景图，产品自然摆放在真实使用环境中，光线柔和，画面干净温暖。\n2. 空间氛围场景：生成有空间层次的氛围图，参考图的背景调性、景深和色彩关系要被复刻，产品作为视觉焦点。\n3. 光影质感场景：生成商业摄影级光影场景，突出产品材质、反光和边缘轮廓，整体真实自然，有高级质感。\n4. 人群代入场景：生成目标人群使用或接触产品的代入场景，手部/人物自然，产品不被遮挡，表达真实使用价值。",
+        "templateSkillName": "场景图复刻 · 四图预设"
+      },
+      "presetPrompts": [
+        {
+          "id": "scene_suite_1",
+          "title": "居家使用场景",
+          "label": "居家使用场景",
+          "prompt": "生成居家生活方式场景图，产品自然摆放在真实使用环境中，光线柔和，画面干净温暖。",
+          "text": "生成居家生活方式场景图，产品自然摆放在真实使用环境中，光线柔和，画面干净温暖。",
+          "negativePrompt": "杂乱背景，产品变形，人物畸形，品牌错字，水印",
+          "negative_prompt": "杂乱背景，产品变形，人物畸形，品牌错字，水印",
+          "styleTags": [
+            "居家",
+            "生活方式"
+          ],
+          "style_tags": [
+            "居家",
+            "生活方式"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "scene_suite_2",
+          "title": "空间氛围场景",
+          "label": "空间氛围场景",
+          "prompt": "生成有空间层次的氛围图，参考图的背景调性、景深和色彩关系要被复刻，产品作为视觉焦点。",
+          "text": "生成有空间层次的氛围图，参考图的背景调性、景深和色彩关系要被复刻，产品作为视觉焦点。",
+          "negativePrompt": "背景喧宾夺主，主体不清，过暗，噪点，过度滤镜",
+          "negative_prompt": "背景喧宾夺主，主体不清，过暗，噪点，过度滤镜",
+          "styleTags": [
+            "氛围",
+            "空间"
+          ],
+          "style_tags": [
+            "氛围",
+            "空间"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "scene_suite_3",
+          "title": "光影质感场景",
+          "label": "光影质感场景",
+          "prompt": "生成商业摄影级光影场景，突出产品材质、反光和边缘轮廓，整体真实自然，有高级质感。",
+          "text": "生成商业摄影级光影场景，突出产品材质、反光和边缘轮廓，整体真实自然，有高级质感。",
+          "negativePrompt": "光影脏，过曝，产品边缘糊，材质错误，低清晰度",
+          "negative_prompt": "光影脏，过曝，产品边缘糊，材质错误，低清晰度",
+          "styleTags": [
+            "光影",
+            "质感"
+          ],
+          "style_tags": [
+            "光影",
+            "质感"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "scene_suite_4",
+          "title": "人群代入场景",
+          "label": "人群代入场景",
+          "prompt": "生成目标人群使用或接触产品的代入场景，手部/人物自然，产品不被遮挡，表达真实使用价值。",
+          "text": "生成目标人群使用或接触产品的代入场景，手部/人物自然，产品不被遮挡，表达真实使用价值。",
+          "negativePrompt": "手指畸形，人物抢主体，遮挡产品，虚假效果，水印",
+          "negative_prompt": "手指畸形，人物抢主体，遮挡产品，虚假效果，水印",
+          "styleTags": [
+            "人群",
+            "代入"
+          ],
+          "style_tags": [
+            "人群",
+            "代入"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ],
+      "skillPrompts": [
+        {
+          "id": "scene_suite_1",
+          "title": "居家使用场景",
+          "label": "居家使用场景",
+          "prompt": "生成居家生活方式场景图，产品自然摆放在真实使用环境中，光线柔和，画面干净温暖。",
+          "text": "生成居家生活方式场景图，产品自然摆放在真实使用环境中，光线柔和，画面干净温暖。",
+          "negativePrompt": "杂乱背景，产品变形，人物畸形，品牌错字，水印",
+          "negative_prompt": "杂乱背景，产品变形，人物畸形，品牌错字，水印",
+          "styleTags": [
+            "居家",
+            "生活方式"
+          ],
+          "style_tags": [
+            "居家",
+            "生活方式"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "scene_suite_2",
+          "title": "空间氛围场景",
+          "label": "空间氛围场景",
+          "prompt": "生成有空间层次的氛围图，参考图的背景调性、景深和色彩关系要被复刻，产品作为视觉焦点。",
+          "text": "生成有空间层次的氛围图，参考图的背景调性、景深和色彩关系要被复刻，产品作为视觉焦点。",
+          "negativePrompt": "背景喧宾夺主，主体不清，过暗，噪点，过度滤镜",
+          "negative_prompt": "背景喧宾夺主，主体不清，过暗，噪点，过度滤镜",
+          "styleTags": [
+            "氛围",
+            "空间"
+          ],
+          "style_tags": [
+            "氛围",
+            "空间"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "scene_suite_3",
+          "title": "光影质感场景",
+          "label": "光影质感场景",
+          "prompt": "生成商业摄影级光影场景，突出产品材质、反光和边缘轮廓，整体真实自然，有高级质感。",
+          "text": "生成商业摄影级光影场景，突出产品材质、反光和边缘轮廓，整体真实自然，有高级质感。",
+          "negativePrompt": "光影脏，过曝，产品边缘糊，材质错误，低清晰度",
+          "negative_prompt": "光影脏，过曝，产品边缘糊，材质错误，低清晰度",
+          "styleTags": [
+            "光影",
+            "质感"
+          ],
+          "style_tags": [
+            "光影",
+            "质感"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "scene_suite_4",
+          "title": "人群代入场景",
+          "label": "人群代入场景",
+          "prompt": "生成目标人群使用或接触产品的代入场景，手部/人物自然，产品不被遮挡，表达真实使用价值。",
+          "text": "生成目标人群使用或接触产品的代入场景，手部/人物自然，产品不被遮挡，表达真实使用价值。",
+          "negativePrompt": "手指畸形，人物抢主体，遮挡产品，虚假效果，水印",
+          "negative_prompt": "手指畸形，人物抢主体，遮挡产品，虚假效果，水印",
+          "styleTags": [
+            "人群",
+            "代入"
+          ],
+          "style_tags": [
+            "人群",
+            "代入"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ]
     },
     {
       "key": "model",
@@ -396,14 +1298,17 @@
       ],
       "outputSchema": {
         "type": "json-array",
-        "maxItems": 5
+        "maxItems": 4
       },
       "categoryId": "refine",
       "categoryName": "产品精修",
       "tags": [
         "精修",
         "质感",
-        "场景"
+        "场景",
+        "模特图",
+        "四图套图",
+        "姿态"
       ],
       "platformTags": [
         "淘宝",
@@ -413,7 +1318,187 @@
       "sort": 5,
       "coverImage": "/templates/covers/model.svg",
       "thumbnail": "/templates/covers/model.svg",
-      "previewImage": "/templates/covers/model.svg"
+      "previewImage": "/templates/covers/model.svg",
+      "generateDefaults": {
+        "platform": "小红书",
+        "ratio": "1:1",
+        "quality": "1K",
+        "imageCount": 1
+      },
+      "promptBlocks": {
+        "rolePrompt": "你是一名模特图姿态复刻提示词工程师，熟悉国内外电商平台图片转化逻辑。",
+        "taskGoal": "复刻参考模特图的姿态、穿搭、镜头和氛围，同时准确展示用户产品。 必须固定产出 4 条提示词，分别覆盖：姿态复刻图 / 穿搭展示图 / 镜头氛围图 / 细节上身图。",
+        "imageMapping": "后台会把上传素材映射为产品素材图和参考图：产品素材用于保持主体、包装、材质、颜色、品牌识别；参考图用于学习构图、场景、光影、排版和风格。不要要求用户手动描述图一图二。",
+        "userFields": "融合用户填写的平台、比例、补充要求、卖点、人群和风格描述；用户没有提供的信息不要擅自编造。",
+        "outputFormat": "必须返回 JSON 数组，固定 4 项，顺序为：姿态复刻图 / 穿搭展示图 / 镜头氛围图 / 细节上身图。每项包含 title、prompt、negativePrompt、ratio、styleTags、referenceImageIndex。",
+        "constraints": "保持自家产品外观、结构、颜色、包装文字和关键识别准确；不要虚构价格、认证、功效、活动、Logo、水印、二维码或不存在的文案；不要生成畸形产品、错别字和低清晰度画面。",
+        "skillPrompts": "1. 姿态复刻图：复刻参考模特的姿态、站位、镜头角度和画面比例，产品与人物关系自然，主体识别清楚。\n2. 穿搭展示图：生成穿搭/搭配展示图，保持参考图的服装风格、色彩氛围和构图节奏，产品融入搭配场景。\n3. 镜头氛围图：生成有镜头感的模特氛围图，参考景别、景深、光影和表情状态，适合种草或详情页展示。\n4. 细节上身图：生成局部上身或手持细节图，突出产品佩戴/使用/拿取关系，局部清晰，人物动作自然。",
+        "templateSkillName": "模特图复刻 · 四图预设"
+      },
+      "presetPrompts": [
+        {
+          "id": "model_suite_1",
+          "title": "姿态复刻图",
+          "label": "姿态复刻图",
+          "prompt": "复刻参考模特的姿态、站位、镜头角度和画面比例，产品与人物关系自然，主体识别清楚。",
+          "text": "复刻参考模特的姿态、站位、镜头角度和画面比例，产品与人物关系自然，主体识别清楚。",
+          "negativePrompt": "人物畸形，手部错误，产品变形，遮挡主体，低清晰度",
+          "negative_prompt": "人物畸形，手部错误，产品变形，遮挡主体，低清晰度",
+          "styleTags": [
+            "姿态",
+            "复刻"
+          ],
+          "style_tags": [
+            "姿态",
+            "复刻"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "model_suite_2",
+          "title": "穿搭展示图",
+          "label": "穿搭展示图",
+          "prompt": "生成穿搭/搭配展示图，保持参考图的服装风格、色彩氛围和构图节奏，产品融入搭配场景。",
+          "text": "生成穿搭/搭配展示图，保持参考图的服装风格、色彩氛围和构图节奏，产品融入搭配场景。",
+          "negativePrompt": "穿搭杂乱，比例失真，产品不清，过度滤镜，水印",
+          "negative_prompt": "穿搭杂乱，比例失真，产品不清，过度滤镜，水印",
+          "styleTags": [
+            "穿搭",
+            "展示"
+          ],
+          "style_tags": [
+            "穿搭",
+            "展示"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "model_suite_3",
+          "title": "镜头氛围图",
+          "label": "镜头氛围图",
+          "prompt": "生成有镜头感的模特氛围图，参考景别、景深、光影和表情状态，适合种草或详情页展示。",
+          "text": "生成有镜头感的模特氛围图，参考景别、景深、光影和表情状态，适合种草或详情页展示。",
+          "negativePrompt": "脸部异常，表情僵硬，背景杂乱，产品错色，噪点",
+          "negative_prompt": "脸部异常，表情僵硬，背景杂乱，产品错色，噪点",
+          "styleTags": [
+            "镜头",
+            "氛围"
+          ],
+          "style_tags": [
+            "镜头",
+            "氛围"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "model_suite_4",
+          "title": "细节上身图",
+          "label": "细节上身图",
+          "prompt": "生成局部上身或手持细节图，突出产品佩戴/使用/拿取关系，局部清晰，人物动作自然。",
+          "text": "生成局部上身或手持细节图，突出产品佩戴/使用/拿取关系，局部清晰，人物动作自然。",
+          "negativePrompt": "手部畸形，局部模糊，遮挡关键细节，结构错误，水印",
+          "negative_prompt": "手部畸形，局部模糊，遮挡关键细节，结构错误，水印",
+          "styleTags": [
+            "细节",
+            "上身"
+          ],
+          "style_tags": [
+            "细节",
+            "上身"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ],
+      "skillPrompts": [
+        {
+          "id": "model_suite_1",
+          "title": "姿态复刻图",
+          "label": "姿态复刻图",
+          "prompt": "复刻参考模特的姿态、站位、镜头角度和画面比例，产品与人物关系自然，主体识别清楚。",
+          "text": "复刻参考模特的姿态、站位、镜头角度和画面比例，产品与人物关系自然，主体识别清楚。",
+          "negativePrompt": "人物畸形，手部错误，产品变形，遮挡主体，低清晰度",
+          "negative_prompt": "人物畸形，手部错误，产品变形，遮挡主体，低清晰度",
+          "styleTags": [
+            "姿态",
+            "复刻"
+          ],
+          "style_tags": [
+            "姿态",
+            "复刻"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "model_suite_2",
+          "title": "穿搭展示图",
+          "label": "穿搭展示图",
+          "prompt": "生成穿搭/搭配展示图，保持参考图的服装风格、色彩氛围和构图节奏，产品融入搭配场景。",
+          "text": "生成穿搭/搭配展示图，保持参考图的服装风格、色彩氛围和构图节奏，产品融入搭配场景。",
+          "negativePrompt": "穿搭杂乱，比例失真，产品不清，过度滤镜，水印",
+          "negative_prompt": "穿搭杂乱，比例失真，产品不清，过度滤镜，水印",
+          "styleTags": [
+            "穿搭",
+            "展示"
+          ],
+          "style_tags": [
+            "穿搭",
+            "展示"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "model_suite_3",
+          "title": "镜头氛围图",
+          "label": "镜头氛围图",
+          "prompt": "生成有镜头感的模特氛围图，参考景别、景深、光影和表情状态，适合种草或详情页展示。",
+          "text": "生成有镜头感的模特氛围图，参考景别、景深、光影和表情状态，适合种草或详情页展示。",
+          "negativePrompt": "脸部异常，表情僵硬，背景杂乱，产品错色，噪点",
+          "negative_prompt": "脸部异常，表情僵硬，背景杂乱，产品错色，噪点",
+          "styleTags": [
+            "镜头",
+            "氛围"
+          ],
+          "style_tags": [
+            "镜头",
+            "氛围"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "model_suite_4",
+          "title": "细节上身图",
+          "label": "细节上身图",
+          "prompt": "生成局部上身或手持细节图，突出产品佩戴/使用/拿取关系，局部清晰，人物动作自然。",
+          "text": "生成局部上身或手持细节图，突出产品佩戴/使用/拿取关系，局部清晰，人物动作自然。",
+          "negativePrompt": "手部畸形，局部模糊，遮挡关键细节，结构错误，水印",
+          "negative_prompt": "手部畸形，局部模糊，遮挡关键细节，结构错误，水印",
+          "styleTags": [
+            "细节",
+            "上身"
+          ],
+          "style_tags": [
+            "细节",
+            "上身"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ]
     },
     {
       "key": "packaging",
@@ -457,14 +1542,17 @@
       ],
       "outputSchema": {
         "type": "json-array",
-        "maxItems": 5
+        "maxItems": 4
       },
       "categoryId": "refine",
       "categoryName": "产品精修",
       "tags": [
         "精修",
         "质感",
-        "场景"
+        "场景",
+        "包装图",
+        "四图套图",
+        "陈列"
       ],
       "platformTags": [
         "淘宝",
@@ -474,7 +1562,187 @@
       "sort": 4,
       "coverImage": "/templates/covers/packaging.svg",
       "thumbnail": "/templates/covers/packaging.svg",
-      "previewImage": "/templates/covers/packaging.svg"
+      "previewImage": "/templates/covers/packaging.svg",
+      "generateDefaults": {
+        "platform": "京东",
+        "ratio": "1:1",
+        "quality": "1K",
+        "imageCount": 1
+      },
+      "promptBlocks": {
+        "rolePrompt": "你是一名包装图质感陈列提示词工程师，熟悉国内外电商平台图片转化逻辑。",
+        "taskGoal": "复刻包装图的陈列、质感、开箱关系和商业摄影光影，突出包装品质。 必须固定产出 4 条提示词，分别覆盖：包装陈列图 / 开箱展示图 / 包装质感图 / 包装细节图。",
+        "imageMapping": "后台会把上传素材映射为产品素材图和参考图：产品素材用于保持主体、包装、材质、颜色、品牌识别；参考图用于学习构图、场景、光影、排版和风格。不要要求用户手动描述图一图二。",
+        "userFields": "融合用户填写的平台、比例、补充要求、卖点、人群和风格描述；用户没有提供的信息不要擅自编造。",
+        "outputFormat": "必须返回 JSON 数组，固定 4 项，顺序为：包装陈列图 / 开箱展示图 / 包装质感图 / 包装细节图。每项包含 title、prompt、negativePrompt、ratio、styleTags、referenceImageIndex。",
+        "constraints": "保持自家产品外观、结构、颜色、包装文字和关键识别准确；不要虚构价格、认证、功效、活动、Logo、水印、二维码或不存在的文案；不要生成畸形产品、错别字和低清晰度画面。",
+        "skillPrompts": "1. 包装陈列图：生成包装陈列图，复刻参考图的排列方式、透视和背景，包装正面清晰，品牌识别准确。\n2. 开箱展示图：生成开箱展示场景，展示包装、内托、配件或产品层次，画面整洁真实，不添加不存在的物品。\n3. 包装质感图：生成包装材质质感图，突出纸盒、塑料、金属、磨砂、光泽或纹理细节，商业摄影布光。\n4. 包装细节图：生成包装局部细节图，展示 Logo、标签、封口、边角或工艺，文字尽量保持清晰且不虚构。",
+        "templateSkillName": "包装图复刻 · 四图预设"
+      },
+      "presetPrompts": [
+        {
+          "id": "packaging_suite_1",
+          "title": "包装陈列图",
+          "label": "包装陈列图",
+          "prompt": "生成包装陈列图，复刻参考图的排列方式、透视和背景，包装正面清晰，品牌识别准确。",
+          "text": "生成包装陈列图，复刻参考图的排列方式、透视和背景，包装正面清晰，品牌识别准确。",
+          "negativePrompt": "包装文字错误，结构变形，陈列杂乱，水印，低清晰度",
+          "negative_prompt": "包装文字错误，结构变形，陈列杂乱，水印，低清晰度",
+          "styleTags": [
+            "包装",
+            "陈列"
+          ],
+          "style_tags": [
+            "包装",
+            "陈列"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "packaging_suite_2",
+          "title": "开箱展示图",
+          "label": "开箱展示图",
+          "prompt": "生成开箱展示场景，展示包装、内托、配件或产品层次，画面整洁真实，不添加不存在的物品。",
+          "text": "生成开箱展示场景，展示包装、内托、配件或产品层次，画面整洁真实，不添加不存在的物品。",
+          "negativePrompt": "虚构配件，包装破损，比例错误，背景杂乱，过曝",
+          "negative_prompt": "虚构配件，包装破损，比例错误，背景杂乱，过曝",
+          "styleTags": [
+            "开箱",
+            "展示"
+          ],
+          "style_tags": [
+            "开箱",
+            "展示"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "packaging_suite_3",
+          "title": "包装质感图",
+          "label": "包装质感图",
+          "prompt": "生成包装材质质感图，突出纸盒、塑料、金属、磨砂、光泽或纹理细节，商业摄影布光。",
+          "text": "生成包装材质质感图，突出纸盒、塑料、金属、磨砂、光泽或纹理细节，商业摄影布光。",
+          "negativePrompt": "材质错误，细节糊，反光过曝，包装变形，噪点",
+          "negative_prompt": "材质错误，细节糊，反光过曝，包装变形，噪点",
+          "styleTags": [
+            "质感",
+            "材质"
+          ],
+          "style_tags": [
+            "质感",
+            "材质"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "packaging_suite_4",
+          "title": "包装细节图",
+          "label": "包装细节图",
+          "prompt": "生成包装局部细节图，展示 Logo、标签、封口、边角或工艺，文字尽量保持清晰且不虚构。",
+          "text": "生成包装局部细节图，展示 Logo、标签、封口、边角或工艺，文字尽量保持清晰且不虚构。",
+          "negativePrompt": "Logo 错误，乱码文字，细节模糊，边角畸形，水印",
+          "negative_prompt": "Logo 错误，乱码文字，细节模糊，边角畸形，水印",
+          "styleTags": [
+            "细节",
+            "工艺"
+          ],
+          "style_tags": [
+            "细节",
+            "工艺"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ],
+      "skillPrompts": [
+        {
+          "id": "packaging_suite_1",
+          "title": "包装陈列图",
+          "label": "包装陈列图",
+          "prompt": "生成包装陈列图，复刻参考图的排列方式、透视和背景，包装正面清晰，品牌识别准确。",
+          "text": "生成包装陈列图，复刻参考图的排列方式、透视和背景，包装正面清晰，品牌识别准确。",
+          "negativePrompt": "包装文字错误，结构变形，陈列杂乱，水印，低清晰度",
+          "negative_prompt": "包装文字错误，结构变形，陈列杂乱，水印，低清晰度",
+          "styleTags": [
+            "包装",
+            "陈列"
+          ],
+          "style_tags": [
+            "包装",
+            "陈列"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "packaging_suite_2",
+          "title": "开箱展示图",
+          "label": "开箱展示图",
+          "prompt": "生成开箱展示场景，展示包装、内托、配件或产品层次，画面整洁真实，不添加不存在的物品。",
+          "text": "生成开箱展示场景，展示包装、内托、配件或产品层次，画面整洁真实，不添加不存在的物品。",
+          "negativePrompt": "虚构配件，包装破损，比例错误，背景杂乱，过曝",
+          "negative_prompt": "虚构配件，包装破损，比例错误，背景杂乱，过曝",
+          "styleTags": [
+            "开箱",
+            "展示"
+          ],
+          "style_tags": [
+            "开箱",
+            "展示"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "packaging_suite_3",
+          "title": "包装质感图",
+          "label": "包装质感图",
+          "prompt": "生成包装材质质感图，突出纸盒、塑料、金属、磨砂、光泽或纹理细节，商业摄影布光。",
+          "text": "生成包装材质质感图，突出纸盒、塑料、金属、磨砂、光泽或纹理细节，商业摄影布光。",
+          "negativePrompt": "材质错误，细节糊，反光过曝，包装变形，噪点",
+          "negative_prompt": "材质错误，细节糊，反光过曝，包装变形，噪点",
+          "styleTags": [
+            "质感",
+            "材质"
+          ],
+          "style_tags": [
+            "质感",
+            "材质"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "packaging_suite_4",
+          "title": "包装细节图",
+          "label": "包装细节图",
+          "prompt": "生成包装局部细节图，展示 Logo、标签、封口、边角或工艺，文字尽量保持清晰且不虚构。",
+          "text": "生成包装局部细节图，展示 Logo、标签、封口、边角或工艺，文字尽量保持清晰且不虚构。",
+          "negativePrompt": "Logo 错误，乱码文字，细节模糊，边角畸形，水印",
+          "negative_prompt": "Logo 错误，乱码文字，细节模糊，边角畸形，水印",
+          "styleTags": [
+            "细节",
+            "工艺"
+          ],
+          "style_tags": [
+            "细节",
+            "工艺"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ]
     },
     {
       "key": "poster",
@@ -518,14 +1786,16 @@
       ],
       "outputSchema": {
         "type": "json-array",
-        "maxItems": 5
+        "maxItems": 4
       },
       "categoryId": "ad",
       "categoryName": "广告图",
       "tags": [
         "海报",
         "活动图",
-        "转化视觉"
+        "转化视觉",
+        "四图套图",
+        "KV"
       ],
       "platformTags": [
         "天猫",
@@ -535,7 +1805,187 @@
       "sort": 3,
       "coverImage": "/templates/covers/poster.svg",
       "thumbnail": "/templates/covers/poster.svg",
-      "previewImage": "/templates/covers/poster.svg"
+      "previewImage": "/templates/covers/poster.svg",
+      "generateDefaults": {
+        "platform": "抖音",
+        "ratio": "1:1",
+        "quality": "1K",
+        "imageCount": 1
+      },
+      "promptBlocks": {
+        "rolePrompt": "你是一名产品海报 KV 视觉提示词工程师，熟悉国内外电商平台图片转化逻辑。",
+        "taskGoal": "复刻参考海报的主 KV、氛围、信息层级和活动视觉，同时保持产品真实准确。 必须固定产出 4 条提示词，分别覆盖：主KV海报 / 活动利益点海报 / 品牌氛围海报 / 信息分层海报。",
+        "imageMapping": "后台会把上传素材映射为产品素材图和参考图：产品素材用于保持主体、包装、材质、颜色、品牌识别；参考图用于学习构图、场景、光影、排版和风格。不要要求用户手动描述图一图二。",
+        "userFields": "融合用户填写的平台、比例、补充要求、卖点、人群和风格描述；用户没有提供的信息不要擅自编造。",
+        "outputFormat": "必须返回 JSON 数组，固定 4 项，顺序为：主KV海报 / 活动利益点海报 / 品牌氛围海报 / 信息分层海报。每项包含 title、prompt、negativePrompt、ratio、styleTags、referenceImageIndex。",
+        "constraints": "保持自家产品外观、结构、颜色、包装文字和关键识别准确；不要虚构价格、认证、功效、活动、Logo、水印、二维码或不存在的文案；不要生成畸形产品、错别字和低清晰度画面。",
+        "skillPrompts": "1. 主KV海报：生成产品主 KV 海报，主体突出，参考图的构图张力、背景氛围和色彩关系要被复刻。\n2. 活动利益点海报：生成活动利益点海报，信息层级清晰，视觉焦点明确，可以表达优惠氛围但不要虚构具体价格。\n3. 品牌氛围海报：生成品牌感氛围海报，突出质感、色彩统一和空间层次，适合品牌宣传或首页横幅。\n4. 信息分层海报：生成信息分层海报，产品、标题、卖点、辅助元素分区明确，移动端阅读友好。",
+        "templateSkillName": "产品海报复刻 · 四图预设"
+      },
+      "presetPrompts": [
+        {
+          "id": "poster_suite_1",
+          "title": "主KV海报",
+          "label": "主KV海报",
+          "prompt": "生成产品主 KV 海报，主体突出，参考图的构图张力、背景氛围和色彩关系要被复刻。",
+          "text": "生成产品主 KV 海报，主体突出，参考图的构图张力、背景氛围和色彩关系要被复刻。",
+          "negativePrompt": "产品变形，构图失衡，文字乱码，低清晰度，水印",
+          "negative_prompt": "产品变形，构图失衡，文字乱码，低清晰度，水印",
+          "styleTags": [
+            "KV",
+            "海报"
+          ],
+          "style_tags": [
+            "KV",
+            "海报"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "poster_suite_2",
+          "title": "活动利益点海报",
+          "label": "活动利益点海报",
+          "prompt": "生成活动利益点海报，信息层级清晰，视觉焦点明确，可以表达优惠氛围但不要虚构具体价格。",
+          "text": "生成活动利益点海报，信息层级清晰，视觉焦点明确，可以表达优惠氛围但不要虚构具体价格。",
+          "negativePrompt": "虚构价格，信息拥挤，错别字，低俗元素，水印",
+          "negative_prompt": "虚构价格，信息拥挤，错别字，低俗元素，水印",
+          "styleTags": [
+            "活动",
+            "利益点"
+          ],
+          "style_tags": [
+            "活动",
+            "利益点"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "poster_suite_3",
+          "title": "品牌氛围海报",
+          "label": "品牌氛围海报",
+          "prompt": "生成品牌感氛围海报，突出质感、色彩统一和空间层次，适合品牌宣传或首页横幅。",
+          "text": "生成品牌感氛围海报，突出质感、色彩统一和空间层次，适合品牌宣传或首页横幅。",
+          "negativePrompt": "廉价感，背景杂乱，主体不清，过度滤镜，噪点",
+          "negative_prompt": "廉价感，背景杂乱，主体不清，过度滤镜，噪点",
+          "styleTags": [
+            "品牌",
+            "氛围"
+          ],
+          "style_tags": [
+            "品牌",
+            "氛围"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "poster_suite_4",
+          "title": "信息分层海报",
+          "label": "信息分层海报",
+          "prompt": "生成信息分层海报，产品、标题、卖点、辅助元素分区明确，移动端阅读友好。",
+          "text": "生成信息分层海报，产品、标题、卖点、辅助元素分区明确，移动端阅读友好。",
+          "negativePrompt": "排版混乱，文字太多，乱码，遮挡产品，水印",
+          "negative_prompt": "排版混乱，文字太多，乱码，遮挡产品，水印",
+          "styleTags": [
+            "信息",
+            "分层"
+          ],
+          "style_tags": [
+            "信息",
+            "分层"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ],
+      "skillPrompts": [
+        {
+          "id": "poster_suite_1",
+          "title": "主KV海报",
+          "label": "主KV海报",
+          "prompt": "生成产品主 KV 海报，主体突出，参考图的构图张力、背景氛围和色彩关系要被复刻。",
+          "text": "生成产品主 KV 海报，主体突出，参考图的构图张力、背景氛围和色彩关系要被复刻。",
+          "negativePrompt": "产品变形，构图失衡，文字乱码，低清晰度，水印",
+          "negative_prompt": "产品变形，构图失衡，文字乱码，低清晰度，水印",
+          "styleTags": [
+            "KV",
+            "海报"
+          ],
+          "style_tags": [
+            "KV",
+            "海报"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "poster_suite_2",
+          "title": "活动利益点海报",
+          "label": "活动利益点海报",
+          "prompt": "生成活动利益点海报，信息层级清晰，视觉焦点明确，可以表达优惠氛围但不要虚构具体价格。",
+          "text": "生成活动利益点海报，信息层级清晰，视觉焦点明确，可以表达优惠氛围但不要虚构具体价格。",
+          "negativePrompt": "虚构价格，信息拥挤，错别字，低俗元素，水印",
+          "negative_prompt": "虚构价格，信息拥挤，错别字，低俗元素，水印",
+          "styleTags": [
+            "活动",
+            "利益点"
+          ],
+          "style_tags": [
+            "活动",
+            "利益点"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "poster_suite_3",
+          "title": "品牌氛围海报",
+          "label": "品牌氛围海报",
+          "prompt": "生成品牌感氛围海报，突出质感、色彩统一和空间层次，适合品牌宣传或首页横幅。",
+          "text": "生成品牌感氛围海报，突出质感、色彩统一和空间层次，适合品牌宣传或首页横幅。",
+          "negativePrompt": "廉价感，背景杂乱，主体不清，过度滤镜，噪点",
+          "negative_prompt": "廉价感，背景杂乱，主体不清，过度滤镜，噪点",
+          "styleTags": [
+            "品牌",
+            "氛围"
+          ],
+          "style_tags": [
+            "品牌",
+            "氛围"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "poster_suite_4",
+          "title": "信息分层海报",
+          "label": "信息分层海报",
+          "prompt": "生成信息分层海报，产品、标题、卖点、辅助元素分区明确，移动端阅读友好。",
+          "text": "生成信息分层海报，产品、标题、卖点、辅助元素分区明确，移动端阅读友好。",
+          "negativePrompt": "排版混乱，文字太多，乱码，遮挡产品，水印",
+          "negative_prompt": "排版混乱，文字太多，乱码，遮挡产品，水印",
+          "styleTags": [
+            "信息",
+            "分层"
+          ],
+          "style_tags": [
+            "信息",
+            "分层"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ]
     },
     {
       "key": "xiaohongshu",
@@ -579,14 +2029,16 @@
       ],
       "outputSchema": {
         "type": "json-array",
-        "maxItems": 5
+        "maxItems": 4
       },
       "categoryId": "social",
       "categoryName": "种草内容",
       "tags": [
         "小红书",
         "封面",
-        "生活方式"
+        "生活方式",
+        "四图套图",
+        "种草封面"
       ],
       "platformTags": [
         "小红书",
@@ -595,7 +2047,187 @@
       "sort": 2,
       "coverImage": "/templates/covers/xiaohongshu.svg",
       "thumbnail": "/templates/covers/xiaohongshu.svg",
-      "previewImage": "/templates/covers/xiaohongshu.svg"
+      "previewImage": "/templates/covers/xiaohongshu.svg",
+      "generateDefaults": {
+        "platform": "小红书",
+        "ratio": "1:1",
+        "quality": "1K",
+        "imageCount": 1
+      },
+      "promptBlocks": {
+        "rolePrompt": "你是一名小红书封面种草提示词工程师，熟悉国内外电商平台图片转化逻辑。",
+        "taskGoal": "复刻小红书封面的标题感、生活方式氛围和种草表达，让产品更适合内容流点击。 必须固定产出 4 条提示词，分别覆盖：爆款封面图 / 生活方式图 / 清单推荐图 / 细节笔记图。",
+        "imageMapping": "后台会把上传素材映射为产品素材图和参考图：产品素材用于保持主体、包装、材质、颜色、品牌识别；参考图用于学习构图、场景、光影、排版和风格。不要要求用户手动描述图一图二。",
+        "userFields": "融合用户填写的平台、比例、补充要求、卖点、人群和风格描述；用户没有提供的信息不要擅自编造。",
+        "outputFormat": "必须返回 JSON 数组，固定 4 项，顺序为：爆款封面图 / 生活方式图 / 清单推荐图 / 细节笔记图。每项包含 title、prompt、negativePrompt、ratio、styleTags、referenceImageIndex。",
+        "constraints": "保持自家产品外观、结构、颜色、包装文字和关键识别准确；不要虚构价格、认证、功效、活动、Logo、水印、二维码或不存在的文案；不要生成畸形产品、错别字和低清晰度画面。",
+        "skillPrompts": "1. 爆款封面图：生成小红书高点击封面，参考图的标题区、主体比例和色彩氛围要被复刻，产品清晰有种草感。\n2. 生活方式图：生成真实生活方式封面，产品自然融入桌面、居家、通勤或使用场景，氛围轻松可信。\n3. 清单推荐图：生成清单/合集感封面，产品与辅助道具有秩序地陈列，适合“好物推荐”或“自用分享”语境。\n4. 细节笔记图：生成笔记感细节图，突出产品质感、使用细节和真实体验氛围，画面干净有手账/分享感。",
+        "templateSkillName": "小红书封面复刻 · 四图预设"
+      },
+      "presetPrompts": [
+        {
+          "id": "xiaohongshu_suite_1",
+          "title": "爆款封面图",
+          "label": "爆款封面图",
+          "prompt": "生成小红书高点击封面，参考图的标题区、主体比例和色彩氛围要被复刻，产品清晰有种草感。",
+          "text": "生成小红书高点击封面，参考图的标题区、主体比例和色彩氛围要被复刻，产品清晰有种草感。",
+          "negativePrompt": "标题乱码，产品变形，画面脏乱，过度滤镜，水印",
+          "negative_prompt": "标题乱码，产品变形，画面脏乱，过度滤镜，水印",
+          "styleTags": [
+            "小红书",
+            "封面"
+          ],
+          "style_tags": [
+            "小红书",
+            "封面"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "xiaohongshu_suite_2",
+          "title": "生活方式图",
+          "label": "生活方式图",
+          "prompt": "生成真实生活方式封面，产品自然融入桌面、居家、通勤或使用场景，氛围轻松可信。",
+          "text": "生成真实生活方式封面，产品自然融入桌面、居家、通勤或使用场景，氛围轻松可信。",
+          "negativePrompt": "场景杂乱，主体不清，人物畸形，品牌错字，低清晰度",
+          "negative_prompt": "场景杂乱，主体不清，人物畸形，品牌错字，低清晰度",
+          "styleTags": [
+            "生活方式",
+            "种草"
+          ],
+          "style_tags": [
+            "生活方式",
+            "种草"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "xiaohongshu_suite_3",
+          "title": "清单推荐图",
+          "label": "清单推荐图",
+          "prompt": "生成清单/合集感封面，产品与辅助道具有秩序地陈列，适合“好物推荐”或“自用分享”语境。",
+          "text": "生成清单/合集感封面，产品与辅助道具有秩序地陈列，适合“好物推荐”或“自用分享”语境。",
+          "negativePrompt": "虚构产品，排版拥挤，比例混乱，文字乱码，水印",
+          "negative_prompt": "虚构产品，排版拥挤，比例混乱，文字乱码，水印",
+          "styleTags": [
+            "清单",
+            "推荐"
+          ],
+          "style_tags": [
+            "清单",
+            "推荐"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "xiaohongshu_suite_4",
+          "title": "细节笔记图",
+          "label": "细节笔记图",
+          "prompt": "生成笔记感细节图，突出产品质感、使用细节和真实体验氛围，画面干净有手账/分享感。",
+          "text": "生成笔记感细节图，突出产品质感、使用细节和真实体验氛围，画面干净有手账/分享感。",
+          "negativePrompt": "细节模糊，滤镜过重，产品结构错误，错别字，水印",
+          "negative_prompt": "细节模糊，滤镜过重，产品结构错误，错别字，水印",
+          "styleTags": [
+            "笔记",
+            "细节"
+          ],
+          "style_tags": [
+            "笔记",
+            "细节"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ],
+      "skillPrompts": [
+        {
+          "id": "xiaohongshu_suite_1",
+          "title": "爆款封面图",
+          "label": "爆款封面图",
+          "prompt": "生成小红书高点击封面，参考图的标题区、主体比例和色彩氛围要被复刻，产品清晰有种草感。",
+          "text": "生成小红书高点击封面，参考图的标题区、主体比例和色彩氛围要被复刻，产品清晰有种草感。",
+          "negativePrompt": "标题乱码，产品变形，画面脏乱，过度滤镜，水印",
+          "negative_prompt": "标题乱码，产品变形，画面脏乱，过度滤镜，水印",
+          "styleTags": [
+            "小红书",
+            "封面"
+          ],
+          "style_tags": [
+            "小红书",
+            "封面"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "xiaohongshu_suite_2",
+          "title": "生活方式图",
+          "label": "生活方式图",
+          "prompt": "生成真实生活方式封面，产品自然融入桌面、居家、通勤或使用场景，氛围轻松可信。",
+          "text": "生成真实生活方式封面，产品自然融入桌面、居家、通勤或使用场景，氛围轻松可信。",
+          "negativePrompt": "场景杂乱，主体不清，人物畸形，品牌错字，低清晰度",
+          "negative_prompt": "场景杂乱，主体不清，人物畸形，品牌错字，低清晰度",
+          "styleTags": [
+            "生活方式",
+            "种草"
+          ],
+          "style_tags": [
+            "生活方式",
+            "种草"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "xiaohongshu_suite_3",
+          "title": "清单推荐图",
+          "label": "清单推荐图",
+          "prompt": "生成清单/合集感封面，产品与辅助道具有秩序地陈列，适合“好物推荐”或“自用分享”语境。",
+          "text": "生成清单/合集感封面，产品与辅助道具有秩序地陈列，适合“好物推荐”或“自用分享”语境。",
+          "negativePrompt": "虚构产品，排版拥挤，比例混乱，文字乱码，水印",
+          "negative_prompt": "虚构产品，排版拥挤，比例混乱，文字乱码，水印",
+          "styleTags": [
+            "清单",
+            "推荐"
+          ],
+          "style_tags": [
+            "清单",
+            "推荐"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "xiaohongshu_suite_4",
+          "title": "细节笔记图",
+          "label": "细节笔记图",
+          "prompt": "生成笔记感细节图，突出产品质感、使用细节和真实体验氛围，画面干净有手账/分享感。",
+          "text": "生成笔记感细节图，突出产品质感、使用细节和真实体验氛围，画面干净有手账/分享感。",
+          "negativePrompt": "细节模糊，滤镜过重，产品结构错误，错别字，水印",
+          "negative_prompt": "细节模糊，滤镜过重，产品结构错误，错别字，水印",
+          "styleTags": [
+            "笔记",
+            "细节"
+          ],
+          "style_tags": [
+            "笔记",
+            "细节"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ]
     },
     {
       "key": "custom",
@@ -603,55 +2235,258 @@
       "templateType": "custom",
       "name": "自定义模板",
       "templateName": "自定义模板",
-      "desc": "自由配置工作流",
+      "desc": "上传产品素材后自动拆成 4 条提示词，一键生成一套电商图",
       "enabled": true,
       "version": 1,
       "imageSlots": [
         {
           "key": "productImages",
           "group": "productImages",
-          "label": "自家产品图",
+          "label": "产品素材图",
           "role": "product",
-          "required": false,
+          "required": true,
           "multiple": true,
-          "maxFiles": 12,
+          "maxFiles": 8,
           "accept": "image/*"
         },
         {
           "key": "referenceImages",
           "group": "referenceImages",
-          "label": "参考图",
+          "label": "风格参考图",
           "role": "reference",
           "required": false,
           "multiple": true,
-          "maxFiles": 12,
+          "maxFiles": 8,
           "accept": "image/*"
         }
       ],
       "fields": [
         {
           "key": "userPrompt",
-          "label": "提示词",
+          "label": "生成目标 / 风格要求",
           "type": "textarea",
-          "required": true,
+          "required": false,
+          "placeholder": "例如：做一套拼多多商品图，包含主图、场景、卖点、细节展示",
           "mapsTo": "userPrompt"
         }
       ],
       "outputSchema": {
         "type": "json-array",
-        "maxItems": 5
+        "maxItems": 4
       },
       "categoryId": "custom",
       "categoryName": "自定义",
       "tags": [
         "自定义",
-        "工作流"
+        "四图套图",
+        "预设工作流"
       ],
-      "platformTags": [],
+      "platformTags": [
+        "淘宝",
+        "京东",
+        "拼多多",
+        "小红书"
+      ],
+      "generateDefaults": {
+        "platform": "拼多多",
+        "ratio": "1:1",
+        "quality": "1K",
+        "imageCount": 1
+      },
       "sort": 1,
       "coverImage": "/templates/covers/custom.svg",
       "thumbnail": "/templates/covers/custom.svg",
-      "previewImage": "/templates/covers/custom.svg"
+      "previewImage": "/templates/covers/custom.svg",
+      "promptBlocks": {
+        "rolePrompt": "你是一名自定义电商四图套组提示词工程师，熟悉国内外电商平台图片转化逻辑。",
+        "taskGoal": "根据用户上传素材和自由需求，自动拆成一套覆盖主图、场景、卖点和细节的电商图提示词。 必须固定产出 4 条提示词，分别覆盖：高点击主图 / 场景氛围图 / 卖点功能图 / 细节质感图。",
+        "imageMapping": "后台会把上传素材映射为产品素材图和参考图：产品素材用于保持主体、包装、材质、颜色、品牌识别；参考图用于学习构图、场景、光影、排版和风格。不要要求用户手动描述图一图二。",
+        "userFields": "融合用户填写的平台、比例、补充要求、卖点、人群和风格描述；用户没有提供的信息不要擅自编造。",
+        "outputFormat": "必须返回 JSON 数组，固定 4 项，顺序为：高点击主图 / 场景氛围图 / 卖点功能图 / 细节质感图。每项包含 title、prompt、negativePrompt、ratio、styleTags、referenceImageIndex。",
+        "constraints": "保持自家产品外观、结构、颜色、包装文字和关键识别准确；不要虚构价格、认证、功效、活动、Logo、水印、二维码或不存在的文案；不要生成畸形产品、错别字和低清晰度画面。",
+        "skillPrompts": "1. 高点击主图：生成电商高点击主图，保留上传产品的外观、包装结构、Logo、颜色和核心文字，产品居中偏大，背景干净明亮，轻微真实阴影。\n2. 场景氛围图：基于上传产品生成自然使用场景图，产品真实融入生活化环境，光线柔和，有空间层次和材质细节，氛围高级但不喧宾夺主。\n3. 卖点功能图：生成产品卖点功能图，主体清晰，围绕核心卖点做有秩序的视觉分区和辅助元素，信息表达简洁有力，不编造不存在的信息。\n4. 细节质感图：生成产品细节质感图，突出材质、包装边缘、纹理、光泽和局部工艺，镜头近景但产品结构准确。",
+        "templateSkillName": "自定义模板 · 四图预设"
+      },
+      "presetPrompts": [
+        {
+          "id": "custom_suite_1",
+          "title": "高点击主图",
+          "label": "高点击主图",
+          "prompt": "生成电商高点击主图，保留上传产品的外观、包装结构、Logo、颜色和核心文字，产品居中偏大，背景干净明亮，轻微真实阴影。",
+          "text": "生成电商高点击主图，保留上传产品的外观、包装结构、Logo、颜色和核心文字，产品居中偏大，背景干净明亮，轻微真实阴影。",
+          "negativePrompt": "模糊，变形，水印，乱码文字，虚构价格，虚构认证，多余产品",
+          "negative_prompt": "模糊，变形，水印，乱码文字，虚构价格，虚构认证，多余产品",
+          "styleTags": [
+            "主图",
+            "高点击",
+            "转化"
+          ],
+          "style_tags": [
+            "主图",
+            "高点击",
+            "转化"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "custom_suite_2",
+          "title": "场景氛围图",
+          "label": "场景氛围图",
+          "prompt": "基于上传产品生成自然使用场景图，产品真实融入生活化环境，光线柔和，有空间层次和材质细节，氛围高级但不喧宾夺主。",
+          "text": "基于上传产品生成自然使用场景图，产品真实融入生活化环境，光线柔和，有空间层次和材质细节，氛围高级但不喧宾夺主。",
+          "negativePrompt": "杂乱背景，人物畸形，产品变形，品牌错字，过度滤镜，水印",
+          "negative_prompt": "杂乱背景，人物畸形，产品变形，品牌错字，过度滤镜，水印",
+          "styleTags": [
+            "场景",
+            "氛围",
+            "生活方式"
+          ],
+          "style_tags": [
+            "场景",
+            "氛围",
+            "生活方式"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "custom_suite_3",
+          "title": "卖点功能图",
+          "label": "卖点功能图",
+          "prompt": "生成产品卖点功能图，主体清晰，围绕核心卖点做有秩序的视觉分区和辅助元素，信息表达简洁有力，不编造不存在的信息。",
+          "text": "生成产品卖点功能图，主体清晰，围绕核心卖点做有秩序的视觉分区和辅助元素，信息表达简洁有力，不编造不存在的信息。",
+          "negativePrompt": "虚假功效，虚构价格，虚构认证，乱码文案，信息拥挤，低清晰度",
+          "negative_prompt": "虚假功效，虚构价格，虚构认证，乱码文案，信息拥挤，低清晰度",
+          "styleTags": [
+            "卖点",
+            "功能",
+            "信息图"
+          ],
+          "style_tags": [
+            "卖点",
+            "功能",
+            "信息图"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "custom_suite_4",
+          "title": "细节质感图",
+          "label": "细节质感图",
+          "prompt": "生成产品细节质感图，突出材质、包装边缘、纹理、光泽和局部工艺，镜头近景但产品结构准确。",
+          "text": "生成产品细节质感图，突出材质、包装边缘、纹理、光泽和局部工艺，镜头近景但产品结构准确。",
+          "negativePrompt": "细节糊成一团，包装文字错误，产品结构变形，过曝，噪点，水印",
+          "negative_prompt": "细节糊成一团，包装文字错误，产品结构变形，过曝，噪点，水印",
+          "styleTags": [
+            "细节",
+            "质感",
+            "详情页"
+          ],
+          "style_tags": [
+            "细节",
+            "质感",
+            "详情页"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ],
+      "skillPrompts": [
+        {
+          "id": "custom_suite_1",
+          "title": "高点击主图",
+          "label": "高点击主图",
+          "prompt": "生成电商高点击主图，保留上传产品的外观、包装结构、Logo、颜色和核心文字，产品居中偏大，背景干净明亮，轻微真实阴影。",
+          "text": "生成电商高点击主图，保留上传产品的外观、包装结构、Logo、颜色和核心文字，产品居中偏大，背景干净明亮，轻微真实阴影。",
+          "negativePrompt": "模糊，变形，水印，乱码文字，虚构价格，虚构认证，多余产品",
+          "negative_prompt": "模糊，变形，水印，乱码文字，虚构价格，虚构认证，多余产品",
+          "styleTags": [
+            "主图",
+            "高点击",
+            "转化"
+          ],
+          "style_tags": [
+            "主图",
+            "高点击",
+            "转化"
+          ],
+          "selected": true,
+          "referenceImageIndex": 0,
+          "reference_image_index": 0
+        },
+        {
+          "id": "custom_suite_2",
+          "title": "场景氛围图",
+          "label": "场景氛围图",
+          "prompt": "基于上传产品生成自然使用场景图，产品真实融入生活化环境，光线柔和，有空间层次和材质细节，氛围高级但不喧宾夺主。",
+          "text": "基于上传产品生成自然使用场景图，产品真实融入生活化环境，光线柔和，有空间层次和材质细节，氛围高级但不喧宾夺主。",
+          "negativePrompt": "杂乱背景，人物畸形，产品变形，品牌错字，过度滤镜，水印",
+          "negative_prompt": "杂乱背景，人物畸形，产品变形，品牌错字，过度滤镜，水印",
+          "styleTags": [
+            "场景",
+            "氛围",
+            "生活方式"
+          ],
+          "style_tags": [
+            "场景",
+            "氛围",
+            "生活方式"
+          ],
+          "selected": true,
+          "referenceImageIndex": 1,
+          "reference_image_index": 1
+        },
+        {
+          "id": "custom_suite_3",
+          "title": "卖点功能图",
+          "label": "卖点功能图",
+          "prompt": "生成产品卖点功能图，主体清晰，围绕核心卖点做有秩序的视觉分区和辅助元素，信息表达简洁有力，不编造不存在的信息。",
+          "text": "生成产品卖点功能图，主体清晰，围绕核心卖点做有秩序的视觉分区和辅助元素，信息表达简洁有力，不编造不存在的信息。",
+          "negativePrompt": "虚假功效，虚构价格，虚构认证，乱码文案，信息拥挤，低清晰度",
+          "negative_prompt": "虚假功效，虚构价格，虚构认证，乱码文案，信息拥挤，低清晰度",
+          "styleTags": [
+            "卖点",
+            "功能",
+            "信息图"
+          ],
+          "style_tags": [
+            "卖点",
+            "功能",
+            "信息图"
+          ],
+          "selected": true,
+          "referenceImageIndex": 2,
+          "reference_image_index": 2
+        },
+        {
+          "id": "custom_suite_4",
+          "title": "细节质感图",
+          "label": "细节质感图",
+          "prompt": "生成产品细节质感图，突出材质、包装边缘、纹理、光泽和局部工艺，镜头近景但产品结构准确。",
+          "text": "生成产品细节质感图，突出材质、包装边缘、纹理、光泽和局部工艺，镜头近景但产品结构准确。",
+          "negativePrompt": "细节糊成一团，包装文字错误，产品结构变形，过曝，噪点，水印",
+          "negative_prompt": "细节糊成一团，包装文字错误，产品结构变形，过曝，噪点，水印",
+          "styleTags": [
+            "细节",
+            "质感",
+            "详情页"
+          ],
+          "style_tags": [
+            "细节",
+            "质感",
+            "详情页"
+          ],
+          "selected": true,
+          "referenceImageIndex": 3,
+          "reference_image_index": 3
+        }
+      ]
     }
   ],
   "platforms": [

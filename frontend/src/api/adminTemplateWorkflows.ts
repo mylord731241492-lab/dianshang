@@ -37,6 +37,21 @@ export interface AdminTemplateWorkflow {
     type?: string;
     maxItems?: number;
   };
+  promptBlocks?: Record<string, string>;
+  presetPrompts?: Array<{
+    id?: string;
+    title?: string;
+    label?: string;
+    prompt?: string;
+    negativePrompt?: string;
+    styleTags?: string[];
+  }>;
+  skillPrompts?: Array<{
+    id?: string;
+    title?: string;
+    label?: string;
+    prompt?: string;
+  }>;
   categoryId?: string;
   categoryName?: string;
   coverImage?: string;
@@ -51,6 +66,13 @@ export interface AdminTemplateWorkflow {
     ratio?: string;
     quality?: string;
     imageCount?: number;
+  };
+  skillFile?: {
+    fileName?: string;
+    path?: string;
+    exists?: boolean;
+    updatedAt?: string;
+    promptCount?: number;
   };
 }
 
@@ -90,4 +112,18 @@ export async function getAdminTemplateWorkflows(): Promise<AdminTemplateWorkflow
     ratios: data.ratios || [],
     model_configs: data.model_configs || {}
   };
+}
+
+export async function uploadAdminTemplateSkill(templateKey: string, file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  const response = await http.post<{
+    success?: boolean;
+    template?: AdminTemplateWorkflow;
+    skill?: Record<string, unknown>;
+    file?: AdminTemplateWorkflow['skillFile'];
+  }>(`/api/admin/template-workflows/${encodeURIComponent(templateKey)}/skill/upload`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data;
 }

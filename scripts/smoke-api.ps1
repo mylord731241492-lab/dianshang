@@ -53,6 +53,36 @@ $imageRoutes = Invoke-SmokeJson -Method "GET" -Path "/api/model-routes?group=ima
 if (-not $imageRoutes.items -or $imageRoutes.items.Count -lt 1) {
   throw "Image model routes missing"
 }
+$imageRoute = @($imageRoutes.items)[0]
+$imageModel = $imageRoute.defaultModel
+if (-not $imageModel -and $imageRoute.models) {
+  $imageModel = @($imageRoute.models)[0]
+}
+if (-not $imageModel) {
+  throw "Image route default model missing"
+}
+$expectedImageClarities = @("1k", "2k", "4k")
+$imageModelQualities = @($imageModel.qualities | ForEach-Object { ([string]$_).ToLowerInvariant() })
+$imageModelVariantClarities = @($imageModel.variants | ForEach-Object { ([string]$_.clarity).ToLowerInvariant() })
+foreach ($clarity in $expectedImageClarities) {
+  if ($imageModelQualities -notcontains $clarity) {
+    throw "Image model qualities missing clarity $clarity"
+  }
+  if ($imageModelVariantClarities -notcontains $clarity) {
+    throw "Image model variants missing clarity $clarity"
+  }
+}
+$publicImageModels = Invoke-SmokeJson -Method "GET" -Path "/api/public/models?routeId=$($imageRoute.id)"
+$publicImageModel = @($publicImageModels.items)[0]
+if (-not $publicImageModel) {
+  throw "Public image models missing"
+}
+$publicVariantClarities = @($publicImageModel.variants | ForEach-Object { ([string]$_.clarity).ToLowerInvariant() })
+foreach ($clarity in $expectedImageClarities) {
+  if ($publicVariantClarities -notcontains $clarity) {
+    throw "Public image model variants missing clarity $clarity"
+  }
+}
 
 $registerEmail = "smoke-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())@local.test"
 $registerUser = "smoke" + (Get-Date -Format "MMddHHmmss")

@@ -23,7 +23,7 @@
 | POST | `/api/auth/login` | local-db | `username,password` | `token,user` |
 | POST | `/api/auth/register` | local-db | `username,email,password,code` | `token,user` |
 | POST | `/api/auth/send-email-code` | mock | `email,type` | `ok,code,cooldown,expiresIn` |
-| POST | `/api/auth/send-reset-code` | mock | `email` | `message,cooldown,expiresIn` |
+| POST | `/api/auth/send-reset-code` | mock | `email` | `message,cooldown,expiresIn,code(mock 模式返回)` |
 | POST | `/api/auth/reset-password` | local-db | `email,code,password/newPassword` | `success,message` |
 | POST | `/api/admin/login` | local-db | `username,password` | `token,user` |
 

@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router';
 import { NButton } from 'naive-ui';
 import { Activity, ArrowLeft, BarChart3, Coins, Image, RefreshCcw, Route, Trophy, Users } from 'lucide-vue-next';
 import { getAdminCreditRanking, getAdminDashboard, type AdminDashboardResponse, type AdminRankingUser } from '../api/adminDashboard';
-import { clearAuthSession } from '../api/auth';
+import { clearAdminAuthSession } from '../api/adminAuth';
 import { getApiErrorMessage } from '../api/http';
 
 const router = useRouter();
@@ -66,7 +66,7 @@ async function loadDashboard() {
 }
 
 async function logout() {
-  clearAuthSession();
+  clearAdminAuthSession();
   await router.replace('/admin/login');
 }
 

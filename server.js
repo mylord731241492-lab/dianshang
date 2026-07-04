@@ -23,8 +23,37 @@ if (fs.existsSync(envPath)) {
   });
 }
 
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const IS_PRODUCTION = NODE_ENV === 'production';
 const PORT = process.env.PORT || 3456;
-const JWT_SECRET = process.env.JWT_SECRET || 'hjm-mb-local-dev-secret';
+const RAW_JWT_SECRET = process.env.JWT_SECRET || '';
+const JWT_SECRET = RAW_JWT_SECRET || (IS_PRODUCTION ? '' : 'hjm-mb-local-dev-secret');
+const ADMIN_BOOTSTRAP_USERNAME = String(process.env.ADMIN_BOOTSTRAP_USERNAME || 'admin').trim() || 'admin';
+const ADMIN_BOOTSTRAP_PASSWORD = String(process.env.ADMIN_BOOTSTRAP_PASSWORD || '');
+const ADMIN_BOOTSTRAP_EMAIL = String(process.env.ADMIN_BOOTSTRAP_EMAIL || `${ADMIN_BOOTSTRAP_USERNAME}@local.internal`).trim();
+const normalizeOrigin = (origin = '') => String(origin || '').trim().replace(/\/+$/, '');
+const CORS_ORIGINS = String(process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(normalizeOrigin)
+  .filter(Boolean);
+const weakSecretPattern = /replace|changeme|change-me|default|secret|local-dev|hjm-mb|admin123|password|填|占位/i;
+const isStrongJwtSecret = (value = '') => String(value || '').length >= 32 && !weakSecretPattern.test(String(value || ''));
+const isStrongBootstrapPassword = (value = '') =>
+  String(value || '').length >= 12 && !/admin123|123456|password|changeme|change-me|replace|default|填|占位/i.test(String(value || ''));
+const LEGACY_PASSWORD_SECRETS = [
+  'hjm-mb-secret-key-change-in-production',
+  'hjm-mb-local-dev-secret',
+  ...String(process.env.PASSWORD_LEGACY_SECRETS || '').split(',')
+]
+  .map((value) => String(value || '').trim())
+  .filter((value, index, list) => value && value !== JWT_SECRET && list.indexOf(value) === index);
+function failStartup(message) {
+  console.error(`[STARTUP_BLOCKED] ${message}`);
+  process.exit(1);
+}
+if (IS_PRODUCTION && !isStrongJwtSecret(JWT_SECRET)) {
+  failStartup('生产模式必须配置强 JWT_SECRET，长度至少 32 位，且不能使用默认或占位值。');
+}
 const AI_API_BASE = process.env.AI_API_BASE || 'https://api.openai.com/v1';
 const AI_IMAGE_KEY = process.env.AI_IMAGE_KEY || process.env.AI_API_KEY || 'sk-';
 const AI_TEXT_KEY = process.env.AI_TEXT_KEY || process.env.AI_API_KEY || 'sk-';
@@ -40,14 +69,26 @@ const positiveNumber = (value, fallback) => {
 const PROVIDER_TIMEOUT_MS = positiveNumber(process.env.PROVIDER_TIMEOUT_MS, 120000);
 const IMAGE_PROVIDER_TIMEOUT_MS = positiveNumber(process.env.IMAGE_PROVIDER_TIMEOUT_MS || process.env.PROVIDER_IMAGE_TIMEOUT_MS, 180000);
 const CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS = positiveNumber(process.env.CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS || process.env.PROVIDER_ANALYSIS_TIMEOUT_MS, PROVIDER_TIMEOUT_MS);
+const IMAGE_PROVIDER_REQUEST_DELAY_MS = Math.min(
+  positiveNumber(
+    process.env.IMAGE_PROVIDER_REQUEST_DELAY_MS ||
+      process.env.PROVIDER_IMAGE_REQUEST_DELAY_MS ||
+      process.env.IMAGE_PROVIDER_BATCH_DELAY_MS ||
+      process.env.PROVIDER_IMAGE_BATCH_DELAY_MS,
+    1500
+  ),
+  15000
+);
 const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : __dirname;
 const DB_PATH = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.join(DATA_DIR, 'data.db');
 const UPLOAD_DIR = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.join(__dirname, 'uploads');
 const LOG_DIR = process.env.LOG_DIR ? path.resolve(process.env.LOG_DIR) : path.join(__dirname, 'logs');
+const WORKFLOW_DIR = process.env.WORKFLOW_DIR ? path.resolve(process.env.WORKFLOW_DIR) : path.join(DATA_DIR, 'workflows');
 const ENABLE_REAL_AI = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_AI || '').toLowerCase());
 const ENABLE_REAL_EMAIL = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_EMAIL || '').toLowerCase());
 const ENABLE_REAL_PAYMENT = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_PAYMENT || '').toLowerCase());
 const ENABLE_REAL_STORAGE = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_STORAGE || '').toLowerCase());
+const REQUIRE_REGISTER_EMAIL_CODE = ['1','true','yes','on'].includes(String(process.env.REQUIRE_REGISTER_EMAIL_CODE || '').toLowerCase());
 const hasUsableKey = (key = '') => /^sk-[A-Za-z0-9_\-]{12,}/.test(String(key || ''));
 const hasConfiguredSecret = (key = '') => {
   const value = String(key || '').trim();
@@ -55,12 +96,96 @@ const hasConfiguredSecret = (key = '') => {
 };
 
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
+const corsOptions = CORS_ORIGINS.length && !CORS_ORIGINS.includes('*')
+  ? {
+      credentials: true,
+      origin(origin, callback) {
+        if (!origin || CORS_ORIGINS.includes(normalizeOrigin(origin))) {
+          callback(null, true);
+          return;
+        }
+        callback(new Error(`CORS origin not allowed: ${origin}`));
+      }
+    }
+  : { origin: true, credentials: true };
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 const sourceFrontendDist = path.join(__dirname, 'frontend', 'dist');
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.static(__dirname));
+const publicDir = path.join(__dirname, 'public');
+const rootAssetsDir = path.join(__dirname, 'assets');
+const videosDir = path.join(__dirname, 'videos');
+const legacyProductionAssets = new Set([
+  'AdminLayout-BHNDJhhH.js',
+  'AdminLayout-CNzaDYz7.js',
+  'AdminLogin-BugAOGHW.js',
+  'AdminLogin-ClALfa_i.js',
+  'AdminShell-B4AatFKJ.js',
+  'AdminShell-BhMX0KkS.css',
+  'AdminShell-CnxotuTf.js',
+  'AuthPage-zwidFbtJ.js',
+  'AvatarSettingsCard-wPB6ltvP.js',
+  'Canvas-yGc8b2gf.js',
+  'ChevronDownOutline-pxCW8Byr.js',
+  'CloseOutline-B_gCUTio.js',
+  'DocumentTextOutline-Bw5lmYm_.js',
+  'Dropdown-BFtutDWh.js',
+  'EyeOutline-B7n34_Qs.js',
+  'FlashOutline-B9GvxoV5.js',
+  'GenerateTaskMonitor-BDb7xR42.js',
+  'GenerateTaskMonitor-BklfNami.css',
+  'GenerateTaskMonitor-t9DGd0f2.js',
+  'HomeIndex-BtiJ9toc.js',
+  'HomeLayout-DUXizf0u.js',
+  'HomeOutline-DNfRtfc_.js',
+  'Icon-C7GvbXGM.js',
+  'ImageHistoryPanel-Cu4Brucb.js',
+  'ImagesOutline-DrpCSjX9.js',
+  'ListOutline-C2DulHcI.js',
+  'LoginModal-DILd3O2D.js',
+  'PersonCircleOutline-DyeGAFLR.js',
+  'ReceiptOutline-CUHOzn7j.js',
+  'SettingsOutline-Cqpk4Cix.js',
+  'ShieldCheckmarkOutline-efCWlAN3.js',
+  'TemplateImageWorkbench-C98u8yir.js',
+  'TemplateImageWorkbench-CoxnmTwx.css',
+  'TemplateWorkflowAdmin-DS386KGP.js',
+  'TemplateWorkflowAdmin-DZP2uijA.css',
+  'TemplateWorkflowAdmin-db5gV2oK.js',
+  'UserCenter-jqG499Zg.js',
+  'admin-api-form-labels.js',
+  'admin-api-source-route-bridge.js',
+  'admin-visual-polish.css',
+  'fixedImageModels-BTYfneSt.js',
+  'i18n-Cj1lw-hh.js',
+  'imageFiles-WPRPFIHV.js',
+  'imageHistory-s5iwPTNE.js',
+  'index-ZrBcanD1.js',
+  'localWorkflowFileSystem-CxAxbYWk.js',
+  'projects-eqk9JplQ.js',
+  'template-image-prompt-grid-fix.css'
+]);
+
+app.use(express.static(publicDir));
+app.use('/assets', (req, res, next) => {
+  const assetName = path.posix.basename(req.path || '');
+  if (!legacyProductionAssets.has(assetName)) {
+    return next();
+  }
+  res.set('Cache-Control', 'no-store');
+  return res.status(410).json({
+    success: false,
+    code: 'LEGACY_ASSET_GONE',
+    message: '旧生产前端资源已隔离，请刷新页面加载当前版本。',
+    asset: assetName
+  });
+});
+app.use('/assets', express.static(rootAssetsDir));
 app.use('/assets', express.static(path.join(sourceFrontendDist, 'assets')));
+app.use('/videos', express.static(videosDir));
+app.use('/assets', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.status(404).type('text/plain; charset=utf-8').send('Asset not found');
+});
 app.use((req, res, next) => {
   res.success = (payload = {}) => res.json({ success: true, ...payload });
   res.fail = (status, code, message, extra = {}) => res.status(status).json({ success: false, code, message, ...extra });
@@ -70,6 +195,7 @@ app.use((req, res, next) => {
 // Uploads
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 fs.mkdirSync(LOG_DIR, { recursive: true });
+fs.mkdirSync(WORKFLOW_DIR, { recursive: true });
 const uploadDir = UPLOAD_DIR;
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 const upload = multer({ dest: uploadDir, limits: { fileSize: 20 * 1024 * 1024 } });
@@ -117,7 +243,17 @@ db.exec(`
 db.exec(`INSERT OR IGNORE INTO redeem_codes (code, amount, max_uses) VALUES ('WELCOME50',50,1000),('HAJIMI2024',100,500),('VIP100',100,100)`);
 
 // Helpers
-const h = (pwd) => crypto.createHash('sha256').update(pwd + JWT_SECRET).digest('hex');
+const h = (pwd, secret = JWT_SECRET) => crypto.createHash('sha256').update(pwd + secret).digest('hex');
+function verifyPasswordHash(passwordHash, password) {
+  if (!passwordHash || !password) return { ok: false, needsRehash: false };
+  if (passwordHash === h(password)) return { ok: true, needsRehash: false };
+  const legacyMatched = LEGACY_PASSWORD_SECRETS.some((secret) => passwordHash === h(password, secret));
+  return { ok: legacyMatched, needsRehash: legacyMatched };
+}
+function rehashPasswordIfNeeded(user, password, verification) {
+  if (!user || !verification?.needsRehash) return;
+  db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(h(password), user.id);
+}
 const uid = (p='') => p + Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
 const rcode = () => String(Math.floor(100000 + Math.random() * 900000));
 
@@ -138,6 +274,101 @@ function optionalAuth(req, res, next) {
 function admin(req, res, next) {
   if (req.user.role !== 'admin') return res.status(403).json({ success: false, code: 'ADMIN_REQUIRED', message: '需要管理员权限' });
   next();
+}
+
+function parseJsonValue(value, fallback = {}) {
+  if (typeof value !== 'string') return value ?? fallback;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function normalizeWorkflowJson(value) {
+  const parsed = parseJsonValue(value, value);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+  if (parsed.workflowJson !== undefined) return normalizeWorkflowJson(parsed.workflowJson);
+  if (parsed.workflowData !== undefined) return normalizeWorkflowJson(parsed.workflowData);
+  if (parsed.canvasData !== undefined) return normalizeWorkflowJson(parsed.canvasData);
+  if (parsed.workflow !== undefined) return normalizeWorkflowJson(parsed.workflow);
+  if (
+    parsed.data !== undefined &&
+    !Array.isArray(parsed.nodes) &&
+    !Array.isArray(parsed.edges)
+  ) {
+    return normalizeWorkflowJson(parsed.data);
+  }
+  return parsed;
+}
+
+function workflowDataFromBody(body = {}) {
+  const payload = body && typeof body === 'object' ? body : {};
+  if (payload.workflowJson !== undefined) return normalizeWorkflowJson(payload.workflowJson);
+  if (payload.workflowData !== undefined) return normalizeWorkflowJson(payload.workflowData);
+  if (payload.canvasData !== undefined) return normalizeWorkflowJson(payload.canvasData);
+  if (payload.workflow !== undefined) return normalizeWorkflowJson(payload.workflow);
+  if (payload.data !== undefined) return normalizeWorkflowJson(payload.data);
+  if (
+    Array.isArray(payload.nodes) ||
+    Array.isArray(payload.edges) ||
+    payload.viewport !== undefined ||
+    payload.storage !== undefined ||
+    payload.thumbnail !== undefined
+  ) {
+    return normalizeWorkflowJson(payload);
+  }
+  return {};
+}
+
+function workflowNameFromBody(body = {}, data = {}) {
+  return body.name || body.title || data.name || data.title || '本地工作流';
+}
+
+function projectDataFromRow(row) {
+  return normalizeWorkflowJson(parseJsonValue(row?.data || '{}', {}));
+}
+
+function safeWorkflowPathPart(value = '') {
+  const cleaned = String(value || '')
+    .replace(/[^a-zA-Z0-9_.-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 120);
+  return cleaned || 'workflow';
+}
+
+function workflowFilePayload(id, name, data = {}) {
+  return {
+    ...normalizeWorkflowJson(data),
+    projectId: id,
+    title: name,
+    savedAt: new Date().toISOString()
+  };
+}
+
+function saveWorkflowJsonFile(userId, id, name, data = {}) {
+  const userDir = path.join(WORKFLOW_DIR, safeWorkflowPathPart(userId || 'anonymous'));
+  fs.mkdirSync(userDir, { recursive: true });
+  const fileName = `${safeWorkflowPathPart(id)}.workflow.json`;
+  const filePath = path.join(userDir, fileName);
+  fs.writeFileSync(filePath, JSON.stringify(workflowFilePayload(id, name, data), null, 2), 'utf8');
+  return {
+    fileName,
+    path: filePath,
+    relativePath: path.relative(WORKFLOW_DIR, filePath).replace(/\\/g, '/')
+  };
+}
+
+function saveWorkflowProject(userId, id, name, data = {}) {
+  const existing = db.prepare('SELECT id FROM projects WHERE id=? AND user_id=?').get(id, userId);
+  if (existing) {
+    db.prepare("UPDATE projects SET name=?, data=?, updated_at=datetime('now') WHERE id=? AND user_id=?")
+      .run(name, JSON.stringify(data || {}), id, userId);
+  } else {
+    db.prepare('INSERT INTO projects (id,user_id,name,data) VALUES (?,?,?,?)')
+      .run(id, userId, name, JSON.stringify(data || {}));
+  }
+  return saveWorkflowJsonFile(userId, id, name, data);
 }
 
 // ===================== DATA =====================
@@ -269,15 +500,16 @@ const defaultEcommerceSuiteAgent = {
 };
 
 const defaultAdminSettings = {
-  siteName: '哈吉米 AI',
+  siteName: '爱泊缇 AI 工作台',
   registrationEnabled: true,
-  emailCodeEnabled: true,
+  emailCodeEnabled: false,
   canvasStorageEnabled: true,
   templateImageEnabled: true,
   imageHistoryEnabled: true,
   mockMode: true,
   maxUploadSizeMb: 20,
-  defaultCredits: 50,
+  defaultCredits: 0,
+  registrationGiftCredits: 0,
   ecommerceSuiteAgent: defaultEcommerceSuiteAgent
 };
 
@@ -582,25 +814,75 @@ function providerImageInputFidelity(value = '') {
 }
 
 const ECOMMERCE_IMAGE_SYSTEM_PROMPT = [
-  '你是一名服务国内电商平台的资深电商美工设计师，熟悉淘宝、天猫、京东、拼多多、小红书等平台的商品主图审美、点击转化和合规边界。',
-  '你的任务是把用户的简短需求转化为可直接用于图片生成模型的完整电商视觉指令。',
-  '画面要求：商品主体清晰居中，构图稳定，商业摄影级光影，质感真实，背景干净高级，有适合国内电商的主图氛围和转化感。',
-  '参考图要求：如果提供参考图，必须优先保持产品外形、包装结构、颜色、材质、文字、logo 和品牌识别一致；只能优化构图、背景、光影、道具和整体视觉表现。',
-  '合规要求：不要虚构品牌、认证、价格、功效、活动标签和不存在的文字；不要改错包装文字；不要生成水印、二维码、乱码文字、畸形产品或多余主体。',
-  '输出要求：只生成最终图片，不要在图片里添加说明性大段文字；如需文字，只能使用用户明确要求或参考图中已有的可识别元素。'
+  '你是一名专业电商设计师。',
+  '保持产品比例自然，不要拉伸或变形。',
+  '文字清晰，不要出现光斑和乱码。'
 ].join('\n');
+
+function promptReferenceCount(options = {}) {
+  const explicit = Number(options.referenceCount || options.referenceImageCount || 0);
+  if (Number.isFinite(explicit) && explicit > 0) return Math.min(explicit, 16);
+  const body = options.body || options;
+  try {
+    const count = imageReferenceCandidates(body).length;
+    if (count > 0) return Math.min(count, 16);
+  } catch {}
+  return options.hasReferenceImages ? 1 : 0;
+}
+
+function extractPromptImageRoleHints(userPrompt = '') {
+  const raw = String(userPrompt || '');
+  const matches = raw.match(/图\d+[^，。；;,\n]*/g) || [];
+  return Array.from(new Set(matches.map(item => item.trim()).filter(Boolean))).slice(0, 10);
+}
+
+function detectEcommercePromptTask(userPrompt = '', options = {}) {
+  const text = String(userPrompt || '');
+  const referenceCount = promptReferenceCount(options);
+  if (/贴标|贴纸|标签|瓶贴|贴上|贴到|包装样机|样机/.test(text)) return '贴标/包装样机生成';
+  if (referenceCount > 1 && /排版|构图|风格|配色|桌子|背景|道具|参考图|图\d+/.test(text)) return '多图参考电商主图生成';
+  if (/背景|场景|白底|居家|室内|户外|换景/.test(text)) return '背景替换/场景优化';
+  if (/局部|涂抹|mask|消除|擦除|去掉|移除|修复/.test(text)) return '局部修改';
+  if (/替换|换成|改为|改成|变成/.test(text)) return '元素替换/图片编辑';
+  return referenceCount > 0 ? '参考图编辑/电商图片生成' : '电商图片生成';
+}
+
+function ecommercePromptReferenceRoleText(userPrompt = '', options = {}) {
+  const referenceCount = promptReferenceCount(options);
+  if (!referenceCount) return '本次未提供参考图，根据用户需求生成电商图片。';
+  const hints = extractPromptImageRoleHints(userPrompt);
+  if (hints.length) {
+    return [
+      `共 ${referenceCount} 张参考图。请严格按用户原文指定理解各图作用：${hints.join('；')}。`,
+      '排版参考只提供构图和画面层级，风格参考只提供氛围和质感，配色参考只提供色彩方向，桌子/背景/道具参考只提供对应元素，产品图才作为最终主商品来源。不要让不同参考图的角色互相污染。'
+    ].join('');
+  }
+  return [
+    `共 ${referenceCount} 张参考图。默认图1为待编辑原图或主要参考图，其余图片作为辅助参考。`,
+    '如果用户在需求中指定了产品、排版、风格、配色、桌子、背景或道具来源，请按用户指定优先执行。'
+  ].join('');
+}
 
 function buildEcommerceImagePrompt(userPrompt = '', options = {}) {
   const prompt = String(userPrompt || '').trim();
-  const referenceRule = options.hasReferenceImages
-    ? '本次有参考图：请把参考图中的产品作为核心主体，保持产品包装与识别信息一致，在此基础上生成更适合电商展示的主图。'
-    : '本次没有参考图：请根据用户需求生成一张完整、清晰、适合国内电商平台展示的商品主图。';
+  const referenceCount = promptReferenceCount(options);
+  if (!referenceCount) {
+    return [
+      ECOMMERCE_IMAGE_SYSTEM_PROMPT,
+      `用户需求：${prompt || '生成一张图片'}`
+    ].filter(Boolean).join('\n');
+  }
+  const taskType = detectEcommercePromptTask(prompt, options);
   return [
-    ECOMMERCE_IMAGE_SYSTEM_PROMPT,
-    referenceRule,
-    `用户需求：${prompt || '生成一张电商商品主图'}`,
-    '最终目标：输出一张可直接用于商品主图测试的高质量电商图片。'
-  ].join('\n');
+    '你是电商图片 Prompt Planner，请把用户的简短图生图需求整理成图像模型容易执行的最终提示词。',
+    `任务类型：${taskType}。`,
+    `参考图作用：${ecommercePromptReferenceRoleText(prompt, { ...options, referenceCount })}`,
+    `生成要求：${prompt || '生成一张适合电商展示的高质量图片。'}`,
+    '保持重点：优先保证最终主商品清晰、稳定、可识别；商品基本形状、比例、结构、材质、Logo、标签和关键文字尽量保持准确。用户明确要求修改的内容按用户要求执行。',
+    '允许发挥：可以根据电商主图效果自然优化背景、桌面、道具、光影、空间层次、质感和画面高级感，但不要抢走商品主体注意力。',
+    '避免问题：不要把排版图、风格图、配色图、背景图里的无关商品或文字混进最终画面；不要新增无关文字、水印、二维码；不要出现乱码、明显变形、错误透视、模糊边缘或主体混乱。',
+    '输出要求：画面真实自然，主体边缘干净，产品比例自然，适合电商主图或详情页展示。'
+  ].filter(Boolean).join('\n');
 }
 
 function resolveTextRoute(body = {}) {
@@ -745,12 +1027,22 @@ async function canvasDialogReferencesForAnalysis(body = {}, req) {
 }
 
 function buildCanvasDialogAgentInput(requirement = '', references = []) {
+  const referenceRules = references.length
+    ? [
+      '分析要求：识别用户指定的图序角色，例如排版、构图、风格、配色、桌子、背景、道具、产品、标签、文案等来源。',
+      '生成要求：最终提示词要说明每张参考图只承担用户指定的作用；不要让排版图、风格图、配色图、背景图里的无关商品或文字混进最终画面。',
+      '保持规则：最终主商品以用户指定的产品图或待编辑原图为准，商品外观、包装结构、品牌/Logo、标签、关键文字、比例和材质尽量稳定；用户明确要求修改的内容按用户要求执行。',
+      '发挥规则：背景、桌面、道具、氛围、光影、空间层次和画面高级感可以合理优化，但不能遮挡商品、改变商品识别或喧宾夺主。'
+    ]
+    : [
+      '分析要求：识别参考图中的产品主体、包装结构、品牌/Logo/产品名、关键文字、颜色、材质、构图、背景和风格。',
+      '生成要求：保持产品外观、包装结构、品牌识别、颜色和关键文字一致；只根据用户需求调整标签设计、背景、构图、光影和电商表现。'
+    ];
   const text = [
     '你是电商视觉 Agent，请先分析用户上传的参考图和需求，再给图片生成模型输出最终提示词。',
     '必须输出 JSON 对象，不要 Markdown，不要额外解释。',
     'JSON 字段：analysisSummary（给用户看的简短中文分析，80-160字）、finalPrompt（交给 GPT Image 2 的完整中文生图提示词）。',
-    '分析要求：识别参考图中的产品主体、包装结构、品牌/Logo/产品名、关键文字、颜色、材质、构图、背景和风格。',
-    '生成要求：保持产品外观、包装结构、品牌识别、颜色和关键文字一致；只根据用户需求调整标签设计、背景、构图、光影和电商表现。',
+    ...referenceRules,
     '合规要求：不要虚构价格、认证、功效、活动标签和不存在的文字；不要生成水印、二维码、乱码文字、畸形产品或多余主体。',
     references.length ? `参考图顺序：${references.map(item => item.label).join('、')}` : '参考图顺序：无。',
     `用户需求：${requirement || '生成一张高质量电商产品图片。'}`
@@ -771,16 +1063,11 @@ function buildCanvasDialogAgentInput(requirement = '', references = []) {
 function mockCanvasDialogAgentPlan(requirement = '', referenceCount = 0) {
   const target = requirement || '生成一张高质量电商产品图片';
   const imageLine = referenceCount > 0
-    ? `已分析 ${referenceCount} 张参考图，将保留产品外观、包装结构、品牌识别、颜色和关键文字，并按用户需求调整画面风格。`
+    ? `已分析 ${referenceCount} 张参考图，将按用户指定的图序角色使用参考图，并优先保持最终主商品清晰稳定。`
     : '未提供参考图，将按用户需求构建清晰的电商产品画面。';
   return {
     analysisSummary: `${imageLine} 生成结果会优先保证主体清晰、商业摄影质感和电商转化表现。`,
-    finalPrompt: [
-      referenceCount > 0 ? `参考图共 ${referenceCount} 张，请严格保持参考图中的产品主体、包装结构、品牌 Logo、产品名、颜色和材质。` : '根据用户需求生成电商产品主图。',
-      `用户需求：${target}`,
-      '画面要求：商品主体清晰，构图稳定，商业摄影级光影，背景干净高级，真实自然，适合国内电商主图或详情页使用。',
-      '负面约束：不要乱码、水印、二维码、畸形产品、多余主体、虚构价格、虚构认证或不存在的促销信息。'
-    ].join('\n')
+    finalPrompt: buildEcommerceImagePrompt(target, { hasReferenceImages: referenceCount > 0, referenceCount })
   };
 }
 
@@ -1360,6 +1647,48 @@ async function callProviderResponses(input, options = {}) {
   }
 }
 
+const providerImageRequestDelay = (options = {}) => {
+  const raw = options.imageRequestDelayMs ??
+    options.providerImageRequestDelayMs ??
+    options.body?.imageRequestDelayMs ??
+    options.body?.providerImageRequestDelayMs;
+  const parsed = Number(raw);
+  if (Number.isFinite(parsed) && parsed >= 0) return Math.min(parsed, 15000);
+  return IMAGE_PROVIDER_REQUEST_DELAY_MS;
+};
+
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+let providerImageRequestQueue = Promise.resolve();
+let providerImageRequestPending = 0;
+
+function runQueuedProviderImageRequest(runRequest, options = {}) {
+  const delayMs = providerImageRequestDelay(options);
+  const shouldDelay = !!options.forceQueueDelay || providerImageRequestPending > 0;
+  providerImageRequestPending += 1;
+  const previous = providerImageRequestQueue.catch(() => {});
+  const queued = previous.then(async () => {
+    if (shouldDelay && delayMs > 0) await wait(delayMs);
+    return runRequest();
+  });
+  providerImageRequestQueue = queued.catch(() => {}).finally(() => {
+    providerImageRequestPending = Math.max(0, providerImageRequestPending - 1);
+  });
+  return queued;
+}
+
+async function runQueuedProviderImageBatch(count, runRequest, options = {}) {
+  const requestResults = [];
+  for (let i = 0; i < count; i += 1) {
+    const result = await runQueuedProviderImageRequest(
+      () => runRequest(i),
+      { ...options, forceQueueDelay: i > 0 }
+    );
+    requestResults.push(result);
+    if (!result.success) break;
+  }
+  return requestResults;
+}
+
 async function callProviderImageGeneration(prompt, options = {}) {
   const status = options.status || routeProviderStatus(options.route, 'image');
   const model = options.model || options.modelKey || AI_IMAGE_MODEL;
@@ -1378,9 +1707,7 @@ async function callProviderImageGeneration(prompt, options = {}) {
   }
 
   try {
-    const images = [];
-    const upstream = [];
-    for (let i = 0; i < count; i += 1) {
+    const requestResults = await runQueuedProviderImageBatch(count, async () => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), status.imageTimeoutMs || status.timeoutMs);
       try {
@@ -1404,7 +1731,7 @@ async function callProviderImageGeneration(prompt, options = {}) {
         });
         const contentType = resp.headers.get('content-type') || '';
         const data = await resp.json().catch(() => ({}));
-        upstream.push({ status: resp.status, contentType, data });
+        const upstreamItem = { status: resp.status, contentType, data };
         if (!resp.ok) {
           return {
             success: false,
@@ -1412,7 +1739,8 @@ async function callProviderImageGeneration(prompt, options = {}) {
             message: data.message || data.error?.message || `Provider returned ${resp.status}`,
             provider: status,
             upstreamStatus: resp.status,
-            upstream: data
+            upstream: data,
+            upstreamItem
           };
         }
         const rawImages = Array.isArray(data.data)
@@ -1422,19 +1750,33 @@ async function callProviderImageGeneration(prompt, options = {}) {
             : Array.isArray(data.results)
               ? data.results
               : [];
-        rawImages
+        const images = rawImages
           .map((item) => {
             const raw = item && typeof item === 'object' ? item : { url: item };
             return raw.url || raw.imageUrl || raw.image_url || raw.b64_json || raw.b64Json
-              ? { ...raw, index: images.length }
+              ? raw
               : null;
           })
-          .filter(Boolean)
-          .forEach((item) => images.push(item));
+          .filter(Boolean);
+        return { success: true, images, upstreamItem };
+      } catch (err) {
+        return {
+          success: false,
+          code: err.name === 'AbortError' ? 'PROVIDER_IMAGE_TIMEOUT' : 'PROVIDER_IMAGE_ERROR',
+          message: err.name === 'AbortError' ? 'Provider 图片生成超时' : (err.message || 'Provider 图片生成失败'),
+          provider: status
+        };
       } finally {
         clearTimeout(timer);
       }
-    }
+    }, options);
+    const failed = requestResults.find((item) => !item.success);
+    if (failed) return failed;
+    const upstream = requestResults.map((item) => item.upstreamItem).filter(Boolean);
+    const images = [];
+    requestResults.forEach((result) => {
+      result.images.forEach((item) => images.push({ ...item, index: images.length }));
+    });
     if (!images.length) {
       return {
         success: false,
@@ -1446,7 +1788,7 @@ async function callProviderImageGeneration(prompt, options = {}) {
         upstream
       };
     }
-    return { success: true, mock: false, provider: status, images, upstream, request: { model, size, quality, output_format: outputFormat, response_format: 'url', n: 1, requestedCount: count } };
+    return { success: true, mock: false, provider: status, images, upstream, request: { model, size, quality, output_format: outputFormat, response_format: 'url', n: 1, requestedCount: count, queueMode: 'serial-delayed', queueDelayMs: providerImageRequestDelay(options) } };
   } catch (err) {
     return {
       success: false,
@@ -1481,7 +1823,7 @@ async function callProviderImageEdit(prompt, options = {}) {
   }
 
   try {
-    const maskSource = options.mask || options.maskUrl || options.body?.mask || options.body?.maskUrl || options.body?.maskBase64 || '';
+    const maskSource = options.mask || options.maskUrl || options.body?.mask || options.body?.maskUrl || options.body?.maskAlphaBase64 || options.body?.maskBase64 || '';
     const maskFile = maskSource
       ? await loadReferenceImageFile({ url: maskSource, dataUrl: maskSource }, options.req)
       : null;
@@ -1494,9 +1836,7 @@ async function callProviderImageEdit(prompt, options = {}) {
         fileName: file.fileName || `reference-${i + 1}.${providerImageExt(file.mime)}`
       });
     }
-    const images = [];
-    const upstream = [];
-    for (let i = 0; i < count; i += 1) {
+    const requestResults = await runQueuedProviderImageBatch(count, async () => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), status.imageTimeoutMs || status.timeoutMs);
       try {
@@ -1529,7 +1869,7 @@ async function callProviderImageEdit(prompt, options = {}) {
         });
         const contentType = resp.headers.get('content-type') || '';
         const data = await resp.json().catch(() => ({}));
-        upstream.push({ status: resp.status, contentType, data });
+        const upstreamItem = { status: resp.status, contentType, data };
         if (!resp.ok) {
           return {
             success: false,
@@ -1537,7 +1877,8 @@ async function callProviderImageEdit(prompt, options = {}) {
             message: data.message || data.error?.message || `Provider returned ${resp.status}`,
             provider: status,
             upstreamStatus: resp.status,
-            upstream: data
+            upstream: data,
+            upstreamItem
           };
         }
         const rawImages = Array.isArray(data.data)
@@ -1547,19 +1888,33 @@ async function callProviderImageEdit(prompt, options = {}) {
             : Array.isArray(data.results)
               ? data.results
               : [];
-        rawImages
+        const images = rawImages
           .map((item) => {
             const raw = item && typeof item === 'object' ? item : { url: item };
             return raw.url || raw.imageUrl || raw.image_url || raw.b64_json || raw.b64Json
-              ? { ...raw, index: images.length }
+              ? raw
               : null;
           })
-          .filter(Boolean)
-          .forEach((item) => images.push(item));
+          .filter(Boolean);
+        return { success: true, images, upstreamItem };
+      } catch (err) {
+        return {
+          success: false,
+          code: err.name === 'AbortError' ? 'PROVIDER_IMAGE_EDIT_TIMEOUT' : 'PROVIDER_IMAGE_EDIT_ERROR',
+          message: err.name === 'AbortError' ? 'Provider 图生图超时' : (err.message || 'Provider 图生图失败'),
+          provider: status
+        };
       } finally {
         clearTimeout(timer);
       }
-    }
+    }, options);
+    const failed = requestResults.find((item) => !item.success);
+    if (failed) return failed;
+    const upstream = requestResults.map((item) => item.upstreamItem).filter(Boolean);
+    const images = [];
+    requestResults.forEach((result) => {
+      result.images.forEach((item) => images.push({ ...item, index: images.length }));
+    });
     if (!images.length) {
       return {
         success: false,
@@ -1585,6 +1940,8 @@ async function callProviderImageEdit(prompt, options = {}) {
         output_format: outputFormat,
         response_format: 'url',
         n: 1,
+        queueMode: 'serial-delayed',
+        queueDelayMs: providerImageRequestDelay(options),
         input_fidelity: inputFidelity,
         requestedCount: count,
         referenceImageCount: references.length,
@@ -1904,16 +2261,26 @@ function san(u) {
 
 // ===================== AUTH ROUTES =====================
 app.post('/api/auth/register', (req, res) => {
-  const { username, email, password, code } = req.body;
-  if (!username || !email || !password) return res.status(400).json({ message: '缺少必填字段' });
+  const username = String(req.body.username || '').trim();
+  const email = String(req.body.email || '').trim();
+  const password = String(req.body.password || '');
+  const code = String(req.body.code || '').trim();
+  if (!username || !email || !password) return res.status(400).json({ message: '请填写用户名、邮箱和密码；当前内网注册无需邮箱验证码。' });
+  const settings = settingsState();
+  if (settings.registrationEnabled === false) return res.status(403).json({ message: '注册暂未开放' });
   if (db.prepare('SELECT id FROM users WHERE username=?').get(username)) return res.status(400).json({ message: '用户名已存在' });
   if (db.prepare('SELECT id FROM users WHERE email=?').get(email)) return res.status(400).json({ message: '邮箱已注册' });
-  const saved = db.prepare('SELECT * FROM email_codes WHERE email=? AND type=? ORDER BY created_at DESC LIMIT 1').get(email,'register');
-  if (!saved || saved.code !== code || Date.now() > saved.expires_at) return res.status(400).json({ message: '验证码错误或已过期' });
+  if (REQUIRE_REGISTER_EMAIL_CODE) {
+    const saved = db.prepare('SELECT * FROM email_codes WHERE email=? AND type=? ORDER BY created_at DESC LIMIT 1').get(email,'register');
+    if (!saved || saved.code !== code || Date.now() > saved.expires_at) return res.status(400).json({ message: '验证码错误或已过期' });
+  }
   db.prepare('DELETE FROM email_codes WHERE email=? AND type=?').run(email,'register');
   const id = uid('user_');
-  db.prepare('INSERT INTO users (id,username,email,password_hash,role,balance) VALUES (?,?,?,?,?,?)').run(id,username,email,h(password),'user',50);
-  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)').run(id,'register_gift',50,0,50,'注册赠送 50 算力');
+  const giftCredits = Math.max(0, Number(settings.registrationGiftCredits ?? 0) || 0);
+  db.prepare('INSERT INTO users (id,username,email,password_hash,role,balance) VALUES (?,?,?,?,?,?)').run(id,username,email,h(password),'user',giftCredits);
+  if (giftCredits > 0) {
+    db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)').run(id,'register_gift',giftCredits,0,giftCredits,`注册赠送 ${giftCredits} 算力`);
+  }
   const token = jwt.sign({ userId: id, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: san(db.prepare('SELECT * FROM users WHERE id=?').get(id)) });
 });
@@ -1922,7 +2289,10 @@ app.post('/api/auth/login', (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ message: '请输入账号和密码' });
   const user = db.prepare('SELECT * FROM users WHERE username=?').get(username);
-  if (!user || user.password_hash !== h(password)) return res.status(401).json({ message: '账号或密码不正确' });
+  const passwordVerification = user ? verifyPasswordHash(user.password_hash, password) : { ok: false };
+  if (!user || !passwordVerification.ok) return res.status(401).json({ message: '账号或密码不正确' });
+  if (user.role === 'admin') return res.status(403).json({ message: '管理员请使用后台登录入口' });
+  rehashPasswordIfNeeded(user, password, passwordVerification);
   db.prepare("UPDATE users SET last_login_at=datetime('now') WHERE id=?").run(user.id);
   const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: san(user) });
@@ -1943,7 +2313,10 @@ app.post('/api/auth/send-reset-code', (req, res) => {
   const code = rcode();
   db.prepare('INSERT INTO email_codes (email,code,type,expires_at,created_at) VALUES (?,?,?,?,?)').run(email,code,'reset',Date.now()+300000,Date.now());
   console.log(`[RESET] ${email} -> ${code}`);
-  res.json({ message: '如果该邮箱已注册，验证码将发送到邮箱', cooldown: 60, expiresIn: 300 });
+  const mockPayload = ENABLE_REAL_EMAIL
+    ? {}
+    : { code, message: `如果该邮箱已注册，验证码将发送到邮箱。测试验证码：${code}` };
+  res.json({ message: '如果该邮箱已注册，验证码将发送到邮箱', cooldown: 60, expiresIn: 300, ...mockPayload });
 });
 
 app.post('/api/auth/reset-password', (req, res) => {
@@ -1963,8 +2336,10 @@ app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) return res.status(400).json({ message: '请输入管理员账号和密码' });
   const user = db.prepare('SELECT * FROM users WHERE username=?').get(username);
-  if (!user || user.password_hash !== h(password)) return res.status(401).json({ message: '账号或密码不正确' });
+  const passwordVerification = user ? verifyPasswordHash(user.password_hash, password) : { ok: false };
+  if (!user || !passwordVerification.ok) return res.status(401).json({ message: '账号或密码不正确' });
   if (user.role !== 'admin') return res.status(403).json({ message: '当前账号不是管理员' });
+  rehashPasswordIfNeeded(user, password, passwordVerification);
   db.prepare("UPDATE users SET last_login_at=datetime('now') WHERE id=?").run(user.id);
   const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: san(user) });
@@ -2027,27 +2402,32 @@ app.post('/api/user/redeem', auth, (req, res) => {
 // ===================== PROJECTS / CANVAS =====================
 app.get('/api/user/projects', auth, (req, res) => {
   const ps = db.prepare('SELECT * FROM projects WHERE user_id=? ORDER BY updated_at DESC').all(req.user.userId);
-  const items = ps.map(p=>({id:p.id,name:p.name,thumbnail:p.data?JSON.parse(p.data).thumbnail||'':'',updatedAt:p.updated_at,createdAt:p.created_at}));
+  const items = ps.map(p=>{
+    const data = projectDataFromRow(p);
+    return {id:p.id,name:p.name,thumbnail:data.thumbnail||'',updatedAt:p.updated_at,createdAt:p.created_at};
+  });
   res.json({ success: true, items, projects: items, list: items, data: items, total: items.length });
 });
 app.post('/api/user/projects', auth, (req, res) => {
   const { name } = req.body;
+  const data = workflowDataFromBody(req.body);
   const id = uid('proj_');
-  db.prepare('INSERT INTO projects (id,user_id,name,data) VALUES (?,?,?,?)').run(id, req.user.userId, name||'未命名项目', '{}');
-  const project = { id, name: name||'未命名项目', data: {}, createdAt: new Date().toISOString() };
+  db.prepare('INSERT INTO projects (id,user_id,name,data) VALUES (?,?,?,?)').run(id, req.user.userId, name||'未命名项目', JSON.stringify(data || {}));
+  const project = { id, name: name||'未命名项目', data, createdAt: new Date().toISOString() };
   res.json({ success: true, ...project, project });
 });
 app.get('/api/user/projects/:id', auth, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id=?').get(req.params.id);
   if (!p || p.user_id !== req.user.userId) return res.status(404).json({ message: '项目不存在' });
-  const project = { id:p.id, name:p.name, data: JSON.parse(p.data||'{}'), createdAt:p.created_at, updatedAt:p.updated_at };
+  const project = { id:p.id, name:p.name, data: projectDataFromRow(p), createdAt:p.created_at, updatedAt:p.updated_at };
   res.json({ success: true, ...project, project });
 });
 app.put('/api/user/projects/:id', auth, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id=?').get(req.params.id);
   if (!p || p.user_id !== req.user.userId) return res.status(404).json({ message: '项目不存在' });
-  db.prepare("UPDATE projects SET name=?, data=?, updated_at=datetime('now') WHERE id=?").run(req.body.name||p.name, JSON.stringify(req.body.data||{}), req.params.id);
-  res.json({ success: true, id: req.params.id, name: req.body.name||p.name, data: req.body.data||{} });
+  const data = workflowDataFromBody(req.body);
+  db.prepare("UPDATE projects SET name=?, data=?, updated_at=datetime('now') WHERE id=?").run(req.body.name||req.body.title||p.name, JSON.stringify(data || {}), req.params.id);
+  res.json({ success: true, id: req.params.id, name: req.body.name||req.body.title||p.name, data });
 });
 app.delete('/api/user/projects/:id', auth, (req, res) => {
   const r = db.prepare('DELETE FROM projects WHERE id=? AND user_id=?').run(req.params.id, req.user.userId);
@@ -2335,15 +2715,18 @@ function imageToolReferences(body = {}) {
 function buildImageToolPrompt(body = {}, type = 'inpaint') {
   const userPrompt = String(body.prompt || '').trim();
   const baseByType = {
-    erase: '请根据原图上下文，只重绘 mask 白色区域，移除涂抹区域内的对象并自然补全背景。未涂抹区域必须保持不变。',
+    erase: '请根据原图上下文，只重绘 mask 透明或白色标记区域，移除涂抹区域内的对象并自然补全背景。未涂抹区域必须保持不变，包括未涂抹区域内的文字、品牌标识、瓶身标签和商品结构。',
     outpaint: '请基于原图自然扩展画面，保持主体、透视、材质、光线、商品包装和整体电商视觉风格一致。原图主体不得变形，新增区域需要自然补全背景。'
   };
-  const base = baseByType[type] || '请根据用户提示和参考图，只重绘 mask 白色区域。未涂抹区域必须保持不变，产品包装、主体结构、文字和品牌识别尽量保持一致。';
+  const base = baseByType[type] || '请根据用户提示和参考图，只重绘 mask 透明或白色标记区域。未涂抹区域必须保持不变，尤其不要改动未涂抹区域内的文字、品牌标识、瓶身标签、产品包装、主体结构和整体构图。';
   const fallbackByType = {
     erase: '自然消除涂抹区域',
     outpaint: '自然扩展画布背景'
   };
-  return `${base}\n用户提示：${userPrompt || fallbackByType[type] || '按涂抹区域进行局部修改'}`;
+  return buildEcommerceImagePrompt(
+    `${base}\n用户提示：${userPrompt || fallbackByType[type] || '按涂抹区域进行局部修改'}`,
+    { hasReferenceImages: true, referenceCount: imageToolReferences(body).length || 1 }
+  );
 }
 
 function normalizeProviderContentText(content, depth = 0) {
@@ -2511,7 +2894,7 @@ function makeImageToolResponse(providerResult = {}, body = {}, type = 'inpaint')
 async function runImageToolEdit(req, res, type = 'inpaint') {
   try {
     const references = imageToolReferences(req.body);
-    const mask = firstString(req.body.maskBase64, req.body.mask, req.body.maskUrl);
+    const mask = firstString(req.body.maskAlphaBase64, req.body.maskBase64, req.body.mask, req.body.maskUrl);
     if (!references.length) return res.status(400).json({ success: false, code: 'IMAGE_TOOL_IMAGE_REQUIRED', message: '缺少待处理图片' });
     if (!mask) return res.status(400).json({ success: false, code: 'IMAGE_TOOL_MASK_REQUIRED', message: '请先涂抹需要处理的区域' });
 
@@ -2860,8 +3243,18 @@ app.post('/api/canvas/ecommerce-suite/generate', auth, async (req, res) => {
 
   const results = [];
   const providers = [];
+  const usedPlanPrompts = [];
   for (const plan of plans) {
-    const prompt = ecommerceSuiteGenerationPrompt(plan, context);
+    const basePrompt = ecommerceSuiteGenerationPrompt(plan, context);
+    const prompt = buildEcommerceImagePrompt(basePrompt, {
+      body: {
+        ...body,
+        referenceImages: buckets.all
+      },
+      hasReferenceImages,
+      referenceCount: buckets.all.length
+    });
+    usedPlanPrompts.push({ plan, prompt });
     const providerOptions = {
       ...body,
       body: {
@@ -2915,7 +3308,7 @@ app.post('/api/canvas/ecommerce-suite/generate', auth, async (req, res) => {
 
   const task = createCompletedTask(req, {
     prompt: plans.map(plan => `${plan.sectionName}: ${plan.prompt}`).join('\n\n'),
-    finalPrompt: plans.map(plan => ecommerceSuiteGenerationPrompt(plan, context)).join('\n\n---\n\n'),
+    finalPrompt: usedPlanPrompts.map(item => item.prompt).join('\n\n---\n\n'),
     analysisSummary: `已生成 ${plans.length} 个电商套图板块。`,
     modelKey: imageModel,
     imageCount: Math.max(1, results.length),
@@ -3058,9 +3451,12 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
     n: imageCount,
     imageCount
   };
-  const providerPrompt = rawReferences.length > 1
+  const rawProviderPrompt = rawReferences.length > 1
     ? `输入参考图按顺序为：${rawReferences.map((_, index) => `图${index + 1}`).join('、')}。\n${agentPlan.finalPrompt}`
     : agentPlan.finalPrompt;
+  const providerPrompt = hasReferenceImages
+    ? buildEcommerceImagePrompt(rawProviderPrompt, { body, hasReferenceImages, referenceCount: rawReferences.length })
+    : rawProviderPrompt;
   const imageResult = hasReferenceImages
     ? await callProviderImageEdit(providerPrompt, providerOptions)
     : await callProviderImageGeneration(providerPrompt, providerOptions);
@@ -3125,7 +3521,7 @@ app.post('/api/generate/tasks', auth, async (req, res) => {
   const total = (m ? m.p : 15) * imageCount;
   if (u.balance < total) return res.status(400).json({ message: `算力不足，需要 ${total}，当前 ${u.balance}` });
   const hasReferenceImages = imageReferenceCandidates(req.body).length > 0;
-  const providerPrompt = buildEcommerceImagePrompt(prompt, { hasReferenceImages });
+  const providerPrompt = buildEcommerceImagePrompt(prompt, { body: req.body, hasReferenceImages });
   const providerOptions = { ...req.body, body: req.body, req, model: modelKey, n: imageCount };
   const providerResult = hasReferenceImages
     ? await callProviderImageEdit(providerPrompt, providerOptions)
@@ -3171,7 +3567,7 @@ app.post('/api/template/generate-image', auth, async (req, res) => {
 
   const fullPrompt = `${prompt}${negativePrompt ? '，避免：' + negativePrompt : ''}`;
   const hasReferenceImages = imageReferenceCandidates(req.body).length > 0;
-  const providerPrompt = buildEcommerceImagePrompt(fullPrompt, { hasReferenceImages });
+  const providerPrompt = buildEcommerceImagePrompt(fullPrompt, { body: req.body, hasReferenceImages });
   const providerOptions = { ...req.body, body: req.body, req, model: modelKey, n: cnt };
   const providerResult = hasReferenceImages
     ? await callProviderImageEdit(providerPrompt, providerOptions)
@@ -3328,17 +3724,28 @@ app.post('/api/user/preferences/api-route', auth, (req, res) => {
 // ===================== WORKFLOWS =====================
 app.post('/api/workflows/:id/save-json', auth, (req, res) => {
   const id = String(req.params.id || req.body.id || uid('workflow_'));
-  const name = req.body.name || req.body.title || '本地工作流';
-  const data = req.body.data || req.body.workflow || req.body;
-  const existing = db.prepare('SELECT id FROM projects WHERE id=? AND user_id=?').get(id, req.user.userId);
-  if (existing) {
-    db.prepare("UPDATE projects SET name=?, data=?, updated_at=datetime('now') WHERE id=? AND user_id=?")
-      .run(name, JSON.stringify(data || {}), id, req.user.userId);
-  } else {
-    db.prepare('INSERT INTO projects (id,user_id,name,data) VALUES (?,?,?,?)')
-      .run(id, req.user.userId, name, JSON.stringify(data || {}));
-  }
-  res.json({ success: true, id, workflowId: id, savedAt: new Date().toISOString() });
+  const data = workflowDataFromBody(req.body);
+  const name = workflowNameFromBody(req.body, data);
+  const localFile = saveWorkflowProject(req.user.userId, id, name, data);
+  res.json({ success: true, id, workflowId: id, savedAt: new Date().toISOString(), localFile });
+});
+
+app.post('/api/workflows/:id/save-local-json', auth, (req, res) => {
+  const id = String(req.params.id || req.body.id || uid('workflow_'));
+  const data = workflowDataFromBody(req.body);
+  const name = workflowNameFromBody(req.body, data);
+  const localFile = saveWorkflowProject(req.user.userId, id, name, data);
+  res.json({ success: true, id, workflowId: id, savedAt: new Date().toISOString(), localFile });
+});
+
+app.get('/api/workflows/:id/local-json', auth, (req, res) => {
+  const filePath = path.join(
+    WORKFLOW_DIR,
+    safeWorkflowPathPart(req.user.userId),
+    `${safeWorkflowPathPart(req.params.id)}.workflow.json`
+  );
+  if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, message: '本地工作流 JSON 不存在' });
+  res.sendFile(filePath);
 });
 
 // ===================== ADMIN =====================
@@ -3592,10 +3999,18 @@ app.post('/api/admin/users/:id/security-check', auth, admin, (req, res) => {
   res.json({ success: true, riskLevel: 'low', checks: ['账号状态正常', '余额记录正常', '未发现异常登录'] });
 });
 app.post('/api/admin/users/:id/reset-password', auth, admin, (req, res) => {
-  const password = req.body.password || 'admin123';
-  const r = db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(h(password), req.params.id);
+  const password = req.body.password || req.body.newPassword || '';
+  if (IS_PRODUCTION && !password) {
+    return res.status(400).json({
+      success: false,
+      code: 'PASSWORD_REQUIRED',
+      message: '生产模式重置密码必须显式提供新密码'
+    });
+  }
+  const nextPassword = password || 'admin123';
+  const r = db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(h(nextPassword), req.params.id);
   if (!r.changes) return res.status(404).json({ message: '用户不存在' });
-  res.json({ success: true, password });
+  res.json({ success: true, password: nextPassword });
 });
 app.delete('/api/admin/users/:id', auth, admin, (req, res) => {
   const r = db.prepare("UPDATE users SET status='deleted' WHERE id=?").run(req.params.id);
@@ -4047,7 +4462,8 @@ app.get('/api/health', (req, res) => {
     paths: {
       database: DB_PATH,
       uploads: uploadDir,
-      logs: LOG_DIR
+      logs: LOG_DIR,
+      workflows: WORKFLOW_DIR
     },
     providers: {
       ai: provider,
@@ -4081,39 +4497,50 @@ app.use((err, req, res, next) => {
 });
 
 // ===================== SPA FALLBACK =====================
-const sourceAdminRoutes = [
-  '/admin/login',
-  '/admin/dashboard',
-  '/admin/users',
-  '/admin/recycle-bin',
-  '/admin/generate-tasks',
-  '/admin/logs',
-  '/admin/orders',
-  '/admin/redeem-codes',
-  '/admin/model-prices',
-  '/admin/api-providers',
-  '/admin/template-workflows',
-  '/admin/settings'
-];
+const sourceAdminRoutePattern = /^\/admin(?:\/.*)?$/;
 
-app.get(sourceAdminRoutes, (req, res) => {
+app.get(sourceAdminRoutePattern, (req, res) => {
   const sourceIndex = path.join(sourceFrontendDist, 'index.html');
   res.sendFile(fs.existsSync(sourceIndex) ? sourceIndex : path.join(__dirname, 'index.html'));
 });
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 // ===================== START =====================
-const existingAdmin = db.prepare('SELECT id FROM users WHERE username=?').get('admin');
-if (!existingAdmin) {
-  const aid = uid('user_');
-  db.prepare('INSERT INTO users (id,username,email,password_hash,role,balance) VALUES (?,?,?,?,?,?)').run(aid,'admin','admin@local',h('admin123'),'admin',999999);
-  console.log('[SETUP] admin / admin123');
-} else {
-  db.prepare('UPDATE users SET password_hash=?, role=?, status=?, balance=MAX(balance, 999999) WHERE username=?')
-    .run(h('admin123'), 'admin', 'active', 'admin');
+function ensureBootstrapAdmin() {
+  const adminCount = Number(db.prepare("SELECT COUNT(*) AS count FROM users WHERE role='admin'").get().count || 0);
+  const bootstrapUser = db.prepare('SELECT id,password_hash FROM users WHERE username=?').get(ADMIN_BOOTSTRAP_USERNAME);
+  const hasStrongBootstrapPassword = isStrongBootstrapPassword(ADMIN_BOOTSTRAP_PASSWORD);
+
+  if (adminCount <= 0) {
+    if (IS_PRODUCTION && !hasStrongBootstrapPassword) {
+      failStartup('生产模式当前没有管理员账号，必须配置 ADMIN_BOOTSTRAP_USERNAME 和强 ADMIN_BOOTSTRAP_PASSWORD 后才能启动。');
+    }
+    const password = hasStrongBootstrapPassword ? ADMIN_BOOTSTRAP_PASSWORD : 'admin123';
+    if (bootstrapUser) {
+      db.prepare("UPDATE users SET password_hash=?, role='admin', status='active', balance=MAX(balance, 999999) WHERE id=?")
+        .run(h(password), bootstrapUser.id);
+    } else {
+      const aid = uid('user_');
+      db.prepare('INSERT INTO users (id,username,email,password_hash,role,balance,status) VALUES (?,?,?,?,?,?,?)')
+        .run(aid, ADMIN_BOOTSTRAP_USERNAME, ADMIN_BOOTSTRAP_EMAIL, h(password), 'admin', 999999, 'active');
+    }
+    console.log(`[SETUP] bootstrap admin ready: ${ADMIN_BOOTSTRAP_USERNAME}`);
+    return;
+  }
+
+  if (hasStrongBootstrapPassword && bootstrapUser && verifyPasswordHash(bootstrapUser.password_hash, 'admin123').ok) {
+    db.prepare("UPDATE users SET password_hash=?, role='admin', status='active', balance=MAX(balance, 999999) WHERE id=?")
+      .run(h(ADMIN_BOOTSTRAP_PASSWORD), bootstrapUser.id);
+    console.log(`[SETUP] rotated default bootstrap admin password: ${ADMIN_BOOTSTRAP_USERNAME}`);
+    return;
+  }
+
+  console.log(`[SETUP] admin account present: ${adminCount}`);
 }
+
+ensureBootstrapAdmin();
 
 app.listen(PORT, () => {
   console.log(`\n哈吉米AI Clone running at http://localhost:${PORT}`);
-  console.log(`Admin: admin / admin123\n`);
+  console.log(`Admin bootstrap user: ${ADMIN_BOOTSTRAP_USERNAME}\n`);
 });

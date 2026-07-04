@@ -1,0 +1,6 @@
+.env
+data/
+uploads/
+logs/
+backup/
+*.pid

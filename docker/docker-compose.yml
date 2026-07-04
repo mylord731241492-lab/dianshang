@@ -1,16 +1,23 @@
+name: dianshang-internal
+
 services:
   app:
+    init: true
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
       args:
         NODE_IMAGE: ${NODE_IMAGE:-node:20-bookworm}
-    container_name: dianshang-app
+    container_name: dianshang-internal-app
     restart: unless-stopped
     environment:
       NODE_ENV: production
       PORT: ${PORT:-3456}
       JWT_SECRET: ${JWT_SECRET:-replace-with-a-long-random-secret}
+      PASSWORD_LEGACY_SECRETS: ${PASSWORD_LEGACY_SECRETS:-}
+      ADMIN_BOOTSTRAP_USERNAME: ${ADMIN_BOOTSTRAP_USERNAME:-admin}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
       DATA_DIR: /app/data
       DB_PATH: /app/data/data.db
       WORKFLOW_DIR: /app/data/workflows
@@ -23,7 +30,10 @@ services:
       AI_PROVIDER_GATEWAY: ${AI_PROVIDER_GATEWAY:-new-api}
       NEW_API_BASE: ${NEW_API_BASE:-https://your-new-api.example.com/v1}
       NEW_API_KEY: ${NEW_API_KEY:-sk-replace-with-new-api-token}
-      PROVIDER_TIMEOUT_MS: ${PROVIDER_TIMEOUT_MS:-30000}
+      PROVIDER_TIMEOUT_MS: ${PROVIDER_TIMEOUT_MS:-120000}
+      IMAGE_PROVIDER_TIMEOUT_MS: ${IMAGE_PROVIDER_TIMEOUT_MS:-180000}
+      CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS: ${CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS:-120000}
+      IMAGE_PROVIDER_REQUEST_DELAY_MS: ${IMAGE_PROVIDER_REQUEST_DELAY_MS:-1500}
       AI_API_BASE: ${AI_API_BASE:-https://your-provider.example.com/v1}
       AI_IMAGE_KEY: ${AI_IMAGE_KEY:-sk-replace-with-image-key}
       AI_TEXT_KEY: ${AI_TEXT_KEY:-sk-replace-with-text-key}
@@ -32,17 +42,19 @@ services:
     ports:
       - "${HOST_PORT:-3456}:${PORT:-3456}"
     volumes:
-      - dianshang-data:/app/data
-      - dianshang-uploads:/app/uploads
-      - dianshang-logs:/app/logs
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3456/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        - CMD-SHELL
+        - 'node -e "const p=process.env.PORT||3456; fetch(''http://127.0.0.1:''+p+''/api/health'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"'
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 20s
-
-volumes:
-  dianshang-data:
-  dianshang-uploads:
-  dianshang-logs:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

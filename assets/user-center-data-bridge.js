@@ -1,6 +1,8 @@
 (function () {
   const ROOT_CLASS = "uc-data-bridge";
   const TOKEN_KEY = "auth_token";
+  const REDIRECT_KEY = "auth_redirect_after_login";
+  const FORCE_KEY = "auth_force_login";
   let timer = 0;
   let rendering = false;
 
@@ -144,6 +146,21 @@
       position: absolute;
       text-transform: uppercase;
     }
+    body.uc-auth-forced [data-hjm-auth-cancel="1"] {
+      display: none !important;
+      pointer-events: none !important;
+    }
+    body.uc-auth-forced {
+      overflow: hidden;
+    }
+    body.uc-auth-forced::before {
+      background: rgba(248, 250, 252, 0.86);
+      content: "";
+      inset: 0;
+      pointer-events: none;
+      position: fixed;
+      z-index: 90;
+    }
     @media (min-width: 960px) {
       body.uc-user-page #app .mx-auto.flex.h-full {
         border-left: 0 !important;
@@ -207,6 +224,112 @@
     } catch {
       return "";
     }
+  }
+
+  function visibleText(root) {
+    return (root && root.textContent ? root.textContent : "").replace(/\s+/g, "");
+  }
+
+  function pathWithQuery() {
+    return `${window.location.pathname}${window.location.search || ""}${window.location.hash || ""}`;
+  }
+
+  function isAuthPage(path = window.location.pathname) {
+    return path === "/login" || path === "/register";
+  }
+
+  function isProtectedPath(path = window.location.pathname) {
+    if (path.startsWith("/admin")) return false;
+    if (isAuthPage(path)) return false;
+    return path.startsWith("/user/") ||
+      path.startsWith("/canvas") ||
+      path.startsWith("/gallery") ||
+      path.startsWith("/template-image") ||
+      path.startsWith("/templates");
+  }
+
+  function isSafeRedirect(value) {
+    if (!value || typeof value !== "string") return false;
+    if (!value.startsWith("/") || value.startsWith("//")) return false;
+    const path = value.split("?")[0].split("#")[0];
+    return !isAuthPage(path) && !path.startsWith("/admin");
+  }
+
+  function saveRedirect() {
+    try {
+      const target = pathWithQuery();
+      if (isSafeRedirect(target)) {
+        sessionStorage.setItem(REDIRECT_KEY, target);
+      }
+      sessionStorage.setItem(FORCE_KEY, "1");
+    } catch {}
+  }
+
+  function readRedirect() {
+    try {
+      const target = sessionStorage.getItem(REDIRECT_KEY) || "";
+      return isSafeRedirect(target) ? target : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function clearForcedAuth() {
+    try {
+      sessionStorage.removeItem(FORCE_KEY);
+      sessionStorage.removeItem(REDIRECT_KEY);
+    } catch {}
+    document.body.classList.remove("uc-auth-forced");
+  }
+
+  function redirectToLogin() {
+    saveRedirect();
+    const redirect = encodeURIComponent(pathWithQuery());
+    const next = `/login?forceAuth=1&redirect=${redirect}`;
+    if (window.location.pathname !== "/login" || window.location.search.indexOf("forceAuth=1") === -1) {
+      window.location.replace(next);
+    }
+  }
+
+  function markForcedAuthControls() {
+    const forced = isAuthPage() && !token();
+    document.body.classList.toggle("uc-auth-forced", forced);
+    if (!forced) return;
+    document.querySelectorAll("button").forEach((button) => {
+      const title = String(button.getAttribute("title") || "").trim();
+      const text = visibleText(button);
+      if (title === "关闭" || text.indexOf("返回首页") !== -1) {
+        button.setAttribute("data-hjm-auth-cancel", "1");
+      }
+    });
+  }
+
+  function restoreAfterLogin() {
+    if (!token()) return false;
+    const target = readRedirect();
+    if (!target) {
+      clearForcedAuth();
+      return false;
+    }
+    const current = pathWithQuery();
+    if (current !== target && (isAuthPage() || window.location.pathname === "/user/center")) {
+      clearForcedAuth();
+      window.location.replace(target);
+      return true;
+    }
+    clearForcedAuth();
+    return false;
+  }
+
+  function guardAuth() {
+    ensureStyle();
+    if (restoreAfterLogin()) return true;
+    if (!token() && isProtectedPath()) {
+      redirectToLogin();
+      return true;
+    }
+    markForcedAuthControls();
+    return false;
   }
 
   async function api(path, options) {
@@ -372,6 +495,7 @@
 
   async function render() {
     if (rendering) return;
+    if (guardAuth()) return;
     const path = window.location.pathname;
     document.body.classList.toggle("uc-user-page", path.startsWith("/user/"));
     if (!path.startsWith("/user/")) {
@@ -413,6 +537,21 @@
   });
   window.addEventListener("popstate", schedule);
   window.addEventListener("DOMContentLoaded", schedule);
+  window.addEventListener("storage", schedule);
+  document.addEventListener("click", (event) => {
+    if (!document.body.classList.contains("uc-auth-forced")) return;
+    const target = event.target && event.target.closest ? event.target.closest("[data-hjm-auth-cancel='1']") : null;
+    if (!target) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
+  document.addEventListener("keydown", (event) => {
+    if (document.body.classList.contains("uc-auth-forced") && event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }, true);
+  setTimeout(schedule, 0);
   document.addEventListener("error", (event) => {
     if (!window.location.pathname.startsWith("/user/")) return;
     const target = event.target;

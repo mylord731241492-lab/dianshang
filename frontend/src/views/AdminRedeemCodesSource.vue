@@ -2,7 +2,7 @@
 import AdminSourceSidebar from '../components/AdminSourceSidebar.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { NButton, NInput, NPagination, NSelect, NTag } from 'naive-ui';
+import { NButton, NInput, NInputNumber, NPagination, NSelect, NSwitch, NTag, useMessage } from 'naive-ui';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -14,12 +14,19 @@ import {
   Ticket,
   XCircle
 } from 'lucide-vue-next';
-import { clearAuthSession } from '../api/auth';
-import { getAdminRedeemCodes, type AdminRedeemCode } from '../api/adminRedeemCodes';
+import { clearAdminAuthSession } from '../api/adminAuth';
+import {
+  createAdminRedeemCode,
+  deleteAdminRedeemCode,
+  getAdminRedeemCodes,
+  type AdminRedeemCode
+} from '../api/adminRedeemCodes';
 import { getApiErrorMessage } from '../api/http';
 
 const router = useRouter();
+const message = useMessage();
 const loading = ref(true);
+const saving = ref(false);
 const errorMessage = ref('');
 const codes = ref<AdminRedeemCode[]>([]);
 const total = ref(0);
@@ -27,6 +34,12 @@ const page = ref(1);
 const pageSize = ref(10);
 const keyword = ref('');
 const statusFilter = ref('all');
+const createForm = ref({
+  code: '',
+  amount: 50,
+  maxUses: 1,
+  enabled: true
+});
 
 const statusOptions = [
   { label: '全部状态', value: 'all' },
@@ -133,6 +146,20 @@ function friendlyError(error: unknown) {
   });
 }
 
+function randomCode() {
+  const suffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+  createForm.value.code = `DS${suffix}`;
+}
+
+function resetCreateForm() {
+  createForm.value = {
+    code: '',
+    amount: 50,
+    maxUses: 1,
+    enabled: true
+  };
+}
+
 async function loadCodes() {
   loading.value = true;
   errorMessage.value = '';
@@ -152,13 +179,75 @@ async function loadCodes() {
   }
 }
 
+async function createCode() {
+  const code = createForm.value.code.trim().toUpperCase();
+  const amount = Number(createForm.value.amount || 0);
+  const maxUses = Number(createForm.value.maxUses || 0);
+  if (!code) {
+    message.warning('请填写兑换码');
+    return;
+  }
+  if (amount <= 0) {
+    message.warning('算力额度必须大于 0');
+    return;
+  }
+  if (maxUses <= 0) {
+    message.warning('可兑换次数必须大于 0');
+    return;
+  }
+  saving.value = true;
+  errorMessage.value = '';
+  try {
+    await createAdminRedeemCode({
+      code,
+      amount,
+      points: amount,
+      maxUses,
+      enabled: createForm.value.enabled
+    });
+    message.success(`兑换码 ${code} 已添加`);
+    resetCreateForm();
+    page.value = 1;
+    await loadCodes();
+  } catch (error) {
+    errorMessage.value = getApiErrorMessage(error, '兑换码添加失败', {
+      unauthorized: '请先使用管理员账号登录。',
+      forbidden: '当前账号不是管理员。'
+    });
+    message.error(errorMessage.value);
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function removeCode(code: AdminRedeemCode) {
+  const value = String(code.code || '').trim();
+  if (!value) return;
+  if (!window.confirm(`确认删除兑换码 ${value}？`)) return;
+  saving.value = true;
+  errorMessage.value = '';
+  try {
+    await deleteAdminRedeemCode(value);
+    message.success(`兑换码 ${value} 已删除`);
+    await loadCodes();
+  } catch (error) {
+    errorMessage.value = getApiErrorMessage(error, '兑换码删除失败', {
+      unauthorized: '请先使用管理员账号登录。',
+      forbidden: '当前账号不是管理员。'
+    });
+    message.error(errorMessage.value);
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function applyFilters() {
   page.value = 1;
   await loadCodes();
 }
 
 async function logout() {
-  clearAuthSession();
+  clearAdminAuthSession();
   await router.replace('/admin/login');
 }
 
@@ -175,7 +264,7 @@ onMounted(loadCodes);
           <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
           <p class="eyebrow">Redeem Codes</p>
           <h1>兑换码管理</h1>
-          <span>只读迁移版：查看兑换码额度、次数、剩余量和状态，不创建、不删除、不发放。</span>
+          <span>创建、查看和删除兑换码，用户可在个人中心兑换算力。</span>
         </div>
         <div class="admin-source-actions">
           <n-button secondary :loading="loading" @click="loadCodes">
@@ -199,10 +288,49 @@ onMounted(loadCodes);
       <section class="admin-source-panel admin-redeem-codes-panel">
         <div class="admin-panel-head">
           <div>
-            <p class="eyebrow">Read Only Codes</p>
+            <p class="eyebrow">Create Code</p>
+            <h2>新增兑换码</h2>
+          </div>
+          <n-tag type="success" :bordered="false">可创建</n-tag>
+        </div>
+
+        <form class="admin-redeem-code-create" @submit.prevent="createCode">
+          <label>
+            <span>兑换码</span>
+            <n-input v-model:value="createForm.code" clearable placeholder="例如 DS20260704">
+              <template #suffix>
+                <button class="admin-inline-link" type="button" @click="randomCode">随机</button>
+              </template>
+            </n-input>
+          </label>
+          <label>
+            <span>算力额度</span>
+            <n-input-number v-model:value="createForm.amount" :min="1" :step="10" />
+          </label>
+          <label>
+            <span>可兑换次数</span>
+            <n-input-number v-model:value="createForm.maxUses" :min="1" :step="1" />
+          </label>
+          <label class="admin-redeem-code-enabled">
+            <span>启用</span>
+            <n-switch v-model:value="createForm.enabled" />
+          </label>
+          <div class="admin-redeem-code-create-actions">
+            <n-button :disabled="saving" @click="resetCreateForm">重置</n-button>
+            <n-button type="primary" attr-type="submit" :loading="saving">
+              添加兑换码
+            </n-button>
+          </div>
+        </form>
+      </section>
+
+      <section class="admin-source-panel admin-redeem-codes-panel">
+        <div class="admin-panel-head">
+          <div>
+            <p class="eyebrow">Redeem Code List</p>
             <h2>兑换码列表</h2>
           </div>
-          <n-tag type="info" :bordered="false">只读</n-tag>
+          <n-tag type="info" :bordered="false">共 {{ formatNumber(total) }} 个</n-tag>
         </div>
 
         <div class="admin-redeem-codes-toolbar">
@@ -235,7 +363,9 @@ onMounted(loadCodes);
             <div class="admin-redeem-code-note">
               <span>接口字段</span>
               <strong>{{ code.status || (code.enabled ? 'active' : 'disabled') }}</strong>
-              <span>只读，不执行创建或删除</span>
+              <n-button size="small" tertiary type="error" :disabled="saving" @click="removeCode(code)">
+                删除
+              </n-button>
             </div>
           </article>
           <p v-if="!visibleCodes.length && !loading" class="admin-empty">暂无匹配兑换码</p>

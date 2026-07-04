@@ -4,7 +4,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NInput, NPagination, NTag } from 'naive-ui';
 import { ArrowLeft, Coins, RefreshCcw, Search, ShieldCheck, Trash2, UserCheck, Users, XCircle } from 'lucide-vue-next';
-import { clearAuthSession } from '../api/auth';
+import { clearAdminAuthSession } from '../api/adminAuth';
 import { getAdminRecycleBin } from '../api/adminRecycleBin';
 import { getApiErrorMessage } from '../api/http';
 import type { AdminUser } from '../api/adminUsers';
@@ -75,7 +75,7 @@ async function loadUsers() {
 }
 
 async function logout() {
-  clearAuthSession();
+  clearAdminAuthSession();
   await router.replace('/admin/login');
 }
 

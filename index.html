@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>二蛋</title>
+    <title>爱泊缇 AI 工作台</title>
     <script>
       // Fix for environments where some libraries try to overwrite window.fetch
       // and cause "TypeError: Cannot set property fetch of #<Window> which has only a getter".
@@ -34,28 +34,36 @@
               configurable: true
             });
           }
+          try {
+            var supportsLocalFolderPicker = !!window.showDirectoryPicker;
+            var savedCanvasMode = localStorage.getItem('canvasSaveMode');
+            if (!savedCanvasMode || (!supportsLocalFolderPicker && savedCanvasMode === 'local')) {
+              localStorage.setItem('canvasSaveMode', 'cloud');
+            }
+          } catch (storageError) {
+            console.warn('Could not initialize cloud canvas save mode:', storageError);
+          }
         } catch (e) {
           console.warn('Could not install startup guards:', e);
         }
       })();
     </script>
     <script src="/assets/canvas-project-restore-guard.js"></script>
-    <script defer src="/assets/canvas-performance-mode.js?v=20260629perf5"></script>
-    <script defer src="/assets/canvas-image-node-polish.js?v=20260701image10"></script>
-    <script defer src="/assets/canvas-chat-prompt-flow.js?v=20260701suite20"></script>
-    <script type="module" crossorigin src="/assets/index-DglIsp_g.js?v=20260702toolbar1"></script>
-    <script defer src="/assets/home-carousel-inertia.js?v=20260702delete1"></script>
-    <script defer src="/assets/user-center-data-bridge.js"></script>
+    <script defer src="/assets/canvas-performance-mode.js?v=20260704flicker1"></script>
+    <script defer src="/assets/canvas-image-node-polish.js?v=20260704flicker1"></script>
+    <script defer src="/assets/canvas-chat-prompt-flow.js?v=20260704flicker1"></script>
+    <script defer src="/assets/admin-source-only-guard.js?v=20260704adminonly1"></script>
+    <script type="module" crossorigin src="/assets/index-DglIsp_g.js?v=20260704canvasrefresh1"></script>
+    <script defer src="/assets/home-carousel-inertia.js?v=20260703open1"></script>
+    <script defer src="/assets/user-center-data-bridge.js?v=20260704authguard1"></script>
     <script defer src="/assets/gallery-persistence-bridge.js"></script>
-    <script defer src="/assets/admin-api-source-route-bridge.js?v=20260629sourceapi1"></script>
-    <script defer src="/assets/admin-api-form-labels.js"></script>
+    <script defer src="/assets/auth-direct-register-bridge.js?v=20260704directregister2"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-C4xTg-zU.css">
     <link rel="stylesheet" crossorigin href="/assets/home-overrides.css?v=20260702delete1">
     <link rel="stylesheet" crossorigin href="/assets/canvas-node-radius-fix.css?v=20260701title1">
     <link rel="stylesheet" crossorigin href="/assets/canvas-performance-mode.css?v=20260629perf5">
-    <link rel="stylesheet" crossorigin href="/assets/canvas-image-node-polish.css?v=20260702fulltext1">
+    <link rel="stylesheet" crossorigin href="/assets/canvas-image-node-polish.css?v=20260703mask1">
     <link rel="stylesheet" crossorigin href="/assets/canvas-chat-prompt-flow.css?v=20260701suite20">
-    <link rel="stylesheet" crossorigin href="/assets/admin-visual-polish.css">
   </head>
   <body>
     <div id="app"></div>

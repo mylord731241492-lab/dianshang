@@ -73,13 +73,23 @@
     activeTimer = null;
   }
 
+  function isCanvasNodeImage(img) {
+    return !!(img && img.closest && img.closest('.vue-flow__node'));
+  }
+
   function optimizeImage(img) {
     if (!img || img.__hjmCanvasPerfImage) return;
     img.__hjmCanvasPerfImage = true;
     try {
-      if (img.loading !== 'lazy') img.loading = 'lazy';
+      if (isCanvasNodeImage(img)) {
+        if (img.loading !== 'eager') img.loading = 'eager';
+      } else if (img.loading !== 'lazy') {
+        img.loading = 'lazy';
+      }
       img.decoding = 'async';
-      img.referrerPolicy = img.referrerPolicy || 'no-referrer';
+      if (!img.currentSrc && !img.getAttribute('src')) {
+        img.referrerPolicy = img.referrerPolicy || 'no-referrer';
+      }
     } catch (_) {}
   }
 

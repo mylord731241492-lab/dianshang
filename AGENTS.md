@@ -68,6 +68,16 @@
 - 架构边界以 `docs/adr/0002-source-first-technology-stack.md` 为准。
 - 并行任务树 `docs/plans/2026-06-26-source-stack-canvas-rebuild-plan.md` 已因新画布废止而失效，只作历史记录；画布最新边界以 `docs/canvas-migration-checklist.md` 为准。
 
+### 生产端 main/Docker 同步规则
+
+- 当前生产修复必须以主工作区 `F:\dianshang` 为唯一源码基线；禁止只在 Docker 容器内热修、只拷贝容器文件或只改旧参考目录后声称完成。
+- 如遇紧急热修必须先说明原因；热修后同一轮必须把完全相同的改动回写到 `F:\dianshang`，并重新构建 Docker 验证，不能留下“容器有、main 没有”的状态。
+- 任何影响线上行为的代码、静态资源、配置、路由、后台、画布或脚本改动后，必须执行 `docker compose -f "F:\dianshang\docker\docker-compose.yml" up -d --build --force-recreate app`；仅 `docker restart` 不能作为 main 与生产端同步的证明。
+- Docker 重建后必须确认 `dianshang-internal-app` 为 `healthy`，并记录镜像 ID、镜像创建时间、容器启动时间或等价信息，证明 3456 当前运行的是最新镜像。
+- 生产端验收必须直接请求 `http://192.168.0.39:3456/` 或相关线上路径，确认 HTML、入口 JS、动态 chunk query、API 或目标行为已经命中新版本；不能只看本地文件、构建输出或容器内文件。
+- 涉及旧入口、旧 chunk、旧后台包、缓存 query 或静态资源隔离时，必须在 smoke 或 HTTP 检查中验证旧资源返回预期状态（例如 410/404），避免旧系统再次被浏览器缓存或旧 URL 拉起。
+- 最终汇报必须同时说明：main 工作区改了哪些文件、Docker 是否完整重建、3456 生产端验证结果、是否仍需用户强刷浏览器缓存。
+
 ## 项目现状
 
 ### 已完成

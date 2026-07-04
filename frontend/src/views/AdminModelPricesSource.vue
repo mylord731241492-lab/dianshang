@@ -13,7 +13,7 @@ import {
   RefreshCcw,
   Search,
 } from 'lucide-vue-next';
-import { clearAuthSession } from '../api/auth';
+import { clearAdminAuthSession } from '../api/adminAuth';
 import { getAdminModelPrices, type AdminModelPriceModel, type AdminModelPriceRoute } from '../api/adminModelPrices';
 import { getApiErrorMessage } from '../api/http';
 
@@ -145,7 +145,7 @@ async function applyFilters() {
 }
 
 async function logout() {
-  clearAuthSession();
+  clearAdminAuthSession();
   await router.replace('/admin/login');
 }
 

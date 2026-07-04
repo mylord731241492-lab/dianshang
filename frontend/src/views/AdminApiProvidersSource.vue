@@ -23,7 +23,7 @@ import {
   Trash2,
   XCircle
 } from 'lucide-vue-next';
-import { clearAuthSession } from '../api/auth';
+import { clearAdminAuthSession } from '../api/adminAuth';
 import {
   OFFICIAL_DUAL_API_PROVIDERS,
   createAdminApiProvider,
@@ -566,7 +566,7 @@ async function applyFilters() {
 }
 
 async function logout() {
-  clearAuthSession();
+  clearAdminAuthSession();
   await router.replace('/admin/login');
 }
 

@@ -10,6 +10,23 @@ export const http = axios.create({
   timeout: 180000
 });
 
+const isAdminApiRequest = (url?: string) => {
+  const path = String(url || '');
+  return path.startsWith('/api/admin/') && path !== '/api/admin/login';
+};
+
+const clearExpiredAdminSession = (message?: string) => {
+  try {
+    window.localStorage.removeItem('admin_auth_token');
+    window.localStorage.removeItem('admin_auth_user');
+    window.dispatchEvent(new CustomEvent('admin-auth-session-expired', {
+      detail: { message: message || '管理员登录已过期，请重新登录。' }
+    }));
+  } catch {
+    // localStorage may be unavailable in restricted browser modes.
+  }
+};
+
 const clearExpiredSession = (message?: string) => {
   try {
     window.localStorage.removeItem('auth_token');
@@ -25,7 +42,7 @@ const clearExpiredSession = (message?: string) => {
 };
 
 http.interceptors.request.use((config) => {
-  const token = window.localStorage.getItem('auth_token');
+  const token = window.localStorage.getItem(isAdminApiRequest(config.url) ? 'admin_auth_token' : 'auth_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -35,10 +52,19 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error) => {
-    const response = (error as { response?: { status?: number; data?: { code?: string; message?: string } } }).response;
+    const typedError = error as {
+      config?: { url?: string };
+      response?: { status?: number; data?: { code?: string; message?: string } };
+    };
+    const response = typedError.response;
     const code = response?.data?.code;
+    const isAdminRequest = isAdminApiRequest(typedError.config?.url);
     if (response?.status === 401 && (code === 'AUTH_INVALID' || code === 'AUTH_REQUIRED')) {
-      clearExpiredSession(response.data?.message);
+      if (isAdminRequest) clearExpiredAdminSession(response.data?.message);
+      else clearExpiredSession(response.data?.message);
+    }
+    if (isAdminRequest && response?.status === 403 && code === 'ADMIN_REQUIRED') {
+      clearExpiredAdminSession(response.data?.message);
     }
     return Promise.reject(error);
   }

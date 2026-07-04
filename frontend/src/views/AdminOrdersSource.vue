@@ -14,7 +14,7 @@ import {
   Search,
   XCircle
 } from 'lucide-vue-next';
-import { clearAuthSession } from '../api/auth';
+import { clearAdminAuthSession } from '../api/adminAuth';
 import { getAdminOrders, type AdminOrder } from '../api/adminOrders';
 import { getApiErrorMessage } from '../api/http';
 
@@ -141,7 +141,7 @@ async function applyFilters() {
 }
 
 async function logout() {
-  clearAuthSession();
+  clearAdminAuthSession();
   await router.replace('/admin/login');
 }
 

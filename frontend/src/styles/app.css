@@ -1333,6 +1333,78 @@ a {
   margin-top: 14px;
 }
 
+.admin-redeem-code-create {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) 150px 150px 92px auto;
+  justify-content: start;
+  align-items: stretch;
+  gap: 14px;
+  max-width: 1040px;
+  border: 1px solid #d7e5dd;
+  border-radius: 8px;
+  padding: 16px;
+  background: #f8fafc;
+}
+
+.admin-redeem-code-create label {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.admin-redeem-code-create label > span {
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.admin-redeem-code-create .n-input,
+.admin-redeem-code-create .n-input-number {
+  --n-border: 1px solid #b9c9d3 !important;
+  --n-border-hover: 1px solid #059669 !important;
+  --n-border-focus: 1px solid #059669 !important;
+  --n-box-shadow-focus: 0 0 0 2px rgba(5, 150, 105, 0.14) !important;
+  --n-color: #ffffff !important;
+  --n-color-focus: #ffffff !important;
+  --n-text-color: #0f172a !important;
+  --n-placeholder-color: #94a3b8 !important;
+  width: 100%;
+}
+
+.admin-redeem-code-enabled {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-content: center;
+  min-height: 68px;
+  border: 1px solid #d7e5dd;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ffffff;
+}
+
+.admin-redeem-code-create-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: end;
+  align-self: end;
+}
+
+.admin-redeem-code-create-actions .n-button {
+  min-width: 104px;
+}
+
+.admin-inline-link {
+  border: 0;
+  background: transparent;
+  color: #047857;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
 .admin-redeem-codes-list {
   display: grid;
   gap: 10px;
@@ -1419,6 +1491,12 @@ a {
   margin-top: 0;
   color: #94a3b8;
   font-size: 11px;
+}
+
+.admin-redeem-code-note .n-button {
+  width: max-content;
+  margin-top: 4px;
+  font-weight: 900;
 }
 
 .admin-model-prices-panel,
@@ -3750,6 +3828,7 @@ a {
   .admin-logs-list article,
   .admin-orders-toolbar,
   .admin-orders-list article,
+  .admin-redeem-code-create,
   .admin-redeem-codes-toolbar,
   .admin-redeem-codes-list article,
   .admin-model-prices-toolbar,
@@ -3784,7 +3863,8 @@ a {
   }
 
   .admin-api-field-wide,
-  .admin-api-form-actions {
+  .admin-api-form-actions,
+  .admin-redeem-code-create-actions {
     grid-column: 1 / -1;
   }
 

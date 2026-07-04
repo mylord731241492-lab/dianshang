@@ -9,12 +9,14 @@ const files = {
   imagePolishJs: path.join(root, 'assets', 'canvas-image-node-polish.js'),
   imagePolishCss: path.join(root, 'assets', 'canvas-image-node-polish.css'),
   nodeRadiusCss: path.join(root, 'assets', 'canvas-node-radius-fix.css'),
+  canvasCss: path.join(root, 'assets', 'Canvas-D1auYH9L.css'),
   canvasA: path.join(root, 'assets', 'Canvas-B8bY9_QL.js'),
   canvasB: path.join(root, 'assets', 'Canvas-yGc8b2gf.js'),
   promptFlowJs: path.join(root, 'assets', 'canvas-chat-prompt-flow.js'),
   promptFlowCss: path.join(root, 'assets', 'canvas-chat-prompt-flow.css'),
   entryA: path.join(root, 'assets', 'index-DglIsp_g.js'),
   entryB: path.join(root, 'assets', 'index-ZrBcanD1.js'),
+  server: path.join(root, 'server.js'),
   frameBudgetPs: path.join(root, 'scripts', 'smoke-canvas-frame-budget-ui.ps1'),
   frameBudgetRunner: path.join(root, 'scripts', 'smoke-canvas-frame-budget-ui-runner.js'),
   preflight: path.join(root, 'scripts', 'preflight-check.ps1')
@@ -42,8 +44,10 @@ const perfCss = read(files.perfCss);
 const imagePolishJs = read(files.imagePolishJs);
 const imagePolishCss = read(files.imagePolishCss);
 const nodeRadiusCss = read(files.nodeRadiusCss);
+const canvasCss = read(files.canvasCss);
 const entryA = read(files.entryA);
 const entryB = read(files.entryB);
+const server = read(files.server);
 const promptFlowJs = read(files.promptFlowJs);
 const promptFlowCss = read(files.promptFlowCss);
 const frameBudgetPs = read(files.frameBudgetPs);
@@ -56,17 +60,24 @@ const canvasBundles = [
 
 assertIncludes('index.html', html, 'canvas-performance-mode.js?v=20260629perf5');
 assertIncludes('index.html', html, 'canvas-performance-mode.css?v=20260629perf5');
-assertIncludes('index.html', html, 'canvas-image-node-polish.js?v=20260701image10');
-assertIncludes('index.html', html, 'canvas-image-node-polish.css?v=20260702fulltext1');
+assertIncludes('index.html', html, 'canvas-image-node-polish.js?v=20260703mask1');
+assertIncludes('index.html', html, 'canvas-image-node-polish.css?v=20260703mask1');
 assertIncludes('index.html', html, 'canvas-node-radius-fix.css?v=20260701title1');
 assertIncludes('index.html', html, 'canvas-chat-prompt-flow.js?v=20260701suite20');
 assertIncludes('index.html', html, 'canvas-chat-prompt-flow.css?v=20260701suite20');
-assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260702toolbar1');
+assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260703freegen1');
 assertNotIncludes('index.html', html, 'canvas-ecommerce-suite-agent.js');
 assertNotIncludes('index.html', html, 'canvas-ecommerce-suite-agent.css');
 assertNotIncludes('index.html', html, 'index-DglIsp_g.js?v=20260629perf5');
-assertIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260702toolbar1');
-assertIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260702toolbar1');
+assertNotIncludes('index.html', html, 'canvas-image-node-polish.js?v=20260701image10');
+assertNotIncludes('index.html', html, 'canvas-image-node-polish.css?v=20260702fulltext1');
+assertNotIncludes('index.html', html, 'index-DglIsp_g.js?v=20260702toolbar1');
+assertIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260703freegen1');
+assertIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260703freegen1');
+assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260703mask1');
+assertNotIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260703mask1');
+assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260702toolbar1');
+assertNotIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260702toolbar1');
 assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260629outpaint1');
 assertNotIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260629outpaint1');
 assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260629outpaint2');
@@ -81,6 +92,27 @@ assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260629outpaint6');
 assertNotIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260629outpaint6');
 assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260629perf5');
 assertNotIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260629perf5');
+
+assertIncludes('server.js', server, 'options.body?.maskAlphaBase64 || options.body?.maskBase64');
+assertIncludes('server.js', server, 'firstString(req.body.maskAlphaBase64, req.body.maskBase64');
+assertIncludes('server.js', server, '只重绘 mask 透明或白色标记区域');
+assertIncludes('server.js', server, '未涂抹区域内的文字、品牌标识、瓶身标签');
+assertIncludes('server.js', server, '你是一名专业电商设计师');
+assertIncludes('server.js', server, '保持产品比例自然，不要拉伸或变形');
+assertIncludes('server.js', server, '文字清晰，不要出现光斑和乱码');
+assertNotIncludes('server.js', server, '请优先理解用户需求，自由完成画面创作');
+assertNotIncludes('server.js', server, '适合电商展示');
+assertNotIncludes('server.js', server, '本次有参考图：请把参考图作为生成依据，具体改动以用户需求为准');
+assertNotIncludes('server.js', server, 'function ecommercePlatformPromptHint');
+assertNotIncludes('server.js', server, '用户提到拼多多/PDD');
+assertNotIncludes('server.js', server, '视觉执行要求：成图必须能一眼看出已经执行用户需求');
+assertNotIncludes('server.js', server, '如果只是把参考图产品原样放大或轻微调色，视为失败');
+assertIncludes('server.js', server, 'const IMAGE_PROVIDER_REQUEST_DELAY_MS');
+assertIncludes('server.js', server, 'let providerImageRequestQueue = Promise.resolve()');
+assertIncludes('server.js', server, 'async function runQueuedProviderImageBatch');
+assertIncludes('server.js', server, 'await runQueuedProviderImageBatch(count, async');
+assertIncludes('server.js', server, "queueMode: 'serial-delayed'");
+assertNotIncludes('server.js', server, 'await Promise.all(Array.from({ length: count }, async');
 
 assertIncludes('performance script', perfJs, 'function isActive()');
 assertIncludes('performance script', perfJs, 'function noteSaveDeferred(reason)');
@@ -99,6 +131,9 @@ assertIncludes('image node polish script', imagePolishJs, 'window.__hjmCanvasIma
 assertIncludes('image node polish script', imagePolishJs, 'function lockNodeTitleRename');
 assertIncludes('image node polish script', imagePolishJs, 'data-hjm-node-title-lock');
 assertIncludes('image node polish script', imagePolishJs, 'event.stopImmediatePropagation');
+assertIncludes('image node polish script', imagePolishJs, 'function enhanceImageToolPanels');
+assertIncludes('image node polish script', imagePolishJs, "data-hjm-panel-window");
+assertIncludes('image node polish script', imagePolishJs, 'function startPanelResize');
 assertIncludes('image node polish CSS', imagePolishCss, '.vue-flow__node-image:not(.image-node-has-image) .image-node:not(:has(img)) > .flex.h-8');
 assertIncludes('image node polish CSS', imagePolishCss, 'display: none !important');
 assertIncludes('image node polish CSS', imagePolishCss, '.vue-flow__node-image .image-node:has(img) > .relative.flex.h-12');
@@ -109,6 +144,9 @@ assertIncludes('image node polish CSS', imagePolishCss, 'left: calc(100% + 16px)
 assertIncludes('image node polish CSS', imagePolishCss, 'flex-wrap: nowrap !important');
 assertIncludes('image node polish CSS', imagePolishCss, 'transform: translateX(-50%) translateY(0) !important');
 assertIncludes('image node polish CSS', imagePolishCss, 'text-overflow: clip !important');
+assertIncludes('image node polish CSS', imagePolishCss, '.image-edit-overlay[data-hjm-panel-window="true"]');
+assertIncludes('image node polish CSS', imagePolishCss, '.hjm-overlay-resize-handle');
+assertIncludes('image node polish CSS', imagePolishCss, 'html.hjm-image-tool-window-resizing');
 assertIncludes('canvas node radius CSS', nodeRadiusCss, '.vue-flow__node [data-hjm-node-title-lock="true"]');
 assertIncludes('canvas node radius CSS', nodeRadiusCss, 'pointer-events: none !important');
 assertIncludes('canvas node radius CSS', nodeRadiusCss, 'user-select: none !important');
@@ -217,8 +255,22 @@ assertNotIncludes('prompt flow script', promptFlowJs, 'hjm-prompt-flow-settings-
 assertNotIncludes('prompt flow CSS', promptFlowCss, '.hjm-prompt-flow-result-grid figure');
 assertNotIncludes('prompt flow CSS', promptFlowCss, '.hjm-prompt-flow-images figure');
 
+assertIncludes('canvas chunk CSS', canvasCss, '.vue-flow__edge-path,.vue-flow__connection-path{stroke:#3b82f6;stroke-width:2;fill:none}');
+assertIncludes('canvas chunk CSS', canvasCss, '.vue-flow__edge.selected .vue-flow__edge-path,.vue-flow__edge:focus .vue-flow__edge-path,.vue-flow__edge:focus-visible .vue-flow__edge-path{stroke:#2563eb}');
+assertIncludes('canvas chunk CSS', canvasCss, '.vue-flow__connection-path{stroke:#3b82f6!important;stroke-width:2!important;filter:drop-shadow(0 0 5px rgba(59,130,246,.35))}');
+assertNotIncludes('canvas chunk CSS', canvasCss, '.vue-flow__edge-path,.vue-flow__connection-path{stroke:#b1b1b7;stroke-width:1;fill:none}');
+assertNotIncludes('canvas chunk CSS', canvasCss, '.vue-flow__edge.selected .vue-flow__edge-path,.vue-flow__edge:focus .vue-flow__edge-path,.vue-flow__edge:focus-visible .vue-flow__edge-path{stroke:#555}');
+
 for (const [name, bundle] of canvasBundles) {
   assertIncludes(name, bundle, 'const J4=1400');
+  assertIncludes(name, bundle, 'jl={type:"default",animated:!1,style:{stroke:"#3b82f6",strokeWidth:2}}');
+  assertIncludes(name, bundle, 'const t=["imageRole","promptOrder","imageOrder","imageReference"].includes(e.type)?e.type:jl.type;return{...jl,...e');
+  assertIncludes(name, bundle, 'style:{...jl.style,...e.style||{},stroke:"#3b82f6",strokeWidth:2}');
+  assertIncludes(name, bundle, '$t.value=(r.edges||[]).map(Sg)');
+  assertIncludes(name, bundle, 'style:{...m.style||{},stroke:"#3b82f6",strokeWidth:2}');
+  assertIncludes(name, bundle, 'stroke:"#3b82f6",strokeWidth:((i=t.style)==null?void 0:i.strokeWidth)||2');
+  assertIncludes(name, bundle, 'stroke:"#3b82f6",strokeWidth:((p=n.style)==null?void 0:p.strokeWidth)||2');
+  assertIncludes(name, bundle, 'stroke:"#3b82f6",strokeWidth:((g=n.style)==null?void 0:g.strokeWidth)||2');
   assertIncludes(name, bundle, '},800)},l3=');
   assertIncludes(name, bundle, 'noteSaveDeferred?.("auto");Zo();return');
   assertIncludes(name, bundle, 'noteSaveDeferred?.("viewport");l3();return');
@@ -230,6 +282,27 @@ for (const [name, bundle] of canvasBundles) {
   assertIncludes(name, bundle, 'M={x:c.value.x+c.value.width/2,y:c.value.y+c.value.height/2}');
   assertIncludes(name, bundle, 'type:"range",min:"20",max:"300",step:"1",onInput:S');
   assertIncludes(name, bundle, 'class:"outpaint-stage",style:Qt(b.value),onPointerdown:xt(F,["prevent"]),onPointermove:D');
+  assertIncludes(name, bundle, 'ce.width/me.width');
+  assertIncludes(name, bundle, 'x:(ie.clientX-me.left)*Te');
+  assertIncludes(name, bundle, 'maskAlphaBase64:be()');
+  assertIncludes(name, bundle, 'maskAlphaBase64:String(z.maskAlphaBase64||"").trim()');
+  assertIncludes(name, bundle, 'T.data[X+3]=Ye?0:255');
+  assertIncludes(name, bundle, 'key:"inpaint",label:"局部修改",shortLabel:"改",panel:"inpaint",operation:"inpaint",phase:"ready"');
+  assertIncludes(name, bundle, 'z.connect!==!1&&sn({source:I(e),target:j');
+  assertIncludes(name, bundle, 'connect:!1,allowEmptyUrl:!0');
+  assertIncludes(name, bundle, 'progress:18,progressLabel:"已提交请求"');
+  assertIncludes(name, bundle, 'imageNodeId:j,status:"submitted"');
+  assertIncludes(name, bundle, 'c(j,{url:oe,imageUrl:oe,originalUrl:oe');
+  assertIncludes(name, bundle, 'disabled:!Ce.value,onClick:fe');
+  assertIncludes(name, bundle, "onDblclick:xt(ut=>{var Rt;return(Rt=ut.currentTarget.querySelector('input[type=file]'))==null?void 0:Rt.click()},[\"stop\"])");
+  assertIncludes(name, bundle, 'f("input",{type:"file",accept:"image/*",class:"hidden",onChange:y},null,32)');
+  assertNotIncludes(name, bundle, 'disabled:I(r)||!Ce.value');
+  assertNotIncludes(name, bundle, 'f("input",{type:"file",accept:"image/*",class:"absolute inset-0 opacity-0 cursor-pointer",onChange:y},null,32)');
+  assertNotIncludes(name, bundle, 'if(r.value)return;const{prompt:de,refImages:Ie}');
+  assertNotIncludes(name, bundle, 'I(r)?(U(),yt(I(Mo),{key:0,size:15,stroke:"#ffffff"}))');
+  assertNotIncludes(name, bundle, 'key:"smartErase",label:"AI 智能消除"');
+  assertNotIncludes(name, bundle, 'key:"inpaint",label:"局部修改",shortLabel:"改",panel:"inpaint",operation:"inpaint",phase:"next"');
+  assertNotIncludes(name, bundle, 'k=await MN(N),H=k.imageUrl||k.url||E,R=Va(r.value);return u({imageUrl:H');
   assertIncludes(name, bundle, '/image-tools/reverse-prompt');
   assertNotIncludes(name, bundle, 'operation:"text_edit"');
   assertNotIncludes(name, bundle, 'key:"video",label:"生成视频",shortLabel:"视",action:"video"');
@@ -249,11 +322,14 @@ for (const [name, bundle] of canvasBundles) {
   assertNotIncludes(name, bundle, '_<=E?Math.min(Math.max(0,x),E-_):Math.min(Math.max(E-_,x),0)');
   assertNotIncludes(name, bundle, 'Math.min(Math.max(0,x),Math.max(0,_.width-c.value.width))');
   assertNotIncludes(name, bundle, '},Dt(P)},ne=E=>{a.value=E,Dt(P)}');
+  assertNotIncludes(name, bundle, 'jl={type:"smoothstep",animated:!1,style:{strokeWidth:1.5}}');
+  assertNotIncludes(name, bundle, 'stroke:"#cfd6e2"');
+  assertNotIncludes(name, bundle, 'type:"smoothstep"');
 }
 
 console.log(JSON.stringify({
   ok: true,
   checked: Object.keys(files),
-  version: '20260629perf5+20260701image10+20260702fulltext1+20260702toolbar1+20260701title1+suite20',
+  version: '20260629perf5+20260703mask1+20260703freegen1+20260701title1+suite20',
   saveDeferral: true
 }, null, 2));

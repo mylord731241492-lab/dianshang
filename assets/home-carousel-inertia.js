@@ -41,6 +41,7 @@
     let raf = 0;
     let elasticTimer = 0;
     let elasticToken = 0;
+    let hasPointerCapture = false;
 
     const maxScroll = () => Math.max(0, track.scrollWidth - track.clientWidth);
     const cancelMomentum = () => {
@@ -124,7 +125,7 @@
       lastX = event.clientX;
       lastT = performance.now();
       velocity = 0;
-      track.setPointerCapture?.(pointerId);
+      hasPointerCapture = false;
     }, { passive: true });
 
     track.addEventListener('pointermove', (event) => {
@@ -135,6 +136,10 @@
       if (!didDrag) {
         didDrag = true;
         track.classList.add('is-dragging');
+        if (!hasPointerCapture) {
+          track.setPointerCapture?.(pointerId);
+          hasPointerCapture = true;
+        }
       }
 
       event.preventDefault();
@@ -165,7 +170,10 @@
       if (!isPointerDown || event.pointerId !== pointerId) return;
       isPointerDown = false;
       track.classList.remove('is-dragging');
-      track.releasePointerCapture?.(pointerId);
+      if (hasPointerCapture) {
+        track.releasePointerCapture?.(pointerId);
+        hasPointerCapture = false;
+      }
       pointerId = null;
 
       const max = maxScroll();
@@ -187,6 +195,11 @@
       if (!isPointerDown) return;
       isPointerDown = false;
       didDrag = false;
+      if (hasPointerCapture) {
+        track.releasePointerCapture?.(pointerId);
+        hasPointerCapture = false;
+      }
+      pointerId = null;
       track.classList.remove('is-dragging');
       settle();
     }, { passive: true });

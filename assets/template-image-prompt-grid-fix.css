@@ -1,0 +1,49 @@
+.template-workbench .prompt-section[data-v-77ec96cf] {
+  grid-template-rows: auto auto;
+}
+
+.template-workbench .prompt-list[data-v-77ec96cf] {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  overflow: visible;
+}
+
+.template-workbench .prompt-card[data-v-77ec96cf] {
+  min-height: 112px;
+  align-content: start;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.template-workbench .prompt-card label[data-v-77ec96cf] {
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.template-workbench .prompt-card input[data-v-77ec96cf] {
+  margin-top: 3px;
+}
+
+.template-workbench .prompt-card span[data-v-77ec96cf] {
+  min-width: 0;
+}
+
+.template-workbench .prompt-card em[data-v-77ec96cf] {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-height: 1.45;
+}
+
+.template-workbench .prompt-card details[data-v-77ec96cf] {
+  display: none !important;
+}
+
+@media (max-width: 720px) {
+  .template-workbench .prompt-list[data-v-77ec96cf] {
+    grid-template-columns: 1fr;
+  }
+}

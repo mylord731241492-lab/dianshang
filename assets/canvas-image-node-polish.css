@@ -463,3 +463,72 @@
     top: calc(100% + 18px) !important;
   }
 }
+
+/* 2026-07-03: make legacy image tool overlays movable and resizable. */
+.image-edit-overlay[data-hjm-panel-window="true"] {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 260px !important;
+  min-height: 220px !important;
+  max-width: min(760px, calc(100vw - 32px)) !important;
+  max-height: min(820px, calc(100vh - 32px)) !important;
+  transform: translate3d(var(--hjm-panel-x, 0px), var(--hjm-panel-y, 0px), 0) !important;
+}
+
+.image-edit-overlay[data-hjm-panel-window="true"] .overlay-header {
+  flex: 0 0 auto !important;
+  cursor: grab !important;
+  touch-action: none !important;
+  user-select: none !important;
+}
+
+.image-edit-overlay[data-hjm-panel-window="true"] .overlay-header:active {
+  cursor: grabbing !important;
+}
+
+.image-edit-overlay[data-hjm-panel-window="true"] .overlay-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: auto !important;
+}
+
+.image-edit-overlay[data-hjm-panel-window="true"] .hjm-overlay-resize-handle {
+  position: absolute !important;
+  right: 3px !important;
+  bottom: 3px !important;
+  z-index: 3 !important;
+  width: 18px !important;
+  height: 18px !important;
+  border-right: 2px solid rgba(255, 255, 255, 0.44) !important;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.44) !important;
+  border-radius: 2px !important;
+  cursor: nwse-resize !important;
+  touch-action: none !important;
+}
+
+.image-edit-overlay[data-hjm-panel-window="true"] .hjm-overlay-resize-handle::before {
+  position: absolute !important;
+  right: 4px !important;
+  bottom: 4px !important;
+  width: 8px !important;
+  height: 8px !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.32) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.32) !important;
+  content: "" !important;
+}
+
+html.hjm-image-tool-window-dragging,
+html.hjm-image-tool-window-resizing {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+html.hjm-image-tool-window-resizing {
+  cursor: nwse-resize !important;
+}
+
+html.hjm-image-tool-window-dragging .image-edit-overlay[data-hjm-panel-window="true"],
+html.hjm-image-tool-window-resizing .image-edit-overlay[data-hjm-panel-window="true"] {
+  will-change: transform, width, height !important;
+}

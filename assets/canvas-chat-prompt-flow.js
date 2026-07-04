@@ -1,5 +1,5 @@
 (function () {
-  var FLOW_VERSION = '20260701suite20';
+  var FLOW_VERSION = '20260704flicker1';
   var state = {
     busy: false,
     runs: {},
@@ -20,6 +20,8 @@
   var SUITE_TAB_LABEL = 'agent电商套图';
   var SUITE_MODE_ALIASES = ['视频', '电商套图Agent', SUITE_TAB_LABEL];
   var SUITE_MAX_REFERENCE_IMAGES = 4;
+  var promptFlowRefreshTimer = null;
+  var promptFlowRefreshRoot = null;
   var DEFAULT_SUITE_CONFIG = {
     enabled: true,
     defaultSkillId: 'gloria',
@@ -375,17 +377,46 @@
   }
 
   function suiteImagePreview(image) {
-    return image && (image.preview || image.dataUrl || image.url || '');
+    return image && (
+      image.preview ||
+      image.previewUrl ||
+      image.thumbnailUrl ||
+      image.thumbUrl ||
+      image.dataUrl ||
+      image.data_url ||
+      image.url ||
+      image.imageUrl ||
+      image.image_url ||
+      image.originalUrl ||
+      image.original_url ||
+      image.src ||
+      image.uploadedUrl ||
+      image.uploaded_url ||
+      ''
+    );
   }
 
   function suiteImageToPayload(image, fallbackName) {
     if (!image) return null;
+    var preview = suiteImagePreview(image);
+    var dataUrl = image.dataUrl || image.data_url || (/^data:image\//i.test(preview) ? preview : '');
+    var url = image.url ||
+      image.imageUrl ||
+      image.image_url ||
+      image.originalUrl ||
+      image.original_url ||
+      image.src ||
+      image.uploadedUrl ||
+      image.uploaded_url ||
+      (/^data:image\//i.test(preview) ? '' : preview);
     return {
-      dataUrl: image.dataUrl || '',
-      url: image.url || '',
-      preview: suiteImagePreview(image),
-      fileName: image.fileName || fallbackName || 'image.png',
-      mimeType: image.mimeType || 'image/png'
+      dataUrl: dataUrl,
+      url: url,
+      preview: preview,
+      imageUrl: image.imageUrl || image.image_url || url,
+      originalUrl: image.originalUrl || image.original_url || url,
+      fileName: image.fileName || image.filename || image.name || fallbackName || 'image.png',
+      mimeType: image.mimeType || image.mime || image.type || 'image/png'
     };
   }
 
@@ -557,7 +588,7 @@
 
   function makeUserCard(panel, requirement, references) {
     var images = references.map(function (ref) {
-      return '<figure><img src="' + escapeHtml(ref.preview || ref.dataUrl || ref.url) + '" alt=""></figure>';
+      return '<figure><img src="' + escapeHtml(suiteImagePreview(ref)) + '" alt=""></figure>';
     }).join('');
     var card = document.createElement('article');
     card.className = 'message-card user hjm-prompt-flow-card hjm-prompt-flow-user';
@@ -1460,8 +1491,36 @@
   function panelFromRoot(root) {
     if (!root || root.nodeType !== 1) return getPanel();
     if (root.matches && root.matches('.canvas-chat-panel')) return root;
+    if (root.closest) {
+      var closestPanel = root.closest('.canvas-chat-panel');
+      if (closestPanel) return closestPanel;
+    }
     if (root.matches && root.matches('.composer')) return root.closest('.canvas-chat-panel');
     return root.querySelector ? root.querySelector('.canvas-chat-panel') : getPanel();
+  }
+
+  function isPromptFlowRelevantRoot(root) {
+    if (!root || root.nodeType !== 1) return false;
+    if (root.matches && root.matches('.canvas-chat-panel')) return true;
+    if (root.closest && root.closest('.canvas-chat-panel')) return true;
+    return !!(root.querySelector && root.querySelector('.canvas-chat-panel'));
+  }
+
+  function refreshPromptFlow(root) {
+    updateHints(root);
+    syncPromptFlowCardVisibility(panelFromRoot(root));
+  }
+
+  function schedulePromptFlowRefresh(root) {
+    if (!isPromptFlowRelevantRoot(root)) return;
+    promptFlowRefreshRoot = root;
+    if (promptFlowRefreshTimer) clearTimeout(promptFlowRefreshTimer);
+    promptFlowRefreshTimer = setTimeout(function () {
+      var nextRoot = promptFlowRefreshRoot;
+      promptFlowRefreshTimer = null;
+      promptFlowRefreshRoot = null;
+      refreshPromptFlow(nextRoot || getPanel());
+    }, 80);
   }
 
   function updateHints(root) {
@@ -1513,14 +1572,12 @@
     var observer = new MutationObserver(function (mutations) {
       for (var i = 0; i < mutations.length; i += 1) {
         if (mutations[i].type === 'attributes') {
-          updateHints(mutations[i].target);
-          syncPromptFlowCardVisibility(getPanel());
+          schedulePromptFlowRefresh(mutations[i].target);
         }
         var nodes = mutations[i].addedNodes || [];
         for (var j = 0; j < nodes.length; j += 1) {
           if (nodes[j] && nodes[j].nodeType === 1) {
-            updateHints(nodes[j]);
-            syncPromptFlowCardVisibility(panelFromRoot(nodes[j]));
+            schedulePromptFlowRefresh(nodes[j]);
           }
         }
       }

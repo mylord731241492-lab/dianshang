@@ -394,16 +394,15 @@ async page => {
   await fillUnique(page.getByPlaceholder('请输入管理员账号'), 'admin', 'admin login username');
   await fillUnique(page.getByPlaceholder('请输入管理员密码'), 'admin123', 'admin login password');
   await clickUnique(page.locator('button').filter({ hasText: '进入后台' }), 'admin login submit');
-  await page.waitForTimeout(1200);
-  await ensure(page.url().includes('/admin/login'), 'admin login should stay on source page after success');
-  await page.waitForSelector('text=管理员登录成功', { timeout: 10000 });
+  await page.waitForURL(/\/admin\/dashboard/, { timeout: 10000 });
+  await page.waitForSelector('text=控制台 Dashboard', { timeout: 10000 });
   const adminAuthState = await page.evaluate(() => ({
     token: localStorage.getItem('auth_token'),
     user: localStorage.getItem('auth_user')
   }));
   await ensure(Boolean(adminAuthState.token) && adminAuthState.user?.includes('admin'), 'admin login did not persist auth session');
   await page.screenshot({
-    path: `${screenshotDir}/admin-login-success-desktop-1440x900.png`,
+    path: `${screenshotDir}/admin-login-redirect-dashboard-desktop-1440x900.png`,
     fullPage: true
   });
   results.push({ step: 'admin-login-source', ok: true, url: page.url() });

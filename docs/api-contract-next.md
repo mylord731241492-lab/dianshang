@@ -15,7 +15,7 @@
 | `POST` | `/api/auth/register` | 无 | `username/email/password/code`；返回 `token`、`user`。`Next` 使用 `token/user`。 |
 | `POST` | `/api/auth/login` | 无 | `username/password`；返回 `token`、`user`。管理员也可用 `/api/admin/login`。 |
 | `POST` | `/api/auth/send-email-code` | 无 | 当前验证码打印到 console。`Mock`。 |
-| `POST` | `/api/auth/send-reset-code` | 无 | 当前验证码打印到 console。`Mock`。 |
+| `POST` | `/api/auth/send-reset-code` | 无 | 当前验证码打印到 console；mock 模式同时返回 `code` 便于内网测试。 |
 | `POST` | `/api/auth/reset-password` | 无 | 邮箱验证码重置密码。 |
 | `POST` | `/api/admin/login` | 无 | 管理员登录，要求用户角色为 `admin`。 |
 

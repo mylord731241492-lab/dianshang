@@ -11,6 +11,51 @@
 - 下一轮优先级。
 - 优先复用已有接口、成熟开源项目和当前技术栈能力，不重复造轮子；新增能力前先确认是否已有 New-API、CPA、Docker Compose、现有 `/api/*` 或前端模块可复用。
 
+## 2026-07-04 画布默认云端保存复核
+
+### 已验证
+
+- CodeGraph 索引正常；本轮定位到旧画布保存模式来自 `canvasSave` Pinia 状态和旧打包保存分片。
+- `index.html` 启动脚本在不支持 `showDirectoryPicker` 的环境里，将缺省或旧的 `canvasSaveMode=local` 切换为 `cloud`。
+- `assets/localWorkflowFileSystem-CxAxbYWk.js` 和 `assets/localWorkflowFileSystem-B3l-tt5f.js` 的 `canvasSaveMode` 默认值从 `local` 改为 `cloud`。
+- `/api/settings/canvas-storage` 当前返回可用，旧画布不会因为管理员关闭云端保存而自动回退到本地。
+- `node --check assets/localWorkflowFileSystem-CxAxbYWk.js`、`node --check assets/localWorkflowFileSystem-B3l-tt5f.js`、`node --check server.js` 均通过。
+- `docker compose up --build -d` 已重建并替换 `dianshang-internal-app`；`verify-internal.ps1` 通过 health、API smoke、前端路由 smoke 和 Provider guard。
+- 内网首页 `http://192.168.0.39:3456/` 返回 200，且包含云端初始化脚本；容器内两个保存分片均确认 `saveMode:m("canvasSaveMode","cloud")`。
+
+### 结论
+
+- 本轮只把内网测试主路径切到云端/服务器保存，不改本地文件夹 API、不引入 HTTPS 证书、不触发真实 AI 或付费调用。
+- 本地文件夹保存仍保留为用户手动选择的增强能力；浏览器不支持时不应再成为默认阻塞点。
+
+### 未覆盖
+
+- 其他机器的本地文件夹授权仍需后续单独处理。
+- Playwright UI smoke 未启用；本轮通过 HTTP 首页内容、容器文件和 API smoke 验证生产端静态资源已同步。
+
+## 2026-07-03 画布连线统一复核
+
+### 已验证
+
+- CodeGraph 索引正常，确认本轮是旧打包画布资产内的连线渲染与加载归一化问题。
+- `assets/Canvas-B8bY9_QL.js` 和 `assets/Canvas-yGc8b2gf.js` 中默认边从 `smoothstep` 改为 `default`，新建普通边会走左侧同类 Bezier 曲线。
+- 旧项目加载和本地工作流导入从直接使用 `r.edges` 改为 `(r.edges || []).map(Sg)`，保存过的直角灰线会在加载时统一。
+- 图片参考边、图片顺序边、提示词顺序边和视频角色边统一为 `#3b82f6`、`2px`。
+- `assets/Canvas-D1auYH9L.css` 的默认 edge、选中 edge 和连接预览线同步改为蓝色线条。
+- `node --check assets/Canvas-B8bY9_QL.js`、`node --check assets/Canvas-yGc8b2gf.js`、`node --check scripts/verify-canvas-performance-assets.js` 均通过。
+- `node scripts/verify-canvas-performance-assets.js` 和 `scripts/smoke-backend-canvas-boundary.ps1` 均通过；`git diff --check` 无 whitespace 错误；触碰文件无 BOM。
+- 已刷新当前浏览器项目 `project_1783050909233_5t381nrb6`，采样到 9 条 `.vue-flow__edge-path`，全部为 `rgb(59, 130, 246)`、`2px`，且 path 均包含 `C` 曲线段。
+
+### 结论
+
+- 本轮只处理连线视觉和加载归一化，不改节点结构、生图接口、扣费或外部 Provider 调用。
+- 旧工作流再次保存后，边类型可能从旧 `smoothstep` 变成 `default`，这是为了统一曲线形态。
+
+### 未覆盖
+
+- 需要用户在真实画布复杂项目中确认所有边的视觉观感。
+- 未做真实生图或上传相关测试，本轮无必要触发付费链路。
+
 ## 2026-06-26 技术栈补救决策复核
 
 ### 已验证
@@ -2875,3 +2920,650 @@
 
 - 用户当前已打开的画布页面需要刷新一次，旧页面内存中的模型选项才会重新读取接口。
 - 选择 `2K` 或 `4K` 后点击生成会走真实 Provider，可能产生真实外部调用和扣费，应由用户自行确认后测试。
+
+## 2026-07-03 Docker 运行目录复核
+
+### 已确认
+
+- `docker/docker-compose.yml` 使用上级目录作为 build context，继续复用根目录 `Dockerfile`，容器名为 `dianshang-internal-app`。
+- 数据、上传和日志均使用可见 bind mount：`docker/data`、`docker/uploads`、`docker/logs`，方便内网部署备份。
+- `docker/.env.example` 提供内网运行配置模板，本地 `docker/.env` 已生成且被忽略。
+- `docker compose config` 校验通过，新增 Docker 文本文件无 BOM。
+
+### 需要继续验证
+
+- 如果要让 Docker 使用 `3456`，需要先停止当前开发目录的 Node 服务；否则把 `docker/.env` 的 `HOST_PORT` 改成 `3457`。
+- 真正启动容器前，需要把 `docker/.env` 中的 `JWT_SECRET` 和真实 Provider 配置改成内网生产值。
+
+## 2026-07-03 图片工具面板窗口化复核
+
+### 已确认
+
+- 图片节点工具条已删除 `AI 智能消除` / `smartErase`，当前浏览器工具条文本为 `AI 扩图`、`格式/压缩`、`反推提示词`、`局部修改`、`图片尺寸调整`、`图片裁剪`、`添加到聊天`。
+- `局部修改` 已从 pending 改为 ready；浏览器中点击后可打开 `局部修改` 面板，面板包含 `data-hjm-panel-window="true"` 和右下角缩放手柄。
+- `.image-edit-overlay` 标题栏拖拽实测生效：格式/压缩面板从 `(1370,383)` 移动到 `(1270,453)`，未拖动画布节点。
+- 右下角缩放实测生效：格式/压缩面板从约 `336x576` 放大到约 `427x647`，内容区 `overflow:auto`。
+- 笔刷坐标已从屏幕坐标直减 rect 改为按 canvas 内部像素比例换算；50% 缩放下预览 canvas 内部 `215x183`、屏幕显示约 `135x114`，笔刷拖拽无运行时错误。
+- 资产护栏和旧画布边界 smoke 已同步到 `20260703panel2` 并通过。
+
+### 需要继续验证
+
+- 自动化浏览器在 200% 缩放下能读取到预览 canvas 内部 `215x183`、屏幕显示约 `539x457` 的非 1:1 几何，但面板被放大到自动化可点击区域外，未能完成 200% 实笔刷落点截图；代码锚点和 50% 实测已覆盖偏移修复核心路径。
+- 浏览器验收后当前画布缩放值停在 `90%`，测试面板已关闭；如需恢复到用户原先视图，可手动点一次缩小或刷新项目视图。
+
+## 2026-07-03 首页历史画布卡片点击复核
+
+### 已确认
+
+- 根因是 `assets/home-carousel-inertia.js` 在 `pointerdown` 阶段立刻对 `.history-track` 调用 `setPointerCapture`，普通点击最终也会以轨道容器作为 click target，导致 `.history-card` 上的打开项目事件收不到。
+- 修复后只有超过拖拽阈值并进入真实横向拖动时才捕获指针，普通点击保留原生目标并继续触发历史画布卡片的 Vue click。
+- `index.html` 已把首页轮播脚本查询串升级为 `home-carousel-inertia.js?v=20260703open1`，避免继续加载旧拦截逻辑。
+
+### 需要继续验证
+
+- 用户当前浏览器需要刷新首页后再点历史画布卡片，确认能进入对应 `/canvas/<projectId>`。
+- 本轮不改历史项目数据结构、不改旧 Canvas 主 bundle、不触发真实 Provider。
+
+## 2026-07-03 局部修改提交节点复核
+
+### 已确认
+
+- `局部修改/文字编辑` 提交路径不再等待 `/api/image-tools/inpaint` 返回后才创建结果节点，而是先创建一个 `loading:true` 的图片节点。
+- 该节点初始进度为 `18`，文案为 `已提交请求`，符合图2所示的生图节点提交态。
+- 新增图片节点通过 `connect:false` 跳过 `imageOrder` 边创建，不会自动链接原图片节点或其它画布节点。
+- 后台完成后只回填同一个新节点的图片 URL、缩略图、尺寸、`progress=100` 和错误状态，不新增第二个结果节点。
+- 默认图片工具结果节点仍保留原连线行为，避免影响扩图、压缩、尺寸调整等既有链路。
+
+### 需要继续验证
+
+- 当前服务已配置真实 Provider，浏览器里实点 `提交` 可能触发真实外部调用和扣费；需要用户确认后再做端到端提交验收。
+- 若后续要把其它图片工具也改成无连线提交态，应先明确每个工具的画布关系语义，不能直接全局关闭 helper 的默认连线。
+
+## 2026-07-03 局部修改 mask 结果复核
+
+### 已确认
+
+- 用户实测结果里底部涂抹区域被明显重绘，说明前端 mask 字段并非完全丢失。
+- 结果同时把瓶身标签文字洗掉，说明上游模型对“去掉文字”的理解越过了涂抹区边界，黑白 mask 对当前 Provider 约束不够稳。
+- 前端现在会同时提交 `maskBase64` 和 `maskAlphaBase64`，其中 `maskAlphaBase64` 将涂抹区域转成透明编辑区，适配更多 OpenAI-compatible Images Edit 实现。
+- 后端优先使用 `maskAlphaBase64`，保留旧 `maskBase64` 回退，避免破坏历史旧画布请求。
+- 默认提示词已强化未涂抹区域保留，特别点名文字、品牌标识、瓶身标签和商品结构不要改。
+
+### 需要继续验证
+
+- 需要用户刷新画布加载 `20260703mask1` 后，再用更窄的 mask 重试；真实提交会触发 Provider 调用和可能扣费。
+- 如果 `maskAlphaBase64` 后仍大幅改动未涂抹区域，下一步应记录一次上游响应与请求 meta，判断是 Provider 忽略 mask 还是 GPT Image 2 模型本身软约束问题。
+
+## 2026-07-03 批量生图请求形态复核
+
+### 已确认
+
+- 截图中的 `4 张` 批量出图不是前端直接请求中转站，而是后端 `/api/generate/tasks` 或 `/api/template/generate-image` 进入 Provider 适配器。
+- 纯生图和带参考图的图生图适配器都固定向上游发送单张请求：JSON 生图为 `n: 1`，multipart 图生图为 `form.append('n', '1')`。
+- 高延迟根因更可能是旧实现串行等待：第 1 张返回后才发第 2 张，4 张会累加 4 次上游耗时。
+- 已改为并发单张：最多 4 个独立请求同时发出，返回后按请求顺序合并图片，扣费和任务记录仍按用户选择的张数计算。
+- 覆盖脚本已增加防回退断言，避免后续重新变成 `n=4` 单请求或串行 `for count`。
+
+### 需要继续验证
+
+- 本轮只跑 mock/disposable API 和静态请求形态护栏，没有主动触发真实中转付费调用。
+- 真实环境如仍慢，下一步应记录每个独立请求的开始/结束时间和上游状态码，区分是中转并发限流、单张模型耗时，还是图片参考上传体积导致的慢。
+
+## 2026-07-03 图片生成节点连续提交复核
+
+### 已确认
+
+- 截图对应的是旧画布 `ImagePromptGenerateNode`，此前按钮禁用和点击入口都绑定到同一个生成 composable 的 `loading`。
+- 点击后结果进度节点已经会先创建，但原图片生成节点会因为 `loading=true` 被锁住，不能继续点击生成。
+- 已移除原节点入口的 `if(r.value)return`，并把按钮禁用改成只看 `!Ce.value`，也就是只在没有提示词且没有参考图时禁用。
+- 按钮文案不再被请求中的 spinner 替换；生成中的状态继续由右侧独立结果节点承载。
+- 资源查询串升级到 `20260703freegen1`，旧页面需要刷新后才会拿到这版 Canvas bundle。
+
+### 需要继续验证
+
+- 未主动触发真实 Provider 生图；用户刷新画布后可在同一图片生成节点上连续点两次，预期会出现两批独立进度结果节点。
+- 如果连续点击很多次，后端会同时接收多批真实任务，仍会按模型价格和张数扣算力；真实使用时需要留意余额和上游限流。
+
+## 2026-07-03 图片 Provider 过载保护复核
+
+### 已确认
+
+- 上一版“并发单张”能避免 `n=4` 大请求，但会让 4 张批量或连续点击时同时向中转发出多次真实图片请求。
+- 带参考图的图生图路径每次请求都会 multipart 上传参考图；并发 4 次会把同一批参考图重复同时上传到中转，容易造成高延迟或限流。
+- `server.js` 已加入进程内全局图片 Provider 队列，文生图和图生图都必须排队进入真实上游请求。
+- 默认相邻真实图片请求间隔为 `1500ms`，且可用环境变量调整；请求返回的 `request` meta 会带 `queueMode: serial-delayed` 和 `queueDelayMs`。
+- 覆盖脚本已反向更新：现在禁止 `Promise.all(Array.from({ length: count }, async ...))` 的图片上游并发形态。
+
+### 需要继续验证
+
+- 本轮不触发真实中转扣费调用；需要用户刷新后用 `4 张` 小批量确认中转延迟是否下降。
+- 如果仍过载，下一步优先把延迟从 `1500ms` 提高到 `3000ms` 或增加按线路/模型的队列状态日志。
+
+## 2026-07-03 图片生成提示词识别复核
+
+### 已确认
+
+- 截图里的 `根据图1生成拼多多电商主图` 已进入前端请求体，旧画布节点会以 `prompt: de` 发送到 `/api/template/generate-image`。
+- 本地最新 `generations` 记录里也能看到最终 prompt 包含 `用户需求：根据图1生成拼多多电商主图`，所以不是输入框内容丢失。
+- 旧后端 prompt 对图生图过于强调“保持产品包装与识别信息一致”，对“必须执行用户目标”的约束不够强，容易让模型输出接近参考图的商品摆拍。
+- 已增强 `buildEcommerceImagePrompt`：用户需求优先、参考图不得直接复刻、拼多多/PDD 自动补强为高点击正方形电商主图方向。
+
+### 需要继续验证
+
+- 未触发真实 Provider 重新生图；用户需要刷新后用相同提示词再试。
+- 如果仍然只是复刻参考图，下一步应在请求 meta 中记录上游 request id 和最终 prompt，并尝试为“主图/海报/场景/标签”做更细的模板化 prompt 分支。
+
+## 2026-07-03 图生图提示词松绑复核
+
+### 已确认
+
+- 上一版为了解决“拼多多主图不明显”加入的平台模板和失败判定过硬，可能限制图生图模型发挥。
+- `server.js` 已删除 `ecommercePlatformPromptHint`，不再按 `拼多多/PDD` 自动补充高点击主图模板。
+- 后端电商图生图 prompt 现在只保留基础约束：理解用户需求、参考图作为依据、画面清晰自然、避免水印/乱码/畸形。
+- 护栏脚本已反向约束，禁止恢复 `用户提到拼多多/PDD`、`视觉执行要求`、`视为失败` 等强格式。
+
+### 需要继续验证
+
+- 未触发真实 Provider 扣费调用；用户刷新后再测试同一节点。
+- 如果后续某些场景仍需要强提示词，应放到用户输入或模板配置里，而不是后端全局硬编码。
+
+## 2026-07-03 图生图最小提示词复核
+
+### 已确认
+
+- 用户最终确认：后端只需要加一个 `专业电商设计师` 身份，不需要额外格式限制。
+- 唯一保留的基础要求为：产品不要拉伸变形、文字清晰、不要出现光斑和乱码。
+- `server.js` 已按该边界压缩提示词；请求仍会保留用户原始 `用户需求`。
+- 护栏脚本已禁止回退到 `自由完成画面创作`、`适合电商展示`、平台识别和其它长提示词。
+
+### 需要继续验证
+
+- 未触发真实 Provider 扣费调用；重启后端后生效。
+
+## 2026-07-03 图片上传节点单击/双击交互复核
+
+### 已确认
+
+- 空图片上传节点之前用透明 `input[type=file]` 覆盖整块上传区域，导致单击节点主体会直接打开文件选择器。
+- 两个旧 Canvas bundle 已把该图片 file input 改为隐藏输入框，并把触发文件选择器的动作迁移到上传区域 `dblclick`。
+- 单击空图片节点时不再由 file input 截获点击，预期由 Vue Flow 执行节点选中。
+- 资产护栏脚本已要求双击触发逻辑存在，并禁止图片节点回退到透明覆盖式 file input。
+
+### 需要继续验证
+
+- 用户在当前画布里实测：单击空图片节点应只出现选中边框，双击上传区域才弹出文件选择器。
+- 本轮未修改视频上传节点，它仍保留原来的点击上传行为。
+
+## 2026-07-03 Docker 内网测试目录复核
+
+### 已确认
+
+- `docker/` 目录已作为内网运行目录整理：Compose 从 `F:\dianshang` 构建镜像，运行数据挂载到 `docker/data`、`docker/uploads`、`docker/logs`。
+- `docker/docker-compose.yml` 已包含最新图片 Provider 队列相关变量：`IMAGE_PROVIDER_TIMEOUT_MS`、`CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS`、`IMAGE_PROVIDER_REQUEST_DELAY_MS`。
+- `docker/verify-internal.ps1` 已加入 Docker daemon 前置检查、Compose 配置检查、健康检查、API smoke、前端路由 smoke 和 Provider guard smoke。
+- `.dockerignore` 已排除 `docker/.env` 和 Docker 运行数据目录，避免密钥/SQLite/uploads/logs 进入镜像上下文。
+- 静态验证通过：PowerShell 解析通过，`docker compose config` 通过，`git diff --check` 无空白错误。
+
+### 需要继续验证
+
+- 当前机器 Docker Desktop Linux Engine 未运行，实际 `docker compose up --build -d` 未执行成功。
+- `com.docker.service` 当前会话无权限启动；需要用户手动启动 Docker Desktop 或用管理员权限启动 Docker 服务后，再执行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\docker\verify-internal.ps1"`。
+- 长期内网试运行前必须替换 `docker/.env` 中的 `JWT_SECRET` 占位值；`ENABLE_REAL_PAYMENT` 继续保持 `false`。
+
+### 复测结果
+
+- Docker Engine 后续恢复可用后，已用 `HOST_PORT=3458` 成功执行 `docker/verify-internal.ps1`。
+- 容器 `dianshang-internal-app` 已启动并进入 `healthy`，访问地址为 `http://127.0.0.1:3458`。
+- 已通过健康检查、API smoke、前端路由 smoke 和 Provider guard smoke；当前运行模式为 `mock`，未启用真实 AI、邮件、支付或对象存储。
+
+## 2026-07-03 Docker 生产态保存方式复核
+
+### 已确认
+
+- 旧画布本地 JSON 自动保存依赖浏览器文件夹写入授权；Docker/Node 后端无法替浏览器授权。
+- 内网 HTTP 生产地址下，本地文件夹保存很可能不可用；`localhost` 或 HTTPS 才是浏览器支持这类 API 的稳定环境。
+- 旧画布云端保存实际发送 `{ title, workflowJson }` 到 `/api/workflows/:id/save-json`。
+- 后端已兼容 `workflowJson` 并在读取项目时解包，云端 JSON 会落到 Docker 挂载的 SQLite `DB_PATH=/app/data/data.db`。
+- API smoke 已补充 `workflowJson` 覆盖，避免后续只测 `data` 包装而漏掉旧画布真实请求体。
+
+### 需要继续验证
+
+- 本轮未直接重启现有生产 Docker 容器，避免影响当前业务会话。
+- 确认可重启后，需要重新执行 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\docker\verify-internal.ps1"` 并在画布里点一次“云端自动保存/立即保存”。
+
+## 2026-07-03 注册与工作流本地保存复核
+
+### 已确认
+
+- 注册后端默认允许不带验证码直接创建用户；只有显式设置 `REQUIRE_REGISTER_EMAIL_CODE=true` 才恢复验证码校验。
+- 新注册用户默认余额为 0；积分获取路径改为兑换码，smoke 会创建一次性兑换码并用新用户兑换后再测扣费生图。
+- `save-json`、`save-local-json` 和 `local-json` 共用同一套工作流 JSON 归一化逻辑，旧画布的 `workflowJson` 请求体会直接保存为包含 `nodes/edges/viewport/storage` 的 JSON。
+- Docker Compose 显式挂载 `WORKFLOW_DIR=/app/data/workflows`，文件不会写进镜像层，主机侧可在 `docker/data/workflows/<userId>/` 查看。
+- 旧画布本地文件夹保存失败时会降级调用云端保存接口，并把面板状态标成服务器本地 workflows。
+
+### 需要继续验证
+
+- 当前已修改代码但未重启正在运行的 Docker 容器；容器继续跑旧镜像时不会有直注册和本地 JSON 文件兜底。
+- 浏览器 File System Access API 仍只在安全上下文稳定可用；HTTP 内网地址下应以服务器本地 workflows 目录作为生产兜底。
+
+## 2026-07-04 内网画布手动保存复核
+
+### 已确认
+
+- 已进入当前内网页面项目 `project_1783129273163_lcuac0uat` 并打开顶部保存面板。
+- 初次点击 `立即保存` 时页面日志显示 `/api/workflows/:id/save-json` 返回 401，原因是当前内网页面没有登录态。
+- 写入 Docker 测试环境默认 `admin` 登录态后再次点击 `立即保存`，后端保存成功。
+- Docker 数据库 `F:\dianshang\docker\data\data.db` 中存在项目 `project_1783129273163_lcuac0uat`，保存内容为 `version=1`、`saveType=cloud`、2 个节点、1 条连线。
+- 主机侧 workflow 文件已落到 `F:\dianshang\docker\data\workflows\user_mr4r2o2h88a7cdbe\project_1783129273163_lcuac0uat.workflow.json`，文件根层同样包含 2 个节点和 1 条连线。
+
+### 需要继续验证
+
+- 当前保存使用的是 Docker 测试管理员账号；后续其他电脑正式使用前，需要每个用户先登录，或者补充更清晰的未登录提示与登录引导。
+- 首页目前仍没有独立的云端手动保存入口；手动保存入口在画布顶部 `保存` 面板内。
+
+## 2026-07-04 注册与找回密码复核
+
+### 已确认
+
+- 当前代码下 `/api/auth/register` 不再要求注册邮箱验证码；必填项只有用户名、邮箱和密码，缺字段时返回 `请填写用户名、邮箱和密码`。
+- 旧注册弹窗通过 `assets/auth-direct-register-bridge.js` 隐藏并禁用注册验证码字段，同时增加内网免验证码提示和提交前空字段检查。
+- `/api/auth/send-reset-code` 在 mock 邮件模式下返回 `code`，页面可以拿到测试验证码；真实邮件模式 `ENABLE_REAL_EMAIL=true` 时仍不应暴露验证码。
+- `scripts/smoke-api.ps1` 已覆盖找回密码闭环：临时用户注册后发重置验证码、重置密码、用新密码登录。
+- 已执行 `scripts/smoke-api-disposable.ps1`，临时后端和临时数据库下注册、找回密码、登录、项目保存、生图 mock 和后台 smoke 均通过。
+
+### 需要继续验证
+
+- 当前 `192.168.0.39:3456` Docker 容器尚未重建；用户确认重启后才能在内网页面看到新提示和 mock 重置验证码。
+- 真实邮件发送仍未接 SMTP；生产正式使用前需要配置真实邮件服务或保留内网 mock 验证码策略。
+
+## 2026-07-04 Docker 注册重启复测
+
+### 已确认
+
+- 已执行 `docker compose up --build -d`，镜像 `dianshang-internal-app:latest` 重新构建，容器 `dianshang-internal-app` 启动后为 `healthy`。
+- 内网接口 `http://192.168.0.39:3456/api/health` 返回数据库正常。
+- 通过内网接口直接注册一次性测试账号，注册响应包含 token；随后用同一账号密码登录成功，并能读取 `/api/user/profile`。
+- 浏览器注册页 `/register` 已显示“当前内网注册无需邮箱验证码”提示。
+- 复测时发现旧桥接脚本会把邮箱输入框误隐藏；已修正为只隐藏真正的验证码框，并更新 `index.html` 脚本版本号以刷新缓存。
+- 修正后已再次重建 Docker；容器返回的新脚本已确认不再包含验证码 placeholder 宽匹配，且包含 `type === 'email'` / `autocomplete === 'email'` 排除逻辑。
+- 最终容器状态：`dianshang-internal-app` 为 `healthy`，端口映射 `0.0.0.0:3456->3456/tcp`。
+
+### 需要继续验证
+
+- 本轮不会清理 Docker SQLite 中的一次性注册测试用户；如后续需要清理，可在管理员后台或数据库维护时统一处理。
+- 内置浏览器自动化在后续 DOM 读取时多次超时；页面最终点击可由用户在当前浏览器手动确认，接口与容器脚本验证已经通过。
+
+## 2026-07-04 Docker 真实 API 配置复核
+
+### 已确认
+
+- Docker 端原先 `ENABLE_REAL_AI=false`，且 `NEW_API_BASE`、`NEW_API_KEY`、`AI_API_BASE`、`AI_IMAGE_KEY`、`AI_TEXT_KEY` 多为占位值，因此实际生图处于 mock。
+- 根目录 `F:\dianshang\.env` 中存在可用的原 Packy API 配置；Docker Compose 实际读取的是 `F:\dianshang\docker\.env`。
+- 已备份 Docker `.env`，并将生产测试端切为 `AI_PROVIDER_GATEWAY=direct`，使用 `https://www.packyapi.com/v1` 和原有图片/文本 key。
+- 已执行 `docker compose up -d --force-recreate`；容器 `dianshang-internal-app` 为 `healthy`。
+- `/api/health` 确认 `providers.ai.mode=real-provider-ready`、`enabled=true`、`gateway=direct`、`imageKeyConfigured=true`、`textKeyConfigured=true`。
+
+### 需要继续验证
+
+- 本轮只验证环境变量和 Provider 状态，未主动发起真实生图，避免产生不必要的真实 API 消耗。
+- 真实生图首测建议使用小尺寸、1 张图和明确测试提示词，便于确认扣费、日志、生成记录和错误回显。
+
+## 2026-07-04 未登录强制登录复核
+
+### 已确认
+
+- 旧用户中心 bundle 硬编码了 `guest / guest@erdan.ai` 作为 `auth_user` 缺失时的兜底展示，这是截图中默认账号的来源。
+- 已将两个用户中心 bundle 的兜底文案改为 `未登录 / 请先登录或注册`，避免即使守卫加载延迟时仍显示默认账号。
+- 已在全站加载的 `user-center-data-bridge.js` 中加入受保护路由守卫；未登录进入用户中心、画布、图库、模板等功能页会跳转登录页。
+- 强制登录页会隐藏关闭按钮和返回首页按钮，并拦截取消点击与 `Escape`。
+- 已重建 Docker；HTTP 资源验证确认首页加载 `user-center-data-bridge.js?v=20260704authguard1`，守卫脚本包含 `isProtectedPath` 和 `uc-auth-forced`，用户中心 bundle 不再包含 `guest@erdan.ai`。
+- 重建后 `/api/health` 仍为 `real-provider-ready`，真实 API 配置未被覆盖。
+
+### 需要继续验证
+
+- 需要在用户当前浏览器手动退出登录并访问 `/user/center`、`/canvas/...` 做最终交互确认；本轮未主动清理当前浏览器登录态。
+- 当前保护仍在旧资产过渡层，未来源码路由全面接管后需要迁移为正式前端路由守卫。
+
+## 2026-07-04 首页云端保存入口复核
+
+### 已确认
+
+- 首页保存面板的 `立即保存` 在云端模式下原先只显示提示，没有跳转动作。
+- 已改为优先读取 `ai-canvas-last-project-id` / `ai-canvas-new-project-id`，其次取首页项目列表第一项，进入对应 `/canvas/:id`。
+- 若没有任何可用项目，则调用首页现有新建画布逻辑进入新画布。
+- 进入画布后通过 toast 提醒用户在画布顶部保存面板点击 `立即保存`。
+- 已执行 Docker 重建，容器 `dianshang-internal-app` 为 `healthy`；`/api/health` 确认真实 API 仍为 `real-provider-ready`。
+- HTTP 资源验证确认旧文案 `主页暂无云端手动保存入口` 已移除，并包含进入画布/新建画布后的保存提示。
+
+### 需要继续验证
+
+- 需要在用户当前浏览器手动选择云端自动保存并点击 `立即保存`，确认页面实际跳转符合预期；本轮未触发真实生图。
+
+## 2026-07-04 后台登录统一复核
+
+### 已确认
+
+- `/admin/login` 实际由源码后台 `frontend/dist` 提供，截图中的“旧后台”是迁移期遗留文案，不是当前目标架构。
+- `AdminLoginSource.vue` 已移除 `legacyUrl` 和“旧版后台登录 / 旧版后台控制台”链接。
+- 管理员登录成功后改为直接 `router.replace()` 到 `redirect` 指向的后台页；没有 redirect 时进入 `/admin/dashboard`。
+- 已登录管理员访问 `/admin/login` 会自动进入后台控制台，避免停留在登录页。
+- `smoke-source-frontend-ui-runner.js` 已同步为验证后台登录后进入 `/admin/dashboard`。
+- Docker 重建后容器 `dianshang-internal-app` 为 `healthy`；`/api/health` 仍为 `real-provider-ready`，真实 API 配置未被覆盖。
+- HTTP 资源验证确认容器侧新登录资源旧文案已移除，且包含 `/admin/dashboard` 跳转逻辑。
+
+### 需要继续验证
+
+- 需要用户当前浏览器 `Ctrl + F5` 后手动登录一次，确认实际跳转到 `/admin/settings` 或 `/admin/dashboard`；本轮未运行 Playwright 自动点击，避免触发新工具下载。
+
+## 2026-07-04 兑换码与系统设置复核
+
+### 已确认
+
+- 兑换码页此前明确写着“只读迁移版”，没有创建表单，这是“兑换码没添加兑换码”的直接原因。
+- 后端兑换码创建和删除接口已存在，前端已补 `createAdminRedeemCode` 与 `deleteAdminRedeemCode` 封装。
+- 兑换码管理页已新增创建表单，支持兑换码、算力额度、可兑换次数、启用状态；列表项支持删除。
+- 已用一次性测试码验证后端创建、查询、删除闭环，删除后测试码不残留。
+- 系统设置接口响应约 7ms，后端不是卡死来源。
+- 系统设置页的 computed 已改为纯读取，不再在渲染计算中写入 `draft.value.ecommerceSuiteAgent`。
+- 前端构建、源码路由检查通过；Docker 已重建，容器为 `healthy`，真实 API 状态未被覆盖。
+
+### 需要继续验证
+
+- 需要用户当前浏览器 `Ctrl + F5` 后手动打开 `/admin/redeem-codes` 新增一个业务兑换码，并点击 `/admin/settings` 确认不再卡死。
+
+## 2026-07-04 内网测试生产收口复核
+
+### 已确认
+
+- 当前架构定位为单机 Docker 内网测试生产，后端唯一入口仍是 `server.js`。
+- 已增加生产模式强 `JWT_SECRET` 校验，避免 Docker 默认占位 secret 被用于准生产。
+- 已增加 bootstrap 管理员环境变量，服务不再每次启动重置 `admin/admin123`。
+- 已增加 `CORS_ORIGINS` 白名单配置，支持内网来源收口。
+- 已新增内网备份脚本和 smoke 脚本；smoke 不触发真实生图。
+- 已新增 `docs/internal-production-runbook.md`，记录发布、备份、恢复和当前能力边界。
+- 已发现并修复密码哈希与 `JWT_SECRET` 耦合造成的迁移问题：通过 `PASSWORD_LEGACY_SECRETS` 兼容旧哈希，登录后自动重哈希；默认 `admin/admin123` 已迁移到 bootstrap 强密码。
+- 已完成 Docker 重建，容器 `dianshang-internal-app` 为 `healthy`；`/api/health` 确认真实 AI 为 `real-provider-ready`，邮件/支付/对象存储关闭。
+- 已完成 `scripts/smoke-internal-prod.ps1`，覆盖健康检查、管理员登录、后台设置、兑换码一次性创建/查询/删除、前台旧资产和后台源码资产访问。
+- 已完成 `scripts/backup-internal-prod.ps1` 备份，生成 `F:\dianshang\docker\backup\internal-prod-20260704-131428`。
+- 已恢复演练到临时目录 `F:\dianshang\docker\backup\restore-check-20260704-131452`，备份 SQLite `integrity_check=ok`。
+
+### 剩余风险
+
+- 当前仍是单机 Docker + SQLite 内网测试生产，不具备公网正式生产等级。
+- 本轮未触发真实生图，避免 API 消耗；真实 AI 首测仍需单独用低成本参数验证扣费、记录和错误回显。
+- 邮件、支付、对象存储仍为关闭状态；进入正式生产前必须补齐对应方案。
+
+## 2026-07-04 工作台品牌文案替换复核
+
+### 已确认
+
+- 根入口浏览器标题已由 `二蛋` 改为 `爱泊缇 AI 工作台`。
+- 源码后台入口标题已由 `哈吉米 AI 工作台` 改为 `爱泊缇 AI 工作台`，并已重新构建 `frontend/dist`。
+- 后端默认后台设置 `siteName` 已改为 `爱泊缇 AI 工作台`。
+- 当前 Docker 数据库已有 `admin.settings.siteName` 已单字段迁移为 `爱泊缇 AI 工作台`。
+- 旧前台 i18n 登录/注册标题已改为 `登录爱泊缇 AI 工作台` 与 `注册爱泊缇 AI 工作台`。
+- Docker 重建后容器为 `healthy`；HTTP 验证确认 `/`、`/admin/login` 和旧前台 i18n 资源均返回新品牌文案。
+
+### 剩余风险
+
+- 历史文档、历史进度记录和模型线路名里仍可能保留 `哈吉米/哈基米` 作为历史上下文或旧线路名称，本轮未批量改写历史记录。
+
+## 2026-07-04 前台登录与后台登录隔离复核
+
+### 已确认
+
+- 前台登录 `/login` 调用 `/api/auth/login`，后台登录 `/admin/login` 调用 `/api/admin/login`，接口入口已保持分离。
+- `/api/auth/login` 已拒绝管理员账号，防止普通前台登录保存管理员身份到用户会话。
+- 源码后台登录成功后保存到 `admin_auth_token` / `admin_auth_user`，不再覆盖普通前台的 `auth_token` / `auth_user`。
+- HTTP 拦截器已按 `/api/admin/*` 路径选择管理员 token，其余接口继续选择普通用户 token。
+- 后台页面退出按钮已改为清理 `clearAdminAuthSession()`，不再清掉普通用户登录态。
+- 前台和后台源码登录页均已移除 `填入默认账号`、`admin123` 和未登录直达控制台入口。
+- 已重新构建 `frontend/dist` 并重建 Docker；容器 `healthy`。
+- 验证确认普通登录管理员账号返回 403，后台登录管理员账号成功；内网 smoke 脚本通过。
+
+### 剩余风险
+
+- 这次改变了浏览器会话键，已经登录的管理员旧 `auth_token` 不会再作为后台 token 使用，需要重新从 `/admin/login` 登录一次。
+
+## 2026-07-04 兑换码新增区 UI 可读性复核
+
+### 已确认
+
+- 截图问题来自新增兑换码表单在超宽屏下整行铺开，兑换码、额度、次数、启用和按钮距离过远，输入框边界不明显。
+- 已将新增表单改为最大宽度 1040px 的紧凑栅格，整体加浅色底和边框，避免字段散到整屏。
+- 已提高 label 文字对比度，并给输入框和数字输入框设置可见边框、白底和焦点态。
+- 已把启用开关放入独立白底边框块，避免漂在空白区域。
+- 已重新构建 `frontend/dist` 并重建 Docker；运行 CSS 包包含新样式。
+- 内网 smoke 已通过，兑换码创建、查询、删除接口未受影响。
+
+### 剩余风险
+
+- 用户当前浏览器可能缓存旧 CSS，需要对 `/admin/redeem-codes` 执行 `Ctrl + F5` 后查看新版布局。
+
+## 2026-07-04 后台旧管理员 token 自动迁移复核
+
+### 已确认
+
+- 后台登录态拆分后，旧浏览器中只有 `auth_token` / `auth_user`，没有 `admin_auth_token` / `admin_auth_user`，因此 `/admin/login` 不会自动跳转。
+- 已增加兼容迁移：仅当旧 `auth_user.role` 为 `admin` 且存在旧 `auth_token` 时，才复制为后台专用 token。
+- 普通用户 token 不会迁移到后台会话，仍不能进入后台。
+- `/admin/login` 页面加载时会先尝试迁移；成功后直接进入 redirect 指向的后台页或 `/admin/dashboard`。
+- 已重新构建 `frontend/dist` 并重建 Docker；运行 bundle 已包含兼容迁移逻辑。
+- 内网 smoke 已通过，后台设置和兑换码 CRUD 正常。
+
+### 剩余风险
+
+- 如果浏览器里旧 token 已过期或 `auth_user` 被清空，仍需要重新在 `/admin/login` 登录一次。
+
+## 2026-07-04 后台系统唯一化复核
+
+### 已确认
+
+- `/admin` 之前没有进入源码后台 fallback，会落到根旧前台 SPA；现在 `server.js` 统一用 `/admin` 前缀规则分发到 `frontend/dist/index.html`。
+- 根入口不再加载 `admin-api-source-route-bridge.js`、`admin-api-form-labels.js`、`admin-visual-polish.css`。
+- 根旧前台主包中旧 `/admin/login`、`/admin` 路由块已移除，旧后台懒加载 chunk 名称已替换为 tombstone。
+- 根 `assets/` 下旧后台 UI chunk 已删除，当前只剩 `admin-source-only-guard.js`、`admin-removed.js`、`admin-removed.css` 这三个后台收口辅助文件。
+- `node --check`、源码后台构建、源码路由检查和 `git diff --check` 均通过。
+
+### 剩余风险
+
+- 当前运行中的 Docker 容器还未在本轮重建；浏览器实际看到的新分发规则需要下一次 `docker compose up --build -d` 后生效。
+- 已经打开的旧前台页面可能仍持有旧 JS 内存状态，部署后建议刷新页面再进入 `/admin`。
+
+## 2026-07-04 注册页邮箱必填提示复核
+
+### 已确认
+
+- 截图中的注册表单用户名和密码已填写，但邮箱为空；当前后端注册接口仍要求邮箱，因此拦截是符合现有账号契约的。
+- 旧文案“无需邮箱验证码”和邮箱占位“接收验证码”组合在一起会误导用户，以为邮箱也不用填。
+- 旧前台桥接脚本已把提示改为“验证码不用，邮箱仍必填”，并把邮箱占位改成找回密码用途。
+- 旧前台桥接脚本已对 warning 做 1.8 秒去重，并在拦截时调用 `stopImmediatePropagation()`，减少重复提交和重复 toast。
+- 源码注册页已增加前端必填校验，不会再直接把空邮箱提交到后端。
+- 后端 `/api/auth/register` 缺字段文案已同步说明“当前内网注册无需邮箱验证码”。
+- 构建、路由检查、JS 语法检查和 diff 检查均通过。
+
+### 剩余风险
+
+- 邮箱仍是必填字段；如果后续要完全取消邮箱，需要调整数据库唯一约束、找回密码流程和注册 API 契约，不能只改前端。
+- 当前 Docker 容器未在本轮重建；上线到内网后需要强刷注册页，避免浏览器继续使用旧 bridge 缓存。
+
+## 2026-07-04 图生图提示词轻框架复核
+
+### 已确认
+
+- 用户明确要求只改图生图提示词，不改纯文生图。
+- `buildEcommerceImagePrompt()` 已按参考图数量分支：无参考图时保持旧提示词结构；有参考图时才启用 Prompt Planner 轻框架。
+- 新框架重点处理图序角色：排版、风格、配色、桌子/背景/道具、产品、标签、文案等参考来源不互相污染。
+- 普通生成任务、模板生图、画布对话 Agent、套图 Agent、局部编辑/扩图工具的图生图路径已接入。
+- 已热更新并重启 `dianshang-internal-app`，容器健康检查和 `/api/health` 正常。
+- 本轮只做语法、健康和关键字符串验证，没有发起真实生图请求。
+
+### 剩余风险
+
+- 轻框架的真实效果需要用生产端图生图样例观察，尤其是多图复杂引用和贴标类任务。
+- 本轮容器为热拷贝更新；如果后续重新创建容器，需确保使用当前工作区源码构建。
+
+## 2026-07-04 参考图缩略图字段兼容复核
+
+### 已确认
+
+- 截图中参考图按钮、编号和占位图标都已渲染，说明 UI 样式和按钮结构存在，问题集中在预览地址没有从图像对象中取到。
+- 旧逻辑只读取 `preview`、`dataUrl`、`url`，无法覆盖生成结果、历史图、画布节点或上传对象里常见的 `imageUrl`、`originalUrl`、`thumbnailUrl`、`thumbUrl`、`src`、`uploadedUrl` 字段。
+- 已扩展 `suiteImagePreview()` 的字段识别范围，参考图按钮和聊天卡片复用同一预览逻辑。
+- 已同步扩展 `suiteImageToPayload()`，把可用 URL 继续写入 `url`、`imageUrl` 和 `originalUrl`，避免缩略图显示正常但生图请求缺参考图。
+- 已热拷贝静态脚本到 `dianshang-internal-app`，容器保持 `healthy`，没有触发真实生图。
+- 本地脚本语法检查、容器内脚本语法检查和线上资产字段命中检查均通过。
+
+### 剩余风险
+
+- 浏览器可能缓存旧 `canvas-chat-prompt-flow.js`；需要对生产端页面强刷后再确认缩略图。
+- 本轮没有真实上传多来源图片逐项回归，若还有特殊字段名，需要按实际对象继续补兼容映射。
+
+## 2026-07-04 画布图片闪烁复核
+
+### 已确认
+
+- 闪烁链路不是后端生图造成，本轮没有触发真实生图；问题集中在画布前端辅助脚本的 DOM 观察和图片加载策略。
+- `canvas-performance-mode.js` 在滚轮、拖拽、触摸移动时会切换 `canvas-performance-active` 等 `html/body` class。
+- `canvas-image-node-polish.js` 旧观察器监听全站 class/title 变化，遇到 `html/body` 或普通画布节点 class 抖动时也会调度扫描，容易造成画布图片节点反复测量和重打标。
+- `canvas-chat-prompt-flow.js` 旧观察器监听全站 class 变化，非聊天面板的画布节点变化也会回落到 `getPanel()` 并刷新聊天面板，增加交互期间 DOM 压力。
+- 已将画布节点图片设为 eager，保留普通非画布图片 lazy；同时避免对已有图片源改写 `referrerPolicy`。
+- 两个观察器已收窄到相关 DOM：图片节点美化只看图片节点、标题锁定和图片工具面板；聊天提示词只看 `.canvas-chat-panel` 及其子树，并做 80ms 节流。
+- `index.html` 已更新脚本 query 版本，容器内和 HTTP 线上资产均已命中新代码；容器健康检查正常。
+
+### 剩余风险
+
+- 本轮没有浏览器自动化录屏验证，因为当前仓库未安装 Playwright，且没有新增依赖确认。
+- 如果用户强刷后仍看到闪烁，需要进一步在浏览器 DevTools 里确认是否是 Vue Flow 主包反复卸载图片节点，或远程图片服务本身响应慢导致重绘。
+
+## 2026-07-04 图片生成节点输入框卡顿复核
+
+### 已确认
+
+- 卡顿发生在旧画布 `ImagePromptGenerateNode` 的提示词 textarea，不是聊天面板输入框。
+- 旧逻辑中 textarea 的 `onInput` 每个字符都会执行 `lt(t.id,{prompt:l.value})`，直接更新 Vue Flow 节点数据。
+- 节点数据更新会推动父级节点数组变化、节点重渲染、自动保存调度和样式重算；截图节点还带两张参考图，输入期间的重绘成本更高。
+- 已将 prompt 写回节点数据改为 220ms 防抖，用户输入时只更新本地 textarea 状态，停顿后再同步到节点数据。
+- 组件卸载时会清理防抖定时器并 flush 当前 prompt，降低离开页面时丢最后输入的风险。
+- 已更新入口和 Canvas 动态 import query，生产端拉取的新 Canvas 包包含 `promptSaveTimer=setTimeout`，旧立即写节点片段已不存在。
+- 容器内 JS 语法检查、HTTP 线上资产命中和健康检查均通过，没有触发真实生图。
+
+### 剩余风险
+
+- 本轮未使用浏览器录屏或 Performance 面板实测输入帧率；仍需用户在生产端强刷后实际输入验证。
+- 如果仍卡，需要继续拆旧 Canvas 主包里的自动保存、参考图缩略图渲染和复杂 CSS `:has()` 样式重算。
+
+## 2026-07-04 旧画布拖拽延迟性能评审
+
+### 已确认
+
+- 本轮未修改生产画布代码，只做性能链路审计。
+- `assets/canvas-performance-mode.js` 在 `pointermove` 捕获阶段会对画布目标执行 `closest()` 判断，并持续调用 `setActive()` 维护拖拽态。
+- `assets/canvas-performance-mode.css` 的拖拽态样式作用面过大，包含 `.canvas-chat-panel *`、`aside[class*="absolute"] *`、`section[class*="absolute"] *`，且在 `html` class 切换时触发较大范围级联重算。
+- 同一 CSS 中 `.vue-flow__node:has(...)` 选择器在节点 class 频繁变化时有潜在样式匹配成本，尤其是图片节点、选中态和工具栏出现时。
+- `assets/canvas-chat-prompt-flow.js` 仍在 `document.documentElement` 上监听 class/childList 变化，虽然有相关性过滤，但 `html/body` 或包含聊天面板的根节点变化仍可能调度聊天面板刷新。
+- `assets/canvas-image-node-polish.js` 仍监听全站 class/title 变化，图片节点拖动、选中、标题状态变化时可能触发图片打标扫描。
+- 旧 Canvas 主包中图片节点可见性计算依赖全局节点数组查找当前节点；图片节点越多，拖拽或视口变化时的重复计算越重。
+- 框选逻辑在 `pointermove` 中读取所有节点 DOM 的 `getBoundingClientRect()`；普通拖单个节点不是主因，但框选会明显吃性能。
+- 历史栈 `Io()` / `qo()` 会完整 JSON 克隆节点和边；批量复制、Alt 拖拽、撤销记录会随节点数量增长而卡顿。
+
+### 建议
+
+- P0：先把 `canvas-performance-mode.js` 的 `pointermove` 激活改成 RAF 节流或只在 `pointerdown/pointerup` 切换状态，避免拖拽热路径反复跑全局逻辑。
+- P0：缩小 `canvas-performance-mode.css` 拖拽态选择器范围，去掉 `aside[class*="absolute"] *`、`section[class*="absolute"] *` 这类全局后代选择器，优先只作用旧画布必要面板。
+- P1：用显式 class 替代 `.vue-flow__node:has(...)`，减少节点状态变化时的 CSS 匹配成本。
+- P1：拖拽活跃时暂停或延后 `canvas-chat-prompt-flow.js`、`canvas-image-node-polish.js` 的观察器刷新。
+- P2：重做图片节点可见性判断，避免每个图片节点都扫描全局节点数组；框选扫描改为 RAF 节流。
+
+## 2026-07-04 Docker 生产测试容器重启复核
+
+### 已确认
+
+- 已重启现有 `dianshang-internal-app` 容器，容器状态恢复为 `running healthy`。
+- `/api/health` 返回正常，数据库路径、上传目录、日志目录和 workflows 目录均可用。
+- 当前服务仍处于 `real-provider-ready`，本轮没有调用生图接口，也没有触发扣费。
+- `/canvas` 返回页面仍加载 `index-DglIsp_g.js?v=20260704inputlag1`，并保留 `canvas-performance-mode.js?v=20260704flicker1` 等画布辅助脚本版本。
+- 线上 Canvas 包仍包含 `promptSaveTimer=setTimeout`，旧的 `T=()=>{lt(t.id,{prompt:l.value})}` 立即写回逻辑未恢复。
+
+### 剩余风险
+
+- 本轮是 `docker restart`，不是镜像重建；如果未来从镜像重新拉起容器，需要再次确认工作区源码和镜像内容一致。
+
+## 2026-07-04 后台根入口跳转复核
+
+### 已确认
+
+- 旧后台资产仍然是清理状态，本轮问题不是旧后台入口残留。
+- 服务端 `/admin` fallback 已指向源码后台 `frontend/dist/index.html`，服务端路径不是根因。
+- 源码 Vue Router 原先没有 `/admin` 根路由，导致访问 `/admin` 命中 `/:pathMatch(.*)*` 并跳回 `/` 首页。
+- 已新增 `/admin -> /admin/login` 重定向，并纳入源码路由维护清单。
+- 已给内网准生产 smoke 增加 `/admin` 根入口资源检查，避免只测 `/admin/login` 漏掉根入口。
+- 容器已重新构建并强制重建，当前 3456 服务为 `healthy`；Chrome headless 实测 `/admin` 渲染后台登录页。
+
+### 剩余风险
+
+- 浏览器里已经打开的旧后台页面可能保留旧 JS 内存状态；部署后需要强刷或重新打开 `/admin`。
+
+## 2026-07-04 首页云端保存入口 chunk 同步复核
+
+### 已确认
+
+- 截图中的提示来自旧首页资产里的固定 toast 文案：“主页暂无云端手动保存入口，请进入画布保存当前工作流”。
+- 当前 `index.html` 加载的是 `assets/index-DglIsp_g.js`，该入口动态导入 `assets/HomeIndex-DAjDt0aj.js`；之前已修复的同类逻辑位于另一份 `assets/HomeIndex-BtiJ9toc.js`，因此重建容器后仍可能命中未同步的旧逻辑。
+- 已将 `HomeIndex-DAjDt0aj.js` 与 `HomeIndex-BtiJ9toc.js` 的云端“立即保存”行为对齐：有最近项目时进入对应画布，没有最近项目时新建画布，并提示用户在画布顶部保存面板保存。
+- 已将 `index.html` 与 `assets/index-DglIsp_g.js` 的缓存 query 更新为 `20260704homesave1`。
+- 本地检查确认当前活跃入口和两份首页 chunk 均不再包含“主页暂无云端手动保存入口”旧提示。
+- 已完整重建并强制重建 Docker app 容器，当前 3456 服务为 `healthy`，不是只热拷或只重启。
+- 线上 HTTP 复核确认首页 HTML、入口 JS、`HomeIndex-DAjDt0aj.js` 均命中 `20260704homesave1`，旧提示文案在线上 chunk 中不存在。
+
+### 剩余风险
+
+- 浏览器或代理可能缓存旧 `HomeIndex-DAjDt0aj.js`；部署后建议对 `http://192.168.0.39:3456/` 强刷再点“立即保存”。
+
+## 2026-07-04 生产单系统静态资源隔离复核
+
+### 已确认
+
+- 当前首页唯一生产入口为 `index-DglIsp_g.js?v=20260704homesave1`，真实动态 import 和 Vite 预加载表都已指向 `HomeIndex-DAjDt0aj.js?v=20260704homesave1`。
+- `server.js` 已移除整目录静态暴露，不再用 `express.static(__dirname)` 作为生产静态入口。
+- 生产静态资源只显式开放 `public`、根 `assets`、源码后台 `frontend/dist/assets`、`videos` 与 `uploads`。
+- 旧生产入口链路已服务端隔离：`index-ZrBcanD1.js`、`HomeIndex-BtiJ9toc.js`、旧后台 `AdminLayout-BHNDJhhH.js` 均返回 410。
+- 未知 `/assets/not-a-production-asset.js` 返回 404，不再 fallback 成首页 HTML。
+- `/server.js` 不再暴露 Node 源码内容。
+- 增强后的内网准生产 smoke 已覆盖以上隔离检查并通过；当前 Docker 容器为强制重建后的 `healthy` 状态。
+
+### 剩余风险
+
+- 历史文件仍保留在工作区，当前通过服务端隔离避免生产命中；如后续需要物理删除，应先基于访问日志或引用图再做归档删除。
+
+## 2026-07-04 main 与 Docker 生产端同步规则复核
+
+### 已确认
+
+- `AGENTS.md` 已新增生产端同步规则，明确 `F:\dianshang` 是生产修复的唯一源码基线。
+- 规则已禁止只在 Docker 容器内热修、只拷贝容器文件或只改旧参考目录后声称完成。
+- 规则已要求影响线上行为的改动必须执行 `docker compose -f "F:\dianshang\docker\docker-compose.yml" up -d --build --force-recreate app`。
+- 规则已要求 Docker 重建后确认容器 `healthy`，并记录镜像 ID、镜像创建时间、容器启动时间或等价信息。
+- 规则已要求生产验收直接请求 `http://192.168.0.39:3456/` 或相关线上路径，确认实际 HTML、入口 JS、chunk query、API 或目标行为命中新版本。
+- 规则已覆盖旧入口、旧 chunk、旧后台包和静态资源隔离检查，要求用 410/404 等状态避免旧系统再次被拉起。
+
+### 剩余风险
+
+- 这是协作纪律规则更新，不会自动改写历史未提交状态；后续每次生产修复仍需按规则执行验证和汇报。
+
+## 2026-07-04 进入画布旧节点自动刷新复核
+
+### 已确认
+
+- 当前生产入口只使用 `Canvas-B8bY9_QL.js`，旧 `Canvas-yGc8b2gf.js` 已被生产静态隔离，本轮只修当前活跃 Canvas 包。
+- 旧 Canvas 包中 Vue Flow 使用 `key: qe.value` 支持强制重挂，但原逻辑只在 `kl()` 开始加载项目时更新 key，节点数组和边数组加载完成后没有再次更新。
+- 已新增 `refreshCanvasAfterProjectLoad()`：加载完成后两次更新 `qe.value` 并派发 `resize`，让 Vue Flow 在节点数据落地后重新计算节点内部状态、尺寸和边线。
+- 已覆盖普通进入项目、路由切换、导入本地工作流，以及 `Nc()` / `Pc()` 处理 pending payload 后的刷新。
+- 已将根入口和 Canvas 动态 import query 升级为 `20260704canvasrefresh1`，避免浏览器继续使用旧 Canvas 包。
+- `scripts/smoke-internal-prod.ps1` 已新增生产端断言：入口必须引用新版 Canvas 包，线上 Canvas 包必须包含自动刷新 hook 和 resize 刷新。
+- 已完整执行 Docker build + force recreate，镜像 `sha256:d3ba3701598d2e7a5efa24567a4e0da30ff8198c257967122c489b2183ab2042`，容器当前为 `healthy`。
+- 已直接请求 `http://192.168.0.39:3456/`、新版入口 JS 和新版 Canvas 包，确认 192.168 生产测试端命中新 query、新 Canvas 自动刷新 hook 和 resize 刷新；旧 `Canvas-yGc8b2gf.js` 返回 410。
+
+### 剩余风险
+
+- 缺少浏览器级自动化复现脚本；本轮主要通过静态资源断言、线上命中和用户强刷后的实际观察闭环。

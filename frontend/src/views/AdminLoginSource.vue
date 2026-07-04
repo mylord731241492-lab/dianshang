@@ -1,40 +1,53 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { NButton, NInput, useMessage } from 'naive-ui';
 import { ArrowLeft, KeyRound, ShieldCheck } from 'lucide-vue-next';
-import { adminLogin } from '../api/adminAuth';
-import type { AuthUser } from '../api/auth';
-import { saveAuthSession } from '../api/auth';
+import { adminLogin, migrateLegacyAdminSession, saveAdminAuthSession } from '../api/adminAuth';
 import { getApiErrorMessage } from '../api/http';
-import { legacyUrl } from '../config/legacy';
 
 const message = useMessage();
+const route = useRoute();
+const router = useRouter();
 const loading = ref(false);
 const errorMessage = ref('');
-const loggedInUser = ref<AuthUser | null>(null);
 
 const form = reactive({
   username: '',
   password: ''
 });
 
-function fillDefaultAdmin() {
-  form.username = 'admin';
-  form.password = 'admin123';
-}
-
 function friendlyError(error: unknown) {
   return getApiErrorMessage(error, '管理员登录失败');
 }
+
+function resolveRedirectPath() {
+  const redirect = route.query.redirect;
+  if (typeof redirect === 'string' && redirect.startsWith('/admin/') && redirect !== '/admin/login') {
+    return redirect;
+  }
+  return '/admin/dashboard';
+}
+
+async function enterAdmin() {
+  await router.replace(resolveRedirectPath());
+}
+
+onMounted(() => {
+  const user = migrateLegacyAdminSession();
+  if (user?.role === 'admin') {
+    void enterAdmin();
+  }
+});
 
 async function submit() {
   errorMessage.value = '';
   loading.value = true;
   try {
     const data = await adminLogin(form.username.trim(), form.password);
-    saveAuthSession(data);
-    loggedInUser.value = data.user;
+    saveAdminAuthSession(data);
     message.success('管理员登录成功');
+    await enterAdmin();
   } catch (error) {
     errorMessage.value = friendlyError(error);
     message.error(errorMessage.value);
@@ -54,16 +67,10 @@ async function submit() {
       <p class="eyebrow">Admin Console</p>
       <h1>后台登录</h1>
       <p class="admin-login-subtitle">
-        后台入口已进入 Vue3 源码层；登录后继续打开稳定旧后台控制台。
+        登录后进入统一管理员后台，管理用户、订单、兑换码和系统设置。
       </p>
 
-      <div v-if="loggedInUser" class="admin-login-success">
-        <strong>管理员登录成功</strong>
-        <span>{{ loggedInUser.username }} · {{ loggedInUser.role || 'admin' }}</span>
-        <p>当前登录态已保存在 Vue3 源码前端，后续后台源码页会复用这套 session。</p>
-      </div>
-
-      <form v-else class="auth-form" @submit.prevent="submit">
+      <form class="auth-form" @submit.prevent="submit">
         <label>
           管理员账号
           <n-input v-model:value="form.username" placeholder="请输入管理员账号" autocomplete="username" />
@@ -82,12 +89,6 @@ async function submit() {
           进入后台
         </n-button>
       </form>
-
-      <div class="auth-links">
-        <button v-if="!loggedInUser" type="button" @click="fillDefaultAdmin">填入默认账号</button>
-        <a :href="legacyUrl('/admin/login')">旧版后台登录</a>
-        <a :href="legacyUrl('/admin/dashboard')">旧版后台控制台</a>
-      </div>
     </section>
   </main>
 </template>

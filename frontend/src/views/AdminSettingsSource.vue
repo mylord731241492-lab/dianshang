@@ -4,7 +4,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NAlert, NButton, NInput, NInputNumber, NSelect, NSwitch, NTag, useMessage } from 'naive-ui';
 import { ArrowLeft, CheckCircle2, Coins, FileText, Image, Plus, RefreshCcw, Save, Search, Settings, ShieldCheck, ToggleLeft, Trash2, UserRound } from 'lucide-vue-next';
-import { clearAuthSession } from '../api/auth';
+import { clearAdminAuthSession } from '../api/adminAuth';
 import { getAdminApiProviders, type AdminApiProvider } from '../api/adminApiProviders';
 import {
   getAdminSettings,
@@ -98,18 +98,17 @@ const draftImageTools = computed(() => {
   }));
 });
 
-const ecommerceDraft = computed(() => draft.value.ecommerceSuiteAgent || ensureEcommerceDraft());
+const ecommerceDraft = computed(() =>
+  draft.value.ecommerceSuiteAgent || cloneEcommerceAgent(settings.value.ecommerceSuiteAgent)
+);
 
 const ecommerceDefaults = computed<EcommerceSuiteDefaults>(() => {
-  const agent = ensureEcommerceDraft();
-  agent.defaults = agent.defaults || cloneEcommerceAgent().defaults || {};
+  const agent = ecommerceDraft.value;
   return agent.defaults as EcommerceSuiteDefaults;
 });
 
 const ecommerceSkills = computed(() => {
-  const agent = ensureEcommerceDraft();
-  agent.skills = agent.skills || [];
-  return agent.skills;
+  return ecommerceDraft.value.skills || [];
 });
 
 const ecommerceSkillOptions = computed(() =>
@@ -283,9 +282,10 @@ function cloneEcommerceAgent(source?: EcommerceSuiteAgentSetting): EcommerceSuit
 }
 
 function ensureEcommerceDraft() {
-  const next = cloneEcommerceAgent(draft.value.ecommerceSuiteAgent || settings.value.ecommerceSuiteAgent);
-  draft.value.ecommerceSuiteAgent = next;
-  return next;
+  if (!draft.value.ecommerceSuiteAgent) {
+    draft.value.ecommerceSuiteAgent = cloneEcommerceAgent(settings.value.ecommerceSuiteAgent);
+  }
+  return draft.value.ecommerceSuiteAgent;
 }
 
 function ecommerceDraftChanged() {
@@ -439,7 +439,7 @@ async function saveSettings() {
 }
 
 async function logout() {
-  clearAuthSession();
+  clearAdminAuthSession();
   await router.replace('/admin/login');
 }
 

@@ -322,3 +322,65 @@
 3. 如果要改 GPT Image 2 参数，先看 `docs/provider-packy-gpt-image-2.md`。
 4. 如果要触发真实 GPT 5.5 或 GPT Image 2，先说明可能扣费并等用户确认。
 5. 改完必须跑旧画布边界 smoke，并把结果写入 `docs/progress-report.md` 和 `docs/review-log.md`。
+
+## 2026-07-03 图片工具浮层窗口化
+
+### 当前实现
+
+- `assets/Canvas-B8bY9_QL.js` 与 `assets/Canvas-yGc8b2gf.js` 的图片工具条删除 `smartErase`，但后端 `erase` 接口和后台配置保留兼容旧数据。
+- `局部修改` 工具项设为 `ready`，继续打开旧 `InpaintPanel`，不新增画布引擎。
+- `InpaintPanel` 指针坐标按 preview canvas 内部像素和屏幕 rect 比例换算，覆盖 Vue Flow 缩放和浮层尺寸变化造成的笔刷偏移。
+- `assets/canvas-image-node-polish.js/css` 只作为旧画布过渡层增强 `.image-edit-overlay`：标题栏拖拽、右下角缩放、内容区滚动。
+- 资源查询串为 `20260703panel2`，资产护栏和旧画布边界 smoke 均已同步。
+
+### 守护
+
+- `scripts/verify-canvas-performance-assets.js` 断言 `smartErase` 不回到图片工具条，`局部修改` 必须保持 `phase:"ready"`。
+- 同一脚本断言笔刷坐标换算锚点、浮层窗口化脚本函数和 CSS 手柄存在。
+- `scripts/smoke-backend-canvas-boundary.ps1` 覆盖 `panel2` 静态资源返回 200，并继续确认 `/api/image-tools/erase` 未登录 401 兼容边界。
+
+### 禁止回退
+
+- 不要恢复图片工具条 `AI 智能消除`。
+- 不要把浮层拖拽/缩放扩展成第二套画布或节点系统。
+- 不要删除 `/api/image-tools/erase`，除非先完成接口契约和旧数据迁移方案。
+
+## 2026-07-03 局部修改提交独立进度节点
+
+### 当前实现
+
+- `assets/Canvas-B8bY9_QL.js` 与 `assets/Canvas-yGc8b2gf.js` 的图片结果节点 helper 支持 `connect:false`，默认仍按旧逻辑创建 `imageOrder` 连线。
+- `局部修改/文字编辑` 提交时传入 `connect:false` 与 `allowEmptyUrl:true`，立即创建独立图片加载节点，初始进度固定为 `18`，文案为 `已提交请求`。
+- `/api/image-tools/inpaint` 请求在后台继续执行，成功后回填同一个图片节点，失败后把同一节点标记为 `生成失败`。
+- 资源查询串升级到 `20260703submit1`，避免浏览器继续加载 `panel2` 旧提交逻辑。
+
+### 守护
+
+- `scripts/verify-canvas-performance-assets.js` 断言 `connect:false`、`已提交请求`、`imageNodeId:j,status:"submitted"` 和回填同一节点逻辑存在。
+- 同一脚本禁止回退到等待 `MN(N)` 返回后再 `return u({imageUrl:H...})` 的旧同步建节点路径。
+
+### 禁止回退
+
+- 不要把局部修改提交节点重新连回原图片节点，除非用户明确要求恢复连线。
+- 不要把 helper 默认行为改为全局不连线；其它图片工具当前仍依赖默认连线语义。
+- 不要在未确认真实 Provider 调用风险前用浏览器端到端提交局部修改。
+
+## 2026-07-03 局部修改 mask 兼容格式
+
+### 当前实现
+
+- `局部修改` 面板提交时保留旧 `maskBase64` 黑白 mask，同时新增 `maskAlphaBase64`。
+- `maskAlphaBase64` 将涂抹区域导出为透明编辑区，未涂抹区域导出为黑色不透明保留区，用于适配更多 OpenAI-compatible Images Edit 网关。
+- `server.js` 图片编辑链路优先使用 `maskAlphaBase64`，再回退到 `maskBase64/mask/maskUrl`。
+- 默认局部修改提示词已从 `mask 白色区域` 扩展为 `mask 透明或白色标记区域`，并明确未涂抹区域的文字、品牌标识、瓶身标签和商品结构必须保持。
+
+### 守护
+
+- `scripts/verify-canvas-performance-assets.js` 断言两个 Canvas bundle 必须包含 `maskAlphaBase64:be()` 和透明 mask alpha 转换。
+- 同一脚本断言 `server.js` 必须优先读取 `maskAlphaBase64`，并保留强化后的未涂抹区域保留提示词。
+
+### 禁止回退
+
+- 不要删除 `maskBase64`，它是旧请求和调试回退字段。
+- 不要把后端优先级改回只读 `maskBase64`。
+- 不要把局部修改提示词改成泛化的“去掉所有文字”，否则模型容易改写未涂抹的瓶身标签。

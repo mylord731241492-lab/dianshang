@@ -4,7 +4,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NInput, NPagination, NSelect, NTag } from 'naive-ui';
 import { ArrowDownCircle, ArrowLeft, ArrowUpCircle, Coins, RefreshCcw, Search } from 'lucide-vue-next';
-import { clearAuthSession } from '../api/auth';
+import { clearAdminAuthSession } from '../api/adminAuth';
 import { getAdminUsageLogs, type AdminUsageLog } from '../api/adminUsageLogs';
 import { getApiErrorMessage } from '../api/http';
 
@@ -141,7 +141,7 @@ async function applyFilters() {
 }
 
 async function logout() {
-  clearAuthSession();
+  clearAdminAuthSession();
   await router.replace('/admin/login');
 }
 

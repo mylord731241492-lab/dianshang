@@ -21,6 +21,17 @@ export interface AdminRedeemCodeListParams {
   pageSize?: number;
 }
 
+export interface AdminRedeemCodeCreatePayload {
+  code?: string;
+  amount?: number;
+  points?: number;
+  maxUses?: number;
+  max_uses?: number;
+  totalCount?: number;
+  enabled?: boolean;
+  status?: string;
+}
+
 export interface AdminRedeemCodeListResponse {
   success?: boolean;
   items: AdminRedeemCode[];
@@ -57,4 +68,14 @@ export async function getAdminRedeemCodes(
     page: Number(data.page ?? params.page ?? 1),
     pageSize: Number(data.pageSize ?? params.pageSize ?? (codes.length || 10))
   };
+}
+
+export async function createAdminRedeemCode(payload: AdminRedeemCodeCreatePayload): Promise<AdminRedeemCode> {
+  const response = await http.post<AdminRedeemCode & { success?: boolean }>('/api/admin/redeem-codes', payload);
+  return response.data;
+}
+
+export async function deleteAdminRedeemCode(code: string): Promise<{ success?: boolean }> {
+  const response = await http.delete<{ success?: boolean }>(`/api/admin/redeem-codes/${encodeURIComponent(code)}`);
+  return response.data;
 }

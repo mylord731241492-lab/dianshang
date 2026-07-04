@@ -10,6 +10,7 @@ export const router = createRouter({
     { path: '/gallery', name: 'gallery', component: () => import('../views/GallerySource.vue') },
     { path: '/login', name: 'login', component: () => import('../views/AuthSource.vue'), props: { mode: 'login' } },
     { path: '/register', name: 'register', component: () => import('../views/AuthSource.vue'), props: { mode: 'register' } },
+    { path: '/admin', name: 'admin-root', redirect: '/admin/login' },
     { path: '/admin/login', name: 'admin-login', component: () => import('../views/AdminLoginSource.vue') },
     { path: '/admin/dashboard', name: 'admin-dashboard', component: () => import('../views/AdminDashboardSource.vue') },
     { path: '/admin/users', name: 'admin-users', component: () => import('../views/AdminUsersSource.vue') },

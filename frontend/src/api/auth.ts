@@ -28,7 +28,7 @@ export async function sendRegisterCode(email: string) {
   return response.data;
 }
 
-export async function register(payload: { username: string; email: string; password: string; code: string }) {
+export async function register(payload: { username: string; email: string; password: string; code?: string }) {
   const response = await http.post<AuthResponse>('/api/auth/register', payload);
   return response.data;
 }

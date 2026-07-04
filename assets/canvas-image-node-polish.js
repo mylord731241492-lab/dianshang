@@ -1,7 +1,29 @@
 (function () {
   var SELECTOR = '.vue-flow__node-image .image-node img';
   var TITLE_RENAME_SELECTOR = '.vue-flow__node [title="双击编辑名称"], .vue-flow__node [data-hjm-node-title-lock="true"]';
+  var PANEL_SELECTOR = '.image-edit-overlay';
+  var PANEL_WINDOW_ATTR = 'data-hjm-panel-window';
+  var PANEL_RESIZE_HANDLE_CLASS = 'hjm-overlay-resize-handle';
   var scanTimer = null;
+
+  function isElement(node) {
+    return !!(node && node.nodeType === 1);
+  }
+
+  function matchesAny(node, selector) {
+    return !!(isElement(node) && node.matches && node.matches(selector));
+  }
+
+  function containsAny(node, selector) {
+    return !!(isElement(node) && node.querySelector && node.querySelector(selector));
+  }
+
+  function isRelevantPolishRoot(node) {
+    if (!isElement(node)) return false;
+    if (matchesAny(node, SELECTOR) || matchesAny(node, TITLE_RENAME_SELECTOR) || matchesAny(node, PANEL_SELECTOR)) return true;
+    if (node.closest && node.closest('.vue-flow__node-image, ' + PANEL_SELECTOR)) return true;
+    return containsAny(node, SELECTOR) || containsAny(node, TITLE_RENAME_SELECTOR) || containsAny(node, PANEL_SELECTOR);
+  }
 
   function classify(width, height) {
     if (!width || !height) return 'unknown';
@@ -56,6 +78,149 @@
     }
   }
 
+  function clamp(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+  }
+
+  function stopPanelEvent(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+  }
+
+  function panelScale(panel) {
+    var rect = panel.getBoundingClientRect();
+    return {
+      x: rect.width && panel.offsetWidth ? rect.width / panel.offsetWidth : 1,
+      y: rect.height && panel.offsetHeight ? rect.height / panel.offsetHeight : 1
+    };
+  }
+
+  function panelOffset(panel) {
+    return {
+      x: Number(panel.__hjmPanelX || 0) || 0,
+      y: Number(panel.__hjmPanelY || 0) || 0
+    };
+  }
+
+  function setPanelOffset(panel, x, y) {
+    panel.__hjmPanelX = x;
+    panel.__hjmPanelY = y;
+    panel.style.setProperty('--hjm-panel-x', x + 'px');
+    panel.style.setProperty('--hjm-panel-y', y + 'px');
+  }
+
+  function attachDocumentPointerTrack(move, done) {
+    document.addEventListener('pointermove', move, true);
+    document.addEventListener('pointerup', done, true);
+    document.addEventListener('pointercancel', done, true);
+  }
+
+  function detachDocumentPointerTrack(move, done) {
+    document.removeEventListener('pointermove', move, true);
+    document.removeEventListener('pointerup', done, true);
+    document.removeEventListener('pointercancel', done, true);
+  }
+
+  function startPanelDrag(event, panel) {
+    var start = panelOffset(panel);
+    var rect = panel.getBoundingClientRect();
+    var scale = panelScale(panel);
+    var startX = event.clientX;
+    var startY = event.clientY;
+    var minX = start.x + (16 - rect.left) / scale.x;
+    var maxX = start.x + (window.innerWidth - 80 - rect.left) / scale.x;
+    var minY = start.y + (16 - rect.top) / scale.y;
+    var maxY = start.y + (window.innerHeight - 80 - rect.top) / scale.y;
+    if (maxX < minX) maxX = minX;
+    if (maxY < minY) maxY = minY;
+
+    function move(moveEvent) {
+      stopPanelEvent(moveEvent);
+      var nextX = start.x + (moveEvent.clientX - startX) / scale.x;
+      var nextY = start.y + (moveEvent.clientY - startY) / scale.y;
+      setPanelOffset(panel, clamp(nextX, minX, maxX), clamp(nextY, minY, maxY));
+    }
+
+    function done(doneEvent) {
+      stopPanelEvent(doneEvent);
+      detachDocumentPointerTrack(move, done);
+      document.documentElement.classList.remove('hjm-image-tool-window-dragging');
+    }
+
+    document.documentElement.classList.add('hjm-image-tool-window-dragging');
+    attachDocumentPointerTrack(move, done);
+  }
+
+  function startPanelResize(event, panel) {
+    var scale = panelScale(panel);
+    var startX = event.clientX;
+    var startY = event.clientY;
+    var startWidth = panel.offsetWidth || panel.getBoundingClientRect().width || 300;
+    var startHeight = panel.offsetHeight || panel.getBoundingClientRect().height || 360;
+    var maxWidth = Math.max(300, Math.min(760, (window.innerWidth - 32) / scale.x));
+    var maxHeight = Math.max(240, Math.min(820, (window.innerHeight - 32) / scale.y));
+
+    function move(moveEvent) {
+      stopPanelEvent(moveEvent);
+      var nextWidth = clamp(startWidth + (moveEvent.clientX - startX) / scale.x, 260, maxWidth);
+      var nextHeight = clamp(startHeight + (moveEvent.clientY - startY) / scale.y, 220, maxHeight);
+      panel.style.setProperty('width', Math.round(nextWidth) + 'px', 'important');
+      panel.style.setProperty('height', Math.round(nextHeight) + 'px', 'important');
+      panel.style.setProperty('max-height', 'none', 'important');
+    }
+
+    function done(doneEvent) {
+      stopPanelEvent(doneEvent);
+      detachDocumentPointerTrack(move, done);
+      document.documentElement.classList.remove('hjm-image-tool-window-resizing');
+    }
+
+    document.documentElement.classList.add('hjm-image-tool-window-resizing');
+    attachDocumentPointerTrack(move, done);
+  }
+
+  function enhanceImageToolPanel(panel) {
+    if (!panel || !panel.setAttribute || panel.getAttribute(PANEL_WINDOW_ATTR) === 'true') return;
+    panel.setAttribute(PANEL_WINDOW_ATTR, 'true');
+    panel.classList.add('hjm-image-tool-window');
+    panel.style.setProperty('--hjm-panel-x', '0px');
+    panel.style.setProperty('--hjm-panel-y', '0px');
+    if (!panel.querySelector('.' + PANEL_RESIZE_HANDLE_CLASS)) {
+      var handle = document.createElement('span');
+      handle.className = PANEL_RESIZE_HANDLE_CLASS;
+      handle.setAttribute('aria-hidden', 'true');
+      panel.appendChild(handle);
+    }
+  }
+
+  function enhanceImageToolPanels(root) {
+    var scope = root && root.querySelectorAll ? root : document;
+    if (scope.matches && scope.matches(PANEL_SELECTOR)) enhanceImageToolPanel(scope);
+    if (scope.querySelectorAll) scope.querySelectorAll(PANEL_SELECTOR).forEach(enhanceImageToolPanel);
+  }
+
+  function handlePanelPointerDown(event) {
+    if (event.button !== 0) return;
+    var target = event.target;
+    if (!target || !target.closest) return;
+    var resizeHandle = target.closest('.' + PANEL_RESIZE_HANDLE_CLASS);
+    if (resizeHandle) {
+      var resizePanel = resizeHandle.closest(PANEL_SELECTOR + '[' + PANEL_WINDOW_ATTR + '="true"]');
+      if (!resizePanel) return;
+      stopPanelEvent(event);
+      startPanelResize(event, resizePanel);
+      return;
+    }
+    var header = target.closest('.overlay-header');
+    if (!header) return;
+    if (target.closest('button, input, textarea, select, [contenteditable="true"], [role="button"]')) return;
+    var panel = header.closest(PANEL_SELECTOR + '[' + PANEL_WINDOW_ATTR + '="true"]');
+    if (!panel) return;
+    stopPanelEvent(event);
+    startPanelDrag(event, panel);
+  }
+
   function markNodeTitles(root) {
     var scope = root && root.querySelectorAll ? root : document;
     if (scope.matches && scope.matches(TITLE_RENAME_SELECTOR)) lockNodeTitleRename(scope);
@@ -65,6 +230,7 @@
   function markAll(root) {
     var scope = root && root.querySelectorAll ? root : document;
     markNodeTitles(scope);
+    enhanceImageToolPanels(scope);
     if (scope.matches && scope.matches(SELECTOR)) markImage(scope);
     if (scope.querySelectorAll) scope.querySelectorAll(SELECTOR).forEach(markImage);
   }
@@ -95,15 +261,17 @@
       event.stopPropagation();
       if (event.stopImmediatePropagation) event.stopImmediatePropagation();
     }, true);
+    document.addEventListener('pointerdown', handlePanelPointerDown, true);
 
     var observer = new MutationObserver(function (mutations) {
       for (var i = 0; i < mutations.length; i += 1) {
         var nodes = mutations[i].addedNodes || [];
         for (var j = 0; j < nodes.length; j += 1) {
-          if (nodes[j] && nodes[j].nodeType === 1) scheduleMarkAll(nodes[j]);
+          if (isRelevantPolishRoot(nodes[j])) scheduleMarkAll(nodes[j]);
         }
         if (mutations[i].type === 'attributes' && mutations[i].target) {
           var target = mutations[i].target;
+          if (!isRelevantPolishRoot(target)) continue;
           var scope = target.closest && target.closest('.vue-flow__node-image');
           scheduleMarkAll(scope || target);
         }
@@ -115,7 +283,8 @@
       classify: classify,
       markAll: markAll,
       markImage: markImage,
-      markNodeTitles: markNodeTitles
+      markNodeTitles: markNodeTitles,
+      enhanceImageToolPanels: enhanceImageToolPanels
     };
   }
 

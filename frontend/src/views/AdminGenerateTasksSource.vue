@@ -14,7 +14,7 @@ import {
   Timer,
   XCircle
 } from 'lucide-vue-next';
-import { clearAuthSession } from '../api/auth';
+import { clearAdminAuthSession } from '../api/adminAuth';
 import { getAdminGenerateTasks, type AdminGenerateTask } from '../api/adminGenerateTasks';
 import { getApiErrorMessage } from '../api/http';
 
@@ -130,7 +130,7 @@ async function applyFilters() {
 }
 
 async function logout() {
-  clearAuthSession();
+  clearAdminAuthSession();
   await router.replace('/admin/login');
 }
 

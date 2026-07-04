@@ -22,6 +22,12 @@ function assertIncludes(label, text, needles) {
   }
 }
 
+function assertExcludes(label, text, needles) {
+  for (const needle of needles) {
+    assert(!text.includes(needle), `${label} should not include ${needle}`);
+  }
+}
+
 const generationAdapter = sliceFrom('async function callProviderImageGeneration', 'async function callProviderImageEdit');
 assertIncludes('callProviderImageGeneration', generationAdapter, [
   'providerImageSize(',
@@ -31,7 +37,13 @@ assertIncludes('callProviderImageGeneration', generationAdapter, [
   'application/json',
   'output_format',
   "response_format: 'url'",
-  'n: 1'
+  'n: 1',
+  'await runQueuedProviderImageBatch(count, async',
+  "queueMode: 'serial-delayed'",
+  'queueDelayMs: providerImageRequestDelay(options)'
+]);
+assertExcludes('callProviderImageGeneration', generationAdapter, [
+  'await Promise.all(Array.from({ length: count }, async'
 ]);
 
 const editAdapter = sliceFrom('async function callProviderImageEdit', 'function reqBodyModel');
@@ -48,7 +60,21 @@ assertIncludes('callProviderImageEdit', editAdapter, [
   "form.append('input_fidelity', inputFidelity)",
   "form.append('image[]'",
   "form.append('image'",
-  "form.append('mask'"
+  "form.append('mask'",
+  'await runQueuedProviderImageBatch(count, async',
+  "queueMode: 'serial-delayed'",
+  'queueDelayMs: providerImageRequestDelay(options)'
+]);
+assertExcludes('callProviderImageEdit', editAdapter, [
+  'await Promise.all(Array.from({ length: count }, async'
+]);
+
+assertIncludes('Provider image request queue', source, [
+  'const IMAGE_PROVIDER_REQUEST_DELAY_MS',
+  'let providerImageRequestQueue = Promise.resolve()',
+  'function runQueuedProviderImageRequest',
+  'async function runQueuedProviderImageBatch',
+  'forceQueueDelay: i > 0'
 ]);
 
 const coverage = [

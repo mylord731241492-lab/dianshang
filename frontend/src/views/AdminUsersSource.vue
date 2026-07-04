@@ -13,7 +13,7 @@ import {
   UserCheck,
   Users
 } from 'lucide-vue-next';
-import { clearAuthSession } from '../api/auth';
+import { clearAdminAuthSession } from '../api/adminAuth';
 import { getAdminUsers, type AdminUser } from '../api/adminUsers';
 import { getApiErrorMessage } from '../api/http';
 
@@ -128,7 +128,7 @@ async function applySearch() {
 }
 
 async function logout() {
-  clearAuthSession();
+  clearAdminAuthSession();
   await router.replace('/admin/login');
 }
 

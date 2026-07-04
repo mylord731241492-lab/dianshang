@@ -18,6 +18,7 @@ export const frontendMigrationRoutes: FrontendMigrationRoute[] = [
   { path: '/user/center', title: '用户中心', area: 'user', status: 'source', note: '源码第一版已接入资料、余额流水和 API 状态。' },
   { path: '/user/records', title: '生成记录', area: 'user', status: 'source', note: '源码第一版已接入生成历史和余额流水。' },
   { path: '/user/redeem', title: '兑换码', area: 'user', status: 'source', note: '源码第一版已接入兑换码提交和流水刷新。' },
+  { path: '/admin', title: '后台入口', area: 'admin', status: 'source', note: '统一后台根入口，重定向到源码后台登录页。' },
   { path: '/admin/login', title: '后台登录', area: 'admin', status: 'source', note: '源码第一版已接入 /api/admin/login，旧后台仍保留独立入口。' },
   { path: '/admin/dashboard', title: '后台控制台', area: 'admin', status: 'source', note: '源码后台已统一共用侧栏；Dashboard 保持只读统计。' },
   { path: '/admin/users', title: '用户管理', area: 'admin', status: 'source', note: '源码第一版已接入只读用户列表与搜索。' },

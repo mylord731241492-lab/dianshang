@@ -86,30 +86,78 @@ foreach ($clarity in $expectedImageClarities) {
 
 $registerEmail = "smoke-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())@local.test"
 $registerUser = "smoke" + (Get-Date -Format "MMddHHmmss")
-$registerCode = Invoke-SmokeJson -Method "POST" -Path "/api/auth/send-email-code" -Body @{
-  email = $registerEmail
-  type = "register"
-}
-if (-not $registerCode.code) {
-  throw "Register email code missing"
-}
 
 $registered = Invoke-SmokeJson -Method "POST" -Path "/api/auth/register" -Body @{
   username = $registerUser
   email = $registerEmail
   password = "test123456"
-  code = $registerCode.code
 }
 if (-not $registered.token) {
   throw "Register did not return token"
 }
 $userHeaders = @{ Authorization = "Bearer $($registered.token)" }
 
+$resetCodeResponse = Invoke-SmokeJson -Method "POST" -Path "/api/auth/send-reset-code" -Body @{
+  email = $registerEmail
+}
+$realEmailEnabled = @("1", "true", "yes", "on") -contains ([string]$env:ENABLE_REAL_EMAIL).ToLowerInvariant()
+if (-not $resetCodeResponse.code -and -not $realEmailEnabled) {
+  throw "Reset code should be returned in mock email mode"
+}
+if ($resetCodeResponse.code) {
+  $resetPassword = "reset123456"
+  $resetResult = Invoke-SmokeJson -Method "POST" -Path "/api/auth/reset-password" -Body @{
+    email = $registerEmail
+    code = $resetCodeResponse.code
+    newPassword = $resetPassword
+    confirmPassword = $resetPassword
+  }
+  if (-not $resetResult.success) {
+    throw "Reset password failed"
+  }
+  $loginAfterReset = Invoke-SmokeJson -Method "POST" -Path "/api/auth/login" -Body @{
+    username = $registerUser
+    password = $resetPassword
+  }
+  if (-not $loginAfterReset.token) {
+    throw "Login after reset did not return token"
+  }
+}
+
 $profile = Invoke-SmokeJson -Method "GET" -Path "/api/user/profile" -Headers $userHeaders
 if (-not $profile.user) {
   throw "User profile missing"
 }
-$balanceBeforeGeneration = [double]$profile.user.balance
+if ([math]::Abs(([double]$profile.user.balance) - 0) -gt 0.001) {
+  throw "Register should create user with zero balance before redeem"
+}
+
+$adminLogin = Invoke-SmokeJson -Method "POST" -Path "/api/admin/login" -Body @{
+  username = "admin"
+  password = "admin123"
+}
+$adminHeaders = @{ Authorization = "Bearer $($adminLogin.token)" }
+
+$smokeCode = "SMOKE$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
+$createdCode = Invoke-SmokeJson -Method "POST" -Path "/api/admin/redeem-codes" -Headers $adminHeaders -Body @{
+  code = $smokeCode
+  amount = 50
+  maxUses = 1
+  enabled = $true
+}
+if (-not $createdCode.success) {
+  throw "Redeem code create failed"
+}
+
+$redeemedCode = Invoke-SmokeJson -Method "POST" -Path "/api/user/redeem" -Headers $userHeaders -Body @{
+  code = $smokeCode
+}
+if (-not $redeemedCode.success -or [double]$redeemedCode.balance -lt 50) {
+  throw "Redeem code did not add balance"
+}
+
+$profileAfterRedeem = Invoke-SmokeJson -Method "GET" -Path "/api/user/profile" -Headers $userHeaders
+$balanceBeforeGeneration = [double]$profileAfterRedeem.user.balance
 
 $projectName = "Smoke Canvas " + (Get-Date -Format "HHmmss")
 $createdProject = Invoke-SmokeJson -Method "POST" -Path "/api/user/projects" -Headers $userHeaders -Body @{
@@ -159,6 +207,14 @@ $savedWorkflow = Invoke-SmokeJson -Method "POST" -Path "/api/workflows/$projectI
 if (-not $savedWorkflow.success -or $savedWorkflow.workflowId -ne $projectId) {
   throw "Canvas workflow cloud save failed"
 }
+if (-not $savedWorkflow.localFile -or -not $savedWorkflow.localFile.relativePath) {
+  throw "Canvas workflow local JSON file missing"
+}
+
+$downloadedLocalWorkflow = Invoke-SmokeJson -Method "GET" -Path "/api/workflows/$projectId/local-json" -Headers $userHeaders
+if ($downloadedLocalWorkflow.projectId -ne $projectId -or $downloadedLocalWorkflow.nodes.Count -ne 2 -or $downloadedLocalWorkflow.storage.mode -ne "cloud-smoke") {
+  throw "Canvas workflow local JSON download failed"
+}
 
 $loadedProject = Invoke-SmokeJson -Method "GET" -Path "/api/user/projects/$projectId" -Headers $userHeaders
 if (-not $loadedProject.success -or $loadedProject.data.nodes.Count -ne 2 -or $loadedProject.data.edges.Count -ne 1) {
@@ -172,6 +228,73 @@ $projectList = Invoke-SmokeJson -Method "GET" -Path "/api/user/projects" -Header
 $listedProject = @($projectList.items) | Where-Object { $_.id -eq $projectId } | Select-Object -First 1
 if (-not $projectList.success -or -not $listedProject -or -not $listedProject.thumbnail) {
   throw "Canvas project list restore failed"
+}
+
+$workflowJsonData = @{
+  nodes = @(
+    @{
+      id = "node-smoke-workflow-json"
+      type = "textNode"
+      position = @{ x = 180; y = 220 }
+      data = @{ title = "WorkflowJson smoke node" }
+    }
+  )
+  edges = @()
+  viewport = @{ x = 4; y = 8; zoom = 0.75 }
+  storage = @{ mode = "workflow-json-smoke" }
+  thumbnail = "/templates/covers/detail-page.svg"
+}
+$savedWorkflowJson = Invoke-SmokeJson -Method "POST" -Path "/api/workflows/$projectId/save-json" -Headers $userHeaders -Body @{
+  title = "$projectName WorkflowJson"
+  workflowJson = $workflowJsonData
+}
+if (-not $savedWorkflowJson.success -or $savedWorkflowJson.workflowId -ne $projectId) {
+  throw "Canvas workflowJson cloud save failed"
+}
+if (-not $savedWorkflowJson.localFile -or -not $savedWorkflowJson.localFile.relativePath) {
+  throw "Canvas workflowJson local file missing"
+}
+
+$loadedWorkflowJsonProject = Invoke-SmokeJson -Method "GET" -Path "/api/user/projects/$projectId" -Headers $userHeaders
+if ($loadedWorkflowJsonProject.name -ne "$projectName WorkflowJson" -or $loadedWorkflowJsonProject.data.nodes.Count -ne 1 -or $loadedWorkflowJsonProject.data.storage.mode -ne "workflow-json-smoke") {
+  throw "Canvas workflowJson restore failed"
+}
+
+$downloadedWorkflowJson = Invoke-SmokeJson -Method "GET" -Path "/api/workflows/$projectId/local-json" -Headers $userHeaders
+if ($downloadedWorkflowJson.projectId -ne $projectId -or $downloadedWorkflowJson.title -ne "$projectName WorkflowJson" -or $downloadedWorkflowJson.storage.mode -ne "workflow-json-smoke") {
+  throw "Canvas workflowJson local JSON download failed"
+}
+
+$localOnlyWorkflowData = @{
+  nodes = @(
+    @{
+      id = "node-smoke-local-json"
+      type = "textNode"
+      position = @{ x = 320; y = 260 }
+      data = @{ title = "Local JSON smoke node" }
+    }
+  )
+  edges = @()
+  viewport = @{ x = 1; y = 2; zoom = 0.9 }
+  storage = @{ mode = "local-json-smoke" }
+  thumbnail = "/templates/covers/custom.svg"
+}
+$savedLocalWorkflow = Invoke-SmokeJson -Method "POST" -Path "/api/workflows/$projectId/save-local-json" -Headers $userHeaders -Body @{
+  title = "$projectName LocalJson"
+  workflowJson = $localOnlyWorkflowData
+}
+if (-not $savedLocalWorkflow.success -or -not $savedLocalWorkflow.localFile -or $savedLocalWorkflow.workflowId -ne $projectId) {
+  throw "Canvas save-local-json failed"
+}
+
+$loadedLocalJsonProject = Invoke-SmokeJson -Method "GET" -Path "/api/user/projects/$projectId" -Headers $userHeaders
+if ($loadedLocalJsonProject.name -ne "$projectName LocalJson" -or $loadedLocalJsonProject.data.storage.mode -ne "local-json-smoke") {
+  throw "Canvas save-local-json project restore failed"
+}
+
+$downloadedLocalOnlyJson = Invoke-SmokeJson -Method "GET" -Path "/api/workflows/$projectId/local-json" -Headers $userHeaders
+if ($downloadedLocalOnlyJson.title -ne "$projectName LocalJson" -or $downloadedLocalOnlyJson.nodes.Count -ne 1 -or $downloadedLocalOnlyJson.storage.mode -ne "local-json-smoke") {
+  throw "Canvas save-local-json download failed"
 }
 
 $updatedWorkflowData = @{
@@ -281,29 +404,12 @@ if ($providerMode -eq "real-provider-ready" -and -not $allowRealProviderSmoke) {
   }
 }
 
-$adminLogin = Invoke-SmokeJson -Method "POST" -Path "/api/admin/login" -Body @{
-  username = "admin"
-  password = "admin123"
-}
-$adminHeaders = @{ Authorization = "Bearer $($adminLogin.token)" }
-
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/dashboard" -Headers $adminHeaders | Out-Null
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/dashboard/user-credit-ranking" -Headers $adminHeaders | Out-Null
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/users" -Headers $adminHeaders | Out-Null
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/orders" -Headers $adminHeaders | Out-Null
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/usage-logs" -Headers $adminHeaders | Out-Null
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/redeem-codes" -Headers $adminHeaders | Out-Null
-
-$smokeCode = "SMOKE" + (Get-Date -Format "MMddHHmmss")
-$createdCode = Invoke-SmokeJson -Method "POST" -Path "/api/admin/redeem-codes" -Headers $adminHeaders -Body @{
-  code = $smokeCode
-  amount = 1
-  maxUses = 1
-  enabled = $true
-}
-if (-not $createdCode.success) {
-  throw "Redeem code create failed"
-}
 
 Invoke-SmokeJson -Method "GET" -Path "/api/admin/api-providers" -Headers $adminHeaders | Out-Null
 $providerTest = Invoke-SmokeJson -Method "POST" -Path "/api/admin/api-providers/pub_route_64f93e01e8f3/test" -Headers $adminHeaders

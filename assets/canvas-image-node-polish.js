@@ -5,6 +5,69 @@
   var PANEL_WINDOW_ATTR = 'data-hjm-panel-window';
   var PANEL_RESIZE_HANDLE_CLASS = 'hjm-overlay-resize-handle';
   var scanTimer = null;
+  var pendingDragRoot = null;
+  var installed = false;
+  var teardownFns = [];
+
+  function isCanvasPage() {
+    return /^\/canvas(\/|$)/.test(window.location.pathname || '');
+  }
+
+  function maybeInstall() {
+    if (installed || !isCanvasPage()) return;
+    installed = true;
+    install();
+  }
+
+  function teardownImageNodePolish() {
+    if (!installed) return;
+    installed = false;
+    teardownFns.forEach(function (teardown) {
+      try {
+        teardown();
+      } catch (_) {}
+    });
+    teardownFns = [];
+    if (scanTimer) {
+      clearTimeout(scanTimer);
+      scanTimer = null;
+    }
+    pendingDragRoot = null;
+    document.documentElement.classList.remove('hjm-image-tool-window-dragging');
+    document.documentElement.classList.remove('hjm-image-tool-window-resizing');
+    delete window.__hjmCanvasImageNodePolish;
+  }
+
+  function syncCanvasRoute() {
+    if (isCanvasPage()) {
+      maybeInstall();
+    } else {
+      teardownImageNodePolish();
+    }
+  }
+
+  function watchCanvasRoute() {
+    function scheduleInstall() {
+      setTimeout(syncCanvasRoute, 0);
+    }
+    ['pushState', 'replaceState'].forEach(function (name) {
+      var original = history[name];
+      if (!original || original.__hjmCanvasPolishWrapped) return;
+      var wrapped = function () {
+        var result = original.apply(this, arguments);
+        scheduleInstall();
+        return result;
+      };
+      wrapped.__hjmCanvasPolishWrapped = true;
+      history[name] = wrapped;
+    });
+    window.addEventListener('popstate', scheduleInstall);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', syncCanvasRoute, { once: true });
+    } else {
+      syncCanvasRoute();
+    }
+  }
 
   function isElement(node) {
     return !!(node && node.nodeType === 1);
@@ -23,6 +86,10 @@
     if (matchesAny(node, SELECTOR) || matchesAny(node, TITLE_RENAME_SELECTOR) || matchesAny(node, PANEL_SELECTOR)) return true;
     if (node.closest && node.closest('.vue-flow__node-image, ' + PANEL_SELECTOR)) return true;
     return containsAny(node, SELECTOR) || containsAny(node, TITLE_RENAME_SELECTOR) || containsAny(node, PANEL_SELECTOR);
+  }
+
+  function isCanvasDragging() {
+    return document.documentElement.classList.contains('canvas-performance-dragging');
   }
 
   function classify(width, height) {
@@ -236,6 +303,10 @@
   }
 
   function scheduleMarkAll(root) {
+    if (isCanvasDragging()) {
+      pendingDragRoot = root || document;
+      return;
+    }
     if (scanTimer) clearTimeout(scanTimer);
     scanTimer = setTimeout(function () {
       scanTimer = null;
@@ -243,14 +314,29 @@
     }, 80);
   }
 
+  function flushPendingDragMark() {
+    if (!pendingDragRoot) return;
+    var root = pendingDragRoot;
+    pendingDragRoot = null;
+    scheduleMarkAll(root);
+  }
+
   function install() {
     markAll(document);
-    document.addEventListener('load', function (event) {
+
+    function addDocListener(type, handler, options) {
+      document.addEventListener(type, handler, options);
+      teardownFns.push(function () {
+        document.removeEventListener(type, handler, options);
+      });
+    }
+
+    addDocListener('load', function (event) {
       if (event.target && event.target.matches && event.target.matches(SELECTOR)) {
         markImage(event.target);
       }
     }, true);
-    document.addEventListener('dblclick', function (event) {
+    addDocListener('dblclick', function (event) {
       var target = event.target;
       if (!target || !target.closest) return;
       if (target.closest('button, input, textarea, select, [contenteditable="true"], [role="textbox"]')) return;
@@ -261,10 +347,24 @@
       event.stopPropagation();
       if (event.stopImmediatePropagation) event.stopImmediatePropagation();
     }, true);
-    document.addEventListener('pointerdown', handlePanelPointerDown, true);
+    addDocListener('pointerdown', handlePanelPointerDown, true);
+    addDocListener('pointerup', function () {
+      setTimeout(flushPendingDragMark, 120);
+    }, true);
+    addDocListener('pointercancel', function () {
+      setTimeout(flushPendingDragMark, 120);
+    }, true);
 
     var observer = new MutationObserver(function (mutations) {
+      var dragging = isCanvasDragging();
       for (var i = 0; i < mutations.length; i += 1) {
+        if (dragging && mutations[i].type === 'attributes') {
+          var dragTarget = mutations[i].target;
+          if (dragTarget && dragTarget.closest) {
+            pendingDragRoot = dragTarget.closest('.vue-flow__node-image') || pendingDragRoot;
+          }
+          continue;
+        }
         var nodes = mutations[i].addedNodes || [];
         for (var j = 0; j < nodes.length; j += 1) {
           if (isRelevantPolishRoot(nodes[j])) scheduleMarkAll(nodes[j]);
@@ -278,6 +378,9 @@
       }
     });
     observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'title'] });
+    teardownFns.push(function () {
+      observer.disconnect();
+    });
 
     window.__hjmCanvasImageNodePolish = {
       classify: classify,
@@ -288,9 +391,5 @@
     };
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', install, { once: true });
-  } else {
-    install();
-  }
+  watchCanvasRoute();
 })();

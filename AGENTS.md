@@ -238,3 +238,13 @@ P2:
 - `will-change` 只能在拖拽、缩放、节点移动等交互态开启，禁止长期常驻，避免显存占用反而拖慢页面。
 - 自动保存只允许做降频和合并，不改变工作流 JSON 格式，不破坏历史项目恢复。
 - 后续如果进入第二阶段源码化旧画布组件，应迁移这些性能规则，不得把过渡层扩展成第二套画布实现。
+
+## 全局脚本与页面性能护栏
+
+- 画布专用脚本只能在 `/canvas` 路由安装重逻辑。`canvas-performance-mode.js`、`canvas-image-node-polish.js`、`canvas-chat-prompt-flow.js` 等脚本即使被 `index.html` 全站引用，也必须先经过 `/canvas` 路由闸门；非画布页只允许做轻量路由监听，不允许安装全页 `MutationObserver`、document 级高频事件监听、图片扫描、聊天面板刷新或拖拽状态逻辑。
+- 画布专用脚本必须支持路由离开时 teardown。从 `/canvas` 跳到 `/user/center`、首页或后台时，必须断开 `MutationObserver`、移除 document/window 事件监听、清理 timer、清除 `canvas-performance-*` 和画布工具态 class，并删除或降级全局调试对象；禁止只做首次进入闸门而把已安装的监听器留在非画布页。
+- 画布内打开用户中心、历史记录、AI 面板等大弹层时，仍然停留在 `/canvas`，不会触发路由 teardown。此类弹层必须有显式页面状态 class，并在打开期间降低背后 Vue Flow、图片节点工具条、minimap、聊天面板、backdrop blur、阴影和动画的渲染成本；禁止让完整画布在大型遮罩背后继续高成本合成。
+- 新增或修改全局脚本、全局 CSS、`index.html` 静态引用、SPA fallback、路由守卫时，必须同时评估首页、用户中心、后台和画布四类页面的影响；禁止为了修画布把监听器、`querySelectorAll` 扫描、`:has()` 重样式规则或长任务扩散到用户中心和后台。
+- 用户中心 `/user/center` 是非画布性能基线页：打开用户中心不应触发画布图片节点扫描、画布聊天面板扫描、画布拖拽监听、画布自动保存节流逻辑或旧画布节点刷新逻辑。若用户中心卡顿，优先检查全局脚本是否越界安装，再检查 `user-center-data-bridge.js`、用户资料接口和 UserCenter chunk 自身渲染。
+- 涉及画布性能脚本的生产改动，`scripts/smoke-internal-prod.ps1` 必须包含资源版本、隔离断言、离开画布 teardown 断言和画布内大弹层降负载断言：线上 HTML 命中新 query，线上脚本包含 `/canvas` 路由闸门与 teardown 函数，Canvas 包包含弹层状态 class，CSS 包含弹层打开时降 backdrop/降画布重绘规则，旧资源隔离仍返回 410/404。最终汇报必须说明是否影响非画布页、是否已直接验证 `http://192.168.0.39:3456/user/center`。
+- 性能修复禁止只凭主观感觉完成。至少要有静态断言、语法检查、生产资源命中检查和用户可复测路径；若问题仍存在，下一步必须采样 Chrome Performance trace 或等价指标，再决定是否继续削减 CSS `:has()`、全局 observer 或接口渲染逻辑。

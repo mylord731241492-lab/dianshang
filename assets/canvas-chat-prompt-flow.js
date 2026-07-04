@@ -1,5 +1,5 @@
 (function () {
-  var FLOW_VERSION = '20260704flicker1';
+  var FLOW_VERSION = '20260704canvasleave1';
   var state = {
     busy: false,
     runs: {},
@@ -22,6 +22,9 @@
   var SUITE_MAX_REFERENCE_IMAGES = 4;
   var promptFlowRefreshTimer = null;
   var promptFlowRefreshRoot = null;
+  var installed = false;
+  var teardownFns = [];
+  var hintTimers = [];
   var DEFAULT_SUITE_CONFIG = {
     enabled: true,
     defaultSkillId: 'gloria',
@@ -49,6 +52,64 @@
 
   function isCanvasPage() {
     return /^\/canvas(\/|$)/.test(window.location.pathname || '');
+  }
+
+  function maybeInstall() {
+    if (installed || !isCanvasPage()) return;
+    installed = true;
+    install();
+  }
+
+  function teardownChatPromptFlow() {
+    if (!installed) return;
+    installed = false;
+    teardownFns.forEach(function (teardown) {
+      try {
+        teardown();
+      } catch (_) {}
+    });
+    teardownFns = [];
+    hintTimers.forEach(function (timer) {
+      clearTimeout(timer);
+    });
+    hintTimers = [];
+    if (promptFlowRefreshTimer) {
+      clearTimeout(promptFlowRefreshTimer);
+      promptFlowRefreshTimer = null;
+    }
+    promptFlowRefreshRoot = null;
+    delete window.__hjmCanvasChatPromptFlow;
+  }
+
+  function syncCanvasRoute() {
+    if (isCanvasPage()) {
+      maybeInstall();
+    } else {
+      teardownChatPromptFlow();
+    }
+  }
+
+  function watchCanvasRoute() {
+    function scheduleInstall() {
+      setTimeout(syncCanvasRoute, 0);
+    }
+    ['pushState', 'replaceState'].forEach(function (name) {
+      var original = history[name];
+      if (!original || original.__hjmCanvasChatWrapped) return;
+      var wrapped = function () {
+        var result = original.apply(this, arguments);
+        scheduleInstall();
+        return result;
+      };
+      wrapped.__hjmCanvasChatWrapped = true;
+      history[name] = wrapped;
+    });
+    window.addEventListener('popstate', scheduleInstall);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', syncCanvasRoute, { once: true });
+    } else {
+      syncCanvasRoute();
+    }
   }
 
   function getPanel() {
@@ -1550,7 +1611,13 @@
   }
 
   function install() {
-    if (!isCanvasPage()) return;
+    function addDocListener(type, handler, options) {
+      document.addEventListener(type, handler, options);
+      teardownFns.push(function () {
+        document.removeEventListener(type, handler, options);
+      });
+    }
+
     window.__hjmCanvasChatPromptFlow = {
       version: FLOW_VERSION,
       getPanel: getPanel,
@@ -1562,13 +1629,13 @@
       readSuiteSettings: function () { return readSuiteSettings(getPanel()); },
       state: state
     };
-    document.addEventListener('click', handleClick, true);
-    document.addEventListener('keydown', handleKeydown, true);
-    document.addEventListener('change', handleChange, true);
+    addDocListener('click', handleClick, true);
+    addDocListener('keydown', handleKeydown, true);
+    addDocListener('change', handleChange, true);
     updateHints(document);
     syncPromptFlowCardVisibility(getPanel());
-    setTimeout(function () { updateHints(document); syncPromptFlowCardVisibility(getPanel()); }, 300);
-    setTimeout(function () { updateHints(document); syncPromptFlowCardVisibility(getPanel()); }, 1200);
+    hintTimers.push(setTimeout(function () { updateHints(document); syncPromptFlowCardVisibility(getPanel()); }, 300));
+    hintTimers.push(setTimeout(function () { updateHints(document); syncPromptFlowCardVisibility(getPanel()); }, 1200));
     var observer = new MutationObserver(function (mutations) {
       for (var i = 0; i < mutations.length; i += 1) {
         if (mutations[i].type === 'attributes') {
@@ -1583,11 +1650,10 @@
       }
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'], childList: true, subtree: true });
+    teardownFns.push(function () {
+      observer.disconnect();
+    });
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', install, { once: true });
-  } else {
-    install();
-  }
+  watchCanvasRoute();
 })();

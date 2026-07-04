@@ -45,6 +45,30 @@ html.canvas-performance-dragging section[class*="absolute"] * {
   animation-duration: 0s !important;
 }
 
+html.canvas-performance-dragging .vue-flow__node-image,
+html.canvas-performance-dragging .vue-flow__node-image .image-node-wrapper,
+html.canvas-performance-dragging .vue-flow__node-image .image-node,
+html.canvas-performance-dragging .vue-flow__node-image .image-node * {
+  transition-duration: 0s !important;
+  animation-duration: 0s !important;
+}
+
+html.canvas-performance-dragging .vue-flow__node-image .image-node {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
+html.canvas-performance-dragging .vue-flow__node-image .image-node-toolbar,
+html.canvas-performance-dragging .vue-flow__node-image .image-node-toolbar-wrap {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+}
+
 html.canvas-performance-dragging .canvas-chat-control:hover,
 html.canvas-performance-dragging .canvas-chat-send-btn:hover,
 html.canvas-performance-dragging .send-button:hover {
@@ -87,6 +111,48 @@ html.canvas-performance-dragging .send-button:hover {
 
 .image-node-toolbar {
   min-width: 188px;
+}
+
+html.canvas-user-center-open,
+body.canvas-user-center-open {
+  cursor: default;
+}
+
+html.canvas-user-center-open .canvas-flow,
+html.canvas-user-center-open .vue-flow__viewport,
+html.canvas-user-center-open .vue-flow__pane {
+  will-change: auto !important;
+}
+
+html.canvas-user-center-open .n-modal-mask,
+html.canvas-user-center-open .n-drawer-mask,
+html.canvas-user-center-open [class*="modal-mask"],
+html.canvas-user-center-open [class*="drawer-mask"],
+html.canvas-user-center-open .canvas-flow [class*="backdrop-blur"],
+html.canvas-user-center-open .vue-flow [class*="backdrop-blur"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+html.canvas-user-center-open .canvas-chat-panel,
+html.canvas-user-center-open .canvas-chat-toggle,
+html.canvas-user-center-open .image-quick-create-menu,
+html.canvas-user-center-open .vue-flow__minimap,
+html.canvas-user-center-open .vue-flow__background,
+html.canvas-user-center-open .image-node-toolbar,
+html.canvas-user-center-open .image-node-toolbar-wrap {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+html.canvas-user-center-open .vue-flow__edge,
+html.canvas-user-center-open .vue-flow__connection,
+html.canvas-user-center-open .vue-flow__selection,
+html.canvas-user-center-open .vue-flow__nodesselection {
+  transition: none !important;
+  animation: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

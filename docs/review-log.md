@@ -3567,3 +3567,83 @@
 ### 剩余风险
 
 - 缺少浏览器级自动化复现脚本；本轮主要通过静态资源断言、线上命中和用户强刷后的实际观察闭环。
+
+## 2026-07-04 图片节点拖拽卡顿复核
+
+### 已确认
+
+- 全局顶部栏本身没有拖拽中循环逻辑，只是固定 Header 和按钮状态展示，不是本轮第一嫌疑。
+- 图片节点上方浮动工具条更可疑：它依赖选中/hover 状态展示，并叠加了 `:has()`、阴影、backdrop-filter 与 transition；拖动图片节点时这些规则会跟随节点 class/hover/dragging 状态参与样式重算。
+- `canvas-performance-mode.js` 原先在 document 捕获层监听 `pointermove`，每次移动都执行 `isCanvasTarget(event.target)` 和 `setActive()`，会反复 `closest()`、写 class、清理和重建 timer。
+- `canvas-image-node-polish.js` 原先观察整页 class/title 变动，虽然已有过滤，但图片节点拖拽时的 class 变化仍可能调度图片节点扫描。
+- 已改为拖拽开始时锁定拖拽态，拖拽中 80ms 节流延长状态；图片节点扫描拖拽期间延迟到松手后；拖拽期间隐藏图片节点浮动工具条并关闭相关重视觉效果。
+- `index.html` 已将相关辅助脚本和 CSS query 升级为 `20260704dragperf1`，`scripts/smoke-internal-prod.ps1` 已增加生产端资源和优化逻辑断言。
+- 已完整执行 Docker build + force recreate，镜像 `sha256:43a0fe8f23119b7ec948823f3daa900ff26105eb2cc3d3b31595b50948fe34aa`，容器当前为 `healthy`。
+- 已直接请求 `http://192.168.0.39:3456/`、线上 `canvas-performance-mode.js`、`canvas-image-node-polish.js` 和 `canvas-performance-mode.css`，确认 192.168 生产测试端命中 `20260704dragperf1` 与拖拽优化逻辑。
+
+### 剩余风险
+
+- 尚未做 Chrome Performance trace 对比；如果用户强刷后仍卡，需要进一步采样拖拽期间的 Layout/Recalculate Style/Long Task，并考虑减少图片节点 CSS 中的 `:has()` 规则数量。
+
+## 2026-07-04 用户中心打开卡顿复核
+
+### 已确认
+
+- 用户中心当前真实入口为 `UserCenter-C3r6Sru7.js`，页面本身结构不复杂，主要是资料卡、余额入口和少量按钮。
+- `index.html` 此前仍在所有页面加载画布辅助 JS：`canvas-performance-mode.js`、`canvas-image-node-polish.js`、`canvas-chat-prompt-flow.js`。
+- 这些脚本在画布页合理，但在用户中心会额外挂 document 级监听或 MutationObserver，开页和路由切换时可能参与 DOM 扫描，是用户中心卡顿的高概率来源。
+- 已给三个画布 JS 增加 `/canvas` 路由闸门和 SPA 路由监听：非画布页不安装重逻辑；后续从用户中心进入画布仍会自动安装。
+- `scripts/smoke-internal-prod.ps1` 已增加生产端断言：首页必须引用 `20260704canvasisolate1`，线上三个画布 JS 必须包含 `watchCanvasRoute` 隔离逻辑。
+- 已完整执行 Docker build + force recreate，镜像 `sha256:0bb106db16090c45b53768e1ca5a4efbdaf6a2c226fb48598ced98b4336760e6`，容器当前为 `healthy`。
+- 已直接请求 `http://192.168.0.39:3456/user/center`、线上首页和三个画布辅助 JS，确认用户中心入口 200，生产端命中 `20260704canvasisolate1` 与路由隔离逻辑。
+
+### 剩余风险
+
+- 如果隔离后用户中心仍卡，下一步应继续检查 `user-center-data-bridge.js` 的 app MutationObserver、用户资料接口响应时间，以及 UserCenter chunk 的首屏渲染耗时。
+
+## 2026-07-04 全局脚本页面性能护栏复核
+
+### 已确认
+
+- 已在 `AGENTS.md` 固化护栏：画布专用脚本只能在 `/canvas` 路由安装重逻辑，非画布页不得安装全页 observer、高频 document 事件监听、图片扫描、聊天面板刷新或拖拽状态逻辑。
+- 已明确 `/user/center` 是非画布性能基线页；用户中心卡顿时先查全局脚本越界安装，再查 `user-center-data-bridge.js`、接口耗时和 UserCenter chunk 自身渲染。
+- 已要求涉及画布性能脚本的生产改动必须更新 `scripts/smoke-internal-prod.ps1`，验证线上 HTML query、脚本路由闸门、旧资源 410/404 和 `http://192.168.0.39:3456/user/center`。
+- 已把“不能为了修画布把监听器、`querySelectorAll` 扫描、`:has()` 重样式规则或长任务扩散到用户中心和后台”写成明确禁止项。
+
+### 剩余风险
+
+- 护栏依赖后续执行时遵守；如果未来引入新的全局脚本或样式，仍需要在 smoke 和最终汇报中显式说明非画布页影响面。
+
+## 2026-07-04 画布跳转用户中心延迟复核
+
+### 已确认
+
+- 用户反馈的路径是“先在画布，再点用户中心”，不同于直接打开用户中心。
+- 已确认上一轮只做了首次安装闸门：非画布页初始打开不会安装画布脚本，但进入过 `/canvas` 后，已安装的 document 监听和 MutationObserver 没有在路由离开时拆掉。
+- 已给 `canvas-performance-mode.js`、`canvas-image-node-polish.js`、`canvas-chat-prompt-flow.js` 分别补充 teardown，离开 `/canvas` 后清理事件监听、observer、timer、状态 class 和全局对象。
+- `index.html` 已将三个画布辅助 JS query 升级为 `20260704canvasleave1`。
+- `scripts/smoke-internal-prod.ps1` 已增加 teardown 断言，要求线上脚本同时包含路由闸门和路由离开清理函数。
+- `AGENTS.md` 已补充硬护栏：禁止只做首次进入闸门而把已安装监听器留在非画布页。
+- 已完整执行 Docker build + force recreate，镜像 `sha256:0e0be95837004310eca0afb65115cf9807b2e07e51276a4b4f76d105744e5b1e`，容器当前为 `healthy`。
+- 已直接请求 `http://192.168.0.39:3456/user/center`、线上首页和三个画布辅助 JS，确认用户中心入口 200，生产端命中 `20260704canvasleave1`，三个脚本均包含 teardown、`removeEventListener` 和 `observer.disconnect`。
+
+### 剩余风险
+
+- 用户浏览器需要强刷后按“画布 -> 用户中心”路径复测体感；如果仍延迟，应继续采样用户中心自身脚本和接口。
+
+## 2026-07-04 画布内用户中心弹层延迟复核
+
+### 已确认
+
+- 用户新截图中的入口是画布右上角圆形 AI/头像按钮，打开的是 Canvas 内部 `qp` 用户中心弹层，不是 `/user/center` 路由页。
+- Canvas 包中该弹层由 `pe.value` 控制，渲染点为 `te(qp,{show:pe.value,...})`；因此页面仍停留在 `/canvas`，路由离开 teardown 不会执行。
+- 已在 Canvas 包中新增 `codexSetUserCenterOpen()`，打开弹层时立即给 `html/body` 添加 `canvas-user-center-open`，关闭或组件卸载时清理，避免状态残留到其它页面。
+- 已在 `canvas-performance-mode.css` 中新增 `canvas-user-center-open` 降负载规则：关闭背后画布的 `will-change`、backdrop blur、动画和过渡，并隐藏聊天面板、minimap、背景网格、图片节点浮动工具条等弹层背后不需要交互的层。
+- 已将入口 query 升级为 `20260704usercenter1`，Canvas 动态 import query 升级为 `Canvas-B8bY9_QL.js?v=20260704usercenter1`，性能 CSS query 升级为 `20260704usercenter1`。
+- `scripts/smoke-internal-prod.ps1` 已新增断言：线上首页必须命中 `20260704usercenter1`，线上 Canvas 包必须包含 `codexSetUserCenterOpen` 和 `canvas-user-center-open`，线上 CSS 必须包含 `html.canvas-user-center-open` 和 `backdrop-filter: none`。
+- 已完整执行 Docker build + force recreate，镜像 `sha256:2627a4c03e9b14a2fcc15f8d13784b1688c8c3d6c09c952ebe0e19f6e5f95508`，容器当前为 `healthy`。
+- 已直接请求 `http://192.168.0.39:3456/`、新版入口 JS、新版 Canvas 包、新版性能 CSS 和 `/user/center`，确认生产端命中新 query、新弹层状态 helper/class 和 CSS 降负载规则。
+
+### 剩余风险
+
+- 本轮未安装新依赖，也没有可用浏览器控制工具，因此没有做点击级 Performance trace。若强刷后点击画布右上角用户中心仍延迟，应继续用 Chrome Performance 采样，区分弹层组件渲染、接口响应、头像资源加载和背后画布合成耗时。

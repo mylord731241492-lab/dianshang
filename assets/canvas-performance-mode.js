@@ -6,12 +6,83 @@
   var DRAG_CLASS = 'canvas-performance-dragging';
   var ACTIVE_MS = 380;
   var LONG_ACTIVE_MS = 700;
+  var draggingPointerActive = false;
+  var lastPointerMoveExtendAt = 0;
+  var installed = false;
+  var teardownFns = [];
   var debugState = {
     saveDeferCount: 0,
     lastSaveDeferReason: '',
     lastSaveDeferAt: 0,
     mode: ''
   };
+
+  function isCanvasPage() {
+    return /^\/canvas(\/|$)/.test(window.location.pathname || '');
+  }
+
+  function maybeInstall() {
+    if (installed || !isCanvasPage()) return;
+    installed = true;
+    install();
+  }
+
+  function teardownPerformanceMode() {
+    if (!installed) return;
+    installed = false;
+    teardownFns.forEach(function (teardown) {
+      try {
+        teardown();
+      } catch (_) {}
+    });
+    teardownFns = [];
+    draggingPointerActive = false;
+    lastPointerMoveExtendAt = 0;
+    activeUntil = 0;
+    if (activeTimer) {
+      clearTimeout(activeTimer);
+      activeTimer = null;
+    }
+    document.documentElement.classList.remove(ACTIVE_CLASS);
+    document.documentElement.classList.remove(ZOOM_CLASS);
+    document.documentElement.classList.remove(DRAG_CLASS);
+    if (document.body) document.body.classList.remove(ACTIVE_CLASS);
+    if (document.body) document.body.classList.remove(ZOOM_CLASS);
+    if (document.body) document.body.classList.remove(DRAG_CLASS);
+    debugState.mode = '';
+    delete window.__hjmCanvasPerformanceMode;
+  }
+
+  function syncCanvasRoute() {
+    if (isCanvasPage()) {
+      maybeInstall();
+    } else {
+      teardownPerformanceMode();
+    }
+  }
+
+  function watchCanvasRoute() {
+    function scheduleInstall() {
+      setTimeout(syncCanvasRoute, 0);
+    }
+    ['pushState', 'replaceState'].forEach(function (name) {
+      var original = history[name];
+      if (!original || original.__hjmCanvasPerformanceWrapped) return;
+      var wrapped = function () {
+        var result = original.apply(this, arguments);
+        scheduleInstall();
+        return result;
+      };
+      wrapped.__hjmCanvasPerformanceWrapped = true;
+      history[name] = wrapped;
+    });
+    window.addEventListener('popstate', scheduleInstall);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', syncCanvasRoute, { once: true });
+    } else {
+      syncCanvasRoute();
+    }
+  }
 
   function isCanvasTarget(target) {
     if (!target || !target.closest) return false;
@@ -34,6 +105,25 @@
     }
     if (activeTimer) clearTimeout(activeTimer);
     activeTimer = setTimeout(clearIfIdle, duration || ACTIVE_MS);
+  }
+
+  function hasModeClass(mode) {
+    if (mode === 'zooming') return document.documentElement.classList.contains(ZOOM_CLASS);
+    if (mode === 'dragging') return document.documentElement.classList.contains(DRAG_CLASS);
+    return true;
+  }
+
+  function extendActive(duration, mode) {
+    var now = Date.now();
+    activeUntil = Math.max(activeUntil, now + (duration || ACTIVE_MS));
+    debugState.mode = mode || debugState.mode || 'active';
+    if (!document.documentElement.classList.contains(ACTIVE_CLASS) || !hasModeClass(mode)) {
+      setActive(duration, mode);
+      return;
+    }
+    if (!activeTimer) {
+      activeTimer = setTimeout(clearIfIdle, duration || ACTIVE_MS);
+    }
   }
 
   function isActive() {
@@ -102,23 +192,44 @@
   function install() {
     optimizeImages(document);
 
-    document.addEventListener('wheel', function (event) {
+    function addDocListener(type, handler, options) {
+      document.addEventListener(type, handler, options);
+      teardownFns.push(function () {
+        document.removeEventListener(type, handler, options);
+      });
+    }
+
+    addDocListener('wheel', function (event) {
       if (isCanvasTarget(event.target)) setActive(ACTIVE_MS, 'zooming');
     }, { capture: true, passive: true });
 
-    document.addEventListener('pointerdown', function (event) {
-      if (isCanvasTarget(event.target)) setActive(LONG_ACTIVE_MS, 'dragging');
+    addDocListener('pointerdown', function (event) {
+      if (isCanvasTarget(event.target)) {
+        draggingPointerActive = true;
+        lastPointerMoveExtendAt = 0;
+        setActive(LONG_ACTIVE_MS, 'dragging');
+      }
     }, { capture: true, passive: true });
 
-    document.addEventListener('pointermove', function (event) {
-      if (event.buttons && isCanvasTarget(event.target)) setActive(ACTIVE_MS, 'dragging');
+    addDocListener('pointermove', function (event) {
+      if (!event.buttons || !draggingPointerActive) return;
+      var now = Date.now();
+      if (now - lastPointerMoveExtendAt < 80) return;
+      lastPointerMoveExtendAt = now;
+      extendActive(ACTIVE_MS, 'dragging');
     }, { capture: true, passive: true });
 
-    document.addEventListener('pointerup', function (event) {
-      if (isCanvasTarget(event.target)) setActive(180, 'dragging');
+    addDocListener('pointerup', function (event) {
+      if (draggingPointerActive || isCanvasTarget(event.target)) setActive(180, 'dragging');
+      draggingPointerActive = false;
     }, { capture: true, passive: true });
 
-    document.addEventListener('touchmove', function (event) {
+    addDocListener('pointercancel', function () {
+      draggingPointerActive = false;
+      setActive(120, 'dragging');
+    }, { capture: true, passive: true });
+
+    addDocListener('touchmove', function (event) {
       if (event.target && isCanvasTarget(event.target)) setActive(ACTIVE_MS, 'dragging');
     }, { capture: true, passive: true });
 
@@ -132,6 +243,9 @@
       }
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
+    teardownFns.push(function () {
+      observer.disconnect();
+    });
     window.__hjmCanvasPerformanceMode = {
       setActive: setActive,
       isActive: isActive,
@@ -141,9 +255,5 @@
     };
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', install, { once: true });
-  } else {
-    install();
-  }
+  watchCanvasRoute();
 })();

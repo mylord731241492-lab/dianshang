@@ -2400,3 +2400,58 @@
 - Docker 结果：已执行 `docker compose -f "F:\dianshang\docker\docker-compose.yml" up -d --build --force-recreate app`，镜像 `sha256:d3ba3701598d2e7a5efa24567a4e0da30ff8198c257967122c489b2183ab2042` 于 `2026-07-04T09:20:40Z` 创建，容器 `dianshang-internal-app` 于 `2026-07-04T09:20:48Z` 启动并为 `healthy`。
 - 线上结果：`http://192.168.0.39:3456/` 返回 200 且引用 `index-DglIsp_g.js?v=20260704canvasrefresh1`；线上入口 JS 引用 `Canvas-B8bY9_QL.js?v=20260704canvasrefresh1`；线上 Canvas 包包含 `refreshCanvasAfterProjectLoad` 和 `window.dispatchEvent(new Event("resize"))`；旧 `Canvas-yGc8b2gf.js` 返回 410。
 - 未覆盖风险：本轮先以静态断言和线上资源命中验证为主，浏览器内旧页面仍需强刷后进入已有项目实际观察节点是否无需点击即可刷新。
+
+## 2026-07-04 图片节点拖拽卡顿优化
+
+- 触发背景：用户反馈拖动图片节点时有延迟卡顿，并询问是否由顶部工具条导致。
+- 判断结论：全局顶部栏不是主要嫌疑；图片节点上方浮动工具条、图片节点美化 CSS 的大量 `:has()` 选择器、拖拽期间的全局 `pointermove` 性能层和图片节点 MutationObserver 才是高概率卡顿来源。
+- 修复内容：`canvas-performance-mode.js` 将拖拽中的 `pointermove` 从每帧 `closest()` + 重置 class/timer 改为 pointerdown 锁定拖拽态，并 80ms 节流延长 active 状态；`canvas-image-node-polish.js` 在拖拽期间延迟图片节点 class/title 扫描，松手后再补一次；`canvas-performance-mode.css` 在拖拽期间临时隐藏图片节点浮动工具条、关闭相关动画、阴影和 backdrop-filter。
+- 缓存处理：`index.html` 将 `canvas-performance-mode.js/css` 与 `canvas-image-node-polish.js/css` query 升为 `20260704dragperf1`。
+- 验证结果：`node --check` 已通过；`scripts/smoke-internal-prod.ps1` 语法检查通过；静态检查确认 HTML 命中新 query，性能层包含 `draggingPointerActive` / `extendActive`，图片美化层包含 `pendingDragRoot`，CSS 包含拖拽时隐藏图片工具条规则。
+- Docker 结果：已执行 `docker compose -f "F:\dianshang\docker\docker-compose.yml" up -d --build --force-recreate app`，镜像 `sha256:43a0fe8f23119b7ec948823f3daa900ff26105eb2cc3d3b31595b50948fe34aa` 于 `2026-07-04T09:31:22Z` 创建，容器 `dianshang-internal-app` 于 `2026-07-04T09:31:30Z` 启动并为 `healthy`。
+- 线上结果：`scripts/smoke-internal-prod.ps1` 通过，验收地址为 `http://192.168.0.39:3456`；直接请求线上首页确认命中 `20260704dragperf1`，线上性能脚本包含 `draggingPointerActive` / `extendActive`，线上图片美化脚本包含 `pendingDragRoot`，线上 CSS 包含拖拽时隐藏图片节点工具条规则。
+- 未覆盖风险：本轮没有引入浏览器性能 trace 工具，尚未做帧率录制级量化；上线后需用户强刷进入已有画布，重点拖动已选中、有浮动工具条的图片节点观察手感。
+
+## 2026-07-04 用户中心打开卡顿隔离修复
+
+- 触发背景：用户反馈打开用户中心仍然卡顿。
+- 问题结论：前一轮只优化了画布拖拽，但 `index.html` 仍全站加载画布专用 JS；其中 `canvas-performance-mode.js`、`canvas-image-node-polish.js` 和 `canvas-chat-prompt-flow.js` 会安装 document 级事件监听或 MutationObserver。用户中心不是画布页面，不应该承担这些画布辅助脚本的运行成本。
+- 修复内容：三个画布辅助 JS 均新增 `/canvas` 路由闸门和 SPA 路由监听；非画布页只保留轻量路由检查，不安装图片扫描、聊天面板刷新、拖拽监听和全页 observer；从用户中心点击进入画布时会自动安装，不需要刷新。
+- 缓存处理：`index.html` 将三个画布辅助 JS query 升为 `20260704canvasisolate1`。
+- 验证结果：`node --check` 已通过；`scripts/smoke-internal-prod.ps1` 语法检查通过；静态检查确认 HTML 命中 `20260704canvasisolate1`，三个脚本均包含 `isCanvasPage` / `watchCanvasRoute` / `installed` 隔离逻辑。
+- Docker 结果：已执行 `docker compose -f "F:\dianshang\docker\docker-compose.yml" up -d --build --force-recreate app`，镜像 `sha256:0bb106db16090c45b53768e1ca5a4efbdaf6a2c226fb48598ced98b4336760e6` 于 `2026-07-04T09:37:28Z` 创建，容器 `dianshang-internal-app` 于 `2026-07-04T09:37:36Z` 启动并为 `healthy`。
+- 线上结果：`scripts/smoke-internal-prod.ps1` 通过，验收地址为 `http://192.168.0.39:3456`；直接请求 `/user/center` 返回 200；线上首页命中 `20260704canvasisolate1`；线上三个画布辅助 JS 均包含路由闸门，不会在用户中心直接安装重监听和 observer。
+- 未覆盖风险：本轮未做 Chrome Performance trace；用户中心仍有自身 Vue chunk、用户资料接口和 `user-center-data-bridge.js`，如果强刷后仍卡，需要继续采样用户中心自身渲染和接口耗时。
+
+## 2026-07-04 全局脚本页面性能护栏固化
+
+- 触发背景：用户要求把用户中心卡顿暴露出的护栏写入 `AGENTS.md` 和日志，避免后续修画布时再次拖慢非画布页。
+- 完成内容：`AGENTS.md` 新增“全局脚本与页面性能护栏”，明确画布专用脚本即使被 `index.html` 引用，也只能在 `/canvas` 安装重逻辑；非画布页只允许轻量路由监听，不允许安装全页 observer、高频事件监听、图片扫描、聊天面板刷新或拖拽状态逻辑。
+- 验收要求：新增或修改全局脚本、全局 CSS、`index.html` 静态引用、SPA fallback 和路由守卫时，必须评估首页、用户中心、后台和画布四类页面；`/user/center` 作为非画布性能基线页，不能触发画布图片节点扫描、聊天面板扫描、拖拽监听、自动保存节流或节点刷新逻辑。
+- 验证要求：涉及画布性能脚本的生产改动，`scripts/smoke-internal-prod.ps1` 必须覆盖资源 query、`/canvas` 路由闸门、旧资源 410/404 和 `/user/center` 线上命中；若仍卡顿，下一步必须采样 Chrome Performance trace 或等价指标再继续优化。
+- 验证结果：本轮为文档护栏更新；后续执行 `git diff --check` 与 UTF-8 无 BOM 检查。
+
+## 2026-07-04 画布跳转用户中心延迟修复
+
+- 触发背景：用户反馈“画布点开用户中心还是有延迟”。
+- 问题结论：上一轮只解决了非画布页首次打开时不安装画布脚本，但从 `/canvas` 进入后，三个画布辅助 JS 已经安装了 document 监听和 MutationObserver；SPA 跳到 `/user/center` 时没有 teardown，所以监听器和 observer 继续留在用户中心。
+- 修复内容：`canvas-performance-mode.js` 新增 `teardownPerformanceMode()`，离开 `/canvas` 时移除 wheel/pointer/touch 监听、断开图片 observer、清理 timer 和 `canvas-performance-*` class；`canvas-image-node-polish.js` 新增 `teardownImageNodePolish()`，离开画布时断开图片节点 observer、移除 load/dblclick/pointer 监听并清理扫描 timer；`canvas-chat-prompt-flow.js` 新增 `teardownChatPromptFlow()`，离开画布时移除 click/keydown/change 监听、断开聊天面板 observer、清理提示刷新 timer 和全局对象。
+- 缓存处理：`index.html` 将三个画布辅助 JS query 升为 `20260704canvasleave1`。
+- 验证结果：`node --check` 已通过；`scripts/smoke-internal-prod.ps1` 语法检查通过；静态检查确认三个脚本均包含 teardown 函数、`removeEventListener` 和 `observer.disconnect`，HTML 命中 `20260704canvasleave1`。
+- 护栏补充：`AGENTS.md` 已补充“画布专用脚本必须支持路由离开时 teardown”，禁止只做首次进入闸门而把已安装监听器留在非画布页。
+- Docker 结果：已执行 `docker compose -f "F:\dianshang\docker\docker-compose.yml" up -d --build --force-recreate app`，镜像 `sha256:0e0be95837004310eca0afb65115cf9807b2e07e51276a4b4f76d105744e5b1e` 于 `2026-07-04T09:53:26Z` 创建，容器 `dianshang-internal-app` 于 `2026-07-04T09:53:34Z` 启动并为 `healthy`。
+- 线上结果：`scripts/smoke-internal-prod.ps1` 通过，验收地址为 `http://192.168.0.39:3456`；直接请求 `/user/center` 返回 200；线上首页命中 `20260704canvasleave1`；线上三个画布辅助 JS 均包含路由离开 teardown、`removeEventListener` 和 `observer.disconnect`。
+- 未覆盖风险：本轮仍未做真实浏览器 Performance trace；上线后需要从画布点击用户中心复测路径，若仍延迟再继续采样用户中心自身脚本和接口。
+
+## 2026-07-04 画布内用户中心弹层延迟修复
+
+- 触发背景：用户新截图显示点击的是画布右上角圆形 AI/头像按钮，随后在画布上方打开“用户中心”弹层；这不是跳转到 `/user/center` 独立路由。
+- 问题结论：该路径仍停留在 `/canvas`，所以前一轮路由离开 teardown 不会触发。用户中心弹层打开时，背后 Vue Flow 画布、图片节点、minimap、聊天面板、浮动工具条和 backdrop blur 仍会一起参与合成与重绘，是延迟的高概率来源。
+- 修复内容：`assets/Canvas-B8bY9_QL.js` 在用户中心弹层状态 `pe.value` 打开时同步 `html/body.canvas-user-center-open`，关闭和组件卸载时清理；打开按钮点击时立即打状态 class，减少首次弹出前的等待。
+- 性能处理：`assets/canvas-performance-mode.css` 新增 `canvas-user-center-open` 规则，弹层打开期间关闭背后画布的常驻 `will-change`、backdrop blur、动画和过渡，并隐藏聊天面板、minimap、背景网格、图片节点浮动工具条等不需要透出的高成本层。
+- 缓存处理：`index.html` 主入口 query 升为 `20260704usercenter1`，`assets/index-DglIsp_g.js` 中 Canvas 动态 import query 升为 `Canvas-B8bY9_QL.js?v=20260704usercenter1`，`canvas-performance-mode.css` query 同步升为 `20260704usercenter1`。
+- 护栏补充：`AGENTS.md` 已新增“画布内大弹层不会触发路由 teardown，必须显式降负载”的规则；`scripts/smoke-internal-prod.ps1` 已新增 Canvas 包状态 class 和 CSS 降 backdrop 断言。
+- 验证结果：`node --check "F:\dianshang\assets\Canvas-B8bY9_QL.js"`、`node --check "F:\dianshang\assets\index-DglIsp_g.js"` 和 smoke 脚本语法检查通过；本地静态检查确认 Canvas 包包含 `codexSetUserCenterOpen` / `canvas-user-center-open`，CSS 包含 `html.canvas-user-center-open` 与 `backdrop-filter: none`。
+- Docker 结果：已执行 `docker compose -f "F:\dianshang\docker\docker-compose.yml" up -d --build --force-recreate app`，镜像 `sha256:2627a4c03e9b14a2fcc15f8d13784b1688c8c3d6c09c952ebe0e19f6e5f95508` 于 `2026-07-04T10:02:18Z` 创建，容器 `dianshang-internal-app` 于 `2026-07-04T10:02:25Z` 启动并为 `healthy`。
+- 线上结果：`scripts/smoke-internal-prod.ps1` 通过，验收地址为 `http://192.168.0.39:3456`；直接请求线上首页确认命中 `20260704usercenter1`；线上入口引用新版 Canvas 包；线上 Canvas 包包含用户中心弹层状态 helper/class；线上 CSS 包含弹层打开时降 backdrop 和降画布重绘规则；`/user/center` 返回 200。
+- 未覆盖风险：本仓库没有 Playwright，当前会话也没有可用浏览器控制工具，本轮未做真实点击帧率 trace；请在浏览器强刷后按“进入画布 -> 点右上角 AI/头像用户中心”复测，若仍有明显延迟，下一步应采样 Chrome Performance trace，重点看弹层组件自身渲染和接口耗时。

@@ -141,6 +141,68 @@
   background: transparent !important;
 }
 
+.vue-flow__node-image:has(.image-node-loading),
+.vue-flow__node-image:has(.image-node-loading) .image-node-wrapper {
+  width: 290px !important;
+  height: auto !important;
+  min-width: 290px !important;
+  min-height: 0 !important;
+}
+
+.vue-flow__node-image .image-node.image-node-loading,
+.vue-flow__node-image.image-node-has-image .image-node.image-node-loading,
+.vue-flow__node-image .image-node.image-node-loading:has(img) {
+  display: block !important;
+  width: 290px !important;
+  min-width: 290px !important;
+  max-width: 290px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-color: rgba(251, 146, 60, 0.55) !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08) !important;
+  backdrop-filter: blur(24px) !important;
+  border-radius: 24px !important;
+}
+
+.vue-flow__node-image .image-node.image-node-loading > .relative.flex.h-12 {
+  display: none !important;
+}
+
+.vue-flow__node-image .image-node.image-node-loading > .relative.p-4,
+.vue-flow__node-image .image-node.image-node-loading:has(img) > .relative.p-4 {
+  padding: 16px !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+}
+
+.vue-flow__node-image .image-node.image-node-loading > .relative.p-4 > .aspect-square,
+.vue-flow__node-image .image-node.image-node-loading:has(img) > .relative.p-4 > .aspect-square {
+  display: flex !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  max-height: none !important;
+  aspect-ratio: 1 / 1 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+}
+
+.vue-flow__node-image .image-node.image-node-loading > .relative.p-4 > .aspect-square img,
+.vue-flow__node-image .image-node.image-node-loading:has(img) > .relative.p-4 > .aspect-square img {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover !important;
+}
+
 .vue-flow__node-image[data-image-orientation="long"] .image-node:has(img) > .relative.p-4,
 .vue-flow__node-image[data-image-orientation="long"] .image-node:has(img) > .relative.p-4 > .rounded-xl {
   max-width: clamp(180px, 18vw, 260px) !important;

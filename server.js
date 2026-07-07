@@ -383,6 +383,10 @@ const RTS = [
     {label:"文生图",method:"POST",endpoint:"/v1/images/generations",contentType:"application/json",requestFormat:"packy-openai-images-generations",body:{model:"gpt-image-2",prompt:"string",size:"1024x1024",quality:"high",background:"auto",output_format:"png",moderation:"auto",response_format:"url",n:1}},
     {label:"图生图 / 局部重绘",method:"POST",endpoint:"/v1/images/edits",contentType:"multipart/form-data",requestFormat:"packy-openai-images-edits",body:{model:"gpt-image-2",image:"<file>",mask:"<file optional>",prompt:"string",size:"1024x1024",quality:"high",background:"auto",output_format:"png",moderation:"auto",response_format:"url",input_fidelity:"high",n:1}}
   ]},
+  {id:"pub_route_mr5yltmuc7edcb2b",rk:"lignsuan-guanzhuan",name:"lingsuan-专线",displayName:"官转gpt-img2",dn:"官转gpt-img2",cat:"image",g:"image",pri:1,def:false,dm:"gpt-image-2",apiFormat:"openai",requestFormat:"packy-openai-images-edits",baseUrl:"https://lingsuan.top",endpoint:"/images/edits",imageEndpoint:"/v1/images/generations",imageEditEndpoint:"/v1/images/edits",requestExamples:[
+    {label:"文生图",method:"POST",endpoint:"/v1/images/generations",contentType:"application/json",requestFormat:"packy-openai-images-generations",body:{model:"gpt-image-2",prompt:"string",size:"1024x1024",quality:"high",background:"auto",output_format:"png",moderation:"auto",response_format:"url",n:1}},
+    {label:"图生图 / 局部重绘",method:"POST",endpoint:"/v1/images/edits",contentType:"multipart/form-data",requestFormat:"packy-openai-images-edits",body:{model:"gpt-image-2",image:"<file>",mask:"<file optional>",prompt:"string",size:"1024x1024",quality:"high",background:"auto",output_format:"png",moderation:"auto",response_format:"url",input_fidelity:"high",n:1}}
+  ]},
   {id:"pub_route_openai_gpt_5_5",rk:"route_openai_gpt_5_5",dn:"GPT 5.5 官转",cat:"text",g:"text",pri:9,dm:"gpt-5.5",apiFormat:"openai-responses",requestFormat:"openai-responses",endpoint:"/responses",requestExamples:[
     {label:"文本生成",method:"POST",endpoint:"/responses",contentType:"application/json",requestFormat:"openai-responses",body:{model:"gpt-5.5",input:"string"}}
   ]},
@@ -2754,6 +2758,101 @@ function createCompletedTask(req, source = {}) {
   return task;
 }
 
+function createPendingTask(req, source = {}) {
+  const modelKey = source.modelKey || source.model || resolveImageModelKey(req.body);
+  const imageCount = Math.max(1, Math.min(Number(source.imageCount || req.body.imageCount || req.body.n || 1) || 1, 4));
+  const prompt = source.prompt || pickTemplatePrompt(req.body);
+  const m = [...IMG, ...TXT].find(x => x.k === modelKey) || IMG[0];
+  const cost = Number(source.cost || source.totalCost || ((m ? m.p : 15) * imageCount));
+  const taskId = uid('task_');
+  const now = new Date().toISOString();
+  const task = {
+    id: taskId,
+    userId: req.user.userId,
+    status: 'running',
+    progress: Number(source.progress || 90),
+    prompt,
+    modelKey,
+    cost,
+    totalCost: Number(source.totalCost || cost),
+    analysisCost: Number(source.analysisCost || 0),
+    imageCost: Number(source.imageCost || cost),
+    analysisSummary: source.analysisSummary || '',
+    finalPrompt: source.finalPrompt || prompt,
+    request: source.request || null,
+    images: [],
+    errorMessage: '',
+    createdAt: now,
+    updatedAt: now
+  };
+  tasks.set(taskId, task);
+  return task;
+}
+
+function completePendingTask(task, source = {}) {
+  if (!task) return null;
+  const modelKey = source.modelKey || source.model || task.modelKey || IMG[0].k;
+  const imageCount = Math.max(1, Math.min(Number(source.imageCount || task.imageCount || 1) || 1, 4));
+  const prompt = source.prompt || task.prompt || '生成图片';
+  const cost = Number(source.cost || source.totalCost || task.cost || 0);
+  const sourceImages = Array.isArray(source.results) && source.results.length
+    ? source.results
+    : Array.from({ length: imageCount }, (_, i) => ({ url: placeholderUrl(`${prompt} ${i + 1}`) }));
+  const images = sourceImages.map((img, i) => normalizeTaskImage({
+    ...img,
+    prompt,
+    finalPrompt: source.finalPrompt || task.finalPrompt || prompt,
+    analysisSummary: source.analysisSummary || task.analysisSummary || '',
+    sourceTaskId: task.id,
+    source: source.source || img.source || 'generation-task',
+    request: source.request || img.request || null,
+    providerRequest: source.request || img.providerRequest || img.request || null,
+    meta: {
+      ...(img.meta || {}),
+      operation: source.operation || 'generation',
+      prompt,
+      finalPrompt: source.finalPrompt || task.finalPrompt || prompt,
+      analysisSummary: source.analysisSummary || task.analysisSummary || '',
+      modelKey,
+      source: source.source || 'generation-task',
+      providerRequest: source.request || img.meta?.providerRequest || null
+    }
+  }, i, task.id));
+  const now = new Date().toISOString();
+  Object.assign(task, {
+    status: 'success',
+    progress: 100,
+    prompt,
+    modelKey,
+    cost,
+    totalCost: Number(source.totalCost || cost || task.totalCost || 0),
+    analysisCost: Number(source.analysisCost || task.analysisCost || 0),
+    imageCost: Number(source.imageCost || cost || task.imageCost || 0),
+    analysisSummary: source.analysisSummary || task.analysisSummary || '',
+    finalPrompt: source.finalPrompt || task.finalPrompt || prompt,
+    request: source.request || task.request || null,
+    images,
+    errorMessage: '',
+    updatedAt: now
+  });
+  const recordCostDivisor = Math.max(1, images.length || imageCount);
+  images.forEach(img => {
+    db.prepare('INSERT INTO generations (id,user_id,model_key,prompt,result_url,cost,status) VALUES (?,?,?,?,?,?,?)')
+      .run(uid('gen_'), task.userId, modelKey, prompt, img.url, cost / recordCostDivisor, 'completed');
+  });
+  return task;
+}
+
+function failPendingTask(task, source = {}) {
+  if (!task) return null;
+  task.status = 'failed';
+  task.progress = 100;
+  task.errorMessage = source.message || source.errorMessage || '图片生成接口调用失败';
+  task.request = source.request || task.request || null;
+  task.updatedAt = new Date().toISOString();
+  return task;
+}
+
 function resolveRequestImageRoute(body = {}) {
   const routeId = String(body.routeId || body.lineId || body.routeKey || body.lineKey || '').trim();
   return findRouteByAnyId(routeId);
@@ -3595,23 +3694,58 @@ app.post('/api/generate/tasks', auth, async (req, res) => {
   const hasReferenceImages = imageReferenceCandidates(req.body).length > 0;
   const providerPrompt = buildImageGenerateNodePrompt(prompt, { body: req.body, hasReferenceImages });
   const providerOptions = { ...req.body, body: req.body, req, model: modelKey, n: imageCount };
-  const providerResult = hasReferenceImages
-    ? await callProviderImageEdit(providerPrompt, providerOptions)
-    : await callProviderImageGeneration(providerPrompt, providerOptions);
-  if (!providerResult.success) {
-    return res.status(502).json({
-      success: false,
-      code: providerResult.code || 'PROVIDER_IMAGE_FAILED',
-      message: providerResult.message || '图片生成接口调用失败',
-      provider: providerResult.provider
-    });
-  }
-  const task = createCompletedTask(req, { prompt: providerPrompt, modelKey, imageCount, results: providerResult.images, request: providerResult.request });
-  const nb = u.balance - total;
-  db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
-  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
-    .run(u.id,'generation',-total,u.balance,nb,`生成任务: ${modelKey} x${imageCount}`);
-  res.json({ success: true, mock: !!providerResult.mock, editMode: !!providerResult.editMode, provider: providerResult.provider, ...makeTaskResponse(task) });
+  const task = createPendingTask(req, {
+    prompt: providerPrompt,
+    modelKey,
+    imageCount,
+    cost: total,
+    totalCost: total,
+    imageCost: total,
+    request: { pending: true, hasReferenceImages }
+  });
+  res.status(202).json({
+    success: true,
+    accepted: true,
+    pending: true,
+    remainingBalance: u.balance,
+    ...makeTaskResponse(task)
+  });
+
+  (async () => {
+    const runningTask = tasks.get(task.id);
+    try {
+      const providerResult = hasReferenceImages
+        ? await callProviderImageEdit(providerPrompt, providerOptions)
+        : await callProviderImageGeneration(providerPrompt, providerOptions);
+      if (!providerResult.success) {
+        failPendingTask(runningTask, {
+          message: providerResult.message || '图片生成接口调用失败',
+          request: providerResult.request || providerResult.upstream || null
+        });
+        return;
+      }
+      completePendingTask(runningTask, {
+        prompt: providerPrompt,
+        modelKey,
+        imageCount,
+        results: providerResult.images,
+        request: providerResult.request,
+        cost: total,
+        totalCost: total,
+        imageCost: total,
+        operation: 'generation-task',
+        source: 'generation-task'
+      });
+      const latest = db.prepare('SELECT balance FROM users WHERE id=?').get(u.id);
+      const beforeBalance = Number(latest?.balance ?? u.balance);
+      const afterBalance = beforeBalance - total;
+      db.prepare('UPDATE users SET balance=? WHERE id=?').run(afterBalance, u.id);
+      db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
+        .run(u.id,'generation',-total,beforeBalance,afterBalance,`生成任务: ${modelKey} x${imageCount}`);
+    } catch (error) {
+      failPendingTask(runningTask, { message: error.message || '图片生成接口调用失败' });
+    }
+  })();
 });
 app.get('/api/generate/tasks/:id', auth, (req, res) => {
   const task = tasks.get(req.params.id);

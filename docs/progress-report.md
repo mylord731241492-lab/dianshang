@@ -2565,3 +2565,63 @@
 - 后台同步：运行数据库 `admin.apiProviders` 中 GPT Image 2 的请求示例已同步为新字段，保留已有 API Key 且不打印密钥。
 - 验证结果：`node --check "F:\dianshang\server.js"` 通过；`node "F:\dianshang\scripts\check-packy-gpt-image-adapter-coverage.js"` 通过；`node "F:\dianshang\scripts\check-packy-gpt-image-size.js"` 通过 54 个尺寸映射用例。
 - 未覆盖风险：本轮仍未开启 `?async=true` 上游任务模式，也未执行真实扣费生图；是否改善“返回原图/白底图”需要用户在 3458 复测。
+
+### 2026-07-07 追加：用户中心恢复两条图片路线
+
+- 触发背景：用户截图显示后台 API 线路共有 3 条，其中图片路线为 `GPT Image 2` 和 `官转gpt-img2 / lignsuan-guanzhuan`，但用户中心只显示 `GPT Image 2 官转`。
+- 问题结论：当前 3458 运行数据库 `admin.apiProviders` 只剩 1 条 image 路线和 1 条 text 路线；用户中心前端虽然会读取公开线路兜底，但后端没有返回第二条 image 路线。
+- 修复内容：`server.js` 默认路线新增 `pub_route_mr5yltmuc7edcb2b / lignsuan-guanzhuan`；当前 `data.db` 从 `docker/data/data.db` 恢复 `官转gpt-img2` 路线及其本地 API Key，保留脱敏输出。
+- 验证结果：`/api/model-routes?group=image` 与 `/api/public/routes?group=image` 均返回 2 条图片路线：`GPT Image 2 官转`、`官转gpt-img2`；`/api/public/models?routeId=pub_route_mr5yltmuc7edcb2b` 返回 `GPT Image 2` 模型；3458 已重启并刷新当前画布页。
+- 未覆盖风险：本轮只恢复本地 3458 用户中心路线选择，没有执行真实扣费生图，也没有同步 3456 Docker 生产端。
+
+## 2026-07-07 生图任务刷新恢复
+
+- 触发背景：用户反馈图片生成节点提交后，如果前端刷新，生图结果节点无法继续加载；期望后台先持有任务，前端无图时保持 90% 等待，后台拿到图片后前端继续回填。
+- 问题结论：旧画布前端已经按“提交任务 -> taskId -> 轮询 `/api/generate/tasks/:id`”设计，但后端 `/api/generate/tasks` 之前同步等待上游返回后才创建 taskId，刷新发生在等待窗口内时前端拿不到可恢复的任务 id。
+- 后端修复：`/api/generate/tasks` 改为立即创建 `running/progress=90` 的 pending task 并 `202` 返回 `taskId`，上游生图在后台继续执行；完成后更新内存 task、生成记录和扣费日志，失败时更新为 `failed` 并保留错误信息。
+- 前端修复：图片生成节点的进度回调会把 `taskId/sourceTaskId/taskImageIndex` 写入结果图片节点并立即保存；图片节点新增刷新恢复轮询，若加载到 `taskId` 且还没有 `url`，会继续查后台任务，成功后回填图片 URL，失败后显示错误。
+- 缓存处理：`index.html` 入口 query 升为 `20260707taskresume1`，两个 index chunk 的 Canvas 动态 import query 同步升为 `20260707taskresume1`。
+- 验证结果：临时 3462 mock 服务使用临时数据库和 `ENABLE_REAL_AI=false` 验证通过，`POST /api/generate/tasks` 45ms 返回 `202/running/progress=90/taskId`，随后 `GET /api/generate/tasks/:id` 返回 `success/progress=100/1 张图片`；`node --check` 覆盖 `server.js`、两份 Canvas bundle 和两份 index chunk；3458 已重启并命中新入口、Canvas query。
+- 未覆盖风险：本轮没有在真实中转上触发扣费生图，只验证任务生命周期与刷新恢复链路；如果真实上游耗时很长，刷新恢复依赖 3458 后端进程持续运行，后端重启后内存 task 仍会丢失，后续可再落库持久化任务。
+
+### 2026-07-07 追加：生图进度条抖动修复
+
+- 触发背景：用户测试时看到结果图片节点进度条在“模型生成中 54%”和“等待返回结果 90%”之间跳动，表现为两个结果节点进度不稳定。
+- 问题结论：图片生成节点提交任务后，新的后台任务已返回 `taskId/progress=90`，但旧前端模拟进度定时器仍在继续刷 `54%/60%` 等阶段，两个进度源互相覆盖。
+- 修复内容：旧画布 `Dg()` 在拿到 `taskId` 后立即停止模拟进度定时器，再进入后台任务 90% 等待和轮询；入口与 Canvas 动态 import query 升为 `20260707taskresume2`。
+- 验证结果：两份 Canvas bundle 均通过 `node --check`；静态断言确认提交 taskId 后存在 `w(),b(Math.max(90`，3458 首页和 Canvas 资源命中 `taskresume2`。
+
+### 2026-07-07 追加：刷新后红态丢恢复修复
+
+- 触发背景：用户刷新后，两个结果图片节点显示“上次生成未完成，已停止自动恢复”，没有继续加载后台已完成图片。
+- 问题结论：项目加载/保存清洗层 `projects-*.js` 会把没有 URL 的图片节点 `taskId` 删除，并写入 interrupted error；本轮恢复逻辑因此无法运行。当前项目中这两个节点只剩 `sourceTaskId=task_mradlsmaa4486ee3`，后台 task 实际仍为 `success` 且已有 2 张图片。
+- 修复内容：`projects-BtxGnToV.js` 与兼容包 `projects-eqk9JplQ.js` 对图片节点保留恢复态；若有 `sourceTaskId` 但无 `taskId`，加载时补回 `taskId`、恢复 `loading/progress/progressLabel` 并清空旧 error。`ImageNode` 恢复轮询同时使用 `taskId || sourceTaskId`，等待和成功时都会清掉红色 error。
+- 缓存处理：Canvas 静态 import 的 projects chunk 增加 `?v=20260707taskresume3`，入口和 Canvas 动态 import query 同步升为 `20260707taskresume3`。
+- 验证结果：`node --check` 覆盖两份 projects chunk、两份 Canvas bundle 和两份 index chunk；3458 首页、Canvas 和 projects chunk 均命中 `taskresume3`；用当前项目用户签发短 token 查询 `task_mradlsmaa4486ee3` 返回 `success/progress=100/2 张图片`。
+
+### 2026-07-07 追加：图片加载阶段保持生图 UI
+
+- 触发背景：用户反馈任务完成回填图片 URL 时，结果节点会先缩成长条等待图片加载，期望保持生图 UI，图片直接弹出。
+- 问题结论：恢复成功或生成成功后，前端立即把结果节点 `loading=false`，但浏览器实际图片还没触发 `load`，普通图片分支按未解码图片布局短暂塌缩。
+- 修复内容：两份 Canvas bundle 将“拿到 URL”和“图片加载完成”拆开；拿到 URL 后先保持 `loading=true/progress=99/progressLabel=图片加载中`，设置 `revealOnImageLoad/pendingRevealUrl`，加载态预览图绑定同一个 `onLoad`，真正加载完成后再清掉 loading 并显示结果图。
+- 刷新保护：两份 projects chunk 保留 `revealOnImageLoad` 的图片加载中状态，避免刷新时项目清洗层又把等待解码状态删除。
+- 缓存处理：入口、Canvas 动态 import 和 Canvas 内 projects import query 同步升为 `20260707taskresume5`。
+- 验证结果：`node --check` 覆盖两份 Canvas bundle、两份 projects chunk 和两份 index chunk；静态断言确认包含 `图片加载中`、`revealOnImageLoad`、加载态 `onLoad` 和 projects 保留条件；3458 首页、入口 chunk 与 Canvas 资源均命中 `taskresume5`。
+- 热修记录：`taskresume4` 首版在压缩函数内重复声明 `Xt`，导致浏览器解析 Canvas 包失败、画布空白；已移除重复声明并升为 `taskresume5`，内置浏览器确认当前项目画布可正常挂载。
+
+### 2026-07-07 追加：图片加载中长条 UI 兜底
+
+- 触发背景：用户截图确认 `图片加载中 99%` 仍被压成横条，不符合“保持生图 UI”的预期。
+- 问题结论：`canvas-image-node-polish.css/js` 过渡层会把加载预览 `<img>` 误识别为“已有图片”，提前套用结果图抛光规则，覆盖了 Canvas 包内的方形 loading 容器。
+- 修复内容：图片节点 loading 时新增 `image-node-loading` 类；`canvas-image-node-polish.css` 对该类强制保留 290px 方形加载卡、恢复内边距和 `aspect-ratio: 1 / 1`，覆盖“已有图片”抛光规则。
+- 缓存处理：入口和 Canvas 动态 import 升为 `20260707taskresume6`，`canvas-image-node-polish.css` query 升为 `20260707loadui1`。
+- 验证结果：`node --check` 覆盖两份 Canvas bundle 和两份 index chunk；静态断言确认 Canvas 包包含 `image-node-loading`，CSS 包含方形加载兜底；3458 首页、入口 chunk、Canvas chunk 和 polish CSS 均命中新版本。
+
+### 2026-07-07 追加：画布用户中心兑换码刷新修复
+
+- 触发背景：用户在画布右侧用户中心抽屉反馈兑换码输入框文字发白，且兑换后算力余额不刷新。
+- 问题结论：画布抽屉的兑换逻辑期望 `/api/user/redeem` 返回 `user` 对象，但当前后端只返回 `success/balance/amount`；成功后没有重新拉取 `/api/user/profile`，所以余额展示仍停留在旧的本地用户状态。
+- 修复内容：两份 `ImageHistoryPanel` 兼容包在兑换成功后优先使用返回的 `user`，没有 `user` 时立即调用现有资料刷新函数重新获取用户信息，并继续刷新余额明细；兑换码输入框补充 `text-zinc-900` 和 `placeholder:text-zinc-400`，避免白底不可读。
+- 缓存处理：入口和 Canvas 动态 import 升为 `20260707taskresume7`，Canvas 内 `ImageHistoryPanel` import query 升为 `20260707redeem1`。
+- 验证结果：`node --check` 覆盖两份 `ImageHistoryPanel`、两份 Canvas bundle 和两份 index chunk；静态断言确认输入框颜色、兑换成功刷新 fallback 和缓存 query 都存在；3458 首页、入口 chunk、Canvas chunk 与 `ImageHistoryPanel` chunk 均命中新版本。
+- 未覆盖风险：本轮不提交真实兑换码，避免修改用户额度数据；需要用户用有效兑换码做一次业务复测。

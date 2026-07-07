@@ -1,5 +1,11 @@
 # 审查与复核记录
 
+## 当前基线提示
+
+当前 `main` 已回滚到 `51d4dab fix: improve canvas production performance guards`。复核任何问题前先读 `docs/current-baseline.md`，再按日期查本文件。
+
+本文件是复核历史，不是当前实现清单。尤其是 2026-07-06/07 的生图链路实验，在本次回滚后的 `main` 中不属于当前基线。
+
 ## 审查规则
 
 每轮完成后记录：
@@ -10,6 +16,76 @@
 - 需要人工确认的事项。
 - 下一轮优先级。
 - 优先复用已有接口、成熟开源项目和当前技术栈能力，不重复造轮子；新增能力前先确认是否已有 New-API、CPA、Docker Compose、现有 `/api/*` 或前端模块可复用。
+
+## 2026-07-07 当前画布真实生图生产测试复核
+
+### 已验证
+
+- 3458 已从 mock 切到真实 AI 调用模式，健康检查返回 `mode=real-provider-ready`、`providers.ai.enabled=true`、`imageKeyConfigured=true`。
+- 当前画布提示词为“生成电商主图”，参考图已连到图片生成节点。
+- 点击一次“生成图片节点”后，页面先显示 `已提交请求 12%`，随后停在 `等待返回结果 94%`，最后成功回填结果节点。
+- SQLite 最新 `generations` 记录为 `gen_mra8repd7838d326`，状态 `completed`，模型 `gpt-image-2`，扣费 `10`。
+- 结果地址为 `/api/proxy-image?url=https%3A%2F%2Fexternal-resources-2.packyapi.com%2Ffiles%2F2bb7f59a-3a83-4feb-a648-07e9f31c9391.png`，属于真实上游返回，不是 `/api/mock-image/...`。
+- 浏览器 DOM 中 `文生图` 节点已加载，图片自然尺寸 `1022x1539`，显示尺寸约 `345x520`。
+
+### 结论
+
+- 当前 3458 的真实生图主链路已跑通：画布提交、后端调用 New-API/上游、数据库记录、前端结果节点回填均成功。
+- 用户提供了 `admin / admin123456789`，但当前浏览器标签已有登录态，实际运行账号是 `731241492`，本次扣费发生在该用户下；生成后该用户余额为 `0`。
+
+### 未覆盖
+
+- 未切换到 admin 账号再跑第二次，避免重复真实扣费。
+- 未做完整 `NODE_ENV=production` 启动验证；当前本地强 JWT_SECRET 不满足生产门禁。
+
+## 2026-07-07 当前画布 mock 生图结果图复核
+
+### 已验证
+
+- 使用 CodeGraph 做结构入口检查后，因当前画布为压缩 bundle，本轮改用精确字符串定位结果图 URL 归一化逻辑。
+- 内置浏览器在 `http://127.0.0.1:3458/canvas/project_1783402782710_xeqb6t8wr` 复现到破图：结果节点 `文生图` 的 `src` 被写成 `data:image/png;base64,/api/mock-image/...`，浏览器自然尺寸为 0，显示成小破图。
+- 后端 mock 模式返回 `/api/mock-image/:seed.svg?...` 是合理相对 URL；问题在前端白名单没有放行 `/api/mock-image/`，把它误当成 base64 纯内容。
+- 已在 `assets/Canvas-B8bY9_QL.js` 和 `assets/Canvas-yGc8b2gf.js` 中补齐 `/api/mock-image/` 白名单，并把已误包成 `data:image/...,(\/api\/mock-image\/...)` 的旧值解回正常 URL。
+- 已把 `index.html` 主入口和两个入口 bundle 的 Canvas 动态 import query 升级为 `20260707mockimage1`。
+- 已更新 `scripts/smoke-internal-prod.ps1` 的入口/Canvas query，并增加 Canvas 包必须包含 mock image URL 白名单的断言。
+- `node --check` 检查四个 JS 包通过，PowerShell `PSParser` 检查 smoke 脚本通过。
+- 本地 3458 刷新后，旧破图节点恢复为 `/api/mock-image/...`，自然尺寸 `1024x1024`；再次点击生成后节点数从 3 到 4，两个 `文生图` 均正常加载，`badMockWrapped=0`。
+
+### 结论
+
+- 本轮修的是当前画布 mock 生图结果节点显示链路，不是模型能力、真实 Provider 或后端生成逻辑。
+- 当前本地 3458 mock 路径已恢复；用户截图里的小破图现象应由前端 URL 白名单缺失导致。
+
+### 未覆盖
+
+- 未重建 Docker，未验证 `http://192.168.0.39:3456/`，因为当前测试服务器 3456 可能走真实 Provider，需用户确认后再同步。
+- 控制台仍有 `projects-BtxGnToV.js` 的本地资源迁移/JPG 转换 warning，本轮未展开，后续若出现历史记录落盘或素材恢复异常再单独排查。
+
+## 2026-07-07 回滚后文档去混淆复核
+
+### 已验证
+
+- 当前 `HEAD` 为 `51d4dab`，`main...origin/main [ahead 2]`。
+- CodeGraph 索引健康，当前项目仍索引 137 个文件和 102 个路由。
+- 但 CodeGraph 文件列表在本次回滚后仍包含已删除的独立画布重建方案源码路径；`Test-Path` 和 `git ls-files` 已确认 `frontend/src/views/CanvasStudio.vue`、`frontend/src/stores/canvas.ts`、`frontend/src/types/canvas.ts`、`frontend/src/api/canvasRunner.ts` 和 `frontend/public/system-prompts/infinite-canvas-prompt-templates.md` 当前均不存在。
+- 当前 `index.html` 主入口为 `index-DglIsp_g.js?v=20260704usercenter1`，画布辅助脚本为 `20260704canvasleave1`。
+- 当前 `server.js` 约 4328 行，仍是 Express + SQLite 单体实现。
+- 本轮新增 `docs/current-baseline.md`，把当前 Git 基线、备份分支、stash、生产未同步状态、阅读顺序和易混淆历史集中到一个入口。
+- 本轮新增 `AGENTS.md` 的 `## Agent skills` 入口，以及 `docs/agents/issue-tracker.md`、`docs/agents/triage-labels.md`、`docs/agents/domain.md`，明确本仓库默认走本地 Markdown 工作项，不把历史日志或远端 issue 流程误当成当前开发状态。
+- 本轮新增 `CONTEXT.md`，把“画布”固定为当前唯一画布；历史替代实现统一称为“已废止的独立画布重建方案”，不再用两套画布的并列叫法描述当前开发对象。
+
+### 结论
+
+- 后续 agent 不应直接从 `progress-report.md` 或本文件推断当前实现；必须先看 `docs/current-baseline.md`。
+- 后续 agent 如需拆任务，先使用 `docs/agents/` 的本地约定；除非用户明确要求，不主动创建 GitHub issue、PR 或远端协作流程。
+- 2026-07-06/07 的后续生图任务恢复和官转线路实验目前只保留在回滚前备份分支和 stash 中，不属于当前 `main`。
+- 当前源码没有混入已废止的独立画布重建方案源码文件；混淆点来自 CodeGraph 回滚后索引滞后和历史日志残留。结构分析前应先刷新或复核 CodeGraph。
+
+### 未覆盖
+
+- 本轮没有重建 Docker，没有验证 `http://192.168.0.39:3456/` 是否已同步到本 Git 基线。
+- 本轮没有修复过期验证脚本；`verify-canvas-performance-assets.js` 仍需下一步处理。
+- 本轮没有刷新 CodeGraph 索引；刷新或重建索引需先得到用户确认。
 
 ## 2026-07-04 画布默认云端保存复核
 
@@ -3647,3 +3723,104 @@
 ### 剩余风险
 
 - 本轮未安装新依赖，也没有可用浏览器控制工具，因此没有做点击级 Performance trace。若强刷后点击画布右上角用户中心仍延迟，应继续用 Chrome Performance 采样，区分弹层组件渲染、接口响应、头像资源加载和背后画布合成耗时。
+
+## 2026-07-07 图生图中转尺寸复核
+
+### 已确认
+
+- 这条生产测试路径带参考图，因此后端会调用 `callProviderImageEdit()`，上传给中转的是 multipart `/images/edits`，不是无参考图时的 JSON `/images/generations`。
+- 当前画布项目中的图片生成节点保存 `size: "1x1"`、`clarity: "1k"`，参考图为 `436x659`，已生成返图约 `1023x1537`，返图比例与参考图高度比例高度一致。
+- 根因不是用户界面没选 1:1，而是 `providerImageSize()` 把 `1x1` 误判成显式像素尺寸，实际计算为 `816x816`，导致传给中转的尺寸不是标准 `1024x1024`。
+- 已修复为：`1024x1024` 这类真实像素尺寸继续按显式尺寸处理；`1x1`、`3x4`、`16x9` 这类小数字 `x` 写法按比例处理。
+- 生成任务响应已增加不含密钥的 `request/providerRequest` 摘要，下一次生产测试可直接在 Network 里看到 `size`、`quality`、`referenceImageField` 和参考图数量。
+
+### 验证
+
+- `node --check "F:\dianshang\server.js"` 通过。
+- `node "F:\dianshang\scripts\check-packy-gpt-image-size.js"` 通过，新增覆盖 `1x1`、`3x4`、`4x3`、`9x16`、`16x9`。
+- `node "F:\dianshang\scripts\check-packy-gpt-image-adapter-coverage.js"` 通过。
+- 已重启本地 3458，健康接口为 `real-provider-ready`，本轮未再次调用真实生图。
+
+### 剩余风险
+
+- 尚未再次扣费生图确认 Packy 是否严格按 `1024x1024` 返回；如果仍返回参考图比例，下一步优先验证单图字段是否需要统一为 `image[]`，以及 GPT 图像模型是否接受当前 `response_format: "url"` 兼容写法。
+
+### 追加复核
+
+- 用户复测后仍返回约 `1021x1541`，但当前后端函数对该节点参数的计算结果已是 `providerSize: "1024x1024"`。
+- 进一步判断：比例没有混到业务上传图本身，而是 provider edit 请求必须同时包含参考图文件和输出尺寸字段；若中转或模型忽略 `size`，就会倾向保留参考图原比例。
+- 已补充 `ecommercePromptOutputCanvasText()`，把目标比例和尺寸写入最终提示词，给模型层和 provider `size` 字段同向约束。
+- 静态验证确认当前提示词会包含：`最终图片必须是 1:1 画布，目标尺寸 1024x1024。不要沿用参考图原始宽高比例`。
+
+### Packy 官方文档复核
+
+- 用户提供 Packy 官方 GPT-Image-2 文档后，确认 `/v1/images/edits` 应使用 `multipart/form-data`，字段为 `model`、`prompt`、`image`、`size`、`quality`、`output_format`、`response_format`，可选 `mask` 和 `input_fidelity`。
+- 运行时 dry-run 结果已对齐 Packy 字段形态：`size`、`quality`、`output_format=png`、`response_format=url`、`input_fidelity=high`、`image=<file>`。
+- 后台旧接口实例曾显示 `application/json ? multipart/form-data` 和 `images: [{ image_url }]`，该示例不是 Packy 官方编辑接口形态；已清理运行数据库 `admin.apiProviders` 中 GPT Image 2 的 `requestExamples`，并同步源码默认示例。
+- 用户进一步确认 UI 清晰度三档应映射 Packy `quality`：`1K -> low`、`2K -> medium`、`4K -> high`；已修正此前把默认 `standard` 统一发 `high` 的处理。
+
+### 图片生成节点 prompt 复核
+
+- 用户要求“原来的约束全删了，只针对图片生成节点”。
+- 已确认图片生成节点使用 `/api/generate/tasks`；该入口此前复用 `buildEcommerceImagePrompt()`，会追加多段保真和电商约束，导致生成结果更像原图复刻。
+- 已改为 `/api/generate/tasks` 调用 `buildImageGenerateNodePrompt()`，只传用户在节点里输入的原始提示词；不影响 `/api/canvas/dialog-agent-generate`、`/api/canvas/ecommerce-suite/*` 和 `/api/template/generate-image`。
+- 静态检查已增加约束：Quick generate tasks 入口必须包含 `buildImageGenerateNodePrompt`，且不能再包含 `buildEcommerceImagePrompt`。
+
+## 2026-07-07 用户中心官转线路显示复核
+
+### 已确认
+
+- 线上 `/api/public/routes` 返回两条图片线路：`route_openai_gpt_image_2` 和 `lignsuan-guanzhuan`，其中 `lignsuan-guanzhuan` 显示名为 `官转gpt-img2`。
+- 线上 `/api/public/models?routeId=pub_route_mr5yltmuc7edcb2b` 返回 `GPT Image 2`，`routeKey` 为 `lignsuan-guanzhuan`，模型为启用状态。
+- 用户中心抽屉已改为合并 `/user/routes` 与 `/public/routes`；如果用户侧接口短暂只回一条，公开启用线路仍会进入卡片列表。
+- 线路模型加载已增加 `/public/models` 兜底，避免用户侧模型接口为空时显示“当前线路暂无可用模型”。
+- 入口缓存链路已升级到 `20260707route1`，生产 HTML、入口 JS、Canvas chunk 和 `ImageHistoryPanel` chunk 均已直接请求确认命中新版本。
+- Docker 已完整重建并 force recreate；`dianshang-internal-app` 当前为 `healthy`，镜像为 `sha256:d141e4ebbbf94cd339d14246e8e2e8ac5210fd60547166471847e1b38c7cd2e1`。
+- `scripts/smoke-internal-prod.ps1` 已补充用户抽屉 chunk 与公开线路、公开模型兜底断言，并已通过。
+
+### 剩余风险
+
+- 未持有用户当前浏览器 token，未直接抓 `/api/user/routes` 的登录态响应；本轮依靠公开接口兜底保证后台启用线路可见。
+- 如果浏览器仍只显示一张卡，优先强刷当前页面，确认 Network 中加载的是 `ImageHistoryPanel-Dy2o3dPV.js?v=20260707route1`。
+
+## 2026-07-07 本地 3458 官转线路加载复核
+
+### 已确认
+
+- 当前本地 3458 的运行数据库 `admin.apiProviders` 已包含图像官转线路 `pub_route_openai_gpt_image_2 / route_openai_gpt_image_2`，显示名为 `GPT Image 2 官转`。
+- 该图像线路保留已有 API Key，公开响应只返回 `hasApiKey=true` 和脱敏 Key；实际端点为 `https://www.packyapi.com` + `/v1/images/generations`，图生图端点为 `/v1/images/edits`。
+- 文本官转线路 `pub_route_openai_gpt_5_5 / route_openai_gpt_5_5` 已同步显示名 `GPT 5.5 官转`，端点为 `/responses`。
+- `server.js` 默认 RTS 名称已同步，避免后续重置 `admin.apiProviders` 时又回到无“官转”的旧显示名。
+
+### 验证
+
+- `node --check "F:\dianshang\server.js"` 通过。
+- `GET http://127.0.0.1:3458/api/model-routes?group=image` 返回 `GPT Image 2 官转`、`/v1/images/generations`、`/v1/images/edits`、`defaultImageModel=gpt-image-2`、`hasApiKey=true`。
+- `GET http://127.0.0.1:3458/api/model-routes?group=text` 返回 `GPT 5.5 官转`、`/responses`、`defaultTextModel=gpt-5.5`、`hasApiKey=true`。
+- `GET http://127.0.0.1:3458/api/user/api-status` 返回 provider 名称 `GPT Image 2 官转`。
+
+### 剩余风险
+
+- 本轮没有执行真实生图扣费请求；只确认线路加载、名称、端点和密钥配置状态。
+- 本轮没有重建 3456 Docker 生产端；当前变更只面向 `http://127.0.0.1:3458` 本地生产测试。
+
+## 2026-07-07 中转上传字段兼容试改复核
+
+### 已确认
+
+- 图片生成节点仍走本地后端 `/api/generate/tasks`，没有改为前端直连中转，也没有改 prompt 组装。
+- `callProviderImageEdit()` 已改为多参考图重复追加 multipart `image` 字段；单图和多图均不再使用 `image[]`。
+- 文生图 JSON `/v1/images/generations` 和图生图 multipart `/v1/images/edits` 都会发送 `background=auto`、`moderation=auto`。
+- 生成任务响应的 `request/providerRequest` 摘要会暴露不含密钥的 `endpoint`、`background`、`moderation`、`referenceImageField=image` 和 `referenceImageFieldMode`，便于浏览器 Network 核对。
+- 运行数据库 `admin.apiProviders` 的 GPT Image 2 请求示例已同步，后台示例不再出现 `image[]` 或缺少 `background/moderation` 的旧形态。
+
+### 验证
+
+- `node --check "F:\dianshang\server.js"` 通过。
+- `node "F:\dianshang\scripts\check-packy-gpt-image-adapter-coverage.js"` 通过，并断言不能再出现 `form.append('image[]'`。
+- `node "F:\dianshang\scripts\check-packy-gpt-image-size.js"` 通过 54 个尺寸映射用例。
+
+### 剩余风险
+
+- 本轮没有启用 New API `?async=true` 与上游任务轮询；刷新恢复能力仍是后续独立改造项。
+- 本轮没有执行真实扣费生图；字段兼容是否提升生成效果，需要用户在当前 3458 画布实测。

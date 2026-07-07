@@ -39,14 +39,14 @@ NestJS API Server
 - 负责：项目列表、项目创建、项目详情、项目更新、项目删除。
 - 当前路由：`/api/user/projects*`。
 - 数据：`projects`。
-- 迁移风险：旧画布本地优先，新画布需要逐步接云端保存恢复。
+- 迁移风险：当前画布此前以本地保存为主，云端保存恢复需要在兼容现有 JSON 的前提下逐步接入。
 
 ## canvas
 
 - 负责：画布 JSON、工作流 JSON、节点数据版本、导入导出格式。
 - 当前路由：`/api/workflows/:id/save-json`、项目接口中的 `data`。
 - 数据：当前复用 `projects.data`，后续可拆 `canvas_snapshots`。
-- 迁移风险：不得把 Vue Flow 内部对象直接作为长期后端模型；需要 Canvas Adapter 做格式转换。
+- 迁移风险：不得把画布运行时内部对象直接作为长期后端模型；需要 Canvas Adapter 做格式转换。
 
 ## template
 

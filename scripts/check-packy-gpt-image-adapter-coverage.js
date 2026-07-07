@@ -33,9 +33,13 @@ assertIncludes('callProviderImageGeneration', generationAdapter, [
   'providerImageSize(',
   'providerImageQuality(',
   'providerImageOutputFormat(',
+  'providerImageBackground(',
+  'providerImageModeration(',
   'Content-Type',
   'application/json',
+  'background',
   'output_format',
+  'moderation',
   "response_format: 'url'",
   'n: 1',
   'await runQueuedProviderImageBatch(count, async',
@@ -52,21 +56,27 @@ assertIncludes('callProviderImageEdit', editAdapter, [
   'providerImageQuality(',
   'providerImageOutputFormat(',
   'providerImageInputFidelity(',
+  'providerImageBackground(',
+  'providerImageModeration(',
   "form.append('size', size)",
   "form.append('quality', quality)",
+  "form.append('background', background)",
   "form.append('output_format', outputFormat)",
+  "form.append('moderation', moderation)",
   "form.append('response_format', 'url')",
   "form.append('n', '1')",
   "form.append('input_fidelity', inputFidelity)",
-  "form.append('image[]'",
   "form.append('image'",
   "form.append('mask'",
+  "referenceImageField: 'image'",
+  "referenceImageFieldMode:",
   'await runQueuedProviderImageBatch(count, async',
   "queueMode: 'serial-delayed'",
   'queueDelayMs: providerImageRequestDelay(options)'
 ]);
 assertExcludes('callProviderImageEdit', editAdapter, [
-  'await Promise.all(Array.from({ length: count }, async'
+  'await Promise.all(Array.from({ length: count }, async',
+  "form.append('image[]'"
 ]);
 
 assertIncludes('Provider image request queue', source, [
@@ -75,6 +85,14 @@ assertIncludes('Provider image request queue', source, [
   'function runQueuedProviderImageRequest',
   'async function runQueuedProviderImageBatch',
   'forceQueueDelay: i > 0'
+]);
+
+const ecommercePromptBuilder = sliceFrom('function ecommercePromptOutputCanvasText', 'function resolveTextRoute');
+assertIncludes('Ecommerce prompt output canvas requirement', ecommercePromptBuilder, [
+  'providerImageSize(ratioValue, sizeTier)',
+  '输出画布要求',
+  '不要沿用参考图原始宽高比例',
+  '目标尺寸'
 ]);
 
 const coverage = [
@@ -86,7 +104,7 @@ const coverage = [
   {
     label: 'Quick generate tasks',
     block: sliceFrom("app.post('/api/generate/tasks'", "app.get('/api/generate/tasks/:id'"),
-    needles: ['callProviderImageEdit', 'callProviderImageGeneration']
+    needles: ['buildImageGenerateNodePrompt', 'callProviderImageEdit', 'callProviderImageGeneration']
   },
   {
     label: 'Template generate image',
@@ -113,6 +131,11 @@ const coverage = [
 for (const item of coverage) {
   assertIncludes(item.label, item.block, item.needles);
 }
+
+const quickGenerateBlock = sliceFrom("app.post('/api/generate/tasks'", "app.get('/api/generate/tasks/:id'");
+assertExcludes('Quick generate tasks prompt builder', quickGenerateBlock, [
+  'buildEcommerceImagePrompt'
+]);
 
 const directImageFetches = [...source.matchAll(/fetch\(([^)]*images\/(?:generations|edits)[^)]*)\)/g)];
 assert(directImageFetches.length === 0, 'Direct fetch to Packy image endpoints found outside provider adapter');

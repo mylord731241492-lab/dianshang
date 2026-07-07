@@ -20,6 +20,16 @@
 - CodeGraph 已在 `F:\dianshang` 初始化；后续结构定位、接口影响面和调用链分析必须优先使用 CodeGraph，不能退回手工全文搜索。
 - 服务器正式部署前的 `.env` 生产密钥、Nginx/HTTPS、访问权限和备份恢复演练尚未完成；当前先以内网测试为目标。
 
+## 文档和验证脚本去混淆
+
+- 当前项目第一入口是 `docs/current-baseline.md`；历史流水账只用于追溯，不作为现状来源。
+- 回滚前 2026-07-06/07 的生图链路实验需要从备份分支或 stash 中按单个问题挑选，不能整包恢复。
+- 画布术语已统一：当前项目只有一个画布，后续不再用两套画布的并列叫法描述当前开发对象。
+- CodeGraph 回滚后疑似索引滞后，仍列出当前 Git 和文件系统中不存在的独立画布重建方案源码路径；后续结构分析前应刷新或复核索引。
+- `scripts/verify-canvas-performance-assets.js` 的资源版本断言已与当前入口 query 不完全一致，需要修正、拆分或标记为历史脚本。
+- `assets/` 内多套 hash chunk 需要 active resource manifest 说明哪些仍被当前入口引用，哪些只服务于旧资源隔离。
+- `server.js` 仍缺少只读路由索引和模块归属表；拆代码前应先把当前 `/api/*` 映射到 `docs/backend-module-boundaries.md` 的模块名。
+
 ## 前端 1:1 尚需精修
 
 - 逐页与线上站点做桌面/移动端截图 diff。

@@ -142,22 +142,27 @@ $deletedCode = @($codesAfterDelete.codes | Where-Object { $_.code -eq $code })
 Assert-True -Condition ($deletedCode.Count -eq 0) -Message "Smoke redeem code still exists after delete"
 
 $homeResponse = Invoke-WebRequest -UseBasicParsing "$baseUrl/"
-Assert-True -Condition ($homeResponse.Content -match "index-DglIsp_g\.js\?v=20260704usercenter1") -Message "Production frontend entry asset missing from home page"
+Assert-True -Condition ($homeResponse.Content -match "index-DglIsp_g\.js\?v=20260707route1") -Message "Production frontend entry asset missing from home page"
 Assert-True -Condition ($homeResponse.Content -match "canvas-performance-mode\.js\?v=20260704canvasleave1") -Message "Canvas performance route teardown asset missing from home page"
 Assert-True -Condition ($homeResponse.Content -match "canvas-image-node-polish\.js\?v=20260704canvasleave1") -Message "Canvas image polish route teardown asset missing from home page"
 Assert-True -Condition ($homeResponse.Content -match "canvas-chat-prompt-flow\.js\?v=20260704canvasleave1") -Message "Canvas chat prompt route teardown asset missing from home page"
 Assert-True -Condition ($homeResponse.Content -match "canvas-performance-mode\.css\?v=20260704usercenter1") -Message "Canvas user center performance CSS missing from home page"
 Assert-True -Condition ($homeResponse.Content -match "canvas-image-node-polish\.css\?v=20260704dragperf1") -Message "Canvas image polish drag CSS missing from home page"
-$productionEntry = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/index-DglIsp_g.js?v=20260704usercenter1").Content
+$productionEntry = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/index-DglIsp_g.js?v=20260707route1").Content
 Assert-True -Condition ($productionEntry -match "HomeIndex-DAjDt0aj\.js\?v=20260704homesave1") -Message "Production home chunk version missing from entry asset"
-Assert-True -Condition ($productionEntry -match "Canvas-B8bY9_QL\.js\?v=20260704usercenter1") -Message "Production canvas chunk version missing from entry asset"
+Assert-True -Condition ($productionEntry -match "Canvas-B8bY9_QL\.js\?v=20260707route1") -Message "Production canvas chunk version missing from entry asset"
 Assert-True -Condition ($productionEntry -notmatch "HomeIndex-DAjDt0aj\.js\?v=20260702modelsync1") -Message "Old home chunk query still exists in production entry asset"
 Assert-True -Condition ($productionEntry -notmatch "index-ZrBcanD1") -Message "Legacy root entry is still referenced by production entry asset"
-$productionCanvas = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/Canvas-B8bY9_QL.js?v=20260704usercenter1").Content
+$productionCanvas = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/Canvas-B8bY9_QL.js?v=20260707route1").Content
 Assert-True -Condition ($productionCanvas -match "refreshCanvasAfterProjectLoad") -Message "Canvas project load refresh hook missing from production canvas chunk"
 Assert-True -Condition ($productionCanvas -match "window\.dispatchEvent\(new Event\(""resize""\)\)") -Message "Canvas project load resize refresh missing from production canvas chunk"
 Assert-True -Condition ($productionCanvas -match "codexSetUserCenterOpen") -Message "Canvas user center open state helper missing from production canvas chunk"
 Assert-True -Condition ($productionCanvas -match "canvas-user-center-open") -Message "Canvas user center performance class missing from production canvas chunk"
+Assert-True -Condition ($productionCanvas -match '\\/api\\/mock-image\\/') -Message "Canvas mock image URL allowlist missing from production canvas chunk"
+Assert-True -Condition ($productionCanvas -match "ImageHistoryPanel-Dy2o3dPV\.js\?v=20260707route1") -Message "Canvas user center drawer chunk version missing from production canvas chunk"
+$productionUserDrawer = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/ImageHistoryPanel-Dy2o3dPV.js?v=20260707route1").Content
+Assert-True -Condition ($productionUserDrawer -match "await ea\(\)\.catch\(\(\)=>null\)") -Message "User center route public fallback missing from production drawer chunk"
+Assert-True -Condition ($productionUserDrawer -match "await ta\(y\)\.catch\(\(\)=>null\)") -Message "User center model public fallback missing from production drawer chunk"
 $productionPerfJs = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/canvas-performance-mode.js?v=20260704canvasleave1").Content
 Assert-True -Condition ($productionPerfJs -match "draggingPointerActive") -Message "Canvas drag pointer throttle missing from performance asset"
 Assert-True -Condition ($productionPerfJs -match "extendActive") -Message "Canvas drag active extension missing from performance asset"

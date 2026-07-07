@@ -1,9 +1,9 @@
-# 旧画布维护日志
+# 当前画布维护日志
 
 ## 维护原则
 
-- 旧画布是当前唯一画布基线，后续只做最小修复和必要接线。
-- 每次改旧画布必须写清楚：触发背景、改动文件、影响链路、验证命令、未覆盖风险。
+- 画布是当前唯一画布基线，后续只做最小修复和必要接线。
+- 每次改当前画布必须写清楚：触发背景、改动文件、影响链路、验证命令、未覆盖风险。
 - 如果一轮内出现临时补丁，必须在本日志记录是否保留、为什么保留、后续如何移除。
 - 真实 Provider 调用、真实扣费、批量生成和破坏性数据操作，必须先由用户确认。
 
@@ -12,16 +12,16 @@
 | 资产 | 当前版本 | 说明 |
 | --- | --- | --- |
 | `assets/canvas-chat-prompt-flow.js/css` | `20260701suite20` | 对话 Agent 桥接、套图 Agent 第三 tab 接线、动态板块提示词、隐藏原生视频模型控件、参考图多槽、浅色设计师头像选择器、浅色板块选择卡、单板块独立并发生图任务、失败单独重试、失败 request id 精简展示、成功图内悬浮操作层、成功自动上画布、三模式空状态隐藏、composer 默认文案统一和第三 tab 文案同步为 `agent电商套图` |
-| `assets/index-DglIsp_g.js` | `20260630dialogagent12` | 旧画布主入口缓存版本，指向会话隔离后的 Canvas chunk |
+| `assets/index-DglIsp_g.js` | `20260630dialogagent12` | 当前画布主入口缓存版本，指向会话隔离后的 Canvas chunk |
 | `assets/Canvas-B8bY9_QL.js` | `20260630dialogagent9` | 旧 Canvas Chat 原生参数控件 + 三模式会话隔离 |
 | `assets/Canvas-yGc8b2gf.js` | `20260630dialogagent9` | 旧 Canvas Chat 原生参数控件 + 三模式会话隔离 |
-| `assets/canvas-performance-mode.js/css` | `20260629perf5` | 旧画布性能过渡层 |
+| `assets/canvas-performance-mode.js/css` | `20260629perf5` | 当前画布性能过渡层 |
 | `assets/canvas-image-node-polish.js/css` | `20260701image10` | 图片节点显示与工具条 polish |
 | `assets/admin-api-source-route-bridge.js` | `20260629sourceapi1` | 旧后台到源码后台桥接 |
 
 ## 不可回退护栏
 
-- 三模式隔离是当前旧画布硬边界：`对话 / 快速 / 视频` 不能共享 `messages`、`input`、`images`、生成中状态或 `sessionId`。
+- 三模式隔离是当前画布硬边界：`对话 / 快速 / 视频` 不能共享 `messages`、`input`、`images`、生成中状态或 `sessionId`。
 - `快速` 不是 `对话 Agent`，不能为了复用实现把快速模式改成 GPT 5.5 分析链路。
 - 第三个 tab 当前展示为 `agent电商套图`，底层仍兼容旧 `视频` 文案；该 tab 只允许承载电商套图 Agent，不能回退成共享图片生成占位，后续如接视频 Provider 必须单独写契约、成本规则和 smoke。
 - 刷新恢复时，`source:"canvas-chat"` 只能恢复草稿到输入框，不能自动新增用户消息。

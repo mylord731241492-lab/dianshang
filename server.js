@@ -379,11 +379,11 @@ const TXT = [
   {k:"gpt-5.5",n:"GPT 5.5",p:5,q:["1k"]},
 ];
 const RTS = [
-  {id:"pub_route_openai_gpt_image_2",rk:"route_openai_gpt_image_2",dn:"GPT Image 2",cat:"image",g:"image",pri:10,def:true,dm:"gpt-image-2",apiFormat:"openai-images",requestFormat:"packy-openai-images-generations",endpoint:"/images/generations",requestExamples:[
-    {label:"文生图",method:"POST",endpoint:"/images/generations",contentType:"application/json",requestFormat:"packy-openai-images-generations",body:{model:"gpt-image-2",prompt:"string",size:"1024x1024",quality:"auto",output_format:"png",response_format:"url",n:1}},
-    {label:"图生图 / 局部重绘",method:"POST",endpoint:"/images/edits",contentType:"multipart/form-data",requestFormat:"packy-openai-images-edits",body:{model:"gpt-image-2",image:"<file>",mask:"<file optional>",prompt:"string",size:"1024x1024",quality:"auto",output_format:"png",response_format:"url",n:1}}
+  {id:"pub_route_openai_gpt_image_2",rk:"route_openai_gpt_image_2",dn:"GPT Image 2 官转",cat:"image",g:"image",pri:10,def:true,dm:"gpt-image-2",apiFormat:"openai-images",requestFormat:"packy-openai-images-generations",endpoint:"/v1/images/generations",requestExamples:[
+    {label:"文生图",method:"POST",endpoint:"/v1/images/generations",contentType:"application/json",requestFormat:"packy-openai-images-generations",body:{model:"gpt-image-2",prompt:"string",size:"1024x1024",quality:"high",background:"auto",output_format:"png",moderation:"auto",response_format:"url",n:1}},
+    {label:"图生图 / 局部重绘",method:"POST",endpoint:"/v1/images/edits",contentType:"multipart/form-data",requestFormat:"packy-openai-images-edits",body:{model:"gpt-image-2",image:"<file>",mask:"<file optional>",prompt:"string",size:"1024x1024",quality:"high",background:"auto",output_format:"png",moderation:"auto",response_format:"url",input_fidelity:"high",n:1}}
   ]},
-  {id:"pub_route_openai_gpt_5_5",rk:"route_openai_gpt_5_5",dn:"GPT 5.5",cat:"text",g:"text",pri:9,dm:"gpt-5.5",apiFormat:"openai-responses",requestFormat:"openai-responses",endpoint:"/responses",requestExamples:[
+  {id:"pub_route_openai_gpt_5_5",rk:"route_openai_gpt_5_5",dn:"GPT 5.5 官转",cat:"text",g:"text",pri:9,dm:"gpt-5.5",apiFormat:"openai-responses",requestFormat:"openai-responses",endpoint:"/responses",requestExamples:[
     {label:"文本生成",method:"POST",endpoint:"/responses",contentType:"application/json",requestFormat:"openai-responses",body:{model:"gpt-5.5",input:"string"}}
   ]},
 ];
@@ -743,6 +743,16 @@ function parseImageRatio(value = '') {
   return Math.max(1 / 3, Math.min(3, ratio));
 }
 
+function parseExplicitImageSize(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  const match = raw.match(/^(\d{2,5})\s*x\s*(\d{2,5})$/);
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
+  return width >= 64 && height >= 64 ? { width, height } : null;
+}
+
 function clampImageSize(width, height) {
   const maxSide = 3840;
   const minPixels = 655360;
@@ -782,9 +792,9 @@ function clampImageSize(width, height) {
 function providerImageSize(value = '', sizeTierValue = '') {
   const raw = String(value || '').trim().toLowerCase();
   if (raw === 'auto') return 'auto';
-  if (/^\d+x\d+$/i.test(raw)) {
-    const [width, height] = raw.split('x').map(Number);
-    return clampImageSize(width, height);
+  const explicitSize = parseExplicitImageSize(raw);
+  if (explicitSize) {
+    return clampImageSize(explicitSize.width, explicitSize.height);
   }
   const ratio = parseImageRatio(raw) || 1;
   const longSide = providerImageLongSide(sizeTierValue);
@@ -793,13 +803,13 @@ function providerImageSize(value = '', sizeTierValue = '') {
   return clampImageSize(width, height);
 }
 
-function providerImageQuality(value = '') {
+function providerImageQuality(value = '', sizeTierValue = '') {
   const raw = String(value || '').trim().toLowerCase();
   if (['low', 'medium', 'high', 'auto'].includes(raw)) return raw;
-  if (['1k', '2k', '4k'].includes(raw)) return 'auto';
-  if (['standard', 'sd'].includes(raw)) return 'low';
-  if (['hd'].includes(raw)) return 'medium';
-  if (['ultra', 'max'].includes(raw)) return 'high';
+  const tierRaw = String(sizeTierValue || raw || '').trim().toLowerCase();
+  if (['4k', '3840', '4096', 'ultra', 'max'].includes(tierRaw)) return 'high';
+  if (['2k', '2048', 'hd'].includes(tierRaw)) return 'medium';
+  if (['1k', '1024', 'standard', 'sd'].includes(tierRaw)) return 'low';
   return 'auto';
 }
 
@@ -811,6 +821,16 @@ function providerImageOutputFormat(value = '') {
 function providerImageInputFidelity(value = '') {
   const raw = String(value || '').trim().toLowerCase();
   return ['high', 'low'].includes(raw) ? raw : 'high';
+}
+
+function providerImageBackground(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  return ['auto', 'opaque'].includes(raw) ? raw : 'auto';
+}
+
+function providerImageModeration(value = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  return ['auto', 'low'].includes(raw) ? raw : 'auto';
 }
 
 const ECOMMERCE_IMAGE_SYSTEM_PROMPT = [
@@ -863,6 +883,29 @@ function ecommercePromptReferenceRoleText(userPrompt = '', options = {}) {
   ].join('');
 }
 
+function aspectLabelFromSize(size = '') {
+  const match = String(size || '').match(/^(\d+)x(\d+)$/);
+  if (!match) return '目标比例';
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return '目标比例';
+  const gcd = (a, b) => b ? gcd(b, a % b) : a;
+  const divisor = gcd(width, height);
+  return `${Math.round(width / divisor)}:${Math.round(height / divisor)}`;
+}
+
+function ecommercePromptOutputCanvasText(options = {}) {
+  const body = options.body && typeof options.body === 'object' ? options.body : {};
+  const ratioValue = options.size || options.ratio || options.aspectRatio || body.size || body.ratio || body.aspectRatio || '1:1';
+  const sizeTier = options.sizeTier || options.resolution || options.clarity || options.quality || body.sizeTier || body.resolution || body.clarity || body.quality;
+  const outputSize = providerImageSize(ratioValue, sizeTier);
+  const aspectLabel = aspectLabelFromSize(outputSize);
+  if (outputSize === 'auto') {
+    return '输出画布要求：最终图片必须按用户选择的目标比例生成，不要沿用参考图原始宽高比例；需要时用干净背景、留白或场景扩展适配画布，保持商品自身比例自然。';
+  }
+  return `输出画布要求：最终图片必须是 ${aspectLabel} 画布，目标尺寸 ${outputSize}。不要沿用参考图原始宽高比例；需要时用干净背景、留白或场景扩展适配画布，保持商品自身比例自然。`;
+}
+
 function buildEcommerceImagePrompt(userPrompt = '', options = {}) {
   const prompt = String(userPrompt || '').trim();
   const referenceCount = promptReferenceCount(options);
@@ -881,8 +924,15 @@ function buildEcommerceImagePrompt(userPrompt = '', options = {}) {
     '保持重点：优先保证最终主商品清晰、稳定、可识别；商品基本形状、比例、结构、材质、Logo、标签和关键文字尽量保持准确。用户明确要求修改的内容按用户要求执行。',
     '允许发挥：可以根据电商主图效果自然优化背景、桌面、道具、光影、空间层次、质感和画面高级感，但不要抢走商品主体注意力。',
     '避免问题：不要把排版图、风格图、配色图、背景图里的无关商品或文字混进最终画面；不要新增无关文字、水印、二维码；不要出现乱码、明显变形、错误透视、模糊边缘或主体混乱。',
+    ecommercePromptOutputCanvasText(options),
     '输出要求：画面真实自然，主体边缘干净，产品比例自然，适合电商主图或详情页展示。'
   ].filter(Boolean).join('\n');
+}
+
+function buildImageGenerateNodePrompt(userPrompt = '', options = {}) {
+  const prompt = String(userPrompt || '').trim();
+  if (prompt) return prompt;
+  return promptReferenceCount(options) > 0 ? '根据参考图生成图片' : '生成图片';
 }
 
 function resolveTextRoute(body = {}) {
@@ -1695,8 +1745,10 @@ async function callProviderImageGeneration(prompt, options = {}) {
   const count = Math.max(1, Math.min(Number(options.n || options.count || options.imageCount || 1) || 1, 4));
   const sizeTier = options.sizeTier || options.resolution || options.clarity || options.quality;
   const size = providerImageSize(options.size || options.ratio || options.aspectRatio, sizeTier);
-  const quality = providerImageQuality(options.imageQuality || options.providerQuality || options.qualityMode || options.quality);
+  const quality = providerImageQuality(options.imageQuality || options.providerQuality || options.qualityMode || options.quality, sizeTier);
   const outputFormat = providerImageOutputFormat(options.output_format || options.outputFormat);
+  const background = providerImageBackground(options.background || options.bg);
+  const moderation = providerImageModeration(options.moderation || options.moderationMode);
   if (!status.enabled) {
     return {
       success: true,
@@ -1715,6 +1767,7 @@ async function callProviderImageGeneration(prompt, options = {}) {
         const resp = await fetch(requestUrl, {
           method: 'POST',
           headers: {
+            'Accept': '*/*',
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${providerAuthKey('image', options.route)}`
           },
@@ -1723,7 +1776,9 @@ async function callProviderImageGeneration(prompt, options = {}) {
             prompt,
             size,
             quality,
+            background,
             output_format: outputFormat,
+            moderation,
             response_format: 'url',
             n: 1
           }),
@@ -1788,7 +1843,7 @@ async function callProviderImageGeneration(prompt, options = {}) {
         upstream
       };
     }
-    return { success: true, mock: false, provider: status, images, upstream, request: { model, size, quality, output_format: outputFormat, response_format: 'url', n: 1, requestedCount: count, queueMode: 'serial-delayed', queueDelayMs: providerImageRequestDelay(options) } };
+    return { success: true, mock: false, provider: status, images, upstream, request: { endpoint: routeImageGenerationEndpoint(options.route), model, size, quality, background, output_format: outputFormat, moderation, response_format: 'url', n: 1, requestedCount: count, queueMode: 'serial-delayed', queueDelayMs: providerImageRequestDelay(options) } };
   } catch (err) {
     return {
       success: false,
@@ -1805,9 +1860,11 @@ async function callProviderImageEdit(prompt, options = {}) {
   const count = Math.max(1, Math.min(Number(options.n || options.count || options.imageCount || 1) || 1, 4));
   const sizeTier = options.sizeTier || options.resolution || options.clarity || options.quality;
   const size = providerImageSize(options.size || options.ratio || options.aspectRatio, sizeTier);
-  const quality = providerImageQuality(options.imageQuality || options.providerQuality || options.qualityMode || options.quality);
+  const quality = providerImageQuality(options.imageQuality || options.providerQuality || options.qualityMode || options.quality, sizeTier);
   const outputFormat = providerImageOutputFormat(options.output_format || options.outputFormat);
   const inputFidelity = providerImageInputFidelity(options.input_fidelity || options.inputFidelity);
+  const background = providerImageBackground(options.background || options.bg);
+  const moderation = providerImageModeration(options.moderation || options.moderationMode);
   const references = imageReferenceCandidates(options.body || options);
   if (!references.length) {
     return callProviderImageGeneration(prompt, options);
@@ -1845,23 +1902,21 @@ async function callProviderImageEdit(prompt, options = {}) {
         form.append('prompt', prompt);
         form.append('size', size);
         form.append('quality', quality);
+        form.append('background', background);
         form.append('output_format', outputFormat);
+        form.append('moderation', moderation);
         form.append('response_format', 'url');
         form.append('n', '1');
         form.append('input_fidelity', inputFidelity);
-        if (referenceFiles.length > 1 && !maskFile) {
-          referenceFiles.forEach((file, index) => {
-            form.append('image[]', new Blob([file.buffer], { type: file.mime }), file.fileName || `reference-${index + 1}.${providerImageExt(file.mime)}`);
-          });
-        } else {
-          const imageFile = referenceFiles[0];
-          form.append('image', new Blob([imageFile.buffer], { type: imageFile.mime }), imageFile.fileName);
-        }
+        referenceFiles.forEach((file, index) => {
+          form.append('image', new Blob([file.buffer], { type: file.mime }), file.fileName || `reference-${index + 1}.${providerImageExt(file.mime)}`);
+        });
         if (maskFile) form.append('mask', new Blob([maskFile.buffer], { type: maskFile.mime }), maskFile.fileName);
         const requestUrl = joinProviderUrl(status.baseUrl, routeImageEditEndpoint(options.route));
         const resp = await fetch(requestUrl, {
           method: 'POST',
           headers: {
+            'Accept': '*/*',
             'Authorization': `Bearer ${providerAuthKey('image', options.route)}`
           },
           body: form,
@@ -1943,10 +1998,14 @@ async function callProviderImageEdit(prompt, options = {}) {
         queueMode: 'serial-delayed',
         queueDelayMs: providerImageRequestDelay(options),
         input_fidelity: inputFidelity,
+        background,
+        moderation,
+        endpoint: routeImageEditEndpoint(options.route),
         requestedCount: count,
         referenceImageCount: references.length,
         submittedReferenceImageCount: referenceFiles.length,
-        referenceImageField: referenceFiles.length > 1 && !maskFile ? 'image[]' : 'image'
+        referenceImageField: 'image',
+        referenceImageFieldMode: referenceFiles.length > 1 && !maskFile ? 'repeated' : 'single'
       }
     };
   } catch (err) {
@@ -2590,6 +2649,8 @@ function makeTaskResponse(task) {
     imageCost: task.imageCost || task.cost,
     analysisSummary: task.analysisSummary || '',
     finalPrompt: task.finalPrompt || task.prompt,
+    request: task.request || null,
+    providerRequest: task.request || null,
     errorMessage: task.errorMessage || '',
     createdAt: task.createdAt,
     updatedAt: task.updatedAt
@@ -2653,6 +2714,8 @@ function createCompletedTask(req, source = {}) {
     analysisSummary: source.analysisSummary || '',
     sourceTaskId: taskId,
     source: source.source || img.source || 'generation-task',
+    request: source.request || img.request || null,
+    providerRequest: source.request || img.providerRequest || img.request || null,
     meta: {
       ...(img.meta || {}),
       operation: source.operation || 'generation',
@@ -2660,7 +2723,8 @@ function createCompletedTask(req, source = {}) {
       finalPrompt: source.finalPrompt || prompt,
       analysisSummary: source.analysisSummary || '',
       modelKey,
-      source: source.source || 'generation-task'
+      source: source.source || 'generation-task',
+      providerRequest: source.request || img.meta?.providerRequest || null
     }
   }, i, taskId));
   const task = {
@@ -2676,6 +2740,7 @@ function createCompletedTask(req, source = {}) {
     imageCost: Number(source.imageCost || cost),
     analysisSummary: source.analysisSummary || '',
     finalPrompt: source.finalPrompt || prompt,
+    request: source.request || null,
     images,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -2969,7 +3034,8 @@ async function runImageToolOutpaint(req, res) {
       prompt,
       modelKey: model,
       imageCount: 1,
-      results: providerResult.images
+      results: providerResult.images,
+      request: providerResult.request
     });
     res.json({
       success: true,
@@ -3243,6 +3309,7 @@ app.post('/api/canvas/ecommerce-suite/generate', auth, async (req, res) => {
 
   const results = [];
   const providers = [];
+  const providerRequests = [];
   const usedPlanPrompts = [];
   for (const plan of plans) {
     const basePrompt = ecommerceSuiteGenerationPrompt(plan, context);
@@ -3276,6 +3343,7 @@ app.post('/api/canvas/ecommerce-suite/generate', auth, async (req, res) => {
       ? await callProviderImageEdit(prompt, providerOptions)
       : await callProviderImageGeneration(prompt, providerOptions);
     providers.push(imageResult.provider);
+    if (imageResult.request) providerRequests.push(imageResult.request);
     if (!imageResult.success) {
       return res.status(502).json({
         success: false,
@@ -3316,6 +3384,7 @@ app.post('/api/canvas/ecommerce-suite/generate', auth, async (req, res) => {
     cost: imageCost,
     totalCost: imageCost,
     imageCost,
+    request: providerRequests.length === 1 ? providerRequests[0] : providerRequests,
     operation: 'canvas-ecommerce-suite-agent',
     source: 'canvas-ecommerce-suite-agent'
   });
@@ -3339,6 +3408,8 @@ app.post('/api/canvas/ecommerce-suite/generate', auth, async (req, res) => {
     resultImages: task.images,
     totalCost: imageCost,
     imageCost,
+    request: providerRequests.length === 1 ? providerRequests[0] : providerRequests,
+    providerRequest: providerRequests.length === 1 ? providerRequests[0] : providerRequests,
     remainingBalance: nb,
     taskId: task.id,
     id: task.id,
@@ -3485,6 +3556,7 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
     totalCost,
     analysisCost,
     imageCost,
+    request: imageResult.request,
     operation: 'canvas-dialog-agent',
     source: 'canvas-chat-dialog-agent'
   });
@@ -3521,7 +3593,7 @@ app.post('/api/generate/tasks', auth, async (req, res) => {
   const total = (m ? m.p : 15) * imageCount;
   if (u.balance < total) return res.status(400).json({ message: `算力不足，需要 ${total}，当前 ${u.balance}` });
   const hasReferenceImages = imageReferenceCandidates(req.body).length > 0;
-  const providerPrompt = buildEcommerceImagePrompt(prompt, { body: req.body, hasReferenceImages });
+  const providerPrompt = buildImageGenerateNodePrompt(prompt, { body: req.body, hasReferenceImages });
   const providerOptions = { ...req.body, body: req.body, req, model: modelKey, n: imageCount };
   const providerResult = hasReferenceImages
     ? await callProviderImageEdit(providerPrompt, providerOptions)
@@ -3534,7 +3606,7 @@ app.post('/api/generate/tasks', auth, async (req, res) => {
       provider: providerResult.provider
     });
   }
-  const task = createCompletedTask(req, { prompt: providerPrompt, modelKey, imageCount, results: providerResult.images });
+  const task = createCompletedTask(req, { prompt: providerPrompt, modelKey, imageCount, results: providerResult.images, request: providerResult.request });
   const nb = u.balance - total;
   db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
   db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
@@ -3582,7 +3654,7 @@ app.post('/api/template/generate-image', auth, async (req, res) => {
   }
 
   const results = providerResult.images;
-  const task = createCompletedTask(req, { prompt: providerPrompt, modelKey, imageCount: cnt, results });
+  const task = createCompletedTask(req, { prompt: providerPrompt, modelKey, imageCount: cnt, results, request: providerResult.request });
   const nb = u.balance - total;
   db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
   db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)').run(u.id,'generation',-total,u.balance,nb,`AI生图: ${modelKey} x${cnt}`);

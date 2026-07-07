@@ -2,8 +2,11 @@
 
 每次推进完成前必须按本清单复核，并把结果写入 `docs/progress-report.md`、`docs/feature-completion-checklist.md` 和 `docs/review-log.md`。
 
+开始任何推进前先读 `docs/current-baseline.md`。若当前 Git、Docker 或生产状态与该文件不一致，先更新基线说明，再继续修改。
+
 ## 1. 范围确认
 
+- 本轮是否仍基于 `docs/current-baseline.md` 记录的 Git/Docker 状态。
 - 本轮是否只做当前 PRD 相关改动。
 - 是否避免大规模重写打包前端资产。
 - 是否复用已有 `/api/*`、现有前端模块、New-API、CPA、Docker Compose 等已有能力。
@@ -14,7 +17,8 @@
 - 当前内网过渡栈仍是 Express 一体服务 + SQLite；正式源码目标栈见 `docs/adr/0002-source-first-technology-stack.md`。
 - 主工作目录固定为 `F:\dianshang`；并行工作树统一放在 `F:\dianshang-worktrees\*`。
 - 涉及代码结构、调用链、接口影响面或 bug 定位时，先检查 CodeGraph；未初始化时必须先问用户是否运行 `codegraph init -i`。
-- 新增复杂前端能力前，先确认能否进入后续 `frontend/` 源码工程；避免继续大规模修改打包 JS。
+- 回滚或 reset 后如果 CodeGraph 与 `git ls-files` / 文件系统冲突，先记录索引滞后并等待用户确认刷新，不要把索引里的已删除路径当成当前源码。
+- 新增复杂前端能力前，先确认能否进入后续 `frontend/` 源码工程；画布能力统一在当前画布链路内推进，禁止另起第二套画布。
 - 未经确认不在当前内网过渡栈引入 Postgres、Redis、BullMQ、Worker、Kubernetes 或微服务拆分。
 - 新增软件、数据库、Redis、Docker 服务、对象存储、New-API/CPA 配置或 npm 包前，必须先说明用途、来源、许可证和风险，并等待用户确认。
 - 后续进入生产基础设施阶段时，数据库、队列、对象存储和 Worker 按 ADR-0002 分阶段引入，不临时拍脑袋加栈。

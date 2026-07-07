@@ -43,7 +43,7 @@
 | `GET` | `/api/user/projects/:id` | user | 读取项目详情和画布 JSON。 |
 | `PUT` | `/api/user/projects/:id` | user | 更新项目名和画布数据。 |
 | `DELETE` | `/api/user/projects/:id` | user | 删除项目。 |
-| `POST` | `/api/workflows/:id/save-json` | user | 保存工作流 JSON，作为新画布云端保存兼容入口。 |
+| `POST` | `/api/workflows/:id/save-json` | user | 保存工作流 JSON，作为当前画布云端保存兼容入口。 |
 
 ## Template
 
@@ -103,7 +103,7 @@
 - API 线路目标收窄为两条：图片线路 `GPT Image 2`，模型键 `gpt-image-2`；文本线路 `GPT 5.5`，模型键 `gpt-5.5`。
 - 旧的 `6789`、`comfly-*`、`RK`、`哈吉米`、`flowstudio` 等线路不再作为目标配置保留；如需兼容历史数据，只能作为数据库旧记录读取，不能再进入默认种子。
 - 图片文生图请求形态参考 OpenAI Images：`POST /images/generations`，请求体最小字段为 `{ "model": "gpt-image-2", "prompt": "string" }`，可扩展 `size`、`quality`、`n`。
-- 图片图生图 / 局部重绘请求形态参考 OpenAI Images Edit：`POST /images/edits`，请求体最小字段为 `{ "model": "gpt-image-2", "images": [{ "image_url": "..." }], "prompt": "string" }`，可扩展 `mask`、`size`、`quality`、`n`；上传真实文件时可使用 `multipart/form-data`。
+- 图片图生图 / 局部重绘请求形态参考 Packy GPT-Image-2 Images Edit：`POST /v1/images/edits`，请求体为 `multipart/form-data`，最小字段为 `model=gpt-image-2`、`prompt=string`、`image=<file>`、`n=1`；正式图生图默认追加按“比例 + 清晰度”换算后的 `size` 和 `quality`，其中 `1K/2K/4K` 分别派生 `low/medium/high`，同时追加 `output_format=png`、`response_format=url` 和 `input_fidelity=high`，局部重绘可追加 `mask=<png file>`。
 - 文本请求形态参考 OpenAI Responses：`POST /responses`，请求体最小字段为 `{ "model": "gpt-5.5", "input": "string" }`。
 - 管理后台 API 线路页只能提供整包替换为上述两条的入口；不得新增自研网关字段、账号池字段或非官方请求格式字段。
 - 前端 API 线路页只展示能力注册表，不承载业务调用逻辑。当前能力注册表位于 `frontend/src/config/providerCapabilities.ts`；后续中转站差异必须进入后端 Provider Adapter。

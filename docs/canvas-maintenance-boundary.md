@@ -1,4 +1,4 @@
-# 旧画布维护边界
+# 当前画布维护边界
 
 ## 当前基线
 
@@ -6,7 +6,7 @@
 - 运行时资产：`assets/Canvas-B8bY9_QL.js`、`assets/Canvas-yGc8b2gf.js`、`assets/Canvas-*.css`。
 - 允许的过渡层：`assets/canvas-performance-mode.*`、`assets/canvas-image-node-polish.*`、`assets/canvas-chat-prompt-flow.*`。
 - 后端边界：继续在 `server.js` 现有 `/api/*` 上做最小兼容，不在本轮拆分后端模块。
-- 新前端关系：`frontend/` 只负责源码页和旧画布跳转；禁止继续在 `frontend/` 内开发新画布。
+- 前端源码关系：`frontend/` 只负责源码页和进入当前画布的入口；禁止在 `frontend/` 内另起第二套画布。
 
 ## Canvas Chat 三模式硬护栏
 
@@ -15,13 +15,13 @@
 - 生成任务、轮询任务和回调必须按任务创建时的原始模式回写，不能写入用户当前可见模式。
 - `对话` 模式可以走 GPT 5.5 分析 + GPT Image 2 生图；`快速` 模式不能被改成对话 Agent 链路；`视频` 模式当前只允许作为“电商套图 Agent”入口，不能复用快速或对话的发送链路。
 - `source:"canvas-chat"` 的未发送草稿只能恢复到输入框，不能刷新后自动转成一条用户消息。
-- 如需改动上述隔离机制，必须先更新本文件、`docs/canvas-maintenance-log.md` 和 `scripts/verify-canvas-performance-assets.js` 的守护断言，并重新跑旧画布边界 smoke。
+- 如需改动上述隔离机制，必须先更新本文件、`docs/canvas-maintenance-log.md` 和 `scripts/verify-canvas-performance-assets.js` 的守护断言，并重新跑当前画布边界 smoke。
 
 ## 生产链路
 
 ### 对话模式
 
-- 入口：旧 Canvas Chat 的 `对话` 标签。
+- 入口：当前 Canvas Chat 的 `对话` 标签。
 - 前端桥接：`assets/canvas-chat-prompt-flow.js`，当前版本 `20260701suite17`。
 - 后端接口：`POST /api/canvas/dialog-agent-generate`。
 - 编排流程：参考图和用户需求 -> GPT 5.5 分析 -> `analysisSummary/finalPrompt` -> GPT Image 2 生图 -> 对话结果卡 -> 自动落到画布。
@@ -31,15 +31,15 @@
 
 ### 快速模式
 
-- 入口：旧 Canvas Chat 的 `快速` 标签。
+- 入口：当前 Canvas Chat 的 `快速` 标签。
 - 业务语义：直接快速生图，不走 GPT 5.5 分析。
 - 后端入口：继续沿用 `/api/generate/tasks` 的普通图片任务语义。
-- 参数来源：使用旧 Canvas Chat 原生设置控件，不在桥接层重造控件。
+- 参数来源：使用当前 Canvas Chat 原生设置控件，不在桥接层重造控件。
 - 会话边界：只读取快速模式自己的输入、参考图、消息和生成状态，不继承对话或视频模式状态。
 
 ### 视频模式 / 电商套图 Agent
 
-- 入口：旧 Canvas Chat 的 `视频` 标签。
+- 入口：当前 Canvas Chat 的 `视频` 标签。
 - 当前边界：第三个标签承载电商套图 Agent，对话形态不变，不切独立表单页，不改主画布 bundle。
 - 前端桥接：仍使用 `assets/canvas-chat-prompt-flow.js/css`，只在 `isSuiteMode(panel)` 命中 `视频 / 电商套图Agent` 时插入产品图、参考图和 skill 选择。
 - 工作链路：产品图必填，参考图可多张；先调用 `/api/canvas/ecommerce-suite/prompts`，由 GPT 根据当前 skill、产品图、参考图和用户需求动态生成本次板块提示词，再由用户勾选/编辑板块后调用 `/api/canvas/ecommerce-suite/generate` 生图。
@@ -77,9 +77,9 @@
 
 ## 允许改动
 
-- 修复旧画布阻塞级 bug。
-- 调整旧画布桥接层样式、缓存版本和小范围 DOM 接线。
-- 调整图片节点视觉时优先使用 `assets/canvas-image-node-polish.js/css` 过渡层，不直接改旧 Canvas 主 bundle。
+- 修复当前画布阻塞级 bug。
+- 调整当前画布桥接层样式、缓存版本和小范围 DOM 接线。
+- 调整图片节点视觉时优先使用 `assets/canvas-image-node-polish.js/css` 过渡层，不直接改当前 Canvas 主 bundle。
 - 在 `server.js` 现有 Provider Adapter 内补齐参数映射、返回解析和边界错误。
 - 增加不会触发真实付费调用的 smoke、静态检查和文档。
 - 更新 `docs/progress-report.md`、`docs/review-log.md`、`docs/feature-completion-checklist.md` 和本文件。
@@ -94,7 +94,7 @@
 
 ## 禁止改动
 
-- 继续开发 Vue Flow 新画布或 Infinite-Canvas 迁移。
+- 另起第二套画布实现或继续推进 Infinite-Canvas 迁移。
 - 新增第二套画布拖拽、连线、缩放、小地图和视口系统。
 - 在桥接层重造快速模式已有参数控件。
 - 新增独立的 `canvas-ecommerce-suite-agent.js/css` 或独立套图工作台。
@@ -102,7 +102,7 @@
 - 未经用户确认触发真实付费批量测试。
 - 未记录 API 契约就新增重要生图接口。
 
-## 每次改旧画布后的检查
+## 每次改当前画布后的检查
 
 ```powershell
 node --check "F:\dianshang\server.js"

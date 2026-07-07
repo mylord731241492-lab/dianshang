@@ -3,15 +3,17 @@
 > Clone of www.hjm-mb.com — AI电商图片生成平台
 > 提取日期: 2026-06-22 | 目标: 本地完整运行 + 复刻
 
-## 新分支源码化规则
+## 源码化与画布规则
 
-当前分支 `codex/source-stack-canvas-rebuild` 曾用于启动全新源码技术栈和新版画布。2026-06-26 用户已明确要求新画布全部废止，画布回滚到旧 `assets/` 打包资产；后续禁止继续推进 Vue Flow 新画布和 Infinite-Canvas 节点迁移。
+当前分支 `codex/source-stack-canvas-rebuild` 曾用于启动全新源码技术栈和一套独立画布重建方案。2026-06-26 用户已明确要求该独立重建方案废止；2026-07-07 用户进一步明确项目只有一个画布。后续画布开发、修复和验收统一在当前 `/canvas` 画布运行链路中进行，禁止再用两套画布的并列叫法，也禁止另起第二套画布实现或继续推进 Infinite-Canvas 节点迁移。
 
 ### 主工作目录
 
 - 主目录固定为 `F:\dianshang`。
 - 后续并行工作树统一放在 `F:\dianshang-worktrees\*`。
 - 文档、验证命令和人工验收说明必须优先使用 `F:\dianshang` 路径。
+- 当前项目状态先读 `docs/current-baseline.md`。`docs/progress-report.md` 和 `docs/review-log.md` 是历史流水账，不能脱离当前 Git 基线直接当作现状。
+- 2026-07-07 已按用户要求把 `main` 回滚到 `51d4dab`。回滚前现场在 `codex/backup-before-rollback-20260707-130326` 和 `stash@{0}`；未确认前不要把 2026-07-06/07 的后续生图实验当作当前基线。
 
 ### 必须使用的成熟基座
 
@@ -20,7 +22,7 @@
 - 状态：Pinia。
 - API：Axios。
 - UI：Naive UI。
-- 画布：旧 `assets/Canvas-*.js/css` 打包画布；`frontend/` 只保留跳转旧画布入口。
+- 画布：当前唯一 `/canvas` 画布，运行资产为 `assets/Canvas-*.js/css`；`frontend/` 只保留进入当前画布的入口，不另起第二套画布。
 - 图标：lucide-vue-next。
 - 后端目标：Node.js + TypeScript，先兼容旧 Express `/api/*`，再逐步模块化。
 - 后续生产基础设施：Postgres 或 MySQL、Redis、BullMQ、AI Worker、S3 兼容对象存储。
@@ -30,7 +32,7 @@
 
 - Phase 0：纪律基线。必须先完成 AGENTS、README、API 契约、后端边界、画布迁移清单和记录反馈。
 - Phase 1：前端源码壳。只允许在 `frontend/` 使用 Vue 3 + Vite + TypeScript + Naive UI + Pinia + Axios 继续开发。
-- Phase 2：新版画布已废止。只允许回到旧画布做最小修复，不允许继续开发 Vue Flow 新画布。
+- Phase 2：画布统一。只允许围绕当前唯一画布做开发和修复，不允许继续开发独立画布重建方案。
 - Phase 3：API 契约与后端模块边界。先写契约和边界，不直接推倒 `server.js`。
 - Phase 4：生产基础设施。NestJS、Prisma、Postgres/MySQL、Redis/BullMQ、MinIO/S3 进入前必须先完成方案、环境确认和迁移验收点。
 
@@ -39,6 +41,8 @@
 - 每轮涉及代码结构、接口、调用链、影响面、架构或 bug 定位时，必须先检查 CodeGraph。
 - 如果 CodeGraph 未初始化，先问用户是否运行 `codegraph init -i`，得到确认后再执行。
 - 已初始化后优先使用 `codegraph_status`、`codegraph_files`、`codegraph_context` 等结构索引工具。
+- 回滚、reset 或大规模删文件后，如果 CodeGraph 与 `git ls-files` / `Test-Path` 明显冲突，先把 CodeGraph 标记为索引滞后，记录冲突并询问用户是否刷新索引；不要把索引里已删除路径当作当前源码事实。
+- 2026-07-07 已发现 CodeGraph 仍列出已删除的独立画布重建方案源码路径，如 `frontend/src/views/CanvasStudio.vue`、`frontend/src/stores/canvas.ts` 和 `frontend/src/types/canvas.ts`；文件系统和 Git 均确认这些路径当前不存在。
 - 只有查文本、日志、配置字符串或 CodeGraph 无法覆盖时，才使用 `rg`。
 
 ### 环境与下载确认
@@ -50,7 +54,7 @@
 
 ### 禁止事项
 
-- 禁止继续开发新画布、迁移 Infinite-Canvas 节点体系或引入新的画布引擎。
+- 禁止另起第二套画布、迁移 Infinite-Canvas 节点体系或引入新的画布引擎。
 - 禁止自研画布拖拽、连线、缩放、小地图和视口系统。
 - 禁止自研 UI 组件库、状态库、HTTP Client、模型网关、Token 分发和账号池。
 - 禁止继续把大功能写进旧 `assets/*.js`；只有阻塞级 bug 可短期修旧资产。
@@ -63,10 +67,11 @@
 
 - 新前端改动后运行 `npm run build --prefix "F:\dianshang\frontend"`。
 - 文档改动后运行 `git -C "F:\dianshang" diff --check` 并检查 UTF-8 无 BOM。
+- 文档梳理或交接时必须更新 `docs/current-baseline.md`，避免后续 agent 从旧流水账误判当前状态。
 - 旧后端改动后运行 `node --check "F:\dianshang\server.js"` 和 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-api-disposable.ps1"`。
 - 每轮更新 `docs/progress-report.md`、`docs/review-log.md` 和必要时的 `docs/feature-completion-checklist.md`。
 - 架构边界以 `docs/adr/0002-source-first-technology-stack.md` 为准。
-- 并行任务树 `docs/plans/2026-06-26-source-stack-canvas-rebuild-plan.md` 已因新画布废止而失效，只作历史记录；画布最新边界以 `docs/canvas-migration-checklist.md` 为准。
+- 并行任务树 `docs/plans/2026-06-26-source-stack-canvas-rebuild-plan.md` 已因独立画布重建方案废止而失效，只作历史记录；画布最新边界以 `docs/canvas-migration-checklist.md` 为准。
 
 ### 生产端 main/Docker 同步规则
 
@@ -77,6 +82,30 @@
 - 生产端验收必须直接请求 `http://192.168.0.39:3456/` 或相关线上路径，确认 HTML、入口 JS、动态 chunk query、API 或目标行为已经命中新版本；不能只看本地文件、构建输出或容器内文件。
 - 涉及旧入口、旧 chunk、旧后台包、缓存 query 或静态资源隔离时，必须在 smoke 或 HTTP 检查中验证旧资源返回预期状态（例如 410/404），避免旧系统再次被浏览器缓存或旧 URL 拉起。
 - 最终汇报必须同时说明：main 工作区改了哪些文件、Docker 是否完整重建、3456 生产端验证结果、是否仍需用户强刷浏览器缓存。
+
+## Agent skills
+
+本仓库已安装 Matt Pocock skills。后续 agent 使用技能前，先按这里的项目入口确认当前上下文，避免把历史流水账、回滚前实验或外部 issue 流程误当成当前开发状态。
+
+### Issue tracker
+
+- 默认使用本地 Markdown 工作项，不主动在 GitHub 创建 issue、PR 或远端任务。
+- 临时拆解、计划和任务放在 `.scratch/<topic>/`；只有用户明确要求时才同步到 GitHub。
+- 详细约定见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+- 本地任务状态统一使用 `needs-triage`、`needs-info`、`ready-for-agent`、`ready-for-human`、`blocked`、`done`、`wontfix`。
+- 这些标签只描述当前工作项状态，不代表生产已经发布或 Docker 已同步。
+- 详细约定见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+- 本项目是单一上下文仓库，当前事实入口是 `docs/current-baseline.md`。
+- 画布是唯一画布，项目术语见 `CONTEXT.md`；后续不要再用两套画布的并列叫法描述当前开发对象。
+- `AGENTS.md` 是强约束；`docs/adr/` 是决策记录；`docs/progress-report.md` 和 `docs/review-log.md` 是历史时间线。
+- 回滚后如果 CodeGraph、历史日志和 Git 文件树互相冲突，以 `git ls-files`、实际文件系统和 `docs/current-baseline.md` 共同确认当前事实。
+- 详细阅读顺序和防混淆规则见 `docs/agents/domain.md`。
 
 ## 项目现状
 
@@ -98,14 +127,14 @@
 
 ### 已知问题
 1. 未登录时画布401 — 正常,登录后OK
-2. 新画布已废止 — 正常,画布入口回到旧 `/canvas`
+2. 独立画布重建方案已废止 — 正常,画布入口统一为 `/canvas`
 3. 生图返回占位图 — 未配中转站Key时用placehold.co
 4. Google Fonts外链 — 字体从fonts.googleapis.com加载
 
 ## 架构
 
 ```
-前端: 旧打包 Vue 资产 + 可选 frontend 源码壳
+前端: 当前打包 Vue 资产 + 可选 frontend 源码壳
 后端: Express (Node.js) + better-sqlite3
 认证: JWT HS256 (7天过期)
 生图: OpenAI兼容中转站API
@@ -228,16 +257,16 @@ P2:
 ## 当前生产测试项目边界
 
 - 当前生产测试目录固定为 `F:\dianshang`；`C:\Users\pc\Desktop\hjm-mb-clone` 只允许作为旧版参考，不作为继续开发或验收基线。
-- 画布继续使用现有旧画布和 Vue Flow 运行链路；禁止新建自研画布、WebGL 重写或替换渲染引擎。
+- 画布继续使用当前 `/canvas` 运行链路；禁止新建自研画布、WebGL 重写或替换渲染引擎。
 - 真实 Provider、API Key、扣费和外部付费调用相关改动必须先说明风险并等待确认。
 
-## 旧画布性能过渡层
+## 当前画布性能过渡层
 
-- `assets/canvas-performance-mode.css` 和 `assets/canvas-performance-mode.js` 是旧画布过渡优化层，只用于交互态 GPU 合成、降重绘、图片懒解码和临时关闭重视觉效果。
-- 交互态统一使用 `canvas-performance-active` 标记；新增样式必须集中挂在该类或明确的旧画布选择器下，禁止散落到无关页面。
+- `assets/canvas-performance-mode.css` 和 `assets/canvas-performance-mode.js` 是当前画布过渡优化层，只用于交互态 GPU 合成、降重绘、图片懒解码和临时关闭重视觉效果。
+- 交互态统一使用 `canvas-performance-active` 标记；新增样式必须集中挂在该类或明确的当前画布选择器下，禁止散落到无关页面。
 - `will-change` 只能在拖拽、缩放、节点移动等交互态开启，禁止长期常驻，避免显存占用反而拖慢页面。
 - 自动保存只允许做降频和合并，不改变工作流 JSON 格式，不破坏历史项目恢复。
-- 后续如果进入第二阶段源码化旧画布组件，应迁移这些性能规则，不得把过渡层扩展成第二套画布实现。
+- 后续如果进入第二阶段源码化当前画布组件，应迁移这些性能规则，不得把过渡层扩展成第二套画布实现。
 
 ## 全局脚本与页面性能护栏
 
@@ -245,6 +274,6 @@ P2:
 - 画布专用脚本必须支持路由离开时 teardown。从 `/canvas` 跳到 `/user/center`、首页或后台时，必须断开 `MutationObserver`、移除 document/window 事件监听、清理 timer、清除 `canvas-performance-*` 和画布工具态 class，并删除或降级全局调试对象；禁止只做首次进入闸门而把已安装的监听器留在非画布页。
 - 画布内打开用户中心、历史记录、AI 面板等大弹层时，仍然停留在 `/canvas`，不会触发路由 teardown。此类弹层必须有显式页面状态 class，并在打开期间降低背后 Vue Flow、图片节点工具条、minimap、聊天面板、backdrop blur、阴影和动画的渲染成本；禁止让完整画布在大型遮罩背后继续高成本合成。
 - 新增或修改全局脚本、全局 CSS、`index.html` 静态引用、SPA fallback、路由守卫时，必须同时评估首页、用户中心、后台和画布四类页面的影响；禁止为了修画布把监听器、`querySelectorAll` 扫描、`:has()` 重样式规则或长任务扩散到用户中心和后台。
-- 用户中心 `/user/center` 是非画布性能基线页：打开用户中心不应触发画布图片节点扫描、画布聊天面板扫描、画布拖拽监听、画布自动保存节流逻辑或旧画布节点刷新逻辑。若用户中心卡顿，优先检查全局脚本是否越界安装，再检查 `user-center-data-bridge.js`、用户资料接口和 UserCenter chunk 自身渲染。
+- 用户中心 `/user/center` 是非画布性能基线页：打开用户中心不应触发画布图片节点扫描、画布聊天面板扫描、画布拖拽监听、画布自动保存节流逻辑或当前画布节点刷新逻辑。若用户中心卡顿，优先检查全局脚本是否越界安装，再检查 `user-center-data-bridge.js`、用户资料接口和 UserCenter chunk 自身渲染。
 - 涉及画布性能脚本的生产改动，`scripts/smoke-internal-prod.ps1` 必须包含资源版本、隔离断言、离开画布 teardown 断言和画布内大弹层降负载断言：线上 HTML 命中新 query，线上脚本包含 `/canvas` 路由闸门与 teardown 函数，Canvas 包包含弹层状态 class，CSS 包含弹层打开时降 backdrop/降画布重绘规则，旧资源隔离仍返回 410/404。最终汇报必须说明是否影响非画布页、是否已直接验证 `http://192.168.0.39:3456/user/center`。
 - 性能修复禁止只凭主观感觉完成。至少要有静态断言、语法检查、生产资源命中检查和用户可复测路径；若问题仍存在，下一步必须采样 Chrome Performance trace 或等价指标，再决定是否继续削减 CSS `:has()`、全局 observer 或接口渲染逻辑。

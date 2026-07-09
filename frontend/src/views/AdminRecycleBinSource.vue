@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import AdminSourceSidebar from '../components/AdminSourceSidebar.vue';
+import AdminToolbar from '../components/admin/AdminToolbar.vue';
+import AdminStatGrid from '../components/admin/AdminStatGrid.vue';
+import AdminEmptyState from '../components/admin/AdminEmptyState.vue';
+import AdminFeedback from '../components/admin/AdminFeedback.vue';
+import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
+import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NInput, NPagination, NTag } from 'naive-ui';
-import { ArrowLeft, Coins, RefreshCcw, Search, ShieldCheck, Trash2, UserCheck, Users, XCircle } from 'lucide-vue-next';
+import { Coins, RefreshCcw, Search, ShieldCheck, Trash2, UserCheck, Users, XCircle } from 'lucide-vue-next';
 import { clearAdminAuthSession } from '../api/adminAuth';
 import { getAdminRecycleBin } from '../api/adminRecycleBin';
 import { getApiErrorMessage } from '../api/http';
@@ -83,35 +88,20 @@ onMounted(loadUsers);
 </script>
 
 <template>
-  <main class="admin-source-shell">
-    <AdminSourceSidebar />
-
-    <section class="admin-source-main">
-      <header class="admin-source-topbar">
-        <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
-          <p class="eyebrow">Recycle Bin</p>
-          <h1>回收站</h1>
-          <span>只读迁移版：查看已删除用户，不恢复、不永久删除、不匿名化数据。</span>
-        </div>
-        <div class="admin-source-actions">
+  <AdminPageShell>
+    <AdminPageHeader eyebrow="Recycle Bin" title="回收站" description="只读迁移版：查看已删除用户，不恢复、不永久删除、不匿名化数据。">
+      <template #actions>
           <n-button secondary :loading="loading" @click="loadUsers">
             <template #icon><RefreshCcw :size="16" /></template>
             刷新
           </n-button>
           <n-button tertiary type="error" @click="logout">退出</n-button>
-        </div>
-      </header>
+      </template>
+    </AdminPageHeader>
 
-      <div v-if="errorMessage" class="template-error">{{ errorMessage }}</div>
+    <AdminFeedback :error-message="errorMessage" />
 
-      <section class="admin-stat-grid" aria-label="回收站统计">
-        <article v-for="stat in statCards" :key="stat.label">
-          <component :is="stat.icon" :size="20" />
-          <span>{{ stat.label }}</span>
-          <strong>{{ formatNumber(stat.value) }}</strong>
-        </article>
-      </section>
+      <AdminStatGrid :stats="statCards" label="回收站统计" />
 
       <section class="admin-source-panel admin-recycle-bin-panel">
         <div class="admin-panel-head">
@@ -122,12 +112,12 @@ onMounted(loadUsers);
           <n-tag type="info" :bordered="false">只读</n-tag>
         </div>
 
-        <div class="admin-recycle-bin-toolbar">
+        <AdminToolbar class="admin-recycle-bin-toolbar">
           <n-input v-model:value="keyword" clearable placeholder="搜索用户名 / 邮箱 / ID / 角色">
             <template #prefix><Search :size="15" /></template>
           </n-input>
           <n-button type="primary" :loading="loading" @click="loadUsers">查询</n-button>
-        </div>
+        </AdminToolbar>
 
         <div class="admin-recycle-bin-list" aria-label="回收站用户列表">
           <article v-for="user in visibleUsers" :key="user.id">
@@ -151,7 +141,7 @@ onMounted(loadUsers);
               <span>只读，不执行恢复或永久删除</span>
             </div>
           </article>
-          <p v-if="!visibleUsers.length && !loading" class="admin-empty">回收站暂无已删除用户</p>
+          <AdminEmptyState v-if="!visibleUsers.length && !loading" message="回收站暂无已删除用户" />
         </div>
 
         <div class="admin-users-pagination">
@@ -165,6 +155,5 @@ onMounted(loadUsers);
           />
         </div>
       </section>
-    </section>
-  </main>
+  </AdminPageShell>
 </template>

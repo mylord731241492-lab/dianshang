@@ -379,7 +379,7 @@ const TXT = [
   {k:"gpt-5.5",n:"GPT 5.5",p:5,q:["1k"]},
 ];
 const RTS = [
-  {id:"pub_route_openai_gpt_image_2",rk:"route_openai_gpt_image_2",dn:"GPT Image 2 官转",cat:"image",g:"image",pri:10,def:true,dm:"gpt-image-2",apiFormat:"openai-images",requestFormat:"packy-openai-images-generations",endpoint:"/v1/images/generations",requestExamples:[
+  {id:"pub_route_openai_gpt_image_2",rk:"route_openai_gpt_image_2",dn:"PackyAPI GPT Image 2",cat:"image",g:"image",pri:10,def:true,dm:"gpt-image-2",apiFormat:"openai-images",requestFormat:"packy-openai-images-generations",endpoint:"/v1/images/generations",requestExamples:[
     {label:"文生图",method:"POST",endpoint:"/v1/images/generations",contentType:"application/json",requestFormat:"packy-openai-images-generations",body:{model:"gpt-image-2",prompt:"string",size:"1024x1024",quality:"high",background:"auto",output_format:"png",moderation:"auto",response_format:"url",n:1}},
     {label:"图生图 / 局部重绘",method:"POST",endpoint:"/v1/images/edits",contentType:"multipart/form-data",requestFormat:"packy-openai-images-edits",body:{model:"gpt-image-2",image:"<file>",mask:"<file optional>",prompt:"string",size:"1024x1024",quality:"high",background:"auto",output_format:"png",moderation:"auto",response_format:"url",input_fidelity:"high",n:1}}
   ]},
@@ -605,6 +605,8 @@ function normalizeAdminSettings(settings = {}) {
 
 const routeState = () => ensureState('admin.apiProviders', RTS);
 const saveRouteState = (routes) => writeState('admin.apiProviders', routes);
+const userApiPreferenceState = () => ensureState('user.apiPreferences', {});
+const saveUserApiPreferenceState = (value) => writeState('user.apiPreferences', value);
 const templateWorkflowState = () => ensureState('admin.templateWorkflows', TMPL);
 const saveTemplateWorkflowState = (value) => writeState('admin.templateWorkflows', value);
 const settingsState = () => normalizeAdminSettings(ensureState('admin.settings', defaultAdminSettings));
@@ -615,6 +617,80 @@ const saveModelPriceState = (value) => writeState('admin.modelPrices', value);
 function findRouteByAnyId(id) {
   const routes = routeState();
   return routes.find(r => [r.id, r.routeId, r.lineId, r.rk, r.routeKey, r.lineKey, r.code].includes(id)) || routes[0] || RTS[0];
+}
+
+function routeMatchesId(route = {}, id = '') {
+  const requested = String(id || '').trim();
+  return !!requested && [route.id, route.routeId, route.lineId, route.rk, route.routeKey, route.lineKey, route.code]
+    .map(value => String(value || '').trim())
+    .includes(requested);
+}
+
+function routeDisplayName(route = {}) {
+  return String(route.displayName || route.dn || route.name || route.rk || route.routeKey || route.id || '默认线路').trim();
+}
+
+function routeIdOf(route = {}) {
+  return String(route.id || route.routeId || route.lineId || '').trim();
+}
+
+function routeKeyOf(route = {}) {
+  return String(route.rk || route.routeKey || route.lineKey || route.code || routeIdOf(route)).trim();
+}
+
+function applyTaskRoute(task, route = null) {
+  if (!task || !route) return task;
+  const routeId = routeIdOf(route);
+  const routeKey = routeKeyOf(route);
+  task.routeId = routeId;
+  task.lineId = routeId;
+  task.routeKey = routeKey;
+  task.lineKey = routeKey;
+  task.routeDisplayName = routeDisplayName(route);
+  return task;
+}
+
+function shouldFallbackImageRoute(result = {}) {
+  const text = [
+    result.message,
+    result.errorMessage,
+    result.upstream?.error?.message,
+    result.upstream?.message,
+    result.request?.error?.message
+  ].map(value => String(value || '')).join(' ');
+  return /没有可用token|no\s+available\s+token|无可用渠道|no\s+available\s+channel/i.test(text);
+}
+
+function nextImageFallbackRoute(currentRoute = {}) {
+  const currentIds = [currentRoute.id, currentRoute.routeId, currentRoute.lineId, currentRoute.rk, currentRoute.routeKey, currentRoute.lineKey, currentRoute.code]
+    .map(value => String(value || '').trim())
+    .filter(Boolean);
+  return routeState().find(route => {
+    if (routeKind(route) !== 'image') return false;
+    if (route.enabled === false || route.status === 'disabled') return false;
+    return !currentIds.some(id => routeMatchesId(route, id));
+  }) || null;
+}
+
+function selectedImageRouteIdForUser(userId = '') {
+  const preferences = userApiPreferenceState();
+  const item = preferences && userId ? preferences[userId] : null;
+  return String(item?.imageRouteId || item?.routeId || '').trim();
+}
+
+function saveUserImageRoutePreference(userId = '', route = null) {
+  if (!userId || !route) return null;
+  const preferences = userApiPreferenceState();
+  const routeId = String(route.id || route.routeId || route.lineId || '').trim();
+  const routeKey = String(route.rk || route.routeKey || route.lineKey || route.code || routeId).trim();
+  preferences[userId] = {
+    ...(preferences[userId] || {}),
+    imageRouteId: routeId,
+    imageRouteKey: routeKey,
+    updatedAt: new Date().toISOString()
+  };
+  saveUserApiPreferenceState(preferences);
+  return preferences[userId];
 }
 
 // ===================== PROVIDER ADAPTER =====================
@@ -950,12 +1026,17 @@ function resolveTextRoute(body = {}) {
   return textRoutes.find(route => route.def || route.isDefault) || textRoutes[0] || RTS.find(route => route.cat === 'text') || RTS[1];
 }
 
-function resolveImageRoute(body = {}) {
-  const requested = String(body.imageRouteId || body.imageLineId || body.imageRouteKey || body.imageLineKey || body.routeId || body.lineId || body.routeKey || body.lineKey || '').trim();
+function resolveImageRoute(body = {}, userId = '') {
+  const requested = String(
+    body.imageRouteId || body.imageLineId || body.imageRouteKey || body.imageLineKey ||
+    body.routeId || body.lineId || body.routeKey || body.lineKey ||
+    selectedImageRouteIdForUser(userId) ||
+    ''
+  ).trim();
   const routes = routeState();
   const imageRoutes = routes.filter(route => routeKind(route) === 'image');
   if (requested) {
-    const found = routes.find(route => [route.id, route.routeId, route.lineId, route.rk, route.routeKey, route.lineKey, route.code].includes(requested));
+    const found = routes.find(route => routeMatchesId(route, requested));
     if (found && routeKind(found) === 'image') return found;
   }
   return imageRoutes.find(route => route.def || route.isDefault) || imageRoutes[0] || RTS.find(route => route.cat === 'image') || RTS[0];
@@ -2431,14 +2512,14 @@ app.get('/api/user/profile', auth, (req, res) => {
 });
 app.get('/api/user/routes', auth, (req, res) => res.json({ success: true, data: filteredRoutes(req.query.group || 'image'), items: filteredRoutes(req.query.group || 'image') }));
 app.get('/api/user/models', auth, (req, res) => {
-  const rid = req.query.routeId || req.query.lineId || req.query.routeKey || req.query.lineKey || 'pub_route_64f93e01e8f3';
+  const rid = req.query.routeId || req.query.lineId || req.query.routeKey || req.query.lineKey || selectedImageRouteIdForUser(req.user.userId) || 'pub_route_openai_gpt_image_2';
   const routes = routeState();
-  const rt = routes.find(r=>[r.id,r.rk,r.routeId,r.lineId,r.routeKey,r.lineKey].includes(rid)) || routes[0] || RTS[0];
+  const rt = routes.find(r=>routeMatchesId(r, rid)) || routes[0] || RTS[0];
   const models = modelRowsForRoute(rt);
   res.json({ success: true, data: models, items: models });
 });
 app.get('/api/user/api-status', optionalAuth, (req, res) => {
-  const rt = routeState()[0] || RTS[0];
+  const rt = req.user ? resolveImageRoute({}, req.user.userId) : (routeState()[0] || RTS[0]);
   const models = modelRowsForRoute(rt);
   const defaultImageModel = models[0]?.displayName || 'GPT Image 2';
   res.json({ success: true, status: 'active', mode: 'auto', mock: !req.user,
@@ -2656,6 +2737,11 @@ function makeTaskResponse(task) {
     request: task.request || null,
     providerRequest: task.request || null,
     errorMessage: task.errorMessage || '',
+    routeId: task.routeId || '',
+    lineId: task.lineId || task.routeId || '',
+    routeKey: task.routeKey || '',
+    lineKey: task.lineKey || task.routeKey || '',
+    routeDisplayName: task.routeDisplayName || task.routeName || '',
     createdAt: task.createdAt,
     updatedAt: task.updatedAt
   };
@@ -2766,6 +2852,9 @@ function createPendingTask(req, source = {}) {
   const cost = Number(source.cost || source.totalCost || ((m ? m.p : 15) * imageCount));
   const taskId = uid('task_');
   const now = new Date().toISOString();
+  const route = source.route || null;
+  const routeId = route ? String(route.id || route.routeId || route.lineId || '').trim() : '';
+  const routeKey = route ? String(route.rk || route.routeKey || route.lineKey || route.code || '').trim() : '';
   const task = {
     id: taskId,
     userId: req.user.userId,
@@ -2782,6 +2871,11 @@ function createPendingTask(req, source = {}) {
     request: source.request || null,
     images: [],
     errorMessage: '',
+    routeId,
+    lineId: routeId,
+    routeKey,
+    lineKey: routeKey,
+    routeDisplayName: route ? String(route.displayName || route.dn || route.name || routeKey || routeId || '').trim() : '',
     createdAt: now,
     updatedAt: now
   };
@@ -3300,7 +3394,7 @@ app.post('/api/canvas/ecommerce-suite/prompts', auth, async (req, res) => {
   if (!u) return res.status(401).json({ success: false, code: 'AUTH_USER_NOT_FOUND', message: '登录状态已失效，请重新登录' });
 
   const textRoute = resolveTextRoute(body);
-  const imageRoute = resolveImageRoute(body);
+  const imageRoute = resolveImageRoute(body, req.user.userId);
   const textModel = String(body.textModel || body.textModelKey || textRoute?.dm || AI_TEXT_MODEL || 'gpt-5.5').trim();
   const imageModel = resolveImageModelKey({ ...body, model: body.imageModel || body.imageModelKey || body.model || imageRoute?.dm || AI_IMAGE_MODEL });
   const analysisCost = modelCost(textModel, 'text');
@@ -3399,7 +3493,7 @@ app.post('/api/canvas/ecommerce-suite/generate', auth, async (req, res) => {
   const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.userId);
   if (!u) return res.status(401).json({ success: false, code: 'AUTH_USER_NOT_FOUND', message: '登录状态已失效，请重新登录' });
 
-  const imageRoute = resolveImageRoute(body);
+  const imageRoute = resolveImageRoute(body, req.user.userId);
   const imageModel = resolveImageModelKey({ ...body, model: body.imageModel || body.imageModelKey || body.model || imageRoute?.dm || AI_IMAGE_MODEL });
   const imageCost = modelCost(imageModel, 'image') * context.imageCount * plans.length;
   if (u.balance < imageCost) {
@@ -3529,7 +3623,7 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
   if (!u) return res.status(401).json({ success: false, code: 'AUTH_USER_NOT_FOUND', message: '登录状态已失效，请重新登录' });
 
   const textRoute = resolveTextRoute(body);
-  const imageRoute = resolveImageRoute(body);
+  const imageRoute = resolveImageRoute(body, req.user.userId);
   const debugAnalysisOnly = body.debugAnalysisOnly === true && u.role === 'admin';
   const textModel = String(body.textModel || body.textModelKey || textRoute?.dm || AI_TEXT_MODEL || 'gpt-5.5').trim();
   const imageModel = resolveImageModelKey({ ...body, model: body.imageModel || body.imageModelKey || body.model || imageRoute?.dm || AI_IMAGE_MODEL });
@@ -3692,8 +3786,9 @@ app.post('/api/generate/tasks', auth, async (req, res) => {
   const total = (m ? m.p : 15) * imageCount;
   if (u.balance < total) return res.status(400).json({ message: `算力不足，需要 ${total}，当前 ${u.balance}` });
   const hasReferenceImages = imageReferenceCandidates(req.body).length > 0;
+  const imageRoute = resolveImageRoute(req.body, req.user.userId);
   const providerPrompt = buildImageGenerateNodePrompt(prompt, { body: req.body, hasReferenceImages });
-  const providerOptions = { ...req.body, body: req.body, req, model: modelKey, n: imageCount };
+  const providerOptions = { ...req.body, body: req.body, req, route: imageRoute, model: modelKey, n: imageCount };
   const task = createPendingTask(req, {
     prompt: providerPrompt,
     modelKey,
@@ -3701,6 +3796,7 @@ app.post('/api/generate/tasks', auth, async (req, res) => {
     cost: total,
     totalCost: total,
     imageCost: total,
+    route: imageRoute,
     request: { pending: true, hasReferenceImages }
   });
   res.status(202).json({
@@ -3714,9 +3810,25 @@ app.post('/api/generate/tasks', auth, async (req, res) => {
   (async () => {
     const runningTask = tasks.get(task.id);
     try {
-      const providerResult = hasReferenceImages
+      let providerResult = hasReferenceImages
         ? await callProviderImageEdit(providerPrompt, providerOptions)
         : await callProviderImageGeneration(providerPrompt, providerOptions);
+      if (!providerResult.success && shouldFallbackImageRoute(providerResult)) {
+        const fallbackRoute = nextImageFallbackRoute(imageRoute);
+        if (fallbackRoute) {
+          applyTaskRoute(runningTask, fallbackRoute);
+          const fallbackOptions = { ...providerOptions, route: fallbackRoute };
+          providerResult = hasReferenceImages
+            ? await callProviderImageEdit(providerPrompt, fallbackOptions)
+            : await callProviderImageGeneration(providerPrompt, fallbackOptions);
+          providerResult.fallbackFromRoute = routeDisplayName(imageRoute);
+          providerResult.fallbackRoute = routeDisplayName(fallbackRoute);
+          if (providerResult.request && typeof providerResult.request === 'object') {
+            providerResult.request.fallbackFromRoute = routeDisplayName(imageRoute);
+            providerResult.request.fallbackRoute = routeDisplayName(fallbackRoute);
+          }
+        }
+      }
       if (!providerResult.success) {
         failPendingTask(runningTask, {
           message: providerResult.message || '图片生成接口调用失败',
@@ -3773,11 +3885,23 @@ app.post('/api/template/generate-image', auth, async (req, res) => {
 
   const fullPrompt = `${prompt}${negativePrompt ? '，避免：' + negativePrompt : ''}`;
   const hasReferenceImages = imageReferenceCandidates(req.body).length > 0;
+  const imageRoute = resolveImageRoute(req.body, req.user.userId);
   const providerPrompt = buildEcommerceImagePrompt(fullPrompt, { body: req.body, hasReferenceImages });
-  const providerOptions = { ...req.body, body: req.body, req, model: modelKey, n: cnt };
-  const providerResult = hasReferenceImages
+  const providerOptions = { ...req.body, body: req.body, req, route: imageRoute, model: modelKey, n: cnt };
+  let providerResult = hasReferenceImages
     ? await callProviderImageEdit(providerPrompt, providerOptions)
     : await callProviderImageGeneration(providerPrompt, providerOptions);
+  if (!providerResult.success && shouldFallbackImageRoute(providerResult)) {
+    const fallbackRoute = nextImageFallbackRoute(imageRoute);
+    if (fallbackRoute) {
+      const fallbackOptions = { ...providerOptions, route: fallbackRoute };
+      providerResult = hasReferenceImages
+        ? await callProviderImageEdit(providerPrompt, fallbackOptions)
+        : await callProviderImageGeneration(providerPrompt, fallbackOptions);
+      providerResult.fallbackFromRoute = routeDisplayName(imageRoute);
+      providerResult.fallbackRoute = routeDisplayName(fallbackRoute);
+    }
+  }
   if (!providerResult.success) {
     return res.status(502).json({
       success: false,
@@ -3924,7 +4048,16 @@ app.post('/api/user/preferences/api-provider', auth, (req, res) => {
   res.json({ success: true, mode: req.body.mode || 'auto' });
 });
 app.post('/api/user/preferences/api-route', auth, (req, res) => {
-  res.json({ success: true, routeId: req.body.routeId || req.body.lineId || req.body.routeKey || '' });
+  const route = resolveImageRoute(req.body, req.user.userId);
+  const saved = saveUserImageRoutePreference(req.user.userId, route);
+  res.json({
+    success: true,
+    routeId: route.id || route.routeId || '',
+    lineId: route.lineId || route.id || '',
+    routeKey: route.rk || route.routeKey || '',
+    lineKey: route.lineKey || route.rk || route.routeKey || '',
+    preference: saved
+  });
 });
 
 // ===================== WORKFLOWS =====================
@@ -4564,8 +4697,8 @@ app.get('/api/admin/generate-tasks', auth, admin, (req, res) => {
     status: task.status === 'completed' ? 'success' : task.status,
     username: db.prepare('SELECT username FROM users WHERE id=?').get(task.userId)?.username || 'local',
     userId: task.userId,
-    lineKey: 'route_6789',
-    routeDisplayName: '6789',
+    lineKey: task.lineKey || task.routeKey || '默认线路',
+    routeDisplayName: task.routeDisplayName || task.routeName || task.lineKey || task.routeKey || '默认线路',
     model: task.modelKey,
     modelDisplayName: task.modelKey,
     resolvedModel: task.modelKey,
@@ -4575,7 +4708,7 @@ app.get('/api/admin/generate-tasks', auth, admin, (req, res) => {
     size: '1024x1024',
     resolvedSize: '1024x1024',
     quality: 'standard',
-    chargeStatus: '已扣费',
+    chargeStatus: task.status === 'success' || task.status === 'completed' ? '已扣费' : (task.status === 'failed' ? '未扣费' : '待结算'),
     referenceImages: [],
     referenceImageCount: 0,
     referenceImageTotalSizeText: '0 KB',

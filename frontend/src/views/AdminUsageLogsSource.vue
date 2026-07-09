@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import AdminSourceSidebar from '../components/AdminSourceSidebar.vue';
+import AdminToolbar from '../components/admin/AdminToolbar.vue';
+import AdminStatGrid from '../components/admin/AdminStatGrid.vue';
+import AdminEmptyState from '../components/admin/AdminEmptyState.vue';
+import AdminFeedback from '../components/admin/AdminFeedback.vue';
+import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
+import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NInput, NPagination, NSelect, NTag } from 'naive-ui';
-import { ArrowDownCircle, ArrowLeft, ArrowUpCircle, Coins, RefreshCcw, Search } from 'lucide-vue-next';
+import { ArrowDownCircle, ArrowUpCircle, Coins, RefreshCcw, Search } from 'lucide-vue-next';
 import { clearAdminAuthSession } from '../api/adminAuth';
 import { getAdminUsageLogs, type AdminUsageLog } from '../api/adminUsageLogs';
 import { getApiErrorMessage } from '../api/http';
@@ -149,35 +154,20 @@ onMounted(loadLogs);
 </script>
 
 <template>
-  <main class="admin-source-shell">
-    <AdminSourceSidebar />
-
-    <section class="admin-source-main">
-      <header class="admin-source-topbar">
-        <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
-          <p class="eyebrow">Usage Logs</p>
-          <h1>消费日志</h1>
-          <span>只读迁移版：查看算力收入、消耗、兑换和调整流水，不执行余额修改。</span>
-        </div>
-        <div class="admin-source-actions">
+  <AdminPageShell>
+    <AdminPageHeader eyebrow="Usage Logs" title="消费日志" description="只读迁移版：查看算力收入、消耗、兑换和调整流水，不执行余额修改。">
+      <template #actions>
           <n-button secondary :loading="loading" @click="loadLogs">
             <template #icon><RefreshCcw :size="16" /></template>
             刷新
           </n-button>
           <n-button tertiary type="error" @click="logout">退出</n-button>
-        </div>
-      </header>
+      </template>
+    </AdminPageHeader>
 
-      <div v-if="errorMessage" class="template-error">{{ errorMessage }}</div>
+    <AdminFeedback :error-message="errorMessage" />
 
-      <section class="admin-stat-grid users" aria-label="消费日志统计">
-        <article v-for="stat in statCards" :key="stat.label">
-          <component :is="stat.icon" :size="20" />
-          <span>{{ stat.label }}</span>
-          <strong>{{ formatNumber(stat.value) }}</strong>
-        </article>
-      </section>
+      <AdminStatGrid :stats="statCards" label="消费日志统计" />
 
       <section class="admin-source-panel admin-logs-panel">
         <div class="admin-panel-head">
@@ -188,13 +178,13 @@ onMounted(loadLogs);
           <n-tag type="info" :bordered="false">只读</n-tag>
         </div>
 
-        <div class="admin-logs-toolbar">
+        <AdminToolbar class="admin-logs-toolbar">
           <n-input v-model:value="keyword" clearable placeholder="搜索备注 / 用户 ID / 类型" @keyup.enter="applyFilters">
             <template #prefix><Search :size="15" /></template>
           </n-input>
           <n-select v-model:value="typeFilter" :options="typeOptions" />
           <n-button type="primary" :loading="loading" @click="applyFilters">查询</n-button>
-        </div>
+        </AdminToolbar>
 
         <div class="admin-logs-list" aria-label="消费日志列表">
           <article v-for="log in visibleLogs" :key="log.id">
@@ -222,7 +212,7 @@ onMounted(loadLogs);
               <strong>{{ formatNumber(afterOf(log)) }}</strong>
             </div>
           </article>
-          <p v-if="!visibleLogs.length && !loading" class="admin-empty">暂无匹配流水</p>
+          <AdminEmptyState v-if="!visibleLogs.length && !loading" message="暂无匹配流水" />
         </div>
 
         <div class="admin-users-pagination">
@@ -236,6 +226,5 @@ onMounted(loadLogs);
           />
         </div>
       </section>
-    </section>
-  </main>
+  </AdminPageShell>
 </template>

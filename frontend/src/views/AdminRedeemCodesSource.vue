@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import AdminSourceSidebar from '../components/AdminSourceSidebar.vue';
+import AdminToolbar from '../components/admin/AdminToolbar.vue';
+import AdminStatGrid from '../components/admin/AdminStatGrid.vue';
+import AdminEmptyState from '../components/admin/AdminEmptyState.vue';
+import AdminFeedback from '../components/admin/AdminFeedback.vue';
+import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
+import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NInput, NInputNumber, NPagination, NSelect, NSwitch, NTag, useMessage } from 'naive-ui';
 import {
-  ArrowLeft,
   CheckCircle2,
   Coins,
   KeyRound,
@@ -255,35 +259,20 @@ onMounted(loadCodes);
 </script>
 
 <template>
-  <main class="admin-source-shell">
-    <AdminSourceSidebar />
-
-    <section class="admin-source-main">
-      <header class="admin-source-topbar">
-        <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
-          <p class="eyebrow">Redeem Codes</p>
-          <h1>兑换码管理</h1>
-          <span>创建、查看和删除兑换码，用户可在个人中心兑换算力。</span>
-        </div>
-        <div class="admin-source-actions">
+  <AdminPageShell>
+    <AdminPageHeader eyebrow="Redeem Codes" title="兑换码管理" description="创建、查看和删除兑换码，用户可在个人中心兑换算力。">
+      <template #actions>
           <n-button secondary :loading="loading" @click="loadCodes">
             <template #icon><RefreshCcw :size="16" /></template>
             刷新
           </n-button>
           <n-button tertiary type="error" @click="logout">退出</n-button>
-        </div>
-      </header>
+      </template>
+    </AdminPageHeader>
 
-      <div v-if="errorMessage" class="template-error">{{ errorMessage }}</div>
+    <AdminFeedback :error-message="errorMessage" />
 
-      <section class="admin-stat-grid" aria-label="兑换码统计">
-        <article v-for="stat in statCards" :key="stat.label">
-          <component :is="stat.icon" :size="20" />
-          <span>{{ stat.label }}</span>
-          <strong>{{ formatNumber(stat.value) }}</strong>
-        </article>
-      </section>
+      <AdminStatGrid :stats="statCards" label="兑换码统计" />
 
       <section class="admin-source-panel admin-redeem-codes-panel">
         <div class="admin-panel-head">
@@ -333,13 +322,13 @@ onMounted(loadCodes);
           <n-tag type="info" :bordered="false">共 {{ formatNumber(total) }} 个</n-tag>
         </div>
 
-        <div class="admin-redeem-codes-toolbar">
+        <AdminToolbar class="admin-redeem-codes-toolbar">
           <n-input v-model:value="keyword" clearable placeholder="搜索兑换码 / 状态 / 算力" @keyup.enter="applyFilters">
             <template #prefix><Search :size="15" /></template>
           </n-input>
           <n-select v-model:value="statusFilter" :options="statusOptions" @update:value="applyFilters" />
           <n-button type="primary" :loading="loading" @click="applyFilters">查询</n-button>
-        </div>
+        </AdminToolbar>
 
         <div class="admin-redeem-codes-list" aria-label="兑换码列表">
           <article v-for="code in visibleCodes" :key="code.code">
@@ -368,7 +357,7 @@ onMounted(loadCodes);
               </n-button>
             </div>
           </article>
-          <p v-if="!visibleCodes.length && !loading" class="admin-empty">暂无匹配兑换码</p>
+          <AdminEmptyState v-if="!visibleCodes.length && !loading" message="暂无匹配兑换码" />
         </div>
 
         <div class="admin-users-pagination">
@@ -382,6 +371,5 @@ onMounted(loadCodes);
           />
         </div>
       </section>
-    </section>
-  </main>
+  </AdminPageShell>
 </template>

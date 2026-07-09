@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import AdminSourceSidebar from '../components/AdminSourceSidebar.vue';
+import AdminStatGrid from '../components/admin/AdminStatGrid.vue';
+import AdminPanel from '../components/admin/AdminPanel.vue';
+import AdminEmptyState from '../components/admin/AdminEmptyState.vue';
+import AdminFeedback from '../components/admin/AdminFeedback.vue';
+import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
+import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton } from 'naive-ui';
-import { Activity, ArrowLeft, BarChart3, Coins, Image, RefreshCcw, Route, Trophy, Users } from 'lucide-vue-next';
+import { Activity, BarChart3, Coins, Image, RefreshCcw, Route, Trophy, Users } from 'lucide-vue-next';
 import { getAdminCreditRanking, getAdminDashboard, type AdminDashboardResponse, type AdminRankingUser } from '../api/adminDashboard';
 import { clearAdminAuthSession } from '../api/adminAuth';
 import { getApiErrorMessage } from '../api/http';
@@ -74,81 +79,50 @@ onMounted(loadDashboard);
 </script>
 
 <template>
-  <main class="admin-source-shell">
-    <AdminSourceSidebar />
-
-    <section class="admin-source-main">
-      <header class="admin-source-topbar">
-        <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
-          <p class="eyebrow">Admin Dashboard</p>
-          <h1>控制台 Dashboard</h1>
-          <span>系统概览、模型使用、线路统计和用户排行</span>
-        </div>
-        <div class="admin-source-actions">
+  <AdminPageShell>
+    <AdminPageHeader eyebrow="Admin Dashboard" title="控制台 Dashboard" description="系统概览、模型使用、线路统计和用户排行">
+      <template #actions>
           <n-button secondary :loading="loading" @click="loadDashboard">
             <template #icon><RefreshCcw :size="16" /></template>
             刷新
           </n-button>
           <n-button tertiary type="error" @click="logout">退出</n-button>
-        </div>
-      </header>
+      </template>
+    </AdminPageHeader>
 
-      <div v-if="errorMessage" class="template-error">{{ errorMessage }}</div>
+    <AdminFeedback :error-message="errorMessage" />
 
-      <section class="admin-stat-grid" aria-label="后台统计">
-        <article v-for="stat in statCards" :key="stat.label">
-          <component :is="stat.icon" :size="20" />
-          <span>{{ stat.label }}</span>
-          <strong>{{ formatNumber(stat.value) }}</strong>
-        </article>
-      </section>
+      <AdminStatGrid :stats="statCards" label="后台统计" />
 
       <section class="admin-dashboard-grid">
-        <article class="admin-source-panel">
-          <div class="admin-panel-head">
-            <div>
-              <p class="eyebrow">Model Usage</p>
-              <h2>模型使用</h2>
-            </div>
-          </div>
+        <AdminPanel eyebrow="Model Usage" title="模型使用">
           <div class="admin-usage-list">
             <div v-for="item in modelUsage.slice(0, 6)" :key="item.modelKey || item.modelName || item.model">
               <span>{{ item.modelName || item.modelKey || item.model || 'unknown' }}</span>
               <strong>{{ formatNumber(item.totalCredits || item.points) }}</strong>
               <em :style="{ width: `${Math.min(100, item.percent || 0)}%` }"></em>
             </div>
-            <p v-if="!modelUsage.length" class="admin-empty">暂无模型使用记录</p>
+            <AdminEmptyState v-if="!modelUsage.length" message="暂无模型使用记录" />
           </div>
-        </article>
+        </AdminPanel>
 
-        <article class="admin-source-panel">
-          <div class="admin-panel-head">
-            <div>
-              <p class="eyebrow">Route Usage</p>
-              <h2>线路概览</h2>
-            </div>
-          </div>
+        <AdminPanel eyebrow="Route Usage" title="线路概览">
           <div class="admin-route-list">
             <div v-for="route in routeUsage.slice(0, 6)" :key="route.routeId || route.routeKey">
               <span>{{ route.routeName || route.routeKey || '默认线路' }}</span>
               <small>{{ formatNumber(route.totalCount) }} 次 · 失败 {{ formatNumber(route.failCount) }}</small>
               <strong>{{ formatNumber(route.totalCredits) }}</strong>
             </div>
-            <p v-if="!routeUsage.length" class="admin-empty">暂无线路统计</p>
+            <AdminEmptyState v-if="!routeUsage.length" message="暂无线路统计" />
           </div>
-        </article>
+        </AdminPanel>
       </section>
 
       <section class="admin-dashboard-grid wide">
-        <article class="admin-source-panel">
-          <div class="admin-panel-head">
-            <div>
-              <p class="eyebrow">Credit Ranking</p>
-              <h2>用户消耗排行</h2>
-            </div>
+        <AdminPanel eyebrow="Credit Ranking" title="用户消耗排行">
+          <template #actions>
             <Trophy :size="20" />
-          </div>
+          </template>
           <div class="admin-table-list ranking">
             <div v-for="user in ranking.slice(0, 8)" :key="`${user.rank}-${user.username}`">
               <strong>#{{ user.rank || '-' }}</strong>
@@ -156,17 +130,11 @@ onMounted(loadDashboard);
               <small>{{ user.email || '暂无邮箱' }}</small>
               <em>{{ formatNumber(user.consumedPoints || user.totalCredits) }}</em>
             </div>
-            <p v-if="!ranking.length" class="admin-empty">暂无用户排行</p>
+            <AdminEmptyState v-if="!ranking.length" message="暂无用户排行" />
           </div>
-        </article>
+        </AdminPanel>
 
-        <article class="admin-source-panel">
-          <div class="admin-panel-head">
-            <div>
-              <p class="eyebrow">Recent Tasks</p>
-              <h2>最近生成任务</h2>
-            </div>
-          </div>
+        <AdminPanel eyebrow="Recent Tasks" title="最近生成任务">
           <div class="admin-table-list tasks">
             <div v-for="task in recentTasks.slice(0, 8)" :key="task.id">
               <strong>{{ task.status || 'unknown' }}</strong>
@@ -174,10 +142,9 @@ onMounted(loadDashboard);
               <small>{{ task.model || task.modelKey || 'unknown' }} · {{ formatDate(task.createdAt || task.created_at) }}</small>
               <em>{{ formatNumber(task.cost) }}</em>
             </div>
-            <p v-if="!recentTasks.length" class="admin-empty">暂无生成任务</p>
+            <AdminEmptyState v-if="!recentTasks.length" message="暂无生成任务" />
           </div>
-        </article>
+        </AdminPanel>
       </section>
-    </section>
-  </main>
+  </AdminPageShell>
 </template>

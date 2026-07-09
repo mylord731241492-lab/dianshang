@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import AdminSourceSidebar from '../components/AdminSourceSidebar.vue';
+import AdminToolbar from '../components/admin/AdminToolbar.vue';
+import AdminStatGrid from '../components/admin/AdminStatGrid.vue';
+import AdminEmptyState from '../components/admin/AdminEmptyState.vue';
+import AdminFeedback from '../components/admin/AdminFeedback.vue';
+import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
+import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NInput, NSelect, NTag, useMessage } from 'naive-ui';
 import {
-  ArrowLeft,
   CheckCircle2,
   Image,
   Layers3,
@@ -173,35 +177,20 @@ onMounted(loadWorkflows);
 </script>
 
 <template>
-  <main class="admin-source-shell">
-    <AdminSourceSidebar />
-
-    <section class="admin-source-main">
-      <header class="admin-source-topbar">
-        <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
-          <p class="eyebrow">Template Workflows</p>
-          <h1>模板工作流</h1>
-          <span>查看模板、素材槽、字段、平台、比例和 Skills 文件；支持上传 JSON 替换单个模板 Skills。</span>
-        </div>
-        <div class="admin-source-actions">
+  <AdminPageShell>
+    <AdminPageHeader eyebrow="Template Workflows" title="模板工作流" description="查看模板、素材槽、字段、平台、比例和 Skills 文件；支持上传 JSON 替换单个模板 Skills。">
+      <template #actions>
           <n-button secondary :loading="loading" @click="loadWorkflows">
             <template #icon><RefreshCcw :size="16" /></template>
             刷新
           </n-button>
           <n-button tertiary type="error" @click="logout">退出</n-button>
-        </div>
-      </header>
+      </template>
+    </AdminPageHeader>
 
-      <div v-if="errorMessage" class="template-error">{{ errorMessage }}</div>
+    <AdminFeedback :error-message="errorMessage" />
 
-      <section class="admin-stat-grid" aria-label="模板工作流统计">
-        <article v-for="stat in statCards" :key="stat.label">
-          <component :is="stat.icon" :size="20" />
-          <span>{{ stat.label }}</span>
-          <strong>{{ formatNumber(stat.value) }}</strong>
-        </article>
-      </section>
+      <AdminStatGrid :stats="statCards" label="模板工作流统计" />
 
       <section class="admin-source-panel admin-template-workflows-panel">
         <div class="admin-panel-head">
@@ -212,13 +201,13 @@ onMounted(loadWorkflows);
           <n-tag type="success" :bordered="false">可替换 Skills</n-tag>
         </div>
 
-        <div class="admin-template-workflows-toolbar">
+        <AdminToolbar class="admin-template-workflows-toolbar">
           <n-input v-model:value="keyword" clearable placeholder="搜索模板 / 分类 / 标签" @keyup.enter="applyFilters">
             <template #prefix><Search :size="15" /></template>
           </n-input>
           <n-select v-model:value="categoryFilter" :options="categoryOptions" @update:value="applyFilters" />
           <n-button type="primary" :loading="loading" @click="applyFilters">查询</n-button>
-        </div>
+        </AdminToolbar>
 
         <div class="admin-template-config-strip" aria-label="模板配置摘要">
           <span>平台 {{ platforms.join(' / ') || '-' }}</span>
@@ -274,13 +263,12 @@ onMounted(loadWorkflows);
               </label>
             </div>
           </article>
-          <p v-if="!visibleTemplates.length && !loading" class="admin-empty">暂无匹配模板工作流</p>
+          <AdminEmptyState v-if="!visibleTemplates.length && !loading" message="暂无匹配模板工作流" />
         </div>
 
         <div class="admin-users-pagination">
           <span>共 {{ formatNumber(templates.length) }} 个模板，当前显示 {{ formatNumber(visibleTemplates.length) }} 个</span>
         </div>
       </section>
-    </section>
-  </main>
+  </AdminPageShell>
 </template>

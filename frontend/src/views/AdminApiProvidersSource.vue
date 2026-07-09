@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import AdminSourceSidebar from '../components/AdminSourceSidebar.vue';
+import AdminToolbar from '../components/admin/AdminToolbar.vue';
+import AdminStatGrid from '../components/admin/AdminStatGrid.vue';
+import AdminEmptyState from '../components/admin/AdminEmptyState.vue';
+import AdminFeedback from '../components/admin/AdminFeedback.vue';
+import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
+import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NInput, NPagination, NSelect, NTag } from 'naive-ui';
 import {
-  ArrowLeft,
   CheckCircle2,
   Edit3,
   Image,
@@ -574,18 +578,9 @@ onMounted(loadProviders);
 </script>
 
 <template>
-  <main class="admin-source-shell">
-    <AdminSourceSidebar />
-
-    <section class="admin-source-main">
-      <header class="admin-source-topbar">
-        <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
-          <p class="eyebrow">API Providers</p>
-          <h1>API 线路管理</h1>
-          <span>统一配置第三方 API 线路、Key、接口格式和默认模型；字段按旧 HJM 后台恢复。</span>
-        </div>
-        <div class="admin-source-actions">
+  <AdminPageShell>
+    <AdminPageHeader eyebrow="API Providers" title="API 线路管理" description="统一配置第三方 API 线路、Key、接口格式和默认模型；字段按旧 HJM 后台恢复。">
+      <template #actions>
           <n-button type="primary" data-testid="open-api-provider-form" @click="startCreate">
             <template #icon><Plus :size="16" /></template>
             新增线路
@@ -603,19 +598,12 @@ onMounted(loadProviders);
             刷新
           </n-button>
           <n-button tertiary type="error" @click="logout">退出</n-button>
-        </div>
-      </header>
+      </template>
+    </AdminPageHeader>
 
-      <div v-if="errorMessage" class="template-error">{{ errorMessage }}</div>
-      <div v-if="successMessage" class="template-success">{{ successMessage }}</div>
+    <AdminFeedback :error-message="errorMessage" :success-message="successMessage" />
 
-      <section class="admin-stat-grid" aria-label="API 线路统计">
-        <article v-for="stat in statCards" :key="stat.label">
-          <component :is="stat.icon" :size="20" />
-          <span>{{ stat.label }}</span>
-          <strong>{{ formatNumber(stat.value) }}</strong>
-        </article>
-      </section>
+      <AdminStatGrid :stats="statCards" label="API 线路统计" />
 
       <section v-if="formOpen" class="admin-source-panel admin-api-provider-form-panel">
         <div class="admin-panel-head">
@@ -773,13 +761,13 @@ onMounted(loadProviders);
           </article>
         </div>
 
-        <div class="admin-api-providers-toolbar">
+        <AdminToolbar class="admin-api-providers-toolbar">
           <n-input v-model:value="keyword" clearable placeholder="搜索线路 / 模型 / Base URL" @keyup.enter="applyFilters">
             <template #prefix><Search :size="15" /></template>
           </n-input>
           <n-select v-model:value="typeFilter" :options="typeOptions" @update:value="applyFilters" />
           <n-button type="primary" :loading="loading" @click="applyFilters">查询</n-button>
-        </div>
+        </AdminToolbar>
 
         <div class="admin-api-providers-list" aria-label="API 线路列表">
           <article v-for="provider in visibleProviders" :key="providerIdOf(provider)">
@@ -854,7 +842,7 @@ onMounted(loadProviders);
               </n-button>
             </div>
           </article>
-          <p v-if="!visibleProviders.length && !loading" class="admin-empty">暂无匹配 API 线路</p>
+          <AdminEmptyState v-if="!visibleProviders.length && !loading" message="暂无匹配 API 线路" />
         </div>
 
         <div class="admin-users-pagination">
@@ -868,6 +856,5 @@ onMounted(loadProviders);
           />
         </div>
       </section>
-    </section>
-  </main>
+  </AdminPageShell>
 </template>

@@ -21,6 +21,8 @@ async page => {
   }
 
   await page.evaluate(({ token, user }) => {
+    localStorage.setItem('admin_auth_token', token);
+    localStorage.setItem('admin_auth_user', JSON.stringify(user));
     localStorage.setItem('auth_token', token);
     localStorage.setItem('auth_user', JSON.stringify(user));
   }, loginResult);

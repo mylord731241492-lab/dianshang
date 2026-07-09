@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import AdminSourceSidebar from '../components/AdminSourceSidebar.vue';
+import AdminToolbar from '../components/admin/AdminToolbar.vue';
+import AdminEmptyState from '../components/admin/AdminEmptyState.vue';
+import AdminFeedback from '../components/admin/AdminFeedback.vue';
+import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
+import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NInput, NPagination, NSelect, NTag } from 'naive-ui';
 import {
-  ArrowLeft,
   CheckCircle2,
   Clock3,
   CreditCard,
@@ -149,27 +152,18 @@ onMounted(loadOrders);
 </script>
 
 <template>
-  <main class="admin-source-shell">
-    <AdminSourceSidebar />
-
-    <section class="admin-source-main">
-      <header class="admin-source-topbar">
-        <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
-          <p class="eyebrow">Orders</p>
-          <h1>订单管理</h1>
-          <span>只读迁移版：查看订单号、用户、金额、算力、支付方式和时间，不执行改状态、退款或补单。</span>
-        </div>
-        <div class="admin-source-actions">
+  <AdminPageShell>
+    <AdminPageHeader eyebrow="Orders" title="订单管理" description="只读迁移版：查看订单号、用户、金额、算力、支付方式和时间，不执行改状态、退款或补单。">
+      <template #actions>
           <n-button secondary :loading="loading" @click="loadOrders">
             <template #icon><RefreshCcw :size="16" /></template>
             刷新
           </n-button>
           <n-button tertiary type="error" @click="logout">退出</n-button>
-        </div>
-      </header>
+      </template>
+    </AdminPageHeader>
 
-      <div v-if="errorMessage" class="template-error">{{ errorMessage }}</div>
+    <AdminFeedback :error-message="errorMessage" />
 
       <section class="admin-stat-grid" aria-label="订单统计">
         <article v-for="stat in statCards" :key="stat.label">
@@ -188,7 +182,7 @@ onMounted(loadOrders);
           <n-tag type="info" :bordered="false">只读</n-tag>
         </div>
 
-        <div class="admin-orders-toolbar">
+        <AdminToolbar class="admin-orders-toolbar">
           <n-input
             v-model:value="keyword"
             clearable
@@ -199,7 +193,7 @@ onMounted(loadOrders);
           </n-input>
           <n-select v-model:value="statusFilter" :options="statusOptions" @update:value="applyFilters" />
           <n-button type="primary" :loading="loading" @click="applyFilters">查询</n-button>
-        </div>
+        </AdminToolbar>
 
         <div class="admin-orders-list" aria-label="订单列表">
           <article v-for="order in visibleOrders" :key="order.id">
@@ -227,7 +221,7 @@ onMounted(loadOrders);
               <strong>{{ formatDate(order.paidAt) }}</strong>
             </div>
           </article>
-          <p v-if="!visibleOrders.length && !loading" class="admin-empty">暂无匹配订单</p>
+          <AdminEmptyState v-if="!visibleOrders.length && !loading" message="暂无匹配订单" />
         </div>
 
         <div class="admin-users-pagination">
@@ -241,6 +235,5 @@ onMounted(loadOrders);
           />
         </div>
       </section>
-    </section>
-  </main>
+  </AdminPageShell>
 </template>

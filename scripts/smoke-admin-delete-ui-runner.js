@@ -46,6 +46,8 @@ async page => {
         throw new Error('test user register failed');
       }
 
+      localStorage.setItem('admin_auth_token', adminLogin.token);
+      localStorage.setItem('admin_auth_user', JSON.stringify(adminLogin.user));
       localStorage.setItem('auth_token', adminLogin.token);
       localStorage.setItem('auth_user', JSON.stringify(adminLogin.user));
       return {

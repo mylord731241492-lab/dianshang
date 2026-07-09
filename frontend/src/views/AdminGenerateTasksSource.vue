@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import AdminSourceSidebar from '../components/AdminSourceSidebar.vue';
+import AdminToolbar from '../components/admin/AdminToolbar.vue';
+import AdminStatGrid from '../components/admin/AdminStatGrid.vue';
+import AdminEmptyState from '../components/admin/AdminEmptyState.vue';
+import AdminFeedback from '../components/admin/AdminFeedback.vue';
+import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
+import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NInput, NPagination, NProgress, NSelect, NTag } from 'naive-ui';
 import {
   Activity,
-  ArrowLeft,
   CheckCircle2,
   Coins,
   Image,
@@ -138,35 +142,20 @@ onMounted(loadTasks);
 </script>
 
 <template>
-  <main class="admin-source-shell">
-    <AdminSourceSidebar />
-
-    <section class="admin-source-main">
-      <header class="admin-source-topbar">
-        <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
-          <p class="eyebrow">Generation Tasks</p>
-          <h1>任务监控</h1>
-          <span>只读迁移版：查看生成任务、模型线路、进度、消耗和错误，不执行取消或删除。</span>
-        </div>
-        <div class="admin-source-actions">
+  <AdminPageShell>
+    <AdminPageHeader eyebrow="Generation Tasks" title="任务监控" description="只读迁移版：查看生成任务、模型线路、进度、消耗和错误，不执行取消或删除。">
+      <template #actions>
           <n-button secondary :loading="loading" @click="loadTasks">
             <template #icon><RefreshCcw :size="16" /></template>
             刷新
           </n-button>
           <n-button tertiary type="error" @click="logout">退出</n-button>
-        </div>
-      </header>
+      </template>
+    </AdminPageHeader>
 
-      <div v-if="errorMessage" class="template-error">{{ errorMessage }}</div>
+    <AdminFeedback :error-message="errorMessage" />
 
-      <section class="admin-stat-grid" aria-label="任务统计">
-        <article v-for="stat in statCards" :key="stat.label">
-          <component :is="stat.icon" :size="20" />
-          <span>{{ stat.label }}</span>
-          <strong>{{ formatNumber(stat.value) }}</strong>
-        </article>
-      </section>
+      <AdminStatGrid :stats="statCards" label="任务统计" />
 
       <section class="admin-source-panel admin-tasks-panel">
         <div class="admin-panel-head">
@@ -177,7 +166,7 @@ onMounted(loadTasks);
           <n-tag type="info" :bordered="false">{{ summary.queueMode || 'local' }}</n-tag>
         </div>
 
-        <div class="admin-tasks-toolbar">
+        <AdminToolbar class="admin-tasks-toolbar">
           <n-input
             v-model:value="keyword"
             clearable
@@ -188,7 +177,7 @@ onMounted(loadTasks);
           </n-input>
           <n-select v-model:value="statusFilter" :options="statusOptions" @update:value="applyFilters" />
           <n-button type="primary" :loading="loading" @click="applyFilters">查询</n-button>
-        </div>
+        </AdminToolbar>
 
         <div class="admin-tasks-list" aria-label="任务列表">
           <article v-for="task in visibleTasks" :key="task.id">
@@ -219,7 +208,7 @@ onMounted(loadTasks);
             </div>
             <p v-if="task.errorMessage" class="admin-task-error">{{ task.errorMessage }}</p>
           </article>
-          <p v-if="!visibleTasks.length && !loading" class="admin-empty">暂无匹配任务</p>
+          <AdminEmptyState v-if="!visibleTasks.length && !loading" message="暂无匹配任务" />
         </div>
 
         <div class="admin-users-pagination">
@@ -233,6 +222,5 @@ onMounted(loadTasks);
           />
         </div>
       </section>
-    </section>
-  </main>
+  </AdminPageShell>
 </template>

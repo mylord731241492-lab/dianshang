@@ -116,6 +116,13 @@
     var wrapper = img.closest('.image-node-wrapper');
     if (!card || !node) return;
 
+    if (card.classList.contains('image-node-loading')) {
+      node.classList.remove('image-node-has-image');
+      wrapper && wrapper.classList.remove('image-node-has-image');
+      card.classList.remove('image-node-has-image');
+      return;
+    }
+
     var width = img.naturalWidth || Number(img.getAttribute('width')) || img.clientWidth || 0;
     var height = img.naturalHeight || Number(img.getAttribute('height')) || img.clientHeight || 0;
     var orientation = classify(width, height);

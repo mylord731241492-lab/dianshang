@@ -3977,3 +3977,362 @@
 ### 剩余风险
 
 - 本轮没有真实提交兑换码，避免改动当前账号余额；需要用户用有效兑换码复测一次，预期成功提示后余额和算力明细一起更新。
+
+## 2026-07-07 最新 commit 基线复核
+
+### 已确认
+
+- 用户明确最新 commit 是当前基线，本轮按 `HEAD` 而不是旧回滚点 `51d4dab` 更新项目事实入口。
+- 当前 `HEAD` 为 `0fd44536ca9dd1ca1f791be7a717e86d178c84f1`，短哈希 `0fd4453`，提交信息 `fix: stabilize canvas generation flow`，提交时间 `2026-07-07 17:05:28 +0800`。
+- 当前 `main` 相对 `origin/main` 为 `ahead 4`；工作树存在未跟踪目录 `workflows/`，它不是本次确认的基线内容。
+
+### 处理
+
+- `docs/current-baseline.md` 已把当前基线、当前准绳、入口资源、容易混淆的历史和后续修改门禁统一改为最新提交口径。
+- 文档明确：最新 Git 基线不自动等于 3456 生产端已同步，生产仍要走 Docker 重建、健康检查和内网 URL 验证。
+
+### 验证
+
+- 已用 `git status --short --branch`、`git log -1` 和资源 query 检查确认文档内容来源。
+- 本轮未修改业务代码，因此不运行前端构建或后端 smoke；只执行文档检查和 UTF-8 BOM 检查。
+
+## 2026-07-08 后台源码 UI 规范化复核
+
+### 已确认
+
+- 本轮只覆盖源码后台 `/admin/*`，不引入 shadcn、React、Tailwind 或新依赖。
+- 共用后台组件只负责布局和展示，业务 API 仍由各后台页面现有函数调用。
+- 11 个后台源码页的原有刷新、搜索、筛选、分页、确认弹窗、表单字段和写入入口保留。
+
+### 处理
+
+- 新增 `docs/admin-ui-guidelines.md`，把后台 UI 风格和维护边界固化为可复用规范。
+- 新增 `frontend/src/components/admin/` 展示组件，并把 11 个后台源码页统一到 `AdminPageShell`、`AdminPageHeader`、`AdminFeedback`、`AdminToolbar`、`AdminEmptyState`、`AdminStatGrid` 和 `AdminPanel`。
+- `AdminSourceSidebar.vue` 改为读取 `frontend/src/config/adminNavigation.ts`，导航项带分组和 lucide 图标。
+- `frontend/src/styles/app.css` 增加后台 scoped tokens 与布局规则，控制高密度工作台、列表、面板、工具栏和移动端溢出。
+- 后台 UI smoke runner 修复 admin token 注入，避免 `/api/admin/*` 源码拦截器在 smoke 中误报 401。
+
+### 验证
+
+- `npm run typecheck --prefix "F:\dianshang\frontend"` 通过。
+- `npm run check:routes --prefix "F:\dianshang\frontend"` 通过，输出 `Source frontend route maintenance check passed: 22/22 source routes.`。
+- `npm run build --prefix "F:\dianshang\frontend"` 通过。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-source-frontend-ui.ps1"` 通过。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-admin-pages-ui.ps1"` 通过，并刷新后台页面截图归档。
+- `node --check` 覆盖 4 个后台 UI smoke runner，通过。
+- `git -C "F:\dianshang" diff --check` 通过。
+
+### 剩余风险
+
+- 本轮没有执行真实 Provider 连接、真实 API Key 写入、真实扣费或正式线路删除。
+- 本轮没有同步 3456 生产端；如需发布，仍必须完整 Docker 重建、确认容器 healthy 并验证内网 URL 命中新版本。
+
+## 2026-07-08 画布生成线路透传复核
+
+### 已确认
+
+- 用户截图中的 `traceid: 90005eac393dc0186d45d5597bc88172` 对应任务 `task_mrbpje16fc7be21e`。
+- 2026-07-08 14:36 到 14:42 的 6 条失败任务都显示 `lineKey=route_6789`、`routeDisplayName=6789`，并且错误来自 `https://www.packyapi.com/v1/images/edits`。
+- 本地 `.env` 和后台线路均有 Key；失败主因不是本地完全未配置 Key。
+
+### 处理
+
+- `/api/generate/tasks` 已解析请求体里的图片线路，并把 `route` 传给 Provider 调用。
+- `createPendingTask` 和 `makeTaskResponse` 已携带线路元数据，后台任务列表可以看到真实线路。
+- 后台任务列表不再写死 `route_6789/6789`；失败任务不再显示 `已扣费`。
+
+### 验证
+
+- `node --check "F:\dianshang\server.js"` 通过。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-api-disposable.ps1"` 通过。
+- 一次性 mock 后端验证：`routeId=pub_route_mr5yltmuc7edcb2b` 的生成任务返回 `lineKey=lignsuan-guanzhuan`、`routeDisplayName=官转gpt-img2`。
+
+### 剩余风险
+
+- 本轮避免真实 Provider 调用，没有实际扣费测试 `lingsuan.top`。
+- 如用户复测 lingsuan 后仍失败，需要拿新的任务 ID 或 traceid 判断真实上游错误。
+
+## 2026-07-08 PackyAPI 线路命名复核
+
+### 已确认
+
+- 用户中心显示两条图像线路时，PackyAPI 线路旧名 `GPT Image 2 官转` 容易和 lingsuan 的 `官转gpt-img2` 混淆。
+- PackyAPI 线路实际 Base URL 仍是 `https://www.packyapi.com`，并没有丢失。
+
+### 处理
+
+- `server.js` 默认 PackyAPI 图像线路名改为 `PackyAPI GPT Image 2`。
+- 当前 `data.db` 的 `admin.apiProviders` 同步更新 PackyAPI 线路 `name/displayName/dn`。
+- 未修改 API Key、Base URL、endpoint、默认线路和优先级。
+
+### 验证
+
+- `/api/admin/api-providers` 返回 PackyAPI 线路 `PackyAPI GPT Image 2`。
+- `/api/public/routes?group=image`、`/api/model-routes?group=image` 和 `/api/user/api-status` 与后台返回一致。
+
+## 2026-07-08 用户 API 线路偏好复核
+
+### 已确认
+
+- 最新失败任务仍是 PackyAPI：`lineKey=route_openai_gpt_image_2`，错误为 `没有可用token`。
+- `/api/user/preferences/api-route` 修复前没有写入任何持久状态，只返回请求体里的 route。
+- `/api/user/api-status` 修复前固定读取 `routeState()[0]`，会回到默认 PackyAPI。
+
+### 处理
+
+- 新增 `user.apiPreferences` 状态，按 `userId` 保存 `imageRouteId/imageRouteKey`。
+- `/api/user/preferences/api-route` 保存用户选择的图片线路。
+- `/api/user/api-status`、`/api/user/models` 和 `/api/generate/tasks` 在请求未显式带线路时读取用户图片线路偏好。
+
+### 验证
+
+- `node --check "F:\dianshang\server.js"` 通过。
+- 3456 已重启到新 `server.js`。
+- 保存 `pub_route_mr5yltmuc7edcb2b` 后，`/api/user/api-status` 返回 `官转gpt-img2`。
+
+### 剩余风险
+
+- 本轮未触发真实 Provider 生图，不验证 lingsuan 上游可用性。
+- 修复前用户点过的线路不会自动补写，需用户重新点选一次目标线路。
+
+## 2026-07-08 画布线路偏好全链路复核
+
+### 已确认
+
+- 用户最新截图仍是 `没有可用token`；该错误语义来自 Provider token 池，不是前端 UI 渲染错误。
+- 健康接口确认当前 3456 进程读取 `F:\dianshang\data.db`，不是临时 smoke 数据目录。
+- 实际用户 `731241492 / user_mra81hjffdee6972` 的保存偏好已存在，使用有效本地 JWT 查询 `/api/user/api-status` 返回 `官转gpt-img2 / lignsuan-guanzhuan`。
+- 复查代码发现画布套图与对话 Agent 路径仍有 `resolveImageRoute(body)`，缺少 `req.user.userId`，会在无显式线路参数时绕过用户偏好。
+
+### 处理
+
+- `/api/canvas/ecommerce-suite/prompts`、`/api/canvas/ecommerce-suite/generate`、`/api/canvas/dialog-agent-generate` 已统一传入 `req.user.userId`。
+- 3456 已重启到 `node F:\dianshang\server.js`。
+- 普通生成任务保留 Packy `没有可用token` 时自动尝试下一条启用图像线路的兜底逻辑。
+
+### 验证
+
+- `node --check "F:\dianshang\server.js"` 通过。
+- `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-api-disposable.ps1"` 通过。
+- `/api/health` 返回数据库路径 `F:\dianshang\data.db`。
+- 实际用户 `/api/user/api-status` 返回 `mock=false` 且 provider 为 `pub_route_mr5yltmuc7edcb2b / lignsuan-guanzhuan`。
+
+### 剩余风险
+
+- 未执行真实 Provider 生图，避免真实扣费。
+- 如果修复后新任务仍失败，需要以新的 traceid 判断是否为 lingsuan 上游 token、Key 或 endpoint 配置问题。
+
+## 2026-07-08 参考图加载闪烁复核
+
+### 已确认
+
+- 闪烁发生在画布参考图/图片节点加载态，不属于后台 UI 页面。
+- 当前入口使用 `Canvas-B8bY9_QL.js?v=20260707taskresume7`，同时全局加载 `canvas-image-node-polish.js`。
+- Canvas 包在 loading 状态会渲染预览 `<img>`；polish 脚本旧逻辑会扫描 `.image-node img` 并给节点添加 `image-node-has-image`。
+- `image-node-has-image` 与 `image-node-loading` 同时存在时，会触发已有图片抛光样式和加载态样式竞争，是参考图加载刷新闪烁的直接风险点。
+
+### 处理
+
+- `canvas-image-node-polish.js` 的 `markImage` 增加 loading guard：遇到 `.image-node-loading` 时清除 `image-node-has-image` 并返回。
+- `index.html` 将 polish 脚本 query 升为 `20260708loadguard1`，避免继续命中旧缓存。
+
+### 验证
+
+- `node --check "F:\dianshang\assets\canvas-image-node-polish.js"` 通过。
+- `git -C "F:\dianshang" diff --check -- "index.html" "assets/canvas-image-node-polish.js"` 通过。
+- `http://127.0.0.1:3456/` HTML 命中 `canvas-image-node-polish.js?v=20260708loadguard1`。
+- `http://127.0.0.1:3456/assets/canvas-image-node-polish.js?v=20260708loadguard1` 内容命中 `image-node-loading` guard。
+
+### 剩余风险
+
+- 本轮未执行真实 Provider 生图，不验证真实生成结果回填。
+- 用户浏览器如仍缓存旧页面，需要刷新当前画布后再观察。
+
+## 2026-07-09 Docker 同步复核
+
+### 已确认
+
+- 用户要求同步到 Docker，必须以 `F:\dianshang` 当前工作区为源码基线完整重建，不能只 restart。
+- 初次执行 compose 时 Docker engine 未启动；启动 Docker Desktop 后 engine 版本为 `29.5.3`。
+- 首次重建后为了让生产 smoke 跟上当前资源版本，更新了 `scripts/smoke-internal-prod.ps1`，因此又执行了一次完整 Docker 重建。
+
+### 处理
+
+- 执行 `docker compose -f "F:\dianshang\docker\docker-compose.yml" up -d --build --force-recreate app`。
+- 更新 `scripts/smoke-internal-prod.ps1` 的资源断言到当前版本：`20260707taskresume7`、`20260707redeem1`、`20260707loadui1`、`20260708loadguard1`。
+- 最终容器 `dianshang-internal-app` 已强制重建并启动。
+
+### 验证
+
+- 最终镜像 ID：`sha256:52079e8da62a568e71a77f0f934111107f24bfe6409e3b97b2b2b1eb258c1376`。
+- 镜像创建时间：`2026-07-09T03:07:00.899808192Z`。
+- 容器启动时间：`2026-07-09T03:07:08.743503288Z`。
+- 容器 Health：`healthy`。
+- `http://192.168.0.39:3456/` 返回 200，并命中 `index-DglIsp_g.js?v=20260707taskresume7` 与 `canvas-image-node-polish.js?v=20260708loadguard1`。
+- `http://192.168.0.39:3456/api/health` 返回 `success=true/status=ok/database=ok/mode=real-provider-ready`。
+- `scripts/smoke-internal-prod.ps1` 通过。
+
+### 剩余风险
+
+- 本轮未发起真实生图请求，避免真实扣费。
+- 浏览器端如果仍有旧缓存，需要强刷页面后再复测画布参考图加载和生图线路。
+
+## 2026-07-09 账号 731241492 密码统一复核
+
+### 已确认
+
+- 开发库 `F:\dianshang\data.db` 存在 `731241492 / user_mra81hjffdee6972`。
+- Docker 库 `F:\dianshang\docker\data\data.db` 原本不存在用户名 `731241492`，但同邮箱 `731241492@qq.com` 属于 `mylord1993 / user_mr5yosedcd52a974`。
+- 两个环境的 `JWT_SECRET` 不同，因此不能把开发库 password hash 直接复制到 Docker。
+
+### 处理
+
+- 备份开发库和 Docker 库。
+- 开发库更新 `731241492` 的密码 hash，并保持账号 active。
+- Docker 库保留原用户 id、余额、项目关联，只把 `mylord1993` 登录名改为 `731241492`，并按 Docker 生产 `JWT_SECRET` 重置密码 hash。
+
+### 验证
+
+- 开发库 hash 校验通过。
+- Docker 容器 `/app/data/data.db` hash 校验通过。
+- Docker 内网登录接口 `POST /api/auth/login` 返回 200、token 和用户 `731241492`。
+
+### 剩余风险
+
+- 开发库与 Docker 库的用户 id 和余额仍不同：开发为 `user_mra81hjffdee6972 / 115`，Docker 为 `user_mr5yosedcd52a974 / 130`。
+- 本轮未同步项目、生成记录、余额流水等业务数据，只统一登录名和密码。
+
+## 2026-07-09 模板选择板块 UI 优化复核
+
+### 已确认
+
+- 截图对应当前生产静态包中的 `/template-image` 模板工作台，不是 `frontend/src/views/TemplateImageSource.vue` 源码页。
+- 模板页已有稳定类名：`.template-workbench`、`.template-preset-gallery`、`.template-gallery-grid`、`.template-card`，可以通过独立 CSS 做低风险视觉覆盖。
+- 该路由的 chunk CSS 会懒加载注入，因此新增样式需要使用更高优先级选择器覆盖旧的本地 1:1 卡片补丁。
+
+### 处理
+
+- 新增 `assets/template-workbench-gallery-polish.css`，限定在 `.template-workbench` 下优化模板选择区域。
+- `index.html` 引用 `template-workbench-gallery-polish.css?v=20260709gallery1`。
+- `scripts/smoke-internal-prod.ps1` 增加模板工作台样式资源和关键 CSS 规则断言。
+- 完整重建 Docker：`docker compose -f "F:\dianshang\docker\docker-compose.yml" up -d --build --force-recreate app`。
+
+### 验证
+
+- `git -C "F:\dianshang" diff --check` 通过。
+- `assets/template-workbench-gallery-polish.css`、`index.html`、`scripts/smoke-internal-prod.ps1` 均为 UTF-8 无 BOM。
+- 最终镜像 ID：`sha256:3b0818f83327a67517c762793c7d74bb053a460b14f6a98a4d14d8ac4d8d50cc`。
+- 镜像创建时间：`2026-07-09T04:49:11.279150785Z`。
+- 容器启动时间：`2026-07-09T04:49:20.291493523Z`。
+- 容器 Health：`healthy`。
+- `http://192.168.0.39:3456/` 返回 200，并命中 `template-workbench-gallery-polish.css?v=20260709gallery1`。
+- `http://192.168.0.39:3456/assets/template-workbench-gallery-polish.css?v=20260709gallery1` 返回 200，并命中 `.template-workbench .template-card[data-v-bc16861b]` 高优先级覆盖。
+- `http://192.168.0.39:3456/api/health` 返回 `success=true/status=ok/database=ok`。
+- `scripts/smoke-internal-prod.ps1` 通过。
+
+### 剩余风险
+
+- 本轮未执行真实模板生成，不验证真实 Provider 成图和扣费。
+- 用户浏览器可能仍缓存旧页面，需要在 `/template-image` 强刷后再看最终样式。
+
+## 2026-07-09 画布模型下拉清理复核
+
+### 已确认
+
+- 后端开发库 `admin.apiProviders` 当前只保留 PackyAPI 图像线、lingsuan 图像线和 GPT 5.5 文本线。
+- `/api/user/models` 对当前用户返回的模型列表已经是干净的 `GPT Image 2`。
+- 截图中的 `6789/RK/Comfly/Nano Banana/Gemini` 来自静态兜底模块 `assets/fixedImageModels-Rg0McL4V.js`，不是后台当前线路配置。
+
+### 处理
+
+- 重写 `assets/fixedImageModels-Rg0McL4V.js`，固定兜底模型只保留 PackyAPI 和 lingsuan 两项。
+- `index.html` 入口 query 升为 `20260709modelclean1`。
+- `assets/index-DglIsp_g.js` 中 HomeIndex/Canvas 动态 chunk query 升为 `20260709modelclean1`。
+- `assets/HomeIndex-DAjDt0aj.js` 与 `assets/Canvas-B8bY9_QL.js` 对固定模型模块的 import 追加 `?v=20260709modelclean1`，避免浏览器继续使用旧模块缓存。
+- `scripts/smoke-internal-prod.ps1` 增加固定模型表断言。
+
+### 验证
+
+- `node --check` 覆盖 `assets/fixedImageModels-Rg0McL4V.js`、`assets/index-DglIsp_g.js`、`assets/Canvas-B8bY9_QL.js`、`assets/HomeIndex-DAjDt0aj.js`。
+- `git -C "F:\dianshang" diff --check` 通过。
+- 修改文件均为 UTF-8 无 BOM。
+- 最终镜像 ID：`sha256:928c818c2c65d810f58982ee42397899864b89f99be424da13ea932bbdc2f43a`。
+- 镜像创建时间：`2026-07-09T05:03:56.551865184Z`。
+- 容器启动时间：`2026-07-09T05:04:05.059351269Z`。
+- 容器 Health：`healthy`。
+- `http://localhost:3456/` 与 `http://192.168.0.39:3456/` 均命中 `index-DglIsp_g.js?v=20260709modelclean1`。
+- `assets/index-DglIsp_g.js?v=20260709modelclean1` 命中 `Canvas-B8bY9_QL.js?v=20260709modelclean1` 与 `fixedImageModels-Rg0McL4V.js?v=20260709modelclean1`。
+- `assets/fixedImageModels-Rg0McL4V.js?v=20260709modelclean1` 返回 200，包含 PackyAPI/lingsuan 兜底，不包含 `Nano Banana|Comfly|route_6789|route_rk|Flatfee|VIP|Gemini`。
+- Playwright 浏览器运行时 import 固定模型模块，返回 `count=2`、`hasOld=false`。
+- `scripts/smoke-internal-prod.ps1` 通过。
+
+### 剩余风险
+
+- 本轮未执行真实生图和真实扣费。
+- 已打开的画布页面如果仍显示旧模型，需要强刷页面或重新进入画布，让浏览器加载 `modelclean1` 入口。
+
+## 2026-07-09 画布模型自动同步复核
+
+### 已确认
+
+- `modelclean1` 仍保留两条前端固定兜底模型，后续后台新增模型时仍可能出现前端兜底不同步。
+- 画布和首页已存在从 `/api/user/models` 拉后台模型的主链路，静态固定模型模块只需要保留导出兼容，不应该再承载真实模型数据。
+
+### 处理
+
+- `assets/fixedImageModels-Rg0McL4V.js` 改为后端模型唯一来源模式：导出 `backend-model-source-only` 标记，固定模型数组和线路模型数组都返回空。
+- `/api/user/models` 的默认线路兜底改为 `pub_route_openai_gpt_image_2`，并继续优先使用用户保存的图片线路。
+- 入口、Canvas、Home 和 fixed model import query 统一升级为 `20260709modelsync1`。
+- `scripts/smoke-internal-prod.ps1` 增加 backend-source-only 断言，并阻止真实模型关键字再次进入固定模型资产。
+
+### 验证
+
+- `node --check` 覆盖 `assets/fixedImageModels-Rg0McL4V.js`、`assets/index-DglIsp_g.js`、`assets/Canvas-B8bY9_QL.js`、`assets/HomeIndex-DAjDt0aj.js`、`server.js`。
+- `git -C "F:\dianshang" diff --check` 通过。
+- 修改文件均为 UTF-8 无 BOM。
+- 最终镜像 ID：`sha256:02f8ba50fd739fd9411546364238d05d69121dc24fdd286b8e6ebd7261c13c12`。
+- 镜像创建时间：`2026-07-09T05:12:15.929785193Z`。
+- 容器启动时间：`2026-07-09T05:12:24.5713627Z`。
+- 容器 Health：`healthy`。
+- `http://localhost:3456/` 与 `http://192.168.0.39:3456/` 均命中 `index-DglIsp_g.js?v=20260709modelsync1`。
+- `assets/index-DglIsp_g.js?v=20260709modelsync1` 命中 `Canvas-B8bY9_QL.js?v=20260709modelsync1`、`HomeIndex-DAjDt0aj.js?v=20260709modelsync1` 和 `fixedImageModels-Rg0McL4V.js?v=20260709modelsync1`。
+- `assets/fixedImageModels-Rg0McL4V.js?v=20260709modelsync1` 返回 200，包含 `backend-model-source-only`，不包含 PackyAPI、lingsuan、6789、RK、Comfly、Nano Banana、Flatfee、VIP、Gemini 等真实模型关键字。
+- `scripts/smoke-internal-prod.ps1` 通过。
+- 临时新增模型 `codex-auto-sync-smoke-1783574041519` 到后台线路 `pub_route_openai_gpt_image_2` 后，普通用户模型接口立即可见；删除后再次查询不可见，确认前端模型来源会自动跟后台同步。
+
+### 剩余风险
+
+- 本轮未执行真实生图和真实扣费。
+- 已打开的画布页面如果仍显示旧模型，需要强刷页面或重新进入画布，让浏览器加载 `modelsync1` 入口。
+
+## 2026-07-09 画布 agent 套图 tab 图标复核
+
+### 已确认
+
+- 用户截图中的 `agent电商套图` tab 对应当前 Canvas chunk 内的 `video` tab 配置。
+- 该 tab 之前使用 `icon:oo`，视觉上是摄像机图标；对于当前 agent 电商套图入口，魔法棒更符合“AI 自动生成套图”的语义。
+
+### 处理
+
+- `assets/Canvas-B8bY9_QL.js` 将 `video` tab 的图标引用从 `oo` 改为 `gd`。
+- 静态资源 query 统一升级为 `20260709agenticon1`。
+- `scripts/smoke-internal-prod.ps1` 增加图标引用断言，防止后续又回退到摄像机图标。
+
+### 验证
+
+- `node --check` 覆盖 `assets/Canvas-B8bY9_QL.js`、`assets/index-DglIsp_g.js`、`assets/HomeIndex-DAjDt0aj.js`、`assets/fixedImageModels-Rg0McL4V.js`。
+- `git -C "F:\dianshang" diff --check` 通过。
+- 修改文件均为 UTF-8 无 BOM。
+- 最终镜像 ID：`sha256:67bb7e40487e02a4c5499f60c82f1d9a7d75a3284f7dd61232cbdfdbfabf4a28`。
+- 镜像创建时间：`2026-07-09T05:40:07.418120767Z`。
+- 容器启动时间：`2026-07-09T05:40:16.072440369Z`。
+- 容器 Health：`healthy`。
+- `http://localhost:3456/` 与 `http://192.168.0.39:3456/` 均命中 `index-DglIsp_g.js?v=20260709agenticon1`。
+- `assets/index-DglIsp_g.js?v=20260709agenticon1` 命中 `Canvas-B8bY9_QL.js?v=20260709agenticon1`。
+- `assets/Canvas-B8bY9_QL.js?v=20260709agenticon1` 返回 200，包含 `icon:gd}],a=l0`，不包含 `icon:oo}],a=l0`。
+- `scripts/smoke-internal-prod.ps1` 通过。
+
+### 剩余风险
+
+- 本轮只替换 tab 图标，不改 agent 生成逻辑。
+- 已打开的画布页面如果仍显示旧摄像机图标，需要强刷页面或重新进入画布，让浏览器加载 `agenticon1` 入口。

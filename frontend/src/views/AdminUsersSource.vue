@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import AdminSourceSidebar from '../components/AdminSourceSidebar.vue';
+import AdminToolbar from '../components/admin/AdminToolbar.vue';
+import AdminStatGrid from '../components/admin/AdminStatGrid.vue';
+import AdminEmptyState from '../components/admin/AdminEmptyState.vue';
+import AdminFeedback from '../components/admin/AdminFeedback.vue';
+import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
+import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NInput, NPagination, NSelect, NTag } from 'naive-ui';
 import {
-  ArrowLeft,
   Coins,
   Mail,
   RefreshCcw,
@@ -136,35 +140,20 @@ onMounted(loadUsers);
 </script>
 
 <template>
-  <main class="admin-source-shell">
-    <AdminSourceSidebar />
-
-    <section class="admin-source-main">
-      <header class="admin-source-topbar">
-        <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
-          <p class="eyebrow">Admin Users</p>
-          <h1>用户管理</h1>
-          <span>只读迁移版：查询账户、角色、状态和余额，不执行删除、改余额或重置密码。</span>
-        </div>
-        <div class="admin-source-actions">
+  <AdminPageShell>
+    <AdminPageHeader eyebrow="Admin Users" title="用户管理" description="只读迁移版：查询账户、角色、状态和余额，不执行删除、改余额或重置密码。">
+      <template #actions>
           <n-button secondary :loading="loading" @click="loadUsers">
             <template #icon><RefreshCcw :size="16" /></template>
             刷新
           </n-button>
           <n-button tertiary type="error" @click="logout">退出</n-button>
-        </div>
-      </header>
+      </template>
+    </AdminPageHeader>
 
-      <div v-if="errorMessage" class="template-error">{{ errorMessage }}</div>
+    <AdminFeedback :error-message="errorMessage" />
 
-      <section class="admin-stat-grid users" aria-label="用户统计">
-        <article v-for="stat in statCards" :key="stat.label">
-          <component :is="stat.icon" :size="20" />
-          <span>{{ stat.label }}</span>
-          <strong>{{ formatNumber(stat.value) }}</strong>
-        </article>
-      </section>
+      <AdminStatGrid :stats="statCards" label="用户统计" />
 
       <section class="admin-source-panel admin-users-panel">
         <div class="admin-panel-head">
@@ -175,7 +164,7 @@ onMounted(loadUsers);
           <n-tag type="info" :bordered="false">只读</n-tag>
         </div>
 
-        <div class="admin-users-toolbar">
+        <AdminToolbar class="admin-users-toolbar">
           <n-input
             v-model:value="keyword"
             clearable
@@ -187,7 +176,7 @@ onMounted(loadUsers);
           <n-select v-model:value="roleFilter" :options="roleOptions" />
           <n-select v-model:value="statusFilter" :options="statusOptions" />
           <n-button type="primary" :loading="loading" @click="applySearch">查询</n-button>
-        </div>
+        </AdminToolbar>
 
         <div class="admin-users-list" aria-label="用户列表">
           <article v-for="user in visibleUsers" :key="user.id">
@@ -214,7 +203,7 @@ onMounted(loadUsers);
               <strong>{{ formatDate(user.lastLoginAt || user.last_login_at) }}</strong>
             </div>
           </article>
-          <p v-if="!visibleUsers.length && !loading" class="admin-empty">暂无匹配用户</p>
+          <AdminEmptyState v-if="!visibleUsers.length && !loading" message="暂无匹配用户" />
         </div>
 
         <div class="admin-users-pagination">
@@ -228,6 +217,5 @@ onMounted(loadUsers);
           />
         </div>
       </section>
-    </section>
-  </main>
+  </AdminPageShell>
 </template>

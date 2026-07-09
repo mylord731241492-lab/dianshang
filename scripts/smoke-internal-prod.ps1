@@ -142,25 +142,31 @@ $deletedCode = @($codesAfterDelete.codes | Where-Object { $_.code -eq $code })
 Assert-True -Condition ($deletedCode.Count -eq 0) -Message "Smoke redeem code still exists after delete"
 
 $homeResponse = Invoke-WebRequest -UseBasicParsing "$baseUrl/"
-Assert-True -Condition ($homeResponse.Content -match "index-DglIsp_g\.js\?v=20260707route1") -Message "Production frontend entry asset missing from home page"
+Assert-True -Condition ($homeResponse.Content -match "index-DglIsp_g\.js\?v=20260709agenticon1") -Message "Production frontend entry asset missing from home page"
 Assert-True -Condition ($homeResponse.Content -match "canvas-performance-mode\.js\?v=20260704canvasleave1") -Message "Canvas performance route teardown asset missing from home page"
-Assert-True -Condition ($homeResponse.Content -match "canvas-image-node-polish\.js\?v=20260704canvasleave1") -Message "Canvas image polish route teardown asset missing from home page"
+Assert-True -Condition ($homeResponse.Content -match "canvas-image-node-polish\.js\?v=20260708loadguard1") -Message "Canvas image polish loading guard asset missing from home page"
 Assert-True -Condition ($homeResponse.Content -match "canvas-chat-prompt-flow\.js\?v=20260704canvasleave1") -Message "Canvas chat prompt route teardown asset missing from home page"
 Assert-True -Condition ($homeResponse.Content -match "canvas-performance-mode\.css\?v=20260704usercenter1") -Message "Canvas user center performance CSS missing from home page"
-Assert-True -Condition ($homeResponse.Content -match "canvas-image-node-polish\.css\?v=20260704dragperf1") -Message "Canvas image polish drag CSS missing from home page"
-$productionEntry = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/index-DglIsp_g.js?v=20260707route1").Content
-Assert-True -Condition ($productionEntry -match "HomeIndex-DAjDt0aj\.js\?v=20260704homesave1") -Message "Production home chunk version missing from entry asset"
-Assert-True -Condition ($productionEntry -match "Canvas-B8bY9_QL\.js\?v=20260707route1") -Message "Production canvas chunk version missing from entry asset"
+Assert-True -Condition ($homeResponse.Content -match "canvas-image-node-polish\.css\?v=20260707loadui1") -Message "Canvas image polish loading UI CSS missing from home page"
+Assert-True -Condition ($homeResponse.Content -match "template-workbench-gallery-polish\.css\?v=20260709gallery1") -Message "Template workbench gallery polish CSS missing from home page"
+$productionEntry = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/index-DglIsp_g.js?v=20260709agenticon1").Content
+Assert-True -Condition ($productionEntry -match "HomeIndex-DAjDt0aj\.js\?v=20260709agenticon1") -Message "Production home chunk version missing from entry asset"
+Assert-True -Condition ($productionEntry -match "Canvas-B8bY9_QL\.js\?v=20260709agenticon1") -Message "Production canvas chunk version missing from entry asset"
 Assert-True -Condition ($productionEntry -notmatch "HomeIndex-DAjDt0aj\.js\?v=20260702modelsync1") -Message "Old home chunk query still exists in production entry asset"
 Assert-True -Condition ($productionEntry -notmatch "index-ZrBcanD1") -Message "Legacy root entry is still referenced by production entry asset"
-$productionCanvas = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/Canvas-B8bY9_QL.js?v=20260707route1").Content
+$productionFixedModels = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/fixedImageModels-Rg0McL4V.js?v=20260709agenticon1").Content
+Assert-True -Condition ($productionFixedModels -match "backend-model-source-only") -Message "Fixed image model asset should be backend-source-only"
+Assert-True -Condition ($productionFixedModels -notmatch "PackyAPI GPT Image 2|lignsuan-guanzhuan|pub_route_mr5yltmuc7edcb2b|Nano Banana|Comfly|route_6789|route_rk|Flatfee|VIP|Gemini") -Message "Real image models should not be hardcoded in production fixed model asset"
+$productionCanvas = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/Canvas-B8bY9_QL.js?v=20260709agenticon1").Content
+Assert-True -Condition ($productionCanvas.Contains('icon:gd}],a=l0')) -Message "Canvas agent tab should use color wand icon"
+Assert-True -Condition (-not $productionCanvas.Contains('icon:oo}],a=l0')) -Message "Canvas agent tab should not use video camera icon"
 Assert-True -Condition ($productionCanvas -match "refreshCanvasAfterProjectLoad") -Message "Canvas project load refresh hook missing from production canvas chunk"
 Assert-True -Condition ($productionCanvas -match "window\.dispatchEvent\(new Event\(""resize""\)\)") -Message "Canvas project load resize refresh missing from production canvas chunk"
 Assert-True -Condition ($productionCanvas -match "codexSetUserCenterOpen") -Message "Canvas user center open state helper missing from production canvas chunk"
 Assert-True -Condition ($productionCanvas -match "canvas-user-center-open") -Message "Canvas user center performance class missing from production canvas chunk"
 Assert-True -Condition ($productionCanvas -match '\\/api\\/mock-image\\/') -Message "Canvas mock image URL allowlist missing from production canvas chunk"
-Assert-True -Condition ($productionCanvas -match "ImageHistoryPanel-Dy2o3dPV\.js\?v=20260707route1") -Message "Canvas user center drawer chunk version missing from production canvas chunk"
-$productionUserDrawer = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/ImageHistoryPanel-Dy2o3dPV.js?v=20260707route1").Content
+Assert-True -Condition ($productionCanvas -match "ImageHistoryPanel-Dy2o3dPV\.js\?v=20260707redeem1") -Message "Canvas user center drawer chunk version missing from production canvas chunk"
+$productionUserDrawer = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/ImageHistoryPanel-Dy2o3dPV.js?v=20260707redeem1").Content
 Assert-True -Condition ($productionUserDrawer -match "await ea\(\)\.catch\(\(\)=>null\)") -Message "User center route public fallback missing from production drawer chunk"
 Assert-True -Condition ($productionUserDrawer -match "await ta\(y\)\.catch\(\(\)=>null\)") -Message "User center model public fallback missing from production drawer chunk"
 $productionPerfJs = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/canvas-performance-mode.js?v=20260704canvasleave1").Content
@@ -168,9 +174,10 @@ Assert-True -Condition ($productionPerfJs -match "draggingPointerActive") -Messa
 Assert-True -Condition ($productionPerfJs -match "extendActive") -Message "Canvas drag active extension missing from performance asset"
 Assert-True -Condition ($productionPerfJs -match "watchCanvasRoute") -Message "Canvas performance asset should be isolated to canvas route"
 Assert-True -Condition ($productionPerfJs -match "teardownPerformanceMode") -Message "Canvas performance route-leave teardown missing"
-$productionImagePolishJs = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/canvas-image-node-polish.js?v=20260704canvasleave1").Content
+$productionImagePolishJs = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/canvas-image-node-polish.js?v=20260708loadguard1").Content
 Assert-True -Condition ($productionImagePolishJs -match "pendingDragRoot") -Message "Canvas drag deferred image polish scan missing"
 Assert-True -Condition ($productionImagePolishJs -match "canvas-performance-dragging") -Message "Canvas drag polish pause detection missing"
+Assert-True -Condition ($productionImagePolishJs -match "image-node-loading") -Message "Canvas image loading guard missing"
 Assert-True -Condition ($productionImagePolishJs -match "watchCanvasRoute") -Message "Canvas image polish asset should be isolated to canvas route"
 Assert-True -Condition ($productionImagePolishJs -match "teardownImageNodePolish") -Message "Canvas image polish route-leave teardown missing"
 $productionChatPromptJs = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/canvas-chat-prompt-flow.js?v=20260704canvasleave1").Content
@@ -181,6 +188,9 @@ $productionPerfCss = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/canvas
 Assert-True -Condition ($productionPerfCss -match "html\.canvas-performance-dragging \.vue-flow__node-image \.image-node-toolbar") -Message "Canvas drag toolbar suppression missing from performance CSS"
 Assert-True -Condition ($productionPerfCss -match "html\.canvas-user-center-open") -Message "Canvas user center open performance state missing from performance CSS"
 Assert-True -Condition ($productionPerfCss -match "backdrop-filter: none") -Message "Canvas user center overlay backdrop reduction missing from performance CSS"
+$productionTemplateGalleryCss = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/template-workbench-gallery-polish.css?v=20260709gallery1").Content
+Assert-True -Condition ($productionTemplateGalleryCss -match "\.template-workbench \.template-gallery-grid") -Message "Template gallery grid polish missing from production CSS"
+Assert-True -Condition ($productionTemplateGalleryCss -match "repeat\(4, minmax\(240px, 1fr\)\)") -Message "Template gallery desktop density rule missing from production CSS"
 Assert-HttpStatus -Path "/assets/index-ZrBcanD1.js" -ExpectedStatus 410
 Assert-HttpStatus -Path "/assets/HomeIndex-BtiJ9toc.js" -ExpectedStatus 410
 Assert-HttpStatus -Path "/assets/AdminLayout-BHNDJhhH.js" -ExpectedStatus 410

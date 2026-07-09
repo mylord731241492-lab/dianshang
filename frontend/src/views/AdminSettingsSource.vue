@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import AdminSourceSidebar from '../components/AdminSourceSidebar.vue';
+import AdminToolbar from '../components/admin/AdminToolbar.vue';
+import AdminStatGrid from '../components/admin/AdminStatGrid.vue';
+import AdminEmptyState from '../components/admin/AdminEmptyState.vue';
+import AdminFeedback from '../components/admin/AdminFeedback.vue';
+import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
+import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NAlert, NButton, NInput, NInputNumber, NSelect, NSwitch, NTag, useMessage } from 'naive-ui';
-import { ArrowLeft, CheckCircle2, Coins, FileText, Image, Plus, RefreshCcw, Save, Search, Settings, ShieldCheck, ToggleLeft, Trash2, UserRound } from 'lucide-vue-next';
+import { CheckCircle2, Coins, FileText, Image, Plus, RefreshCcw, Save, Search, Settings, ShieldCheck, ToggleLeft, Trash2, UserRound } from 'lucide-vue-next';
 import { clearAdminAuthSession } from '../api/adminAuth';
 import { getAdminApiProviders, type AdminApiProvider } from '../api/adminApiProviders';
 import {
@@ -344,11 +349,6 @@ async function importSkillMarkdown(event: Event, skill: EcommerceSuiteSkillSetti
   }
 }
 
-function formatNumber(value?: number | string) {
-  if (typeof value === 'string') return value;
-  return Number(value || 0).toLocaleString('zh-CN');
-}
-
 function formatValue(value: unknown) {
   if (typeof value === 'boolean') return value ? '启用' : '关闭';
   if (value === undefined || value === null || value === '') return '-';
@@ -447,18 +447,9 @@ onMounted(loadSettings);
 </script>
 
 <template>
-  <main class="admin-source-shell">
-    <AdminSourceSidebar />
-
-    <section class="admin-source-main">
-      <header class="admin-source-topbar">
-        <div>
-          <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回前台</RouterLink>
-          <p class="eyebrow">System Settings</p>
-          <h1>系统设置</h1>
-          <span>保存试点版：开放基础设置和图片工具线路、模型、提示词模板配置。</span>
-        </div>
-        <div class="admin-source-actions">
+  <AdminPageShell>
+    <AdminPageHeader eyebrow="System Settings" title="系统设置" description="保存试点版：开放基础设置和图片工具线路、模型、提示词模板配置。">
+      <template #actions>
           <n-button type="primary" :loading="saving" :disabled="saveDisabled" @click="saveSettings">
             <template #icon><Save :size="16" /></template>
             保存设置
@@ -468,23 +459,17 @@ onMounted(loadSettings);
             刷新
           </n-button>
           <n-button tertiary type="error" @click="logout">退出</n-button>
-        </div>
-      </header>
+      </template>
+    </AdminPageHeader>
 
-      <div v-if="errorMessage" class="template-error">{{ errorMessage }}</div>
+    <AdminFeedback :error-message="errorMessage" />
 
       <n-alert class="admin-settings-save-alert" type="info" :bordered="false">
         当前开放站点基础设置、账号/画布/功能开关和图片工具配置。保存会写入旧后端 `app_state`，
         图片工具可选择启用状态、图片线路、模型和提示词模板。
       </n-alert>
 
-      <section class="admin-stat-grid" aria-label="系统设置统计">
-        <article v-for="stat in statCards" :key="stat.label">
-          <component :is="stat.icon" :size="20" />
-          <span>{{ stat.label }}</span>
-          <strong>{{ formatNumber(stat.value) }}</strong>
-        </article>
-      </section>
+      <AdminStatGrid :stats="statCards" label="系统设置统计" />
 
       <section class="admin-source-panel admin-settings-edit-panel">
         <div class="admin-panel-head">
@@ -673,12 +658,12 @@ onMounted(loadSettings);
           <n-tag type="info" :bordered="false">只读</n-tag>
         </div>
 
-        <div class="admin-settings-toolbar">
+        <AdminToolbar class="admin-settings-toolbar">
           <n-input v-model:value="keyword" clearable placeholder="搜索设置 / 分组 / 值">
             <template #prefix><Search :size="15" /></template>
           </n-input>
           <n-button type="primary" :loading="loading" @click="loadSettings">查询</n-button>
-        </div>
+        </AdminToolbar>
 
         <div class="admin-settings-list" aria-label="系统设置列表">
           <article v-for="row in visibleRows" :key="row.key">
@@ -741,9 +726,8 @@ onMounted(loadSettings);
               />
             </label>
           </article>
-          <p v-if="!visibleRows.length && !visibleDraftImageTools.length && !loading" class="admin-empty">暂无匹配系统设置</p>
+          <AdminEmptyState v-if="!visibleRows.length && !visibleDraftImageTools.length && !loading" message="暂无匹配系统设置" />
         </div>
       </section>
-    </section>
-  </main>
+  </AdminPageShell>
 </template>

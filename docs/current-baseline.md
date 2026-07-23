@@ -1,18 +1,19 @@
 # 当前项目基线与防混淆地图
 
-> 最后更新：2026-07-22，北京时间。
-> 当前提交基线：`main` 最新提交 `f72a9c9 feat: refine admin ui and canvas model sync`。
+> 最后更新：2026-07-23，北京时间。
+> 当前开发分支：`codex/generation-stability-10-users`；改造前安全检查点为 `fe5372d chore: checkpoint pre-generation-architecture state`。
 
 本文件是后续修改前的第一入口。`docs/progress-report.md` 和 `docs/review-log.md` 是时间线流水账，不是当前状态的唯一准绳。
 
 ## 当前准绳
 
-- Git 基线：`f72a9c92e0a771baf1f1c3f8f974098c06992ddf`，提交时间 `2026-07-09 13:44:17 +0800`。
-- 当前分支：`main`，相对 `origin/main` 为 `ahead 5`。
-- 当前工作树：存在模板 UI、历史提示词复制和本轮 `/chat/` 集成等未提交改动；未跟踪目录 `workflows/` 仍不属于提交基线，纳入前必须先确认用途。
+- Git 安全检查点：`fe5372d`，已推送到 `origin/codex/generation-stability-10-users`。
+- 当前分支：`codex/generation-stability-10-users`；本轮持久任务与公平队列改造只在源码和一次性测试环境验收。
+- `.scratch/`、`output/`、`outputs/`、数据库备份、运行时 `workflows/`、浏览器缓存和个人文件不属于提交基线。
 - 回滚前现场备份分支：`codex/backup-before-rollback-20260707-130326`。
 - 回滚前未提交改动：`stash@{0}`，消息为 `pre-rollback-to-51d4dab-20260707`。
 - 当前 Git 基线不自动代表 `http://192.168.0.39:3456/` 已同步。生产端是否命中本基线仍必须通过 Docker 重建、容器健康检查和内网 URL 验证确认，不能从 Git 状态推断。
+- 本轮用户明确要求 Docker 和 `127.0.0.1:3456` 保持不动；开发验收端口为 `127.0.0.1:3458`，使用独立临时 `DATA_DIR/DB_PATH/WORKFLOW_DIR` 和假 Provider。未单独确认前禁止重建或切换 3456。
 
 ## 阅读顺序
 
@@ -571,3 +572,14 @@
 - 在不关闭系统代理和 Clash 的情况下，正式 app 容器对 `https://lingsuan.top/v1/models` 的无 Key 直连探针切换前后均连续 10/10 到站。正式 app 已使用常规两文件生产命令完整重建，运行环境为 `LINGSUAN_IMAGE_PROXY_URL=`；镜像 `sha256:5c9877f80107cfb76586f1211ed5812a8fcf922f28224f1f6e462e1ce0b41cf7`，创建时间 `2026-07-22T09:16:22Z`、容器启动时间 `2026-07-22T09:16:40Z`，容器 healthy、重启次数 0、生产健康接口 200、只读 smoke 通过。
 - `docker-compose.chat-production.yml` 的默认值同步改为空；今后常规两文件重建也保持 app 直连。宿主机系统代理继续服务 Codex，应用容器不再依赖 Clash 的 7890 入口；只有 `.env` 明确填写时才启用图片专用代理。目标服务器覆盖仍保留，用于显式阻止迁移环境带入代理值。
 - 切换前用户自然提交的最新任务已成功返回约 1.98MB 图片，四个正式容器均未发生重启；本轮没有由 Codex 发起付费生图。
+
+## 2026-07-23 10 用户稳定生图候选架构（仅源码与 3458，未发布）
+
+- 生图任务事实源已从内存迁到 SQLite：`generation_tasks` 保存任务与账务状态，`generation_task_items` 保存批量单图状态，`generation_task_attempts` 保存脱敏 Provider 尝试。`server.js` 继续作为兼容入口，核心能力位于 `backend/generation/` 和 `backend/provider/`。
+- 创建任务和余额预占在同一事务中完成；成功按完成图片数结算，失败、取消与重启中断按未完成图片退款。`task_id` 唯一流水和生成记录索引防止重复扣费、退款和落库；幂等键相同且请求相同返回原任务，请求不同返回 409。
+- 调度默认全局并发 3、同失败域 1、同用户运行中 1，每用户最多 3 个非终态任务、全站最多 30 个。共同指向 `lingsuan.top` 且 API 格式相同的线路共享失败域；批量任务每张完成后重新排队，连续 3 次瞬态网络失败熔断 60 秒。
+- 重启只恢复 `pending`；旧 `running` 以 `WORKER_INTERRUPTED_UNKNOWN` 失败并退款，不自动重放可能已触达上游的请求。等待中和运行中任务均可取消，运行中通过 `AbortController` 中止本地请求并保留上游可能已计费的歧义提示。
+- `/api/generate/tasks`、模板和 Chat/MCP 生图已复用持久任务、账务与 Provider 调度。画布提交携带稳定幂等键，状态展示改为排队、连接、上游生成和保存结果，不再启动合成的 90% 进度动画。活动入口 query 为 `20260723stablequeue1`，只存在于当前候选源码。
+- 参考图最多 4 张、单张 5 MiB、合计 16 MiB，请求体 24 MiB。输入先写独立任务目录，数据库不保存 Base64；超过 24 小时的目录在启动时和每小时清理。
+- 假 Provider 验收已连续运行 3 轮共 30 个任务：完整门禁多轮 10 用户提交 P95 为 49.3–56.9ms，同一失败域实测最大并发 1，30 次请求复用 3 条 TCP 连接，第一轮所有用户均先于任一用户第二轮获得执行机会。幂等、余额只够一单、部分成功、队列满、取消、超时/断连/5xx、熔断恢复、参考图超限、结果落盘失败和服务重启恢复均有自动化覆盖。
+- Docker、`127.0.0.1:3456`、生产数据库、真实 Provider 和付费调用均未操作。完成本地 `127.0.0.1:3458` 全套验收并单独获得发布确认前，3456 仍是旧版本对照，不能把当前候选当作线上已生效。

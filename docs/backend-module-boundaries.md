@@ -1,6 +1,6 @@
 # 后端模块边界初版
 
-本文件只定义边界，不执行拆分。当前 `server.js` 继续作为可运行基线，后续迁移到 NestJS 或 TypeScript 模块时必须保持 `/api/*` 契约兼容。
+本文件定义渐进模块边界。当前 `server.js` 继续作为 Express 兼容入口；生图任务已先迁出最小的持久仓储、任务服务和 Provider 调度模块，后续迁移到 NestJS 或 TypeScript 模块时必须保持 `/api/*` 契约兼容。
 
 ## 目标架构
 
@@ -66,12 +66,14 @@ NestJS API Server
 
 - 负责：估费、生成任务创建、任务状态、任务取消、任务监控数据。
 - 当前路由：`/api/generation/estimate-cost`、`/api/generate/tasks*`、`/api/admin/generate-tasks*`。
-- 数据：`tasks` 内存 Map、`generations`、`balance_logs`。
-- 迁移风险：当前同步完成任务，后续迁 BullMQ 时响应结构必须兼容。
+- 当前模块：`backend/generation/task-repository.js`、`backend/generation/generation-task-service.js`；`server.js` 保留路由适配和 Provider 请求组装。
+- 数据：`generation_tasks`、`generation_task_items`、`generation_task_attempts`、`generations`、`balance_logs`；旧 `tasks` 内存 Map 仅保留兼容入口。
+- 迁移风险：SQLite 是当前单实例任务事实源。后续迁 BullMQ 时必须保留幂等键、状态、部分成功、重启中断不重放和响应字段。
 
 ## provider
 
-- 负责：Provider 状态、模型线路、New-API 调用、OpenAI-compatible 请求适配、错误标准化。
+- 负责：Provider 状态、模型线路、New-API 调用、OpenAI-compatible 请求适配、错误标准化、连接池、有界公平调度、失败域并发与熔断。
+- 当前模块：`backend/provider/image-request-scheduler.js`；具体协议适配仍在 `server.js`，不得复制调度器。
 - 当前路由：`/api/public/routes`、`/api/public/models`、`/api/model-routes`、`/api/chat/completions`、后台 API 线路接口。
 - 数据：`app_state.admin.apiProviders`、`app_state.admin.modelPrices`。
 - 迁移风险：不得绕过 New-API 去自研通用模型网关；CPA 只做 New-API 后置渠道。
@@ -85,10 +87,11 @@ NestJS API Server
 
 ## billing
 
-- 负责：余额、扣费、充值订单、消费流水、模型价格映射。
+- 负责：余额、预占、按成功图片结算、失败/取消退款、充值订单、消费流水、模型价格映射。
+- 当前模块：`backend/billing/generation-billing.js` 负责生图预占与未使用额度退款；任务状态判断仍由 generation 仓储控制。
 - 当前路由：分散在兑换码、生成、后台余额调整、订单 mock。
 - 数据：`balance_logs`、`redeem_codes`、后续 `orders`、`payments`。
-- 迁移风险：真实支付未接入，不得默认开启真实支付或回调。
+- 迁移风险：持久生图使用 `task_id` 唯一流水保证预占和退款至多一次。真实支付未接入，不得默认开启真实支付或回调。
 
 ## 拆分门禁
 

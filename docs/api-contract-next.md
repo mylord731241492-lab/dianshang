@@ -52,7 +52,7 @@
 | 方法 | 路径 | 认证 | 字段与说明 |
 | --- | --- | --- | --- |
 | `GET` | `/api/template/settings` | 无 | 返回模板、平台、比例配置；当前来自 `template-data.json` 和 `app_state`。 |
-| `POST` | `/api/template/generate-image` | user | 模板生图入口；未启用真实 AI 时 mock 回落；成功必须写 `generations` 和 `balance_logs`。 |
+| `POST` | `/api/template/generate-image` | user | 模板生图入口，复用 SQLite 持久任务、预占账务与统一 Provider 调度；兼容等待窗口内返回同步结果，超时返回可轮询任务。未启用真实 AI 时保留 mock 回落。 |
 | `POST` | `/api/template/reverse-prompt` | user | 当前返回 mock 提示词结构，保留 `rawText/prompts` 等兼容字段。 |
 
 ## Generation / Provider
@@ -60,8 +60,9 @@
 | 方法 | 路径 | 认证 | 字段与说明 |
 | --- | --- | --- | --- |
 | `POST` | `/api/generation/estimate-cost` | optional | 估算消耗，未登录返回 mock 可用额度。 |
-| `POST` | `/api/generate/tasks` | user | 生图任务入口；每次合法提交均返回 HTTP 202 并创建独立任务，允许同一用户连续提交多批。任务在取得 Provider 串行槽位前为 `pending`，实际出站后为 `running`。后续迁移 BullMQ 时保持这些状态字段兼容。 |
-| `GET` | `/api/generate/tasks/:id` | user | 查询当前用户任务；状态为 `pending/running/success/failed`，`request.queuePosition` 仅在排队阶段提供。 |
+| `POST` | `/api/generate/tasks` | user | 持久生图任务入口。支持 `Idempotency-Key` 或 `clientRequestId`，任务与余额预占在同一事务中写入；返回 HTTP 202 和 `taskId/status/queuePosition/reservedCost/replayed`。每用户最多 3 个非终态任务，全站最多 30 个，超限返回 429 与 `Retry-After`。 |
+| `GET` | `/api/generate/tasks/:id` | user | 从 SQLite 查询当前用户任务。状态为 `pending/running/success/failed/cancelled`，并返回 `stage/queuePosition/startedAt/finishedAt/elapsedMs/canCancel/retryAfterMs`。部分成功使用 `success + partial=true + warnings`。 |
+| `POST` | `/api/generate/tasks/:id/cancel` | user | 取消本人 `pending/running` 任务。等待任务立即出队退款；运行任务中止本地请求并记录“上游可能已计费”的歧义，不自动重放。 |
 | `POST` | `/api/chat/completions` | user | 旧文本兼容转发；新后端接管时迁移到 OpenAI Responses 形态。`Legacy`。 |
 | `GET` | `/api/chat/status` | 无 | Chat 入口公开状态，只返回 `enabled/accessEnabled/accessReady/chatPath/message`；不得返回 Provider、LibreChat 或 MongoDB 敏感配置。 |
 | `GET` | `/api/proxy-image` | 签名 URL | 远程图片同源代理。新地址必须携带服务端 HMAC `sig`；只兼容数据库真实生成记录中已有的旧无签名目标。每次请求及重定向均拒绝内网/特殊用途地址和非 80/443 端口，只允许常见光栅图片，响应体最多 20 MiB（可通过 `IMAGE_PROXY_MAX_BYTES` 下调，硬上限 30 MiB）。 |
@@ -126,9 +127,9 @@
 | `GET/PATCH` | `/api/admin/chat/settings` | admin | Chat 运行时策略与部署状态；可写字段为访问、文本、MCP 生图开关、允许模型、维护提示和最多 12 个首页托管智能体，密钥只返回是否已配置。 |
 | `POST` | `/api/admin/chat/test` | admin | 执行不产生模型费用的 Chat 内部健康检查，返回主站桥接、LibreChat `/health`、SSO、Skills 与 MCP 配置状态。 |
 | `POST` | `/api/admin/chat/test-provider` | admin | 真实 API 中转诊断；必须传 `confirmRealCall=true`、允许模型和短提示词，最多输出 16 tokens，可能消耗 Provider 额度但不扣主站用户余额。 |
-| `GET` | `/api/admin/generate-tasks` | admin | 生成任务监控。 |
-| `POST` | `/api/admin/generate-tasks/:id/cancel` | admin | 只取消运行时 `pending/running` 任务；取消后不再把迟到结果写入本地历史，但上游请求仍可能产生费用。 |
-| `DELETE` | `/api/admin/generate-tasks/:id` | admin | 删除运行时任务或 SQLite 生成历史；不自动退款。 |
+| `GET` | `/api/admin/generate-tasks` | admin | 以 SQLite 持久任务为主的生成监控，返回排队分组、阶段耗时、失败域、熔断状态、账务状态和脱敏错误；兼容期合并旧运行时任务和历史。 |
+| `POST` | `/api/admin/generate-tasks/:id/cancel` | admin | 复用用户任务取消状态机；只允许 `pending/running`，运行中取消保留上游可能已计费的提示。 |
+| `DELETE` | `/api/admin/generate-tasks/:id` | admin | 只删除终态持久任务或兼容历史，不追加退款。 |
 
 后台数据真实性约束：Dashboard 今日字段必须按 SQLite 当日记录计算；历史生成记录没有线路字段时不得平均分摊到所有线路。支付未启用且没有真实订单表时，订单 GET 返回 `available=false` 与空列表，状态修改返回 409。管理员重置密码成功响应不得回显明文密码，安全检查不得返回固定演示结论。任务历史不得填充数据库未保存的线路、尺寸、质量或参考图数量；取消仅控制本地任务状态，不得宣称已撤销上游计费。
 

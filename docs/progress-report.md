@@ -3549,3 +3549,11 @@
 - 全链路假 Provider 新增 50 并发幂等风暴、30+1 队列容量、超时/断连/400/503/熔断恢复、活动目录保留、运行取消和重启测试。正常轮提交 P95 57ms，全局并发 3、同失败域并发 1，全部通过。
 - 20 轮额外 600 任务浸泡中，队列、余额、账务唯一性和重启恢复均通过。RSS 空闲约 285MiB、峰值约 294MiB；存活堆空闲约 45MiB、外部内存约 5MiB，未发现存活对象持续增长，但保留至少 512MiB 单实例内存和上线监控要求。
 - Provider 适配器、pre-TLS、图片队列、Chat 图片工具、一次性 API smoke、后端/画布边界 smoke 与 Vue 类型检查/构建均通过。未调用真实 Provider，Docker/3456 未改。
+
+## 2026-07-23 图片中转地址族复核
+
+- 无 Key、无费用探针复现环境差异：宿主机强制 IPv4 0/10、强制 IPv6 10/10；Docker 强制 IPv4 10/10。每次新建 TLS 时，宿主机自动地址族竞速仅 8/20，而显式 IPv6 20/20；Docker 显式 IPv4 20/20。
+- 撤回候选中无条件 `family: 4`，改为 `PROVIDER_IMAGE_IP_FAMILY=4|6|auto`。未配置时 Windows 默认 IPv6、Linux/Docker 默认 IPv4；精确 `lingsuan.top` 代理仍优先于直连 Agent。
+- 宿主机 IPv6 与 Docker IPv4 各执行 5 次无 Key、1×1 PNG multipart POST，全部到达 `/v1/images/edits` 鉴权层并返回 401，耗时约 0.2–0.9 秒；没有调用真实模型。最终 10 用户假 Provider 回归 P95 为 56.7ms，队列、账务、熔断和重启恢复继续通过。
+- Packy 新建 TLS 探针仍有波动：宿主机 IPv6 两轮为 9/10、20/20，Docker IPv4 两轮为 8/10、18/20；失败均为 5 秒 timeout。该结果保留为外部网络风险，不把地址族修复描述为“中转永不掉线”。
+- 本轮只在运行中容器执行 DNS 和无 Key HEAD，不停止、重启、重建或修改 3456；未发送带真实 Key 的请求，也未产生 Provider 费用。

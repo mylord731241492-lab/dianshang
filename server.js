@@ -4831,12 +4831,26 @@ const providerHttpsAgent = new https.Agent({
   maxSockets: 32,
   maxFreeSockets: 8
 });
-const providerImageHttpsAgent = new https.Agent({
+function normalizeProviderImageIpFamily(value = process.env.PROVIDER_IMAGE_IP_FAMILY) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === '4' || normalized === 'ipv4') return 4;
+  if (normalized === '6' || normalized === 'ipv6') return 6;
+  if (normalized === 'auto' || normalized === 'happy-eyeballs') return 0;
+  return process.platform === 'win32' ? 6 : 4;
+}
+const PROVIDER_IMAGE_IP_FAMILY = normalizeProviderImageIpFamily();
+const providerImageHttpsAgentOptions = {
   keepAlive: true,
   maxSockets: 32,
-  maxFreeSockets: 8,
-  family: 4
-});
+  maxFreeSockets: 8
+};
+if (PROVIDER_IMAGE_IP_FAMILY) {
+  providerImageHttpsAgentOptions.family = PROVIDER_IMAGE_IP_FAMILY;
+} else {
+  providerImageHttpsAgentOptions.autoSelectFamily = true;
+  providerImageHttpsAgentOptions.autoSelectFamilyAttemptTimeout = 250;
+}
+const providerImageHttpsAgent = new https.Agent(providerImageHttpsAgentOptions);
 function normalizeLingsuanImageProxyUrl(value = '') {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -4875,7 +4889,10 @@ function providerImageTransportForUrl(url = '') {
   let protocol = '';
   try { protocol = new URL(String(url)).protocol; } catch {}
   if (protocol !== 'https:') return 'http-direct';
-  return isLingsuanImageProxyTarget(url) ? 'https-proxy' : 'https-ipv4-pool';
+  if (isLingsuanImageProxyTarget(url)) return 'https-proxy';
+  if (PROVIDER_IMAGE_IP_FAMILY === 4) return 'https-ipv4-pool';
+  if (PROVIDER_IMAGE_IP_FAMILY === 6) return 'https-ipv6-pool';
+  return 'https-happy-eyeballs-pool';
 }
 
 function isProviderPreTlsReset(error) {

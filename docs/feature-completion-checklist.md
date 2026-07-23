@@ -507,6 +507,16 @@
 - [x] Provider/队列专项、一次性 API、后端/画布边界和 Vue 构建通过。
 - [ ] Docker/3456、真实 Provider、付费调用和生产发布仍等待单独确认。
 
+## 2026-07-23 图片中转地址族诊断
+
+- [x] 宿主机 IPv4/IPv6 和 Docker IPv4 分别完成 10 次 keep-alive 到站探针。
+- [x] 宿主机与 Docker 各完成 20 次全新 TLS 探针，确认宿主机需 IPv6、Docker 需 IPv4。
+- [x] 图片直连池支持 `PROVIDER_IMAGE_IP_FAMILY=4|6|auto`，Windows 默认 6、Linux/Docker 默认 4；代理优先级不变。
+- [x] 宿主机 IPv6 与 Docker IPv4 各 5 次无 Key小图 multipart 均到达鉴权层并返回预期 401，无 timeout/reset。
+- [x] Packy 两轮全新 TLS 已量化；仍观察到 Docker IPv4 2/20 timeout，作为外部网络剩余风险保留。
+- [x] 全部探针无真实 Key、无生图、无费用；3456 容器未停止、重启或重建。
+- [ ] 真实 multipart 生图仍需用户明确确认费用后单次验证；无 Key探针不能证明上游生成阶段不会 5xx/reset。
+
 ## 2026-07-22 服务器灵算直连配置
 
 - [x] 新增独立 `docker-compose.server-direct.yml`，服务器 app 的 `LINGSUAN_IMAGE_PROXY_URL` 显式为空。

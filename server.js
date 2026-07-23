@@ -14,6 +14,9 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
 const { z } = require('zod');
+const { ImageRequestScheduler } = require('./backend/provider/image-request-scheduler');
+const { createGenerationTaskRepository } = require('./backend/generation/task-repository');
+const { GenerationTaskService } = require('./backend/generation/generation-task-service');
 
 const envPath = path.join(__dirname, '.env');
 if (fs.existsSync(envPath)) {
@@ -95,6 +98,17 @@ const DB_PATH = process.env.DB_PATH ? path.resolve(process.env.DB_PATH) : path.j
 const UPLOAD_DIR = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : path.join(__dirname, 'uploads');
 const LOG_DIR = process.env.LOG_DIR ? path.resolve(process.env.LOG_DIR) : path.join(__dirname, 'logs');
 const WORKFLOW_DIR = process.env.WORKFLOW_DIR ? path.resolve(process.env.WORKFLOW_DIR) : path.join(DATA_DIR, 'workflows');
+const GENERATION_TASK_INPUT_DIR = process.env.GENERATION_TASK_INPUT_DIR
+  ? path.resolve(process.env.GENERATION_TASK_INPUT_DIR)
+  : path.join(DATA_DIR, 'generation-task-inputs');
+const GENERATION_GLOBAL_CONCURRENCY = Math.max(1, Math.min(Number(process.env.GENERATION_GLOBAL_CONCURRENCY || 3) || 3, 20));
+const GENERATION_DOMAIN_CONCURRENCY = Math.max(1, Math.min(Number(process.env.GENERATION_DOMAIN_CONCURRENCY || 1) || 1, 10));
+const GENERATION_MAX_QUEUED = Math.max(1, Math.min(Number(process.env.GENERATION_MAX_QUEUED || 30) || 30, 1000));
+const GENERATION_MAX_USER_NONTERMINAL = Math.max(1, Math.min(Number(process.env.GENERATION_MAX_USER_NONTERMINAL || 3) || 3, 20));
+const GENERATION_MAX_REFERENCE_COUNT = 4;
+const GENERATION_MAX_REFERENCE_BYTES = 5 * 1024 * 1024;
+const GENERATION_MAX_REFERENCE_TOTAL_BYTES = 16 * 1024 * 1024;
+const GENERATION_INPUT_RETENTION_MS = 24 * 60 * 60 * 1000;
 const ENABLE_REAL_AI = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_AI || '').toLowerCase());
 const ENABLE_REAL_EMAIL = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_EMAIL || '').toLowerCase());
 const ENABLE_REAL_PAYMENT = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_PAYMENT || '').toLowerCase());
@@ -127,7 +141,12 @@ const corsOptions = CORS_ORIGINS.length && !CORS_ORIGINS.includes('*')
     }
   : { origin: true, credentials: true };
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '50mb' }));
+const generationJsonParser = express.json({ limit: '24mb' });
+const defaultJsonParser = express.json({ limit: '50mb' });
+app.use((req, res, next) => {
+  if (req.path === '/api/generate/tasks') return generationJsonParser(req, res, next);
+  return defaultJsonParser(req, res, next);
+});
 const sourceFrontendDist = path.join(__dirname, 'frontend', 'dist');
 const publicDir = path.join(__dirname, 'public');
 const rootAssetsDir = path.join(__dirname, 'assets');
@@ -214,6 +233,7 @@ app.use((req, res, next) => {
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 fs.mkdirSync(LOG_DIR, { recursive: true });
 fs.mkdirSync(WORKFLOW_DIR, { recursive: true });
+fs.mkdirSync(GENERATION_TASK_INPUT_DIR, { recursive: true });
 const uploadDir = UPLOAD_DIR;
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 const upload = multer({ dest: uploadDir, limits: { fileSize: 20 * 1024 * 1024 } });
@@ -336,6 +356,17 @@ function rehashPasswordIfNeeded(user, password, verification) {
 }
 const uid = (p='') => p + Date.now().toString(36) + crypto.randomBytes(4).toString('hex');
 const rcode = () => String(Math.floor(100000 + Math.random() * 900000));
+const imageRequestScheduler = new ImageRequestScheduler({
+  globalConcurrency: GENERATION_GLOBAL_CONCURRENCY,
+  perDomainConcurrency: GENERATION_DOMAIN_CONCURRENCY,
+  maxQueued: GENERATION_MAX_QUEUED
+});
+const generationTaskRepository = createGenerationTaskRepository({
+  db,
+  idFactory: uid,
+  maxUserNonterminal: GENERATION_MAX_USER_NONTERMINAL,
+  maxQueued: GENERATION_MAX_QUEUED
+});
 
 // Auth middleware
 function auth(req, res, next) {
@@ -1420,6 +1451,16 @@ function providerImageAspectValidation(decoded = {}, providerRequest = {}) {
   };
 }
 
+function imageProviderFailureDomain(route = {}) {
+  const status = routeProviderStatus(route, 'image');
+  let hostname = 'provider-default';
+  try {
+    hostname = new URL(String(status.baseUrl || '')).hostname.toLowerCase() || hostname;
+  } catch {}
+  const format = String(route.apiFormat || route.requestFormat || 'openai-images').trim().toLowerCase();
+  return `${hostname}|${format}`;
+}
+
 function providerImageAspectWarning(validation = {}) {
   if (!validation || validation.valid || validation.skipped) return null;
   const actualSize = validation.actual ? `${validation.actual.width}x${validation.actual.height}` : '';
@@ -2113,11 +2154,12 @@ function imageReferenceCandidates(body = {}) {
       return {
         url: firstString(item.url, item.imageUrl, item.image_url, item.originalUrl, item.original_url, item.preview, item.src),
         dataUrl: firstString(item.dataUrl, item.data_url, item.base64, item.b64_json, item.b64Json),
+        localPath: firstString(item.localPath, item.local_path),
         fileName: firstString(item.fileName, item.filename, item.name, item.title),
         mimeType: firstString(item.mimeType, item.mime, item.type)
       };
     })
-    .filter(item => item && (item.url || item.dataUrl));
+    .filter(item => item && (item.url || item.dataUrl || item.localPath));
 }
 
 function localRequestOrigin(req) {
@@ -2136,6 +2178,29 @@ function resolveReferenceUrl(rawUrl = '', req) {
 }
 
 async function loadReferenceImageFile(reference = {}, req) {
+  const localPath = String(reference.localPath || reference.local_path || '').trim();
+  if (localPath) {
+    const resolvedPath = path.resolve(localPath);
+    const relative = path.relative(GENERATION_TASK_INPUT_DIR, resolvedPath);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      const error = new Error('参考图任务文件路径越界');
+      error.code = 'GENERATION_REFERENCE_PATH_INVALID';
+      throw error;
+    }
+    if (!fs.existsSync(resolvedPath)) {
+      const error = new Error('参考图任务文件不存在');
+      error.code = 'GENERATION_REFERENCE_FILE_MISSING';
+      throw error;
+    }
+    const buffer = await fs.promises.readFile(resolvedPath);
+    const mime = providerImageMime(buffer, reference.mimeType);
+    return {
+      buffer,
+      mime,
+      fileName: reference.fileName || `${path.basename(resolvedPath)}.${providerImageExt(mime)}`
+    };
+  }
+
   const dataUrl = String(reference.dataUrl || '').trim();
   if (/^data:image\//i.test(dataUrl)) {
     const match = dataUrl.match(/^data:(image\/[^;,]+)[^,]*,(.*)$/i);
@@ -2167,6 +2232,146 @@ async function loadReferenceImageFile(reference = {}, req) {
   const buffer = Buffer.from(arrayBuffer);
   const mime = providerImageMime(buffer, resp.headers.get('content-type') || reference.mimeType);
   return { buffer, mime, fileName: reference.fileName || `reference.${providerImageExt(mime)}` };
+}
+
+function stableJsonValue(value) {
+  if (Array.isArray(value)) return value.map(stableJsonValue);
+  if (!value || typeof value !== 'object') return value;
+  return Object.keys(value).sort().reduce((result, key) => {
+    if (key === 'clientRequestId' || key === 'idempotencyKey') return result;
+    result[key] = stableJsonValue(value[key]);
+    return result;
+  }, {});
+}
+
+function generationRequestHash(body = {}) {
+  return crypto.createHash('sha256').update(JSON.stringify(stableJsonValue(body))).digest('hex');
+}
+
+function scrubGenerationRequestValue(value, key = '') {
+  if (/api.?key|authorization|secret|token|password/i.test(key)) return undefined;
+  if (Array.isArray(value)) {
+    return value.map((item) => scrubGenerationRequestValue(item)).filter((item) => item !== undefined);
+  }
+  if (!value || typeof value !== 'object') return value;
+  return Object.entries(value).reduce((result, [childKey, childValue]) => {
+    const scrubbed = scrubGenerationRequestValue(childValue, childKey);
+    if (scrubbed !== undefined) result[childKey] = scrubbed;
+    return result;
+  }, {});
+}
+
+function generationInputError(status, code, message) {
+  const error = new Error(message);
+  error.status = status;
+  error.code = code;
+  return error;
+}
+
+function generationTaskInputDirectory(taskId) {
+  const target = path.resolve(GENERATION_TASK_INPUT_DIR, String(taskId || ''));
+  const relative = path.relative(GENERATION_TASK_INPUT_DIR, target);
+  if (!taskId || relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw generationInputError(400, 'GENERATION_TASK_PATH_INVALID', '生图任务目录无效');
+  }
+  return target;
+}
+
+async function removeGenerationTaskInputs(taskId) {
+  const target = generationTaskInputDirectory(taskId);
+  await fs.promises.rm(target, { recursive: true, force: true });
+}
+
+async function stageGenerationTaskBody(body = {}, taskId, req) {
+  const references = imageReferenceCandidates(body);
+  if (references.length > GENERATION_MAX_REFERENCE_COUNT) {
+    throw generationInputError(
+      413,
+      'GENERATION_REFERENCE_COUNT_EXCEEDED',
+      `每个任务最多上传 ${GENERATION_MAX_REFERENCE_COUNT} 张参考图`
+    );
+  }
+  const taskDirectory = generationTaskInputDirectory(taskId);
+  await fs.promises.mkdir(taskDirectory, { recursive: true });
+  const stagedReferences = [];
+  let totalBytes = 0;
+  try {
+    for (let index = 0; index < references.length; index += 1) {
+      const file = await loadReferenceImageFile(references[index], req);
+      if (file.buffer.length > GENERATION_MAX_REFERENCE_BYTES) {
+        throw generationInputError(
+          413,
+          'GENERATION_REFERENCE_IMAGE_TOO_LARGE',
+          `第 ${index + 1} 张参考图超过 5MB，请压缩后重试`
+        );
+      }
+      totalBytes += file.buffer.length;
+      if (totalBytes > GENERATION_MAX_REFERENCE_TOTAL_BYTES) {
+        throw generationInputError(
+          413,
+          'GENERATION_REFERENCE_TOTAL_TOO_LARGE',
+          '参考图合计大小超过 16MB，请减少图片或压缩后重试'
+        );
+      }
+      const mime = providerImageMime(file.buffer, file.mime);
+      const fileName = `reference-${index + 1}.${providerImageExt(mime)}`;
+      const localPath = path.join(taskDirectory, fileName);
+      await fs.promises.writeFile(localPath, file.buffer);
+      stagedReferences.push({ localPath, fileName, mimeType: mime });
+    }
+
+    const maskSource = body.mask || body.maskUrl || body.mask_url || body.maskAlphaBase64 || body.maskBase64 || '';
+    let stagedMask = null;
+    if (maskSource) {
+      const maskReference = maskSource && typeof maskSource === 'object'
+        ? maskSource
+        : { url: maskSource, dataUrl: maskSource };
+      const maskFile = await loadReferenceImageFile(maskReference, req);
+      if (maskFile.buffer.length > GENERATION_MAX_REFERENCE_BYTES) {
+        throw generationInputError(413, 'GENERATION_MASK_TOO_LARGE', '蒙版图片超过 5MB，请压缩后重试');
+      }
+      const mime = providerImageMime(maskFile.buffer, maskFile.mime);
+      const fileName = `mask.${providerImageExt(mime)}`;
+      const localPath = path.join(taskDirectory, fileName);
+      await fs.promises.writeFile(localPath, maskFile.buffer);
+      stagedMask = { localPath, fileName, mimeType: mime };
+    }
+
+    const stagedBody = scrubGenerationRequestValue({ ...body });
+    [
+      'referenceImages', 'reference_images', 'images', 'imageUrls', 'image_urls',
+      'image', 'imageUrl', 'image_url', 'originalUrl', 'original_url', 'referenceImage', 'reference_image',
+      'mask', 'maskUrl', 'mask_url', 'maskAlphaBase64', 'maskBase64'
+    ].forEach((key) => delete stagedBody[key]);
+    if (stagedReferences.length) stagedBody.referenceImages = stagedReferences;
+    if (stagedMask) stagedBody.mask = stagedMask;
+    return {
+      body: stagedBody,
+      requestMeta: {
+        referenceImageCount: stagedReferences.length,
+        referenceImageBytes: stagedReferences.map((reference, index) => ({
+          index,
+          bytes: fs.statSync(reference.localPath).size,
+          mime: reference.mimeType
+        })),
+        referenceImageTotalBytes: totalBytes,
+        hasMask: !!stagedMask
+      }
+    };
+  } catch (error) {
+    await fs.promises.rm(taskDirectory, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function cleanupExpiredGenerationTaskInputs() {
+  const entries = await fs.promises.readdir(GENERATION_TASK_INPUT_DIR, { withFileTypes: true });
+  const cutoff = Date.now() - GENERATION_INPUT_RETENTION_MS;
+  await Promise.all(entries.filter((entry) => entry.isDirectory()).map(async (entry) => {
+    const target = generationTaskInputDirectory(entry.name);
+    const stat = await fs.promises.stat(target);
+    if (stat.mtimeMs < cutoff) await fs.promises.rm(target, { recursive: true, force: true });
+  }));
 }
 
 function mockChatCompletion(messages = [], model = AI_TEXT_MODEL) {
@@ -3337,43 +3542,64 @@ async function fetchProviderWithPreTlsRetry(createRequest) {
   }
 }
 
-let providerImageRequestQueue = Promise.resolve();
-let providerImageRequestPending = 0;
-
-function notifyProviderImageQueue(options = {}, status, queuePosition) {
+function notifyProviderImageQueue(options = {}, status, queuePosition, meta = {}) {
   if (typeof options.onQueueStatus !== 'function') return;
   try {
     options.onQueueStatus({
       status,
       queuePosition: status === 'pending' ? queuePosition : 0,
-      pendingCount: providerImageRequestPending
+      queueMode: meta.queueMode || 'bounded-fair',
+      pendingCount: Number(meta.pendingCount || 0),
+      failureDomain: meta.failureDomain || imageProviderFailureDomain(options.route),
+      retryAfterMs: Number(meta.retryAfterMs || 0)
+    });
+  } catch {}
+}
+
+function notifyProviderImageStage(options = {}, stage, meta = {}) {
+  if (typeof options.onProviderStage !== 'function') return;
+  try {
+    options.onProviderStage(stage, {
+      failureDomain: imageProviderFailureDomain(options.route),
+      ...meta
     });
   } catch {}
 }
 
 function runQueuedProviderImageRequest(runRequest, options = {}) {
+  if (options.bypassProviderQueue) {
+    notifyProviderImageQueue(options, 'running', 0, {
+      queueMode: 'persistent-task-worker',
+      failureDomain: imageProviderFailureDomain(options.route)
+    });
+    return runRequest(options.signal);
+  }
   const delayMs = providerImageRequestDelay(options);
-  const shouldDelay = !!options.forceQueueDelay || providerImageRequestPending > 0;
-  const queuePosition = providerImageRequestPending + 1;
-  providerImageRequestPending += 1;
-  notifyProviderImageQueue(options, 'pending', queuePosition);
-  const previous = providerImageRequestQueue.catch(() => {});
-  const queued = previous.then(async () => {
-    if (shouldDelay && delayMs > 0) await wait(delayMs);
-    notifyProviderImageQueue(options, 'running', queuePosition);
-    return runRequest();
+  const failureDomain = imageProviderFailureDomain(options.route);
+  return imageRequestScheduler.schedule(async (signal) => {
+    if (options.forceQueueDelay && delayMs > 0) await wait(delayMs);
+    return runRequest(signal);
+  }, {
+    taskId: options.taskId || '',
+    userId: options.userId || options.req?.user?.userId || options.taskId || 'direct-image-request',
+    failureDomain,
+    onStatus: (state) => notifyProviderImageQueue(options, state.status, state.queuePosition, state)
   });
-  providerImageRequestQueue = queued.catch(() => {}).finally(() => {
-    providerImageRequestPending = Math.max(0, providerImageRequestPending - 1);
-  });
-  return queued;
+}
+
+function linkAbortSignal(controller, signal) {
+  if (!signal || typeof signal.addEventListener !== 'function') return () => {};
+  const abort = () => controller.abort(signal.reason || '任务已取消');
+  if (signal.aborted) abort();
+  else signal.addEventListener('abort', abort, { once: true });
+  return () => signal.removeEventListener('abort', abort);
 }
 
 async function runQueuedProviderImageBatch(count, runRequest, options = {}) {
   const requestResults = [];
   for (let i = 0; i < count; i += 1) {
     const result = await runQueuedProviderImageRequest(
-      () => runRequest(i),
+      (signal) => runRequest(i, signal),
       { ...options, forceQueueDelay: i > 0 }
     );
     requestResults.push(result);
@@ -3704,8 +3930,9 @@ async function callProviderImageGeneration(prompt, options = {}) {
   }
 
   try {
-    const requestResults = await runQueuedProviderImageBatch(count, async () => {
+    const requestResults = await runQueuedProviderImageBatch(count, async (_index, schedulerSignal) => {
       const controller = new AbortController();
+      const unlinkAbort = linkAbortSignal(controller, schedulerSignal);
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const requestUrl = joinProviderUrl(status.baseUrl, routeImageGenerationEndpoint(options.route));
@@ -3725,24 +3952,31 @@ async function callProviderImageGeneration(prompt, options = {}) {
               n: 1
             };
         const requestBody = JSON.stringify(requestPayload);
-        const { response: resp, preTlsRetryCount } = await fetchProviderWithPreTlsRetry(() => fetch(requestUrl, {
-          method: 'POST',
-          headers: {
-            'Accept': providerImageAcceptHeader(options.route, responseMode),
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${providerAuthKey('image', options.route)}`
-          },
-          body: requestBody,
-          agent: providerImageAgentForUrl(requestUrl),
-          signal: controller.signal
-        }));
+        notifyProviderImageStage(options, 'connecting', { endpoint: routeImageGenerationEndpoint(options.route) });
+        const { response: resp, preTlsRetryCount } = await fetchProviderWithPreTlsRetry(() => {
+          const pendingResponse = fetch(requestUrl, {
+            method: 'POST',
+            headers: {
+              'Accept': providerImageAcceptHeader(options.route, responseMode),
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${providerAuthKey('image', options.route)}`
+            },
+            body: requestBody,
+            agent: providerImageAgentForUrl(requestUrl),
+            signal: controller.signal
+          });
+          notifyProviderImageStage(options, 'upstream_generating', {
+            endpoint: routeImageGenerationEndpoint(options.route)
+          });
+          return pendingResponse;
+        });
         const parsed = await parseProviderImageResponse(resp);
         const upstreamItem = {
           status: resp.status,
           contentType: parsed.contentType,
           stream: parsed.isEventStream,
           eventCount: parsed.eventCount,
-          data: parsed.data,
+          data: providerResponseShape(parsed.data),
           transportMode: providerImageTransportForUrl(requestUrl),
           preTlsRetryCount
         };
@@ -3759,14 +3993,16 @@ async function callProviderImageGeneration(prompt, options = {}) {
         }
         return { success: true, images: parsed.images, upstreamItem };
       } catch (err) {
+        const cancelled = !!schedulerSignal?.aborted;
         return {
           success: false,
-          code: err.name === 'AbortError' ? 'PROVIDER_IMAGE_TIMEOUT' : 'PROVIDER_IMAGE_ERROR',
-          message: err.name === 'AbortError' ? 'Provider 图片生成超时' : (err.message || 'Provider 图片生成失败'),
+          code: cancelled ? 'TASK_CANCELLED' : (err.name === 'AbortError' ? 'PROVIDER_IMAGE_TIMEOUT' : 'PROVIDER_IMAGE_ERROR'),
+          message: cancelled ? '任务已取消' : (err.name === 'AbortError' ? 'Provider 图片生成超时' : (err.message || 'Provider 图片生成失败')),
           provider: status
         };
       } finally {
         clearTimeout(timer);
+        unlinkAbort();
       }
     }, options);
     const failed = requestResults.find((item) => !item.success);
@@ -3794,7 +4030,7 @@ async function callProviderImageGeneration(prompt, options = {}) {
       }),
       n: 1,
       requestedCount: count,
-      queueMode: 'serial-delayed',
+      queueMode: options.bypassProviderQueue ? 'persistent-task-worker' : 'bounded-fair',
       queueDelayMs: providerImageRequestDelay(options),
       timeoutMs
     };
@@ -3842,10 +4078,15 @@ async function callProviderImageEdit(prompt, options = {}) {
   try {
     const maskSource = options.mask || options.maskUrl || options.body?.mask || options.body?.maskUrl || options.body?.maskAlphaBase64 || options.body?.maskBase64 || '';
     const maskFile = maskSource
-      ? await loadReferenceImageFile({ url: maskSource, dataUrl: maskSource }, options.req)
+      ? await loadReferenceImageFile(
+          maskSource && typeof maskSource === 'object'
+            ? maskSource
+            : { url: maskSource, dataUrl: maskSource },
+          options.req
+        )
       : null;
     const referenceFiles = [];
-    const referencesForEdit = maskFile ? references.slice(0, 1) : references.slice(0, 16);
+    const referencesForEdit = maskFile ? references.slice(0, 1) : references.slice(0, GENERATION_MAX_REFERENCE_COUNT);
     for (let i = 0; i < referencesForEdit.length; i += 1) {
       const file = await loadReferenceImageFile(referencesForEdit[i], options.req);
       referenceFiles.push({
@@ -3868,7 +4109,7 @@ async function callProviderImageEdit(prompt, options = {}) {
         moderation
       }),
       n: 1,
-      queueMode: 'serial-delayed',
+      queueMode: options.bypassProviderQueue ? 'persistent-task-worker' : 'bounded-fair',
       queueDelayMs: providerImageRequestDelay(options),
       timeoutMs,
       endpoint: routeImageEditEndpoint(options.route),
@@ -3882,8 +4123,9 @@ async function callProviderImageEdit(prompt, options = {}) {
       referenceImageMimeTypes: referenceFiles.map((file) => file.mime),
       transportMode: providerImageTransportForUrl(editRequestUrl)
     };
-    const requestResults = await runQueuedProviderImageBatch(count, async () => {
+    const requestResults = await runQueuedProviderImageBatch(count, async (_index, schedulerSignal) => {
       const controller = new AbortController();
+      const unlinkAbort = linkAbortSignal(controller, schedulerSignal);
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const createForm = () => {
@@ -3921,23 +4163,30 @@ async function callProviderImageEdit(prompt, options = {}) {
           return form;
         };
         const requestUrl = editRequestUrl;
-        const { response: resp, preTlsRetryCount } = await fetchProviderWithPreTlsRetry(() => fetch(requestUrl, {
-          method: 'POST',
-          headers: {
-            'Accept': providerImageAcceptHeader(options.route, responseMode),
-            'Authorization': `Bearer ${providerAuthKey('image', options.route)}`
-          },
-          body: createForm(),
-          agent: providerImageAgentForUrl(requestUrl),
-          signal: controller.signal
-        }));
+        notifyProviderImageStage(options, 'connecting', { endpoint: routeImageEditEndpoint(options.route) });
+        const { response: resp, preTlsRetryCount } = await fetchProviderWithPreTlsRetry(() => {
+          const pendingResponse = fetch(requestUrl, {
+            method: 'POST',
+            headers: {
+              'Accept': providerImageAcceptHeader(options.route, responseMode),
+              'Authorization': `Bearer ${providerAuthKey('image', options.route)}`
+            },
+            body: createForm(),
+            agent: providerImageAgentForUrl(requestUrl),
+            signal: controller.signal
+          });
+          notifyProviderImageStage(options, 'upstream_generating', {
+            endpoint: routeImageEditEndpoint(options.route)
+          });
+          return pendingResponse;
+        });
         const parsed = await parseProviderImageResponse(resp);
         const upstreamItem = {
           status: resp.status,
           contentType: parsed.contentType,
           stream: parsed.isEventStream,
           eventCount: parsed.eventCount,
-          data: parsed.data,
+          data: providerResponseShape(parsed.data),
           transportMode: providerImageTransportForUrl(requestUrl),
           preTlsRetryCount
         };
@@ -3955,10 +4204,11 @@ async function callProviderImageEdit(prompt, options = {}) {
         }
         return { success: true, images: parsed.images, upstreamItem };
       } catch (err) {
+        const cancelled = !!schedulerSignal?.aborted;
         return {
           success: false,
-          code: err.name === 'AbortError' ? 'PROVIDER_IMAGE_EDIT_TIMEOUT' : 'PROVIDER_IMAGE_EDIT_ERROR',
-          message: providerImageRequestErrorMessage(err),
+          code: cancelled ? 'TASK_CANCELLED' : (err.name === 'AbortError' ? 'PROVIDER_IMAGE_EDIT_TIMEOUT' : 'PROVIDER_IMAGE_EDIT_ERROR'),
+          message: cancelled ? '任务已取消' : providerImageRequestErrorMessage(err),
           provider: status,
           request: {
             ...editRequestMeta,
@@ -3967,6 +4217,7 @@ async function callProviderImageEdit(prompt, options = {}) {
         };
       } finally {
         clearTimeout(timer);
+        unlinkAbort();
       }
     }, options);
     const failed = requestResults.find((item) => !item.success);
@@ -5241,7 +5492,7 @@ function updatePendingTaskQueueState(task, status, meta = {}) {
   task.progress = nextStatus === 'running' ? Math.max(40, Number(task.progress || 0)) : Math.min(20, Math.max(6, Number(task.progress || 0)));
   task.request = {
     ...(task.request && typeof task.request === 'object' ? task.request : {}),
-    queueMode: 'serial-delayed',
+    queueMode: 'bounded-fair',
     queuePosition: nextStatus === 'pending' ? Math.max(1, Number(meta.queuePosition || 1)) : 0
   };
   task.updatedAt = new Date().toISOString();
@@ -6247,98 +6498,263 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
   });
 });
 
-app.post('/api/generate/tasks', auth, async (req, res) => {
-  const prompt = req.body.prompt || req.body.selectedPrompt || '';
-  const modelKey = resolveImageModelKey(req.body);
-  if (!prompt && !Array.isArray(req.body.referenceImages) && !Array.isArray(req.body.images)) {
-    return res.status(400).json({ message: '请输入提示词或上传参考图' });
-  }
-  const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.userId);
-  if (!u) return res.status(401).json({ success: false, code: 'AUTH_USER_NOT_FOUND', message: '登录状态已失效，请重新登录' });
-  const m = [...IMG, ...TXT].find(x => x.k === modelKey) || IMG[0];
-  const imageCount = Math.max(1, Math.min(Number(req.body.imageCount || req.body.n || 1) || 1, 4));
-  const total = (m ? m.p : 15) * imageCount;
-  if (u.balance < total) return res.status(400).json({ message: `算力不足，需要 ${total}，当前 ${u.balance}` });
-  const hasReferenceImages = imageReferenceCandidates(req.body).length > 0;
-  const imageRoute = resolveImageRoute(req.body, req.user.userId);
-  const providerPrompt = buildImageGenerateNodePrompt(prompt, { body: req.body, hasReferenceImages });
-  const providerOptions = { ...req.body, body: req.body, req, route: imageRoute, model: modelKey, n: imageCount };
-  const task = createPendingTask(req, {
-    prompt: providerPrompt,
-    modelKey,
-    imageCount,
-    cost: total,
-    totalCost: total,
-    imageCost: total,
-    route: imageRoute,
-    request: { pending: true, hasReferenceImages }
-  });
-  providerOptions.onQueueStatus = meta => updatePendingTaskQueueState(task, meta.status, meta);
-  res.status(202).json({
-    success: true,
-    accepted: true,
-    pending: true,
-    remainingBalance: u.balance,
-    ...makeTaskResponse(task)
-  });
+function persistentTaskProgress(task) {
+  if (!task) return 0;
+  if (['success', 'failed', 'cancelled'].includes(task.status)) return 100;
+  const progressByStage = {
+    queued: 10,
+    preparing: 20,
+    connecting: 35,
+    awaiting_provider: 55,
+    persisting: 85,
+    done: 100
+  };
+  return progressByStage[task.stage] || (task.status === 'running' ? 45 : 10);
+}
 
-  (async () => {
-    const runningTask = tasks.get(task.id);
-    try {
-      let providerResult = hasReferenceImages
-        ? await callProviderImageEdit(providerPrompt, providerOptions)
-        : await callProviderImageGeneration(providerPrompt, providerOptions);
-      if (!providerResult.success && shouldFallbackImageRoute(providerResult)) {
-        const fallbackRoute = nextImageFallbackRoute(imageRoute);
-        if (fallbackRoute) {
-          applyTaskRoute(runningTask, fallbackRoute);
-          const fallbackOptions = { ...providerOptions, route: fallbackRoute };
-          providerResult = hasReferenceImages
-            ? await callProviderImageEdit(providerPrompt, fallbackOptions)
-            : await callProviderImageGeneration(providerPrompt, fallbackOptions);
-          providerResult.fallbackFromRoute = routeDisplayName(imageRoute);
-          providerResult.fallbackRoute = routeDisplayName(fallbackRoute);
-          if (providerResult.request && typeof providerResult.request === 'object') {
-            providerResult.request.fallbackFromRoute = routeDisplayName(imageRoute);
-            providerResult.request.fallbackRoute = routeDisplayName(fallbackRoute);
-          }
-        }
-      }
-      if (!providerResult.success) {
-        failPendingTask(runningTask, {
-          message: providerResult.message || '图片生成接口调用失败',
-          request: providerResult.request || providerResult.upstream || null
-        });
-        return;
-      }
-      const persistedResults = await persistProviderImageResults(providerResult.images, providerResult.request);
-      completePendingTask(runningTask, {
-        prompt: providerPrompt,
-        modelKey,
-        imageCount,
-        results: persistedResults,
-        request: providerResult.request,
-        cost: total,
-        totalCost: total,
-        imageCost: total,
-        operation: 'generation-task',
-        source: 'generation-task'
-      });
-      const latest = db.prepare('SELECT balance FROM users WHERE id=?').get(u.id);
-      const beforeBalance = Number(latest?.balance ?? u.balance);
-      const afterBalance = beforeBalance - total;
-      db.prepare('UPDATE users SET balance=? WHERE id=?').run(afterBalance, u.id);
-      db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
-        .run(u.id,'generation',-total,beforeBalance,afterBalance,`生成任务: ${modelKey} x${imageCount}`);
-    } catch (error) {
-      failPendingTask(runningTask, { message: error.message || '图片生成接口调用失败' });
+function makePersistentTaskResponse(task) {
+  const queuePosition = task.status === 'pending'
+    ? (task.queuePosition || generationTaskRepository.queuePosition(task.id))
+    : 0;
+  const now = Date.now();
+  const elapsedMs = Math.max(0, (task.finishedAtMs || now) - task.createdAtMs);
+  return {
+    id: task.id,
+    taskId: task.id,
+    status: task.status,
+    stage: task.stage,
+    progress: persistentTaskProgress(task),
+    prompt: task.prompt,
+    modelKey: task.modelKey,
+    model: task.modelKey,
+    resultImages: task.images || [],
+    images: task.images || [],
+    costPoints: task.settledCost || task.reservedCost,
+    cost: task.settledCost || task.reservedCost,
+    totalCost: task.settledCost || task.reservedCost,
+    reservedCost: task.reservedCost,
+    settledCost: task.settledCost,
+    billingStatus: task.billingStatus,
+    partial: !!task.request?.partial,
+    request: {
+      ...(task.request || {}),
+      queueMode: 'persistent-bounded-fair',
+      queuePosition,
+      failureDomain: task.failureDomain,
+      retryAfterMs: task.retryAfterMs || 0
+    },
+    providerRequest: task.request || null,
+    errorCode: task.errorCode || '',
+    errorMessage: task.errorMessage || '',
+    routeId: task.routeId || '',
+    lineId: task.routeId || '',
+    routeKey: task.routeKey || '',
+    lineKey: task.routeKey || '',
+    routeDisplayName: task.routeDisplayName || '',
+    queuePosition,
+    retryAfterMs: task.retryAfterMs || 0,
+    canCancel: ['pending', 'running'].includes(task.status),
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    startedAt: task.startedAt,
+    finishedAt: task.finishedAt,
+    elapsedMs
+  };
+}
+
+function routeForPersistentTask(task) {
+  const routes = routeState();
+  return routes.find((route) => routeMatchesId(route, task.routeId) || routeMatchesId(route, task.routeKey))
+    || resolveImageRoute(task.requestPayload?.body || {}, task.userId);
+}
+
+async function executePersistentGenerationItem(task, item, signal) {
+  const body = task.requestPayload?.body || {};
+  const providerPrompt = task.requestPayload?.providerPrompt || task.prompt;
+  const route = routeForPersistentTask(task);
+  const hasReferenceImages = imageReferenceCandidates(body).length > 0;
+  const providerOptions = {
+    ...body,
+    body,
+    route,
+    model: task.modelKey,
+    n: 1,
+    taskId: task.id,
+    userId: task.userId,
+    signal,
+    onProviderStage: (stage, meta) => generationTaskRepository.markTaskStage(task.id, stage, meta),
+    bypassProviderQueue: true
+  };
+  const providerResult = hasReferenceImages
+    ? await callProviderImageEdit(providerPrompt, providerOptions)
+    : await callProviderImageGeneration(providerPrompt, providerOptions);
+  if (!providerResult.success) return providerResult;
+  const providerRequestMeta = {
+    ...(providerResult.request || {}),
+    mock: !!providerResult.mock
+  };
+  const persistedResults = await persistProviderImageResults(providerResult.images, providerRequestMeta);
+  const normalizedImages = persistedResults.map((image, index) => normalizeTaskImage({
+    ...image,
+    prompt: providerPrompt,
+    finalPrompt: providerPrompt,
+    sourceTaskId: task.id,
+    source: 'persistent-generation-task',
+    request: providerRequestMeta,
+    providerRequest: providerRequestMeta,
+    meta: {
+      operation: 'generation-task',
+      prompt: providerPrompt,
+      finalPrompt: providerPrompt,
+      modelKey: task.modelKey,
+      source: 'persistent-generation-task',
+      providerRequest: providerRequestMeta
     }
-  })();
+  }, index, `${task.id}_${item.itemIndex}`));
+  return {
+    ...providerResult,
+    success: true,
+    images: normalizedImages,
+    request: providerRequestMeta,
+    generationIdFactory: () => uid('gen_')
+  };
+}
+
+const generationTaskService = new GenerationTaskService({
+  repository: generationTaskRepository,
+  scheduler: imageRequestScheduler,
+  executeItem: executePersistentGenerationItem
+});
+const recoveredGenerationTasks = generationTaskService.start();
+if (recoveredGenerationTasks.length) {
+  console.warn(`[GENERATION_RECOVERY] ${recoveredGenerationTasks.length} 个中断任务已安全失败并退款`);
+}
+cleanupExpiredGenerationTaskInputs().catch((error) => {
+  console.warn(`[GENERATION_INPUT_CLEANUP] ${error.message}`);
+});
+const generationInputCleanupTimer = setInterval(() => {
+  cleanupExpiredGenerationTaskInputs().catch((error) => {
+    console.warn(`[GENERATION_INPUT_CLEANUP] ${error.message}`);
+  });
+}, 60 * 60 * 1000);
+if (typeof generationInputCleanupTimer.unref === 'function') generationInputCleanupTimer.unref();
+
+async function submitPersistentGenerationTask(req, body = req.body || {}, options = {}) {
+  const prompt = body.prompt || body.selectedPrompt || '';
+  const references = imageReferenceCandidates(body);
+  if (!prompt && !references.length) {
+    throw generationInputError(400, 'IMAGE_PROMPT_REQUIRED', '请输入提示词或上传参考图');
+  }
+  const rawIdempotencyKey = String(
+    req.get?.('Idempotency-Key') || body.clientRequestId || body.idempotencyKey || ''
+  ).trim();
+  if (rawIdempotencyKey.length > 128) {
+    throw generationInputError(400, 'IDEMPOTENCY_KEY_INVALID', '幂等键长度不能超过 128 个字符');
+  }
+  const idempotencyKey = rawIdempotencyKey || uid('idem_');
+  const requestHash = generationRequestHash(body);
+  const existing = generationTaskRepository.findByIdempotency(req.user.userId, idempotencyKey);
+  if (existing) {
+    if (existing.requestHash !== requestHash) {
+      throw generationInputError(409, 'IDEMPOTENCY_KEY_REUSED', '同一个幂等键不能用于不同的生图请求');
+    }
+    return {
+      task: existing,
+      replayed: true,
+      remainingBalance: Number(db.prepare('SELECT balance FROM users WHERE id=?').get(req.user.userId)?.balance || 0)
+    };
+  }
+
+  const taskId = uid('task_');
+  const staged = await stageGenerationTaskBody(body, taskId, req);
+  try {
+    const modelKey = resolveImageModelKey(body);
+    const model = [...IMG, ...TXT].find((item) => item.k === modelKey) || IMG[0];
+    const imageCount = Math.max(1, Math.min(Number(body.imageCount || body.n || 1) || 1, 4));
+    const unitCost = Number(model?.p || 15);
+    const route = resolveImageRoute(body, req.user.userId);
+    const hasReferenceImages = staged.requestMeta.referenceImageCount > 0;
+    const providerPrompt = options.providerPrompt
+      || buildImageGenerateNodePrompt(prompt, { body, hasReferenceImages });
+    const result = generationTaskService.submit({
+      id: taskId,
+      userId: req.user.userId,
+      idempotencyKey,
+      requestHash,
+      routeId: String(route.id || route.routeId || route.lineId || ''),
+      routeKey: String(route.rk || route.routeKey || route.lineKey || route.code || ''),
+      routeDisplayName: routeDisplayName(route),
+      failureDomain: imageProviderFailureDomain(route),
+      modelKey,
+      prompt: providerPrompt,
+      imageCount,
+      unitCost,
+      reservedCost: unitCost * imageCount,
+      requestPayload: {
+        body: staged.body,
+        providerPrompt,
+        source: options.source || 'generation-task'
+      },
+      requestMeta: {
+        ...staged.requestMeta,
+        size: providerImageRequestSize(body, body.sizeTier || body.resolution || body.clarity || body.quality),
+        quality: body.quality || body.imageQuality || '',
+        pending: true
+      }
+    });
+    if (result.replayed) await removeGenerationTaskInputs(taskId);
+    return result;
+  } catch (error) {
+    await removeGenerationTaskInputs(taskId);
+    throw error;
+  }
+}
+
+app.post('/api/generate/tasks', auth, async (req, res) => {
+  try {
+    const result = await submitPersistentGenerationTask(req);
+    const task = generationTaskService.getTask(result.task.id) || result.task;
+    res.status(202).json({
+      success: true,
+      accepted: true,
+      pending: ['pending', 'running'].includes(task.status),
+      replayed: result.replayed,
+      remainingBalance: result.remainingBalance,
+      ...makePersistentTaskResponse(task)
+    });
+  } catch (error) {
+    if (error.retryAfter) res.set('Retry-After', String(error.retryAfter));
+    res.status(error.status || 500).json({
+      success: false,
+      code: error.code || 'GENERATION_TASK_SUBMIT_FAILED',
+      message: error.message || '生图任务提交失败'
+    });
+  }
 });
 app.get('/api/generate/tasks/:id', auth, (req, res) => {
-  const task = tasks.get(req.params.id);
-  if (!task || task.userId !== req.user.userId) return res.status(404).json({ message: '任务不存在' });
-  res.json(makeTaskResponse(task));
+  const task = generationTaskService.getTask(req.params.id);
+  if (!task || task.userId !== req.user.userId) {
+    return res.status(404).json({ success: false, code: 'TASK_NOT_FOUND', message: '任务不存在' });
+  }
+  res.json(makePersistentTaskResponse(task));
+});
+app.post('/api/generate/tasks/:id/cancel', auth, (req, res) => {
+  try {
+    const task = generationTaskService.getTask(req.params.id);
+    if (!task || task.userId !== req.user.userId) {
+      return res.status(404).json({ success: false, code: 'TASK_NOT_FOUND', message: '任务不存在' });
+    }
+    const cancelled = generationTaskService.cancel(req.params.id, {
+      reason: String(req.body?.reason || '用户取消').slice(0, 200)
+    });
+    res.json({ success: true, ...makePersistentTaskResponse(cancelled) });
+  } catch (error) {
+    res.status(error.status || 500).json({
+      success: false,
+      code: error.code || 'TASK_CANCEL_FAILED',
+      message: error.message || '取消任务失败'
+    });
+  }
 });
 
 async function executeTemplateImageGeneration(userId, body = {}, requestContext = {}) {
@@ -6348,64 +6764,54 @@ async function executeTemplateImageGeneration(userId, body = {}, requestContext 
   const negativePrompt = body.negativePrompt || '';
   if (!prompt) throw integrationError(400, 'IMAGE_PROMPT_REQUIRED', '请输入提示词');
   if (!modelKey) throw integrationError(400, 'IMAGE_MODEL_REQUIRED', '请选择可用的图片模型');
-
-  const all = [...IMG, ...TXT];
-  const model = all.find(item => item.k === modelKey) || IMG[0];
-  const unitCost = model ? model.p : 15;
   const count = Math.max(1, Math.min(imageCount || 1, 4));
-  const total = unitCost * count;
-  const user = db.prepare('SELECT * FROM users WHERE id=?').get(userId);
-  if (!user) throw integrationError(401, 'AUTH_USER_NOT_FOUND', '登录状态已失效，请重新登录');
-  if (user.balance < total) {
-    throw integrationError(400, 'INSUFFICIENT_BALANCE', `算力不足，需要 ${total}，当前 ${user.balance}`, { totalCost: total, balance: user.balance });
-  }
-
   const fullPrompt = `${prompt}${negativePrompt ? '，避免：' + negativePrompt : ''}`;
   const hasReferenceImages = imageReferenceCandidates(body).length > 0;
-  const imageRoute = resolveImageRoute(body, userId);
   const providerPrompt = buildEcommerceImagePrompt(fullPrompt, { body, hasReferenceImages });
-  const providerOptions = { ...body, body, req: requestContext, route: imageRoute, model: modelKey, n: count };
-  let providerResult = hasReferenceImages
-    ? await callProviderImageEdit(providerPrompt, providerOptions)
-    : await callProviderImageGeneration(providerPrompt, providerOptions);
-  if (!providerResult.success && shouldFallbackImageRoute(providerResult)) {
-    const fallbackRoute = nextImageFallbackRoute(imageRoute);
-    if (fallbackRoute) {
-      const fallbackOptions = { ...providerOptions, route: fallbackRoute };
-      providerResult = hasReferenceImages
-        ? await callProviderImageEdit(providerPrompt, fallbackOptions)
-        : await callProviderImageGeneration(providerPrompt, fallbackOptions);
-      providerResult.fallbackFromRoute = routeDisplayName(imageRoute);
-      providerResult.fallbackRoute = routeDisplayName(fallbackRoute);
-    }
-  }
-  if (!providerResult.success) {
-    throw integrationError(502, providerResult.code || 'PROVIDER_IMAGE_FAILED', providerResult.message || '图片生成接口调用失败', { provider: providerResult.provider });
-  }
-  const persistedResults = await persistProviderImageResults(providerResult.images, providerResult.request);
-
-  const remainingBalance = user.balance - total;
-  const charged = db.prepare('UPDATE users SET balance=? WHERE id=? AND balance=?').run(remainingBalance, user.id, user.balance);
-  if (charged.changes !== 1) {
-    throw integrationError(409, 'BALANCE_CHANGED', '余额状态已变化，请重新生成');
-  }
-  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
-    .run(user.id, 'generation', -total, user.balance, remainingBalance, `AI生图: ${modelKey} x${count}`);
-  const taskRequest = { ...requestContext, body, user: { userId } };
-  const task = createCompletedTask(taskRequest, {
-    prompt: providerPrompt,
-    modelKey,
-    imageCount: count,
-    results: persistedResults,
-    request: providerResult.request,
-    cost: total,
+  const taskRequest = {
+    ...requestContext,
+    body: { ...body, prompt: fullPrompt, modelKey, imageCount: count },
+    user: { ...(requestContext.user || {}), userId },
+    get: typeof requestContext.get === 'function'
+      ? requestContext.get.bind(requestContext)
+      : ((header) => {
+          if (String(header || '').toLowerCase() !== 'idempotency-key') return '';
+          return String(requestContext.headers?.['idempotency-key'] || '');
+        })
+  };
+  const submitted = await submitPersistentGenerationTask(taskRequest, taskRequest.body, {
+    providerPrompt,
     source: 'template-image'
   });
+  const task = await generationTaskService.waitForTerminal(submitted.task.id, 280000);
+  const remainingBalance = Number(db.prepare('SELECT balance FROM users WHERE id=?').get(userId)?.balance || 0);
+  if (!task || ['pending', 'running'].includes(task.status)) {
+    return {
+      success: true,
+      accepted: true,
+      pending: true,
+      asyncPending: true,
+      taskId: submitted.task.id,
+      id: submitted.task.id,
+      status: task?.status || 'pending',
+      progress: persistentTaskProgress(task || submitted.task),
+      totalCost: submitted.task.reservedCost,
+      mock: !!task?.request?.mock,
+      remainingBalance,
+      prompt: providerPrompt,
+      modelKey
+    };
+  }
+  if (task.status !== 'success') {
+    throw integrationError(
+      task.status === 'cancelled' ? 409 : 502,
+      task.errorCode || 'PROVIDER_IMAGE_FAILED',
+      task.errorMessage || '图片生成接口调用失败',
+      { taskId: task.id }
+    );
+  }
   return {
     success: true,
-    mock: !!providerResult.mock,
-    editMode: !!providerResult.editMode,
-    provider: providerResult.provider,
     results: task.images,
     resultImages: task.images,
     images: task.images,
@@ -6413,7 +6819,8 @@ async function executeTemplateImageGeneration(userId, body = {}, requestContext 
     id: task.id,
     status: 'success',
     progress: 100,
-    totalCost: total,
+    totalCost: task.settledCost,
+    mock: !!task.request?.mock,
     remainingBalance,
     prompt: providerPrompt,
     modelKey
@@ -6422,7 +6829,8 @@ async function executeTemplateImageGeneration(userId, body = {}, requestContext 
 
 app.post('/api/template/generate-image', auth, async (req, res, next) => {
   try {
-    res.json(await executeTemplateImageGeneration(req.user.userId, req.body, req));
+    const result = await executeTemplateImageGeneration(req.user.userId, req.body, req);
+    res.status(result.asyncPending ? 202 : 200).json(result);
   } catch (error) {
     if (error.status) {
       return res.status(error.status).json({ success: false, code: error.code || 'IMAGE_GENERATION_FAILED', message: error.message, provider: error.provider });
@@ -7325,6 +7733,7 @@ function generationRows(limit = 100) {
     return {
       id: row.id,
       taskId: row.id,
+      sourceTaskId: row.task_id || '',
       userId: row.user_id,
       username: db.prepare('SELECT username FROM users WHERE id=?').get(row.user_id)?.username || 'local',
       model: row.model_key,
@@ -7944,6 +8353,25 @@ app.delete('/api/admin/route-models/:id', auth, admin, (req, res) => {
   res.json({ success: true, id: req.params.id });
 });
 app.get('/api/admin/generate-tasks', auth, admin, (req, res) => {
+  const persistentTasks = generationTaskService.listTasks(200).map(task => ({
+    ...makePersistentTaskResponse(task),
+    username: db.prepare('SELECT username FROM users WHERE id=?').get(task.userId)?.username || 'local',
+    userId: task.userId,
+    model: task.modelKey,
+    modelDisplayName: task.modelKey,
+    resolvedModel: task.modelKey,
+    promptPreview: String(task.prompt || '').slice(0, 120),
+    promptLength: String(task.prompt || '').length,
+    imageCount: task.imageCount,
+    size: task.request?.size || '',
+    resolvedSize: task.request?.size || '',
+    quality: task.request?.quality || '',
+    chargeStatus: task.billingStatus === 'reserved'
+      ? '已预占'
+      : (task.billingStatus === 'refunded'
+          ? '已退款'
+          : (task.billingStatus === 'partially_settled' ? '部分结算' : '已结算'))
+  }));
   const memoryTasks = Array.from(tasks.values()).map(task => ({
     ...makeTaskResponse(task),
     status: task.status === 'completed' ? 'success' : task.status,
@@ -7965,23 +8393,45 @@ app.get('/api/admin/generate-tasks', auth, admin, (req, res) => {
       : (task.status === 'failed' ? '未完成' : '待结算'),
     finishedAt: task.updatedAt
   }));
-  const rows = [...memoryTasks, ...generationRows(100)];
+  const rows = [
+    ...persistentTasks,
+    ...memoryTasks.filter((task) => !generationTaskRepository.getTask(task.id)),
+    ...generationRows(100).filter((row) => !row.sourceTaskId)
+  ];
   const filtered = String(req.query.status || '') === 'active'
     ? rows
     : rows.filter(row => !req.query.status || row.status === req.query.status);
+  const schedulerSummary = imageRequestScheduler.snapshot();
   const summary = {
     total: filtered.length,
     pending: filtered.filter(t => t.status === 'pending').length,
     running: filtered.filter(t => t.status === 'running').length,
     success: filtered.filter(t => t.status === 'success').length,
     failed: filtered.filter(t => t.status === 'failed').length,
-    queueMode: 'runtime-memory+history',
-    dataScope: '运行时内存任务与 SQLite 生成历史；历史记录未保存线路、尺寸、质量和参考图字段'
+    cancelled: filtered.filter(t => t.status === 'cancelled').length,
+    queueMode: 'persistent-bounded-fair',
+    queue: schedulerSummary,
+    dataScope: 'SQLite 持久任务、兼容期运行时任务与旧生成历史；Provider 失败域和账务状态均来自真实任务记录'
   };
   const payload = pageList(filtered, req);
   res.json({ success: true, ...payload, tasks: payload.items, summary });
 });
 app.post('/api/admin/generate-tasks/:id/cancel', auth, admin, (req, res) => {
+  const persistentTask = generationTaskService.getTask(req.params.id);
+  if (persistentTask) {
+    try {
+      const cancelled = generationTaskService.cancel(req.params.id, {
+        reason: String(req.body.reason || '管理员取消').slice(0, 200)
+      });
+      return res.json({ success: true, ...makePersistentTaskResponse(cancelled) });
+    } catch (error) {
+      return res.status(error.status || 500).json({
+        success: false,
+        code: error.code || 'TASK_CANCEL_FAILED',
+        message: error.message || '取消任务失败'
+      });
+    }
+  }
   const task = tasks.get(req.params.id);
   if (!task) return res.status(404).json({ success: false, code: 'ACTIVE_TASK_NOT_FOUND', message: '未找到可取消的运行时任务' });
   if (!['pending', 'running'].includes(task.status)) {
@@ -7993,6 +8443,19 @@ app.post('/api/admin/generate-tasks/:id/cancel', auth, admin, (req, res) => {
   res.json({ success: true, id: req.params.id, status: 'cancelled' });
 });
 app.delete('/api/admin/generate-tasks/:id', auth, admin, (req, res) => {
+  if (generationTaskService.getTask(req.params.id)) {
+    try {
+      generationTaskRepository.deleteTask(req.params.id);
+      removeGenerationTaskInputs(req.params.id).catch(() => {});
+      return res.json({ success: true, id: req.params.id, source: 'persistent-task' });
+    } catch (error) {
+      return res.status(error.status || 500).json({
+        success: false,
+        code: error.code || 'TASK_DELETE_FAILED',
+        message: error.message || '删除任务失败'
+      });
+    }
+  }
   if (tasks.delete(req.params.id)) {
     return res.json({ success: true, id: req.params.id, source: 'runtime' });
   }

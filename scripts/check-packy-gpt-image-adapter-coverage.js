@@ -53,7 +53,7 @@ assertIncludes('callProviderImageGeneration', generationAdapter, [
   'fetchProviderWithPreTlsRetry',
   'agent: providerImageAgentForUrl(requestUrl)',
   'await runQueuedProviderImageBatch(count, async',
-  "queueMode: 'serial-delayed'",
+  "queueMode: options.bypassProviderQueue ? 'persistent-task-worker' : 'bounded-fair'",
   'queueDelayMs: providerImageRequestDelay(options)'
 ]);
 assertExcludes('callProviderImageGeneration', generationAdapter, [
@@ -91,7 +91,7 @@ assertIncludes('callProviderImageEdit', editAdapter, [
   'referenceImageTotalBytes:',
   'transportMode:',
   'await runQueuedProviderImageBatch(count, async',
-  "queueMode: 'serial-delayed'",
+  "queueMode: options.bypassProviderQueue ? 'persistent-task-worker' : 'bounded-fair'",
   'queueDelayMs: providerImageRequestDelay(options)'
 ]);
 assertExcludes('callProviderImageEdit', editAdapter, [
@@ -128,7 +128,7 @@ assertExcludes('Packy image-group adapter routing', source, [
 
 assertIncludes('Provider image request queue', source, [
   'const IMAGE_PROVIDER_REQUEST_DELAY_MS',
-  'let providerImageRequestQueue = Promise.resolve()',
+  'const imageRequestScheduler = new ImageRequestScheduler',
   'function runQueuedProviderImageRequest',
   'async function runQueuedProviderImageBatch',
   'forceQueueDelay: i > 0'
@@ -246,12 +246,12 @@ const coverage = [
   {
     label: 'Quick generate tasks',
     block: sliceFrom("app.post('/api/generate/tasks'", "app.get('/api/generate/tasks/:id'"),
-    needles: ['buildImageGenerateNodePrompt', 'callProviderImageEdit', 'callProviderImageGeneration', 'persistProviderImageResults(providerResult.images, providerResult.request)']
+    needles: ['submitPersistentGenerationTask', 'makePersistentTaskResponse']
   },
   {
     label: 'Template generate image',
     block: sliceFrom('async function executeTemplateImageGeneration', "app.post('/api/template/generate-image'"),
-    needles: ['callProviderImageEdit', 'callProviderImageGeneration', 'persistProviderImageResults(providerResult.images, providerResult.request)']
+    needles: ['submitPersistentGenerationTask', 'generationTaskService.waitForTerminal']
   },
   {
     label: 'Image tool inpaint/erase/text edit',
@@ -277,6 +277,13 @@ for (const item of coverage) {
 const quickGenerateBlock = sliceFrom("app.post('/api/generate/tasks'", "app.get('/api/generate/tasks/:id'");
 assertExcludes('Quick generate tasks prompt builder', quickGenerateBlock, [
   'buildEcommerceImagePrompt'
+]);
+
+const persistentGenerateBlock = sliceFrom('async function executePersistentGenerationItem', 'const generationTaskService');
+assertIncludes('Persistent generation Provider adapter', persistentGenerateBlock, [
+  'callProviderImageEdit',
+  'callProviderImageGeneration',
+  'persistProviderImageResults(providerResult.images, providerRequestMeta)'
 ]);
 
 assertIncludes('Canvas quick generate ratio contract', canvasSource, [

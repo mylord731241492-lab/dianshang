@@ -6,7 +6,7 @@ const vm = require('vm');
 const serverPath = path.join(__dirname, '..', 'server.js');
 const source = fs.readFileSync(serverPath, 'utf8');
 const start = source.indexOf('const wait = ms =>');
-const end = source.indexOf('let providerImageRequestQueue', start);
+const end = source.indexOf('function notifyProviderImageQueue', start);
 
 assert(start >= 0 && end > start, 'provider pre-TLS retry helper not found');
 

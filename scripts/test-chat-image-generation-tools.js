@@ -167,7 +167,7 @@ async function main() {
         editCalls += 1;
         const multipart = body.toString('latin1');
         editPayloads.push(body.toString('utf8'));
-        assert.match(multipart, /filename="reference\.png"/);
+        assert.match(multipart, /filename="reference(?:-\d+)?\.png"/);
         const fieldNames = [...multipart.matchAll(/Content-Disposition: form-data; name="([^"]+)"/g)].map(match => match[1]);
         if (req.headers.accept === '*/*') {
           assert.match(multipart, /name="image"/);

@@ -161,7 +161,10 @@ async function main() {
     });
     const first = await readJson(firstResponse);
     assert.equal(firstResponse.status, 202, `First image task was not accepted: ${JSON.stringify(first)}`);
-    assert.equal(first.status, 'pending', 'A newly accepted task must be pending until it owns the Provider slot');
+    assert(
+      ['pending', 'running'].includes(first.status),
+      'A newly accepted task must expose whether it is queued or already owns the Provider slot'
+    );
     assert(first.taskId, 'First image task did not return a task id');
 
     const secondResponse = await fetch(`${baseUrl}/api/generate/tasks`, {

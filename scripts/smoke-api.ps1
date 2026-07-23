@@ -53,6 +53,36 @@ $imageRoutes = Invoke-SmokeJson -Method "GET" -Path "/api/model-routes?group=ima
 if (-not $imageRoutes.items -or $imageRoutes.items.Count -lt 1) {
   throw "Image model routes missing"
 }
+$lingsuanRoute = @($imageRoutes.items) | Where-Object { $_.id -eq "pub_route_mr5yltmuc7edcb2b" } | Select-Object -First 1
+if (-not $lingsuanRoute) {
+  throw "lingsuan image route missing"
+}
+$packyRoute = @($imageRoutes.items) | Where-Object { $_.id -eq "pub_route_openai_gpt_image_2" } | Select-Object -First 1
+if (-not $packyRoute) {
+  throw "Packy image route missing"
+}
+$lingsuanExample = @($lingsuanRoute.requestExamples) | Select-Object -First 1
+if ($null -ne $lingsuanExample.body.stream -or $null -ne $lingsuanExample.body.response_format -or $null -ne $lingsuanExample.body.partial_images) {
+  throw "lingsuan image route metadata must omit stream and response extensions"
+}
+$lingsuanEditExample = @($lingsuanRoute.requestExamples) | Select-Object -Skip 1 -First 1
+if ($lingsuanEditExample.body.'image[]' -ne "<file>") {
+  throw "lingsuan image edit metadata must use image[]"
+}
+if ($lingsuanRoute.apiFormat -ne "lingsuan-images" -or $lingsuanRoute.requestFormat -ne "lingsuan-images" -or $lingsuanRoute.imageResponseFormat -ne "b64_json" -or $lingsuanRoute.imageStream -ne $false -or $lingsuanRoute.imagePartialImages -ne 0) {
+  throw "lingsuan image route fields are not canonical official JSON/Base64"
+}
+$packyExample = @($packyRoute.requestExamples) | Select-Object -First 1
+if ($null -ne $packyExample.body.response_format -or $null -ne $packyExample.body.background -or $null -ne $packyExample.body.moderation -or $null -ne $packyExample.body.stream) {
+  throw "Packy image generation metadata must omit unsupported extension fields"
+}
+$packyEditExample = @($packyRoute.requestExamples) | Select-Object -Skip 1 -First 1
+if ($packyEditExample.body.image -ne "<file>" -or $null -ne $packyEditExample.body.'image[]' -or $null -ne $packyEditExample.body.response_format -or $null -ne $packyEditExample.body.input_fidelity) {
+  throw "Packy image edit metadata must use singular image and omit unsupported fields"
+}
+if ($packyRoute.apiFormat -ne "packy-images" -or $packyRoute.requestFormat -ne "packy-images" -or $packyRoute.imageResponseFormat -ne "url" -or $packyRoute.imageStream -ne $false -or $packyRoute.imagePartialImages -ne 0) {
+  throw "Packy image route fields must use the canonical strict image-group adapter"
+}
 $imageRoute = @($imageRoutes.items)[0]
 $imageModel = $imageRoute.defaultModel
 if (-not $imageModel -and $imageRoute.models) {
@@ -97,31 +127,20 @@ if (-not $registered.token) {
 }
 $userHeaders = @{ Authorization = "Bearer $($registered.token)" }
 
-$resetCodeResponse = Invoke-SmokeJson -Method "POST" -Path "/api/auth/send-reset-code" -Body @{
-  email = $registerEmail
+$resetPassword = "reset123456"
+$resetResult = Invoke-SmokeJson -Method "POST" -Path "/api/auth/reset-password" -Body @{
+  username = $registerUser
+  newPassword = $resetPassword
 }
-$realEmailEnabled = @("1", "true", "yes", "on") -contains ([string]$env:ENABLE_REAL_EMAIL).ToLowerInvariant()
-if (-not $resetCodeResponse.code -and -not $realEmailEnabled) {
-  throw "Reset code should be returned in mock email mode"
+if (-not $resetResult.success) {
+  throw "Direct reset password failed"
 }
-if ($resetCodeResponse.code) {
-  $resetPassword = "reset123456"
-  $resetResult = Invoke-SmokeJson -Method "POST" -Path "/api/auth/reset-password" -Body @{
-    email = $registerEmail
-    code = $resetCodeResponse.code
-    newPassword = $resetPassword
-    confirmPassword = $resetPassword
-  }
-  if (-not $resetResult.success) {
-    throw "Reset password failed"
-  }
-  $loginAfterReset = Invoke-SmokeJson -Method "POST" -Path "/api/auth/login" -Body @{
-    username = $registerUser
-    password = $resetPassword
-  }
-  if (-not $loginAfterReset.token) {
-    throw "Login after reset did not return token"
-  }
+$loginAfterReset = Invoke-SmokeJson -Method "POST" -Path "/api/auth/login" -Body @{
+  username = $registerUser
+  password = $resetPassword
+}
+if (-not $loginAfterReset.token) {
+  throw "Login after direct reset did not return token"
 }
 
 $profile = Invoke-SmokeJson -Method "GET" -Path "/api/user/profile" -Headers $userHeaders

@@ -8,15 +8,17 @@ import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { NButton, NInput, NPagination, NTag } from 'naive-ui';
-import { Coins, RefreshCcw, Search, ShieldCheck, Trash2, UserCheck, Users, XCircle } from 'lucide-vue-next';
+import { Coins, RefreshCcw, RotateCcw, Search, ShieldCheck, Trash2, UserCheck, Users } from 'lucide-vue-next';
 import { clearAdminAuthSession } from '../api/adminAuth';
-import { getAdminRecycleBin } from '../api/adminRecycleBin';
+import { getAdminRecycleBin, purgeAdminRecycleUser, restoreAdminRecycleUser } from '../api/adminRecycleBin';
 import { getApiErrorMessage } from '../api/http';
 import type { AdminUser } from '../api/adminUsers';
 
 const router = useRouter();
 const loading = ref(true);
 const errorMessage = ref('');
+const successMessage = ref('');
+const actionLoadingId = ref('');
 const users = ref<AdminUser[]>([]);
 const total = ref(0);
 const page = ref(1);
@@ -40,8 +42,7 @@ const statCards = computed(() => {
     { label: '当前页用户', value: users.value.length, icon: Users },
     { label: '匹配用户', value: visibleUsers.value.length, icon: UserCheck },
     { label: '管理员', value: admins, icon: ShieldCheck },
-    { label: '当前页余额', value: balance, icon: Coins },
-    { label: '写入动作', value: 0, icon: XCircle }
+    { label: '当前页余额', value: balance, icon: Coins }
   ];
 });
 
@@ -79,6 +80,41 @@ async function loadUsers() {
   }
 }
 
+async function restoreUser(user: AdminUser) {
+  if (!window.confirm(`确认恢复用户「${user.username || user.id}」吗？恢复后账号将重新启用。`)) return;
+  actionLoadingId.value = `restore:${user.id}`;
+  errorMessage.value = '';
+  successMessage.value = '';
+  try {
+    await restoreAdminRecycleUser(user.id);
+    await loadUsers();
+    successMessage.value = '用户已恢复并重新启用。';
+  } catch (error) {
+    errorMessage.value = getApiErrorMessage(error, '恢复用户失败');
+  } finally {
+    actionLoadingId.value = '';
+  }
+}
+
+async function purgeUser(user: AdminUser) {
+  const confirmed = window.confirm(
+    `确认永久清理用户「${user.username || user.id}」吗？用户名、邮箱和头像将被匿名化，此操作不能恢复。`
+  );
+  if (!confirmed) return;
+  actionLoadingId.value = `purge:${user.id}`;
+  errorMessage.value = '';
+  successMessage.value = '';
+  try {
+    await purgeAdminRecycleUser(user.id);
+    await loadUsers();
+    successMessage.value = '用户数据已永久匿名化。';
+  } catch (error) {
+    errorMessage.value = getApiErrorMessage(error, '永久清理用户失败');
+  } finally {
+    actionLoadingId.value = '';
+  }
+}
+
 async function logout() {
   clearAdminAuthSession();
   await router.replace('/admin/login');
@@ -89,7 +125,7 @@ onMounted(loadUsers);
 
 <template>
   <AdminPageShell>
-    <AdminPageHeader eyebrow="Recycle Bin" title="回收站" description="只读迁移版：查看已删除用户，不恢复、不永久删除、不匿名化数据。">
+    <AdminPageHeader eyebrow="Recycle Bin" title="回收站" description="查看已删除用户，可恢复账号或永久匿名化用户身份信息。">
       <template #actions>
           <n-button secondary :loading="loading" @click="loadUsers">
             <template #icon><RefreshCcw :size="16" /></template>
@@ -99,17 +135,17 @@ onMounted(loadUsers);
       </template>
     </AdminPageHeader>
 
-    <AdminFeedback :error-message="errorMessage" />
+    <AdminFeedback :error-message="errorMessage" :success-message="successMessage" />
 
       <AdminStatGrid :stats="statCards" label="回收站统计" />
 
       <section class="admin-source-panel admin-recycle-bin-panel">
         <div class="admin-panel-head">
           <div>
-            <p class="eyebrow">Read Only Deleted Users</p>
+            <p class="eyebrow">Deleted User Operations</p>
             <h2>已删除用户</h2>
           </div>
-          <n-tag type="info" :bordered="false">只读</n-tag>
+          <n-tag type="warning" :bordered="false">谨慎操作</n-tag>
         </div>
 
         <AdminToolbar class="admin-recycle-bin-toolbar">
@@ -138,7 +174,15 @@ onMounted(loadUsers);
             <div class="admin-recycle-user-time">
               <span>创建</span>
               <strong>{{ formatDate(user.createdAt || user.created_at) }}</strong>
-              <span>只读，不执行恢复或永久删除</span>
+              <span>可恢复或永久匿名化</span>
+            </div>
+            <div class="admin-card-actions admin-recycle-user-actions">
+              <n-button size="small" secondary :loading="actionLoadingId === `restore:${user.id}`" @click="restoreUser(user)">
+                <template #icon><RotateCcw :size="14" /></template>恢复
+              </n-button>
+              <n-button size="small" tertiary type="error" :loading="actionLoadingId === `purge:${user.id}`" @click="purgeUser(user)">
+                <template #icon><Trash2 :size="14" /></template>永久清理
+              </n-button>
             </div>
           </article>
           <AdminEmptyState v-if="!visibleUsers.length && !loading" message="回收站暂无已删除用户" />

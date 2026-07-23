@@ -82,6 +82,17 @@ interface RawAdminModelPriceListResponse {
   pageSize?: number;
 }
 
+export interface AdminModelPricePayload {
+  modelKey?: string;
+  displayName?: string;
+  realName?: string;
+  price?: number;
+  pricePoints?: number;
+  baseCredits?: number;
+  enabled?: boolean;
+  qualities?: string[];
+}
+
 function flattenModels(routes: AdminModelPriceRoute[]) {
   return routes.flatMap((route) =>
     (route.models || []).map((model) => ({
@@ -110,4 +121,35 @@ export async function getAdminModelPrices(
     page: Number(data.page ?? params.page ?? 1),
     pageSize: Number(data.pageSize ?? params.pageSize ?? (routes.length || 10))
   };
+}
+
+export async function createAdminRouteModel(routeId: string, payload: AdminModelPricePayload) {
+  const response = await http.post<{ success: boolean; item: AdminModelPriceModel }>(
+    `/api/admin/routes/${encodeURIComponent(routeId)}/models`,
+    payload
+  );
+  return response.data;
+}
+
+export async function updateAdminRouteModel(id: string, payload: AdminModelPricePayload) {
+  const response = await http.patch<{ success: boolean; item: AdminModelPriceModel }>(
+    `/api/admin/route-models/${encodeURIComponent(id)}`,
+    payload
+  );
+  return response.data;
+}
+
+export async function setAdminRouteModelEnabled(id: string, enabled: boolean) {
+  const response = await http.patch<{ success: boolean; id: string; enabled: boolean }>(
+    `/api/admin/route-models/${encodeURIComponent(id)}/enabled`,
+    { enabled }
+  );
+  return response.data;
+}
+
+export async function deleteAdminRouteModel(id: string) {
+  const response = await http.delete<{ success: boolean; id: string }>(
+    `/api/admin/route-models/${encodeURIComponent(id)}`
+  );
+  return response.data;
 }

@@ -27,20 +27,26 @@ services:
       ENABLE_REAL_EMAIL: ${ENABLE_REAL_EMAIL:-false}
       ENABLE_REAL_PAYMENT: ${ENABLE_REAL_PAYMENT:-false}
       ENABLE_REAL_STORAGE: ${ENABLE_REAL_STORAGE:-false}
+      ENABLE_LIBRECHAT: ${ENABLE_LIBRECHAT:-false}
+      LIBRECHAT_BRIDGE_SECRET: ${LIBRECHAT_BRIDGE_SECRET:-}
+      LIBRECHAT_SSO_TTL_SECONDS: ${LIBRECHAT_SSO_TTL_SECONDS:-60}
+      LIBRECHAT_INTERNAL_URL: ${LIBRECHAT_INTERNAL_URL:-http://librechat:3080}
       AI_PROVIDER_GATEWAY: ${AI_PROVIDER_GATEWAY:-new-api}
       NEW_API_BASE: ${NEW_API_BASE:-https://your-new-api.example.com/v1}
       NEW_API_KEY: ${NEW_API_KEY:-sk-replace-with-new-api-token}
       PROVIDER_TIMEOUT_MS: ${PROVIDER_TIMEOUT_MS:-120000}
+      ECOMMERCE_TEXT_PROVIDER_TIMEOUT_MS: ${ECOMMERCE_TEXT_PROVIDER_TIMEOUT_MS:-240000}
       IMAGE_PROVIDER_TIMEOUT_MS: ${IMAGE_PROVIDER_TIMEOUT_MS:-180000}
       CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS: ${CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS:-120000}
       IMAGE_PROVIDER_REQUEST_DELAY_MS: ${IMAGE_PROVIDER_REQUEST_DELAY_MS:-1500}
+      LINGSUAN_IMAGE_PROXY_URL: ${LINGSUAN_IMAGE_PROXY_URL:-}
       AI_API_BASE: ${AI_API_BASE:-https://your-provider.example.com/v1}
       AI_IMAGE_KEY: ${AI_IMAGE_KEY:-sk-replace-with-image-key}
       AI_TEXT_KEY: ${AI_TEXT_KEY:-sk-replace-with-text-key}
       AI_IMAGE_MODEL: ${AI_IMAGE_MODEL:-gpt-image-2}
-      AI_TEXT_MODEL: ${AI_TEXT_MODEL:-gpt-5.5}
+      AI_TEXT_MODEL: ${AI_TEXT_MODEL:-gpt-5.6-terra}
     ports:
-      - "${HOST_PORT:-3456}:${PORT:-3456}"
+      - "${APP_HOST_BIND:-0.0.0.0}:${HOST_PORT:-3456}:${PORT:-3456}"
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
@@ -58,3 +64,106 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
+
+  chat-mongodb:
+    profiles: ["chat"]
+    image: mongo:8.0.17
+    container_name: dianshang-chat-mongodb
+    restart: unless-stopped
+    command: mongod --noauth
+    volumes:
+      - chat_mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  librechat:
+    profiles: ["chat"]
+    build:
+      context: ..
+      dockerfile: integrations/librechat/Dockerfile
+      args:
+        HTTP_PROXY: ${LIBRECHAT_BUILD_PROXY:-}
+        HTTPS_PROXY: ${LIBRECHAT_BUILD_PROXY:-}
+        NO_PROXY: ${LIBRECHAT_BUILD_NO_PROXY:-localhost,127.0.0.1}
+    image: dianshang-librechat:v0.8.6-rc1-hjm1
+    container_name: dianshang-librechat
+    restart: unless-stopped
+    depends_on:
+      chat-mongodb:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3080
+      MONGO_URI: mongodb://chat-mongodb:27017/LibreChat
+      DOMAIN_CLIENT: ${CHAT_PUBLIC_ORIGIN:-http://192.168.0.39:3457}/chat
+      DOMAIN_SERVER: ${CHAT_PUBLIC_ORIGIN:-http://192.168.0.39:3457}/chat
+      APP_TITLE: 哈吉米 AI 对话
+      CUSTOM_FOOTER: 哈吉米 AI 内部对话服务
+      CONFIG_PATH: /app/librechat.yaml
+      ENDPOINTS: custom,agents
+      ALLOW_EMAIL_LOGIN: "false"
+      ALLOW_REGISTRATION: "false"
+      ALLOW_SOCIAL_LOGIN: "false"
+      ALLOW_SOCIAL_REGISTRATION: "false"
+      ALLOW_PASSWORD_RESET: "false"
+      SEARCH: "false"
+      HJM_MAIN_APP_INTERNAL_URL: http://app:3456
+      LIBRECHAT_BRIDGE_SECRET: ${LIBRECHAT_BRIDGE_SECRET:-replace-with-32-byte-random-secret}
+      JWT_SECRET: ${LIBRECHAT_JWT_SECRET:-replace-with-32-byte-random-secret}
+      JWT_REFRESH_SECRET: ${LIBRECHAT_JWT_REFRESH_SECRET:-replace-with-another-32-byte-random-secret}
+      CREDS_KEY: ${LIBRECHAT_CREDS_KEY:-replace-with-64-hex-character-key}
+      CREDS_IV: ${LIBRECHAT_CREDS_IV:-replace-with-32-hex-character-iv}
+    volumes:
+      - ../integrations/librechat/librechat.yaml:/app/librechat.yaml:ro
+      - chat_uploads:/app/uploads
+      - chat_images:/app/client/public/images
+      - chat_logs:/app/api/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3080/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  gateway:
+    profiles: ["chat"]
+    image: nginx:1.28.0-alpine
+    container_name: dianshang-internal-gateway
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+      librechat:
+        condition: service_healthy
+    ports:
+      - "${CHAT_GATEWAY_PORT:-3457}:80"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/gateway-health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  chat_mongodb_data:
+  chat_uploads:
+  chat_images:
+  chat_logs:

@@ -4,7 +4,6 @@ import { NButton, NInput, NSelect, useMessage } from 'naive-ui';
 import { ArrowLeft, Copy, ExternalLink, ImageOff, RefreshCcw, Trash2 } from 'lucide-vue-next';
 import { deleteGeneration, getGenerationHistory, type GenerationItem } from '../api/gallery';
 import { getApiErrorMessage } from '../api/http';
-import { legacyUrl } from '../config/legacy';
 
 const message = useMessage();
 const loading = ref(true);
@@ -13,6 +12,7 @@ const items = ref<GenerationItem[]>([]);
 const search = ref('');
 const modelFilter = ref('all');
 const errorMessage = ref('');
+const failedImageKeys = ref<Set<string>>(new Set());
 
 const modelOptions = computed(() => {
   const models = Array.from(new Set(items.value.map((item) => item.model || item.modelKey || '').filter(Boolean)));
@@ -47,6 +47,18 @@ function imageUrl(item: GenerationItem) {
   return item.url || item.imageUrl || item.resultUrl || item.result_url || '';
 }
 
+function imageKey(item: GenerationItem) {
+  return String(item.id || imageUrl(item));
+}
+
+function imageAvailable(item: GenerationItem) {
+  return Boolean(imageUrl(item)) && !failedImageKeys.value.has(imageKey(item));
+}
+
+function markImageFailed(item: GenerationItem) {
+  failedImageKeys.value = new Set([...failedImageKeys.value, imageKey(item)]);
+}
+
 function displayDate(item: GenerationItem) {
   const raw = item.createdAt || item.created_at;
   if (!raw) return '未知时间';
@@ -62,6 +74,7 @@ function friendlyError(error: unknown, fallback: string) {
 async function loadGallery() {
   loading.value = true;
   errorMessage.value = '';
+  failedImageKeys.value = new Set();
   try {
     items.value = await getGenerationHistory();
   } catch (error) {
@@ -109,7 +122,7 @@ onMounted(loadGallery);
         <p class="eyebrow">Gallery</p>
         <h1>图库历史</h1>
       </div>
-      <a class="legacy-link" :href="legacyUrl('/gallery')">旧版页面</a>
+      <span aria-hidden="true"></span>
     </header>
 
     <section class="gallery-toolbar">
@@ -140,9 +153,12 @@ onMounted(loadGallery);
 
     <section v-else-if="filteredItems.length" class="gallery-grid">
       <article v-for="item in filteredItems" :key="item.id" class="gallery-card">
-        <a class="gallery-image" :href="imageUrl(item)" target="_blank">
-          <img v-if="imageUrl(item)" :src="imageUrl(item)" alt="" />
-          <span v-else><ImageOff :size="26" /></span>
+        <a class="gallery-image" :href="imageAvailable(item) ? imageUrl(item) : undefined" :target="imageAvailable(item) ? '_blank' : undefined">
+          <img v-if="imageAvailable(item)" :src="imageUrl(item)" alt="" @error="markImageFailed(item)" />
+          <span v-else class="gallery-image-placeholder">
+            <ImageOff :size="26" />
+            <small>{{ imageUrl(item) ? '历史图片源已失效' : '暂无图片' }}</small>
+          </span>
         </a>
         <div class="gallery-card-body">
           <div>
@@ -168,10 +184,11 @@ onMounted(loadGallery);
               <template #icon><Copy :size="14" /></template>
               复制
             </n-button>
-            <n-button size="small" secondary tag="a" :href="imageUrl(item)" target="_blank">
+            <n-button v-if="imageAvailable(item)" size="small" secondary tag="a" :href="imageUrl(item)" target="_blank">
               <template #icon><ExternalLink :size="14" /></template>
               打开
             </n-button>
+            <n-button v-else size="small" secondary disabled>图片不可用</n-button>
             <n-button size="small" tertiary type="error" :loading="deletingId === item.id" @click="removeItem(item)">
               <template #icon><Trash2 :size="14" /></template>
               删除

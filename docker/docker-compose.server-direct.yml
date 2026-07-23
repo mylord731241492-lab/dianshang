@@ -1,0 +1,5 @@
+services:
+  app:
+    environment:
+      # 目标服务器直接访问图片中转，不依赖宿主机 Clash 或其他 CONNECT 代理。
+      LINGSUAN_IMAGE_PROXY_URL: ""

@@ -7,7 +7,7 @@ import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
 import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { NButton } from 'naive-ui';
+import { NAlert, NButton } from 'naive-ui';
 import { Activity, BarChart3, Coins, Image, RefreshCcw, Route, Trophy, Users } from 'lucide-vue-next';
 import { getAdminCreditRanking, getAdminDashboard, type AdminDashboardResponse, type AdminRankingUser } from '../api/adminDashboard';
 import { clearAdminAuthSession } from '../api/adminAuth';
@@ -80,7 +80,7 @@ onMounted(loadDashboard);
 
 <template>
   <AdminPageShell>
-    <AdminPageHeader eyebrow="Admin Dashboard" title="控制台 Dashboard" description="系统概览、模型使用、线路统计和用户排行">
+    <AdminPageHeader eyebrow="Admin Dashboard" title="控制台 Dashboard" description="只展示数据库中可追溯的系统概览、模型使用和用户排行">
       <template #actions>
           <n-button secondary :loading="loading" @click="loadDashboard">
             <template #icon><RefreshCcw :size="16" /></template>
@@ -91,6 +91,10 @@ onMounted(loadDashboard);
     </AdminPageHeader>
 
     <AdminFeedback :error-message="errorMessage" />
+
+      <n-alert v-if="dashboard?.dataQuality?.message" type="info" :bordered="false">
+        {{ dashboard.dataQuality.message }}
+      </n-alert>
 
       <AdminStatGrid :stats="statCards" label="后台统计" />
 
@@ -113,7 +117,7 @@ onMounted(loadDashboard);
               <small>{{ formatNumber(route.totalCount) }} 次 · 失败 {{ formatNumber(route.failCount) }}</small>
               <strong>{{ formatNumber(route.totalCredits) }}</strong>
             </div>
-            <AdminEmptyState v-if="!routeUsage.length" message="暂无线路统计" />
+            <AdminEmptyState v-if="!routeUsage.length" message="历史生成记录未保存线路字段，暂不提供线路统计" />
           </div>
         </AdminPanel>
       </section>

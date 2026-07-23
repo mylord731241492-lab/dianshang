@@ -594,3 +594,25 @@ html.hjm-image-tool-window-dragging .image-edit-overlay[data-hjm-panel-window="t
 html.hjm-image-tool-window-resizing .image-edit-overlay[data-hjm-panel-window="true"] {
   will-change: transform, width, height !important;
 }
+
+/* 2026-07-21: enlarge the image-generation prompt editor for legibility. */
+.vue-flow .image-prompt-generate-node {
+  width: min(480px, calc(100vw - 64px)) !important;
+}
+
+.vue-flow .image-prompt-generate-node .prompt-input {
+  min-height: 168px !important;
+  padding: 14px 16px !important;
+  color: #18181b !important;
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  line-height: 1.8 !important;
+  letter-spacing: 0.01em !important;
+  caret-color: #f97316 !important;
+}
+
+.vue-flow .image-prompt-generate-node .prompt-input::placeholder {
+  color: #8b8b96 !important;
+  font-weight: 500 !important;
+}

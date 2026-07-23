@@ -28,3 +28,10 @@ Thumbs.db
 coverage/
 dist/
 build/
+
+# Local diagnostics, generated artifacts, and runtime data
+.scratch/
+output/
+outputs/
+workflows/
+data.db.backup-*

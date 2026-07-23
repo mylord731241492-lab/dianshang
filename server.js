@@ -7,8 +7,13 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const https = require('https');
 const Database = require('better-sqlite3');
 const multer = require('multer');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
+const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
+const { z } = require('zod');
 
 const envPath = path.join(__dirname, '.env');
 if (fs.existsSync(envPath)) {
@@ -58,7 +63,7 @@ const AI_API_BASE = process.env.AI_API_BASE || 'https://api.openai.com/v1';
 const AI_IMAGE_KEY = process.env.AI_IMAGE_KEY || process.env.AI_API_KEY || 'sk-';
 const AI_TEXT_KEY = process.env.AI_TEXT_KEY || process.env.AI_API_KEY || 'sk-';
 const AI_IMAGE_MODEL = process.env.AI_IMAGE_MODEL || 'gpt-image-2';
-const AI_TEXT_MODEL = process.env.AI_TEXT_MODEL || 'gpt-5.5';
+const AI_TEXT_MODEL = process.env.AI_TEXT_MODEL || 'gpt-5.6-terra';
 const AI_PROVIDER_GATEWAY = process.env.AI_PROVIDER_GATEWAY || 'new-api';
 const NEW_API_BASE = process.env.NEW_API_BASE || AI_API_BASE;
 const NEW_API_KEY = process.env.NEW_API_KEY || process.env.AI_API_KEY || AI_TEXT_KEY;
@@ -67,8 +72,14 @@ const positiveNumber = (value, fallback) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 const PROVIDER_TIMEOUT_MS = positiveNumber(process.env.PROVIDER_TIMEOUT_MS, 120000);
+const ECOMMERCE_TEXT_PROVIDER_TIMEOUT_MS = positiveNumber(process.env.ECOMMERCE_TEXT_PROVIDER_TIMEOUT_MS, 240000);
 const IMAGE_PROVIDER_TIMEOUT_MS = positiveNumber(process.env.IMAGE_PROVIDER_TIMEOUT_MS || process.env.PROVIDER_IMAGE_TIMEOUT_MS, 180000);
+const PACKY_IMAGE_PROVIDER_TIMEOUT_MS = positiveNumber(process.env.PACKY_IMAGE_PROVIDER_TIMEOUT_MS, 360000);
 const CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS = positiveNumber(process.env.CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS || process.env.PROVIDER_ANALYSIS_TIMEOUT_MS, PROVIDER_TIMEOUT_MS);
+const IMAGE_PROXY_MAX_BYTES = Math.min(positiveNumber(process.env.IMAGE_PROXY_MAX_BYTES, 20 * 1024 * 1024), 30 * 1024 * 1024);
+const IMAGE_PROXY_MAX_REDIRECTS = 3;
+const ALLOW_PRIVATE_PROVIDER_IMAGE_PERSIST = !IS_PRODUCTION && ['1','true','yes','on']
+  .includes(String(process.env.ALLOW_PRIVATE_PROVIDER_IMAGE_PERSIST || '').toLowerCase());
 const IMAGE_PROVIDER_REQUEST_DELAY_MS = Math.min(
   positiveNumber(
     process.env.IMAGE_PROVIDER_REQUEST_DELAY_MS ||
@@ -89,11 +100,18 @@ const ENABLE_REAL_EMAIL = ['1','true','yes','on'].includes(String(process.env.EN
 const ENABLE_REAL_PAYMENT = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_PAYMENT || '').toLowerCase());
 const ENABLE_REAL_STORAGE = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_STORAGE || '').toLowerCase());
 const REQUIRE_REGISTER_EMAIL_CODE = ['1','true','yes','on'].includes(String(process.env.REQUIRE_REGISTER_EMAIL_CODE || '').toLowerCase());
+const ENABLE_LIBRECHAT = ['1','true','yes','on'].includes(String(process.env.ENABLE_LIBRECHAT || '').toLowerCase());
+const LIBRECHAT_BRIDGE_SECRET = String(process.env.LIBRECHAT_BRIDGE_SECRET || '').trim();
+const LIBRECHAT_SSO_TTL_SECONDS = Math.max(30, Math.min(Number(process.env.LIBRECHAT_SSO_TTL_SECONDS || 60) || 60, 300));
+const LIBRECHAT_INTERNAL_URL = String(process.env.LIBRECHAT_INTERNAL_URL || 'http://librechat:3080').trim().replace(/\/$/, '');
 const hasUsableKey = (key = '') => /^sk-[A-Za-z0-9_\-]{12,}/.test(String(key || ''));
 const hasConfiguredSecret = (key = '') => {
   const value = String(key || '').trim();
   return value.length >= 12 && !/replace|your-|填|占位|sk-$|^sk-replace/i.test(value);
 };
+if (IS_PRODUCTION && ENABLE_LIBRECHAT && !hasConfiguredSecret(LIBRECHAT_BRIDGE_SECRET)) {
+  failStartup('启用 LibreChat 时必须配置长度至少 12 位且非占位值的 LIBRECHAT_BRIDGE_SECRET。');
+}
 
 const app = express();
 const corsOptions = CORS_ORIGINS.length && !CORS_ORIGINS.includes('*')
@@ -237,6 +255,68 @@ db.exec(`
     value TEXT NOT NULL,
     updated_at TEXT DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS chat_sso_tickets (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    used_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_chat_sso_tickets_expiry ON chat_sso_tickets(expires_at);
+  CREATE TABLE IF NOT EXISTS chat_text_charges (
+    request_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    model_key TEXT NOT NULL,
+    cost REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'reserved',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_chat_text_charges_user ON chat_text_charges(user_id, created_at);
+  CREATE TABLE IF NOT EXISTS chat_text_steps (
+    request_id TEXT NOT NULL,
+    step_hash TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'reserved',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (request_id, step_hash)
+  );
+  CREATE INDEX IF NOT EXISTS idx_chat_text_steps_request ON chat_text_steps(request_id, created_at);
+  CREATE TABLE IF NOT EXISTS chat_image_quotes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    request_json TEXT NOT NULL,
+    confirmation_hash TEXT NOT NULL,
+    origin_message_id TEXT NOT NULL,
+    cost REAL NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    used_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_chat_image_quotes_user ON chat_image_quotes(user_id, expires_at);
+  CREATE TABLE IF NOT EXISTS chat_image_plans (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    conversation_id TEXT NOT NULL DEFAULT '',
+    plan_json TEXT NOT NULL,
+    confirmation_hash TEXT NOT NULL,
+    origin_message_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    confirmed_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_chat_image_plans_conversation ON chat_image_plans(user_id, conversation_id, created_at);
+  CREATE TABLE IF NOT EXISTS chat_managed_conversations (
+    user_id TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, conversation_id)
+  );
 `);
 
 // Seed
@@ -376,19 +456,22 @@ const IMG = [
   {k:"gpt-image-2",n:"GPT Image 2",p:10,q:["1k","2k","4k"]},
 ];
 const TXT = [
-  {k:"gpt-5.5",n:"GPT 5.5",p:5,q:["1k"]},
+  {k:"gpt-5.6-terra",n:"GPT 5.6 Terra",p:5,q:["1k"]},
 ];
+const LEGACY_TEXT_MODEL_KEYS = new Set(['gpt-5.5', 'gpt-5.6']);
+const LINGSUAN_IMAGES_API_FORMAT = 'lingsuan-images';
+const PACKY_IMAGES_API_FORMAT = 'packy-images';
 const RTS = [
-  {id:"pub_route_openai_gpt_image_2",rk:"route_openai_gpt_image_2",dn:"PackyAPI GPT Image 2",cat:"image",g:"image",pri:10,def:true,dm:"gpt-image-2",apiFormat:"openai-images",requestFormat:"packy-openai-images-generations",endpoint:"/v1/images/generations",requestExamples:[
-    {label:"文生图",method:"POST",endpoint:"/v1/images/generations",contentType:"application/json",requestFormat:"packy-openai-images-generations",body:{model:"gpt-image-2",prompt:"string",size:"1024x1024",quality:"high",background:"auto",output_format:"png",moderation:"auto",response_format:"url",n:1}},
-    {label:"图生图 / 局部重绘",method:"POST",endpoint:"/v1/images/edits",contentType:"multipart/form-data",requestFormat:"packy-openai-images-edits",body:{model:"gpt-image-2",image:"<file>",mask:"<file optional>",prompt:"string",size:"1024x1024",quality:"high",background:"auto",output_format:"png",moderation:"auto",response_format:"url",input_fidelity:"high",n:1}}
+  {id:"pub_route_openai_gpt_image_2",rk:"route_openai_gpt_image_2",dn:"PackyAPI GPT Image 2",cat:"image",g:"image",pri:10,def:true,dm:"gpt-image-2",apiFormat:PACKY_IMAGES_API_FORMAT,requestFormat:PACKY_IMAGES_API_FORMAT,endpoint:"/v1/images/generations",imageResponseFormat:"url",imageStream:false,imagePartialImages:0,requestExamples:[
+    {label:"文生图",method:"POST",endpoint:"/v1/images/generations",contentType:"application/json",requestFormat:PACKY_IMAGES_API_FORMAT,body:{model:"gpt-image-2",prompt:"string",size:"1024x1024",quality:"high",output_format:"png",n:1}},
+    {label:"图生图 / 局部重绘",method:"POST",endpoint:"/v1/images/edits",contentType:"multipart/form-data",requestFormat:PACKY_IMAGES_API_FORMAT,body:{model:"gpt-image-2",image:"<file>",mask:"<file optional>",prompt:"string",size:"1024x1024",quality:"high",output_format:"png",n:1}}
   ]},
-  {id:"pub_route_mr5yltmuc7edcb2b",rk:"lignsuan-guanzhuan",name:"lingsuan-专线",displayName:"官转gpt-img2",dn:"官转gpt-img2",cat:"image",g:"image",pri:1,def:false,dm:"gpt-image-2",apiFormat:"openai",requestFormat:"packy-openai-images-edits",baseUrl:"https://lingsuan.top",endpoint:"/images/edits",imageEndpoint:"/v1/images/generations",imageEditEndpoint:"/v1/images/edits",requestExamples:[
-    {label:"文生图",method:"POST",endpoint:"/v1/images/generations",contentType:"application/json",requestFormat:"packy-openai-images-generations",body:{model:"gpt-image-2",prompt:"string",size:"1024x1024",quality:"high",background:"auto",output_format:"png",moderation:"auto",response_format:"url",n:1}},
-    {label:"图生图 / 局部重绘",method:"POST",endpoint:"/v1/images/edits",contentType:"multipart/form-data",requestFormat:"packy-openai-images-edits",body:{model:"gpt-image-2",image:"<file>",mask:"<file optional>",prompt:"string",size:"1024x1024",quality:"high",background:"auto",output_format:"png",moderation:"auto",response_format:"url",input_fidelity:"high",n:1}}
+  {id:"pub_route_mr5yltmuc7edcb2b",rk:"lignsuan-guanzhuan",name:"lingsuan-专线",displayName:"官转gpt-img2",dn:"官转gpt-img2",cat:"image",g:"image",pri:1,def:false,dm:"gpt-image-2",apiFormat:LINGSUAN_IMAGES_API_FORMAT,requestFormat:LINGSUAN_IMAGES_API_FORMAT,baseUrl:"https://lingsuan.top",endpoint:"/v1/images/generations",requestPath:"/v1/images/generations",imageEndpoint:"/v1/images/generations",imageEditEndpoint:"/v1/images/edits",imageResponseFormat:"b64_json",imageStream:false,imagePartialImages:0,requestExamples:[
+    {label:"文生图",method:"POST",endpoint:"/v1/images/generations",contentType:"application/json",requestFormat:LINGSUAN_IMAGES_API_FORMAT,body:{model:"gpt-image-2",prompt:"string",size:"1024x1024",quality:"high",output_format:"png",n:1}},
+    {label:"图生图 / 局部重绘",method:"POST",endpoint:"/v1/images/edits",contentType:"multipart/form-data",requestFormat:LINGSUAN_IMAGES_API_FORMAT,body:{model:"gpt-image-2","image[]":"<file>",prompt:"string",size:"1024x1024",quality:"high",output_format:"png",n:1}}
   ]},
-  {id:"pub_route_openai_gpt_5_5",rk:"route_openai_gpt_5_5",dn:"GPT 5.5 官转",cat:"text",g:"text",pri:9,dm:"gpt-5.5",apiFormat:"openai-responses",requestFormat:"openai-responses",endpoint:"/responses",requestExamples:[
-    {label:"文本生成",method:"POST",endpoint:"/responses",contentType:"application/json",requestFormat:"openai-responses",body:{model:"gpt-5.5",input:"string"}}
+  {id:"pub_route_openai_gpt_5_5",rk:"route_openai_gpt_5_5",dn:"GPT 5.6 Terra 官转",cat:"text",g:"text",pri:9,dm:"gpt-5.6-terra",apiFormat:"openai-responses",requestFormat:"openai-responses",endpoint:"/responses",requestExamples:[
+    {label:"文本生成",method:"POST",endpoint:"/responses",contentType:"application/json",requestFormat:"openai-responses",body:{model:"gpt-5.6-terra",input:"string"}}
   ]},
 ];
 const TMPL = JSON.parse(fs.readFileSync(path.join(__dirname,'template-data.json'),'utf8'));
@@ -517,6 +600,110 @@ const defaultAdminSettings = {
   ecommerceSuiteAgent: defaultEcommerceSuiteAgent
 };
 
+const defaultManagedChatAgents = [
+  {
+    id: 'ecommerce-main-image',
+    name: '电商主图设计师',
+    description: '提炼卖点、规划构图，并通过网站生图工具完成商品主图。',
+    instructions: '你是面向普通用户的电商主图设计师。你必须先真正读取用户上传的全部图片和文字要求，再自由生成完整的设计方案与生图提示词，不得套用通用商品模板。每张图片承担什么作用完全以用户提示词为准，不得固定“图1是产品、图2是排版”；必须明确说明你实际采用的参考关系。方案工具中的文案字段只是把你识别或拟定的上图文字拆成可编辑表格，不能代替完整方案。用户修改并确认表格后，你必须结合原始方案和最终文案重新生成一份完整生图提示词，再创建报价；只有用户下一条消息确认报价后才能生图。生成完成后主动询问是否修改，并继续复用当前会话的参考图、方案和上一版结果。',
+    model: 'gpt-5.6-terra',
+    enabled: true,
+    skillsEnabled: true,
+    imageToolsEnabled: true
+  },
+  {
+    id: 'product-detail-planner',
+    name: '商品详情页策划',
+    description: '规划详情页结构、卖点顺序、文案和配图需求。',
+    instructions: '你是商品详情页策划师。根据商品资料输出可执行的详情页结构，包含用户痛点、核心卖点、信任证明、规格信息和行动引导；信息不足时先提问，不编造商品数据。',
+    model: 'gpt-5.6-terra',
+    enabled: true,
+    skillsEnabled: true,
+    imageToolsEnabled: true
+  },
+  {
+    id: 'xiaohongshu-copywriter',
+    name: '小红书种草助手',
+    description: '生成贴近目标人群的小红书标题、正文与配图思路。',
+    instructions: '你是小红书电商内容助手。围绕真实商品卖点和使用场景创作标题、正文、话题和配图建议，语言自然具体，避免虚假承诺和夸大功效。',
+    model: 'gpt-5.6-terra',
+    enabled: true,
+    skillsEnabled: true,
+    imageToolsEnabled: true
+  },
+  {
+    id: 'promotion-poster-designer',
+    name: '促销海报设计师',
+    description: '设计活动海报的信息层级、视觉方向与生成提示词。',
+    instructions: '你是促销海报设计师。先核对活动主题、优惠规则、商品、渠道和尺寸，再输出信息层级、视觉方向和可直接生图的提示词。需要生成图片时，先报价并等待用户确认。',
+    model: 'gpt-5.6-terra',
+    enabled: true,
+    skillsEnabled: true,
+    imageToolsEnabled: true
+  }
+];
+
+const defaultAdminChatSettings = {
+  accessEnabled: true,
+  textChatEnabled: true,
+  imageToolsEnabled: true,
+  allowedModels: TXT.map(item => item.k),
+  maintenanceMessage: 'AI 对话服务正在维护，请稍后再试。',
+  managedAgents: defaultManagedChatAgents
+};
+
+function textRouteModelKey(route = {}) {
+  return String(
+    route.dm ||
+    route.defaultModelKey ||
+    route.defaultModelRealName ||
+    route.defaultTextModel ||
+    route.requestBodyExample?.model ||
+    AI_TEXT_MODEL
+  ).trim();
+}
+
+function textModelDisplayName(modelKey = '', route = {}) {
+  const explicit = String(route.defaultModelDisplayName || '').trim();
+  if (explicit && !/GPT\s*5\.5/i.test(explicit)) return explicit;
+  if (modelKey === 'gpt-5.6-terra') return 'GPT 5.6 Terra';
+  return modelKey || '文本模型';
+}
+
+function configuredChatModels() {
+  let routes = [];
+  try {
+    routes = routeState().filter(route =>
+      routeKind(route) === 'text' && route.enabled !== false && route.status !== 'disabled'
+    );
+  } catch (_) {
+    routes = [];
+  }
+  const seen = new Set();
+  const models = routes.reduce((items, route) => {
+    const key = textRouteModelKey(route);
+    if (!key || seen.has(key)) return items;
+    seen.add(key);
+    items.push({ k: key, n: textModelDisplayName(key, route), p: 5, q: ['1k'] });
+    return items;
+  }, []);
+  return models.length > 0 ? models : TXT;
+}
+
+function normalizeRequestedChatModelKey(value = '', models = configuredChatModels()) {
+  const requested = String(value || '').trim();
+  const known = new Set(models.map(item => item.k));
+  if (known.has(requested)) return requested;
+  if (!requested || LEGACY_TEXT_MODEL_KEYS.has(requested)) return models[0]?.k || TXT[0]?.k || AI_TEXT_MODEL;
+  return '';
+}
+
+function resolveTextProviderModel(value = '', route = {}) {
+  const requested = String(value || '').trim();
+  if (!requested || LEGACY_TEXT_MODEL_KEYS.has(requested)) return textRouteModelKey(route);
+  return requested;
+}
+
 function cleanSettingKey(value = '', fallback = '') {
   const raw = String(value || '').trim().toLowerCase();
   const normalized = raw.replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -603,6 +790,52 @@ function normalizeAdminSettings(settings = {}) {
   };
 }
 
+function normalizeManagedChatAgent(agent = {}, index = 0) {
+  const source = agent && typeof agent === 'object' ? agent : {};
+  const fallback = defaultManagedChatAgents[index] || {};
+  const models = configuredChatModels();
+  const model = normalizeRequestedChatModelKey(source.model || fallback.model, models);
+  return {
+    id: cleanSettingKey(source.id || fallback.id, `managed-agent-${index + 1}`),
+    name: String(source.name || fallback.name || `智能体 ${index + 1}`).trim().slice(0, 48),
+    description: String(source.description || fallback.description || '').trim().slice(0, 180),
+    instructions: String(source.instructions || fallback.instructions || '').trim().slice(0, 6000),
+    model: model || models[0]?.k || TXT[0]?.k || AI_TEXT_MODEL,
+    enabled: source.enabled !== false,
+    skillsEnabled: source.skillsEnabled !== false,
+    imageToolsEnabled: source.imageToolsEnabled !== false
+  };
+}
+
+function normalizeManagedChatAgents(value) {
+  const source = Array.isArray(value) ? value : defaultManagedChatAgents;
+  const seen = new Set();
+  return source.slice(0, 12).reduce((items, agent, index) => {
+    const normalized = normalizeManagedChatAgent(agent, index);
+    if (!normalized.name || !normalized.instructions || seen.has(normalized.id)) return items;
+    seen.add(normalized.id);
+    items.push(normalized);
+    return items;
+  }, []);
+}
+
+function normalizeAdminChatSettings(settings = {}) {
+  const source = settings && typeof settings === 'object' ? settings : {};
+  const models = configuredChatModels();
+  const allowedModels = Array.isArray(source.allowedModels)
+    ? source.allowedModels.map(value => normalizeRequestedChatModelKey(value, models)).filter(Boolean)
+    : models.map(item => item.k);
+  return {
+    ...defaultAdminChatSettings,
+    accessEnabled: source.accessEnabled !== false,
+    textChatEnabled: source.textChatEnabled !== false,
+    imageToolsEnabled: source.imageToolsEnabled !== false,
+    allowedModels: allowedModels.length > 0 ? Array.from(new Set(allowedModels)) : models.map(item => item.k),
+    maintenanceMessage: String(source.maintenanceMessage || defaultAdminChatSettings.maintenanceMessage).trim().slice(0, 240),
+    managedAgents: normalizeManagedChatAgents(source.managedAgents)
+  };
+}
+
 const routeState = () => ensureState('admin.apiProviders', RTS);
 const saveRouteState = (routes) => writeState('admin.apiProviders', routes);
 const userApiPreferenceState = () => ensureState('user.apiPreferences', {});
@@ -611,12 +844,176 @@ const templateWorkflowState = () => ensureState('admin.templateWorkflows', TMPL)
 const saveTemplateWorkflowState = (value) => writeState('admin.templateWorkflows', value);
 const settingsState = () => normalizeAdminSettings(ensureState('admin.settings', defaultAdminSettings));
 const saveSettingsState = (value) => writeState('admin.settings', normalizeAdminSettings(value));
+const chatSettingsState = () => normalizeAdminChatSettings(ensureState('admin.chatSettings', defaultAdminChatSettings));
+const saveChatSettingsState = (value) => writeState('admin.chatSettings', normalizeAdminChatSettings(value));
 const modelPriceState = () => ensureState('admin.modelPrices', []);
 const saveModelPriceState = (value) => writeState('admin.modelPrices', value);
+
+function allowedChatModels(settings = chatSettingsState()) {
+  const allowed = new Set(settings.allowedModels || []);
+  return configuredChatModels().filter(item => allowed.has(item.k));
+}
+
+const ECOMMERCE_MAIN_IMAGE_AGENT_ID = 'ecommerce-main-image';
+const CHAT_TEXT_MODEL_ROUTE_SYNC_MIGRATION_KEY = 'migration.chatTextModelRouteSync.v2';
+const ECOMMERCE_MAIN_IMAGE_WORKFLOW_MIGRATION_KEY = 'migration.ecommerceMainImageWorkflow.v2';
+
+function migrateChatTextModelsToConfiguredRoute() {
+  if (readState(CHAT_TEXT_MODEL_ROUTE_SYNC_MIGRATION_KEY, null)) return;
+  const configuredModel = configuredChatModels()[0]?.k || TXT[0]?.k || AI_TEXT_MODEL;
+  const current = ensureState('admin.chatSettings', defaultAdminChatSettings);
+  const managedAgents = (Array.isArray(current?.managedAgents) ? current.managedAgents : defaultManagedChatAgents)
+    .map(agent => {
+      const currentModel = String(agent?.model || '').trim();
+      if (agent?.id === ECOMMERCE_MAIN_IMAGE_AGENT_ID || LEGACY_TEXT_MODEL_KEYS.has(currentModel)) {
+        return { ...agent, model: configuredModel };
+      }
+      return agent;
+    });
+  saveChatSettingsState({
+    ...current,
+    allowedModels: Array.from(new Set([...(current?.allowedModels || []), configuredModel])),
+    managedAgents
+  });
+  writeState(CHAT_TEXT_MODEL_ROUTE_SYNC_MIGRATION_KEY, {
+    model: configuredModel,
+    migratedAt: new Date().toISOString()
+  });
+}
+
+migrateChatTextModelsToConfiguredRoute();
+
+function migrateEcommerceMainImageWorkflowV2() {
+  if (readState(ECOMMERCE_MAIN_IMAGE_WORKFLOW_MIGRATION_KEY, null)) return;
+  const current = ensureState('admin.chatSettings', defaultAdminChatSettings);
+  const workflowDefaults = defaultManagedChatAgents.find(agent => agent.id === ECOMMERCE_MAIN_IMAGE_AGENT_ID);
+  const managedAgents = (Array.isArray(current?.managedAgents) ? current.managedAgents : defaultManagedChatAgents)
+    .map(agent => agent?.id === ECOMMERCE_MAIN_IMAGE_AGENT_ID
+      ? {
+          ...agent,
+          description: workflowDefaults.description,
+          instructions: workflowDefaults.instructions,
+          model: configuredChatModels()[0]?.k || TXT[0]?.k || AI_TEXT_MODEL,
+          skillsEnabled: true,
+          imageToolsEnabled: true
+        }
+      : agent);
+  saveChatSettingsState({ ...current, managedAgents });
+  writeState(ECOMMERCE_MAIN_IMAGE_WORKFLOW_MIGRATION_KEY, {
+    agentId: ECOMMERCE_MAIN_IMAGE_AGENT_ID,
+    migratedAt: new Date().toISOString()
+  });
+}
+
+migrateEcommerceMainImageWorkflowV2();
 
 function findRouteByAnyId(id) {
   const routes = routeState();
   return routes.find(r => [r.id, r.routeId, r.lineId, r.rk, r.routeKey, r.lineKey, r.code].includes(id)) || routes[0] || RTS[0];
+}
+
+function timingSafeEqualText(left, right) {
+  const a = Buffer.from(String(left || ''), 'utf8');
+  const b = Buffer.from(String(right || ''), 'utf8');
+  return a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b);
+}
+
+function integrationOpenAiErrorPayload(code, message, extra = {}) {
+  return {
+    success: false,
+    ...extra,
+    code,
+    message,
+    error: {
+      message,
+      type: code === 'INSUFFICIENT_BALANCE' ? 'insufficient_quota' : 'invalid_request_error',
+      param: null,
+      code
+    }
+  };
+}
+
+function sendIntegrationErrorResponse(res, status, code, message, extra = {}) {
+  return res.status(status).json(integrationOpenAiErrorPayload(code, message, extra));
+}
+
+function integrationServiceAuth(req, res, next) {
+  if (!ENABLE_LIBRECHAT) {
+    return sendIntegrationErrorResponse(res, 404, 'LIBRECHAT_DISABLED', 'AI 对话服务暂未启用');
+  }
+  const chatSettings = chatSettingsState();
+  if (!chatSettings.accessEnabled) {
+    return sendIntegrationErrorResponse(res, 503, 'LIBRECHAT_MAINTENANCE', chatSettings.maintenanceMessage);
+  }
+  const authorization = String(req.headers.authorization || '');
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+  if (!timingSafeEqualText(token, LIBRECHAT_BRIDGE_SECRET)) {
+    return sendIntegrationErrorResponse(res, 401, 'INTEGRATION_AUTH_INVALID', '内部服务认证失败');
+  }
+  next();
+}
+
+function integrationReferenceImages(req) {
+  const raw = String(req.headers['x-chat-reference-images'] || '').trim();
+  if (!raw || raw.length > 8192) return [];
+  try {
+    let serialized = raw;
+    if (raw.startsWith('b64url:')) {
+      const encoded = raw.slice('b64url:'.length);
+      if (!encoded || !/^[A-Za-z0-9_-]+$/.test(encoded)) return [];
+      serialized = Buffer.from(encoded, 'base64url').toString('utf8');
+    }
+    if (Buffer.byteLength(serialized, 'utf8') > 8192) return [];
+    const values = JSON.parse(serialized);
+    if (!Array.isArray(values)) return [];
+    return values
+      .map(value => String(value || '').trim())
+      .filter(Boolean)
+      .slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
+function integrationUser(req, res, next) {
+  const rawExternalId = String(req.headers['x-chat-user-id'] || '').trim();
+  const email = String(req.headers['x-chat-user-email'] || '').trim().toLowerCase();
+  const userId = rawExternalId.startsWith('hjm:') ? rawExternalId.slice(4) : rawExternalId;
+  if (!userId || !email) {
+    return sendIntegrationErrorResponse(res, 401, 'INTEGRATION_USER_REQUIRED', '缺少聊天用户身份');
+  }
+  const user = db.prepare("SELECT * FROM users WHERE id=? AND lower(email)=? AND status='active'").get(userId, email);
+  if (!user) {
+    return sendIntegrationErrorResponse(res, 401, 'INTEGRATION_USER_NOT_FOUND', '聊天用户身份不匹配、不存在或已停用');
+  }
+  req.integrationUser = user;
+  req.integrationMessageId = String(req.headers['x-chat-message-id'] || req.body?.messageId || '').trim();
+  req.integrationConversationId = String(req.headers['x-chat-conversation-id'] || req.body?.conversationId || '').trim().slice(0, 160);
+  req.integrationReferenceImages = integrationReferenceImages(req);
+  const suppliedAgentId = cleanSettingKey(req.headers['x-chat-agent-id'] || req.body?.hjmManagedAgentId || '', '').slice(0, 80);
+  const knownAgentIds = new Set(chatSettingsState().managedAgents.map(agent => agent.id));
+  const validSuppliedAgentId = knownAgentIds.has(suppliedAgentId) ? suppliedAgentId : '';
+  if (req.integrationConversationId && validSuppliedAgentId) {
+    const now = Date.now();
+    db.prepare(`
+      INSERT INTO chat_managed_conversations (user_id,conversation_id,agent_id,created_at,updated_at)
+      VALUES (?,?,?,?,?)
+      ON CONFLICT(user_id,conversation_id) DO UPDATE SET agent_id=excluded.agent_id,updated_at=excluded.updated_at
+    `).run(user.id, req.integrationConversationId, validSuppliedAgentId, now, now);
+  }
+  const persistedAgent = !validSuppliedAgentId && req.integrationConversationId
+    ? db.prepare('SELECT agent_id FROM chat_managed_conversations WHERE user_id=? AND conversation_id=?').get(user.id, req.integrationConversationId)?.agent_id
+    : '';
+  req.integrationAgentId = validSuppliedAgentId || (knownAgentIds.has(persistedAgent) ? persistedAgent : '');
+  next();
+}
+
+function integrationError(status, code, message, extra = {}) {
+  const error = new Error(message);
+  error.status = status;
+  error.code = code;
+  Object.assign(error, extra);
+  return error;
 }
 
 function routeMatchesId(route = {}, id = '') {
@@ -636,6 +1033,15 @@ function routeIdOf(route = {}) {
 
 function routeKeyOf(route = {}) {
   return String(route.rk || route.routeKey || route.lineKey || route.code || routeIdOf(route)).trim();
+}
+
+function officialRouteDefinition(route = {}) {
+  const ids = [route.id, route.routeId, route.lineId, route.rk, route.routeKey, route.lineKey, route.code]
+    .map(value => String(value || '').trim())
+    .filter(Boolean);
+  return RTS.find(item => ids.some(id => [item.id, item.rk].includes(id))) ||
+    RTS.find(item => item.dm && item.dm === route.dm) ||
+    null;
 }
 
 function applyTaskRoute(task, route = null) {
@@ -781,7 +1187,38 @@ function routeTextChatEndpoint(route = {}) {
   return candidates.find(value => /\/chat\/completions\b/i.test(String(value))) || '/chat/completions';
 }
 
+function isResponsesTextRoute(route = {}) {
+  const descriptor = [route.requestFormat, route.apiFormat, route.chatEndpoint, route.endpoint, route.requestPath]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return descriptor.includes('responses') && !descriptor.includes('chat/completions');
+}
+
+function isLingsuanImagesRoute(route = {}) {
+  return [route.apiFormat, route.requestFormat]
+    .filter(Boolean)
+    .some(value => String(value).trim().toLowerCase() === LINGSUAN_IMAGES_API_FORMAT);
+}
+
+function isPackyImagesRoute(route = {}) {
+  return [route.apiFormat, route.requestFormat]
+    .filter(Boolean)
+    .some(value => String(value).trim().toLowerCase() === PACKY_IMAGES_API_FORMAT);
+}
+
+function providerImageTimeoutMs(route = {}, status = {}) {
+  if (isPackyImagesRoute(route)) return PACKY_IMAGE_PROVIDER_TIMEOUT_MS;
+  return positiveNumber(status.imageTimeoutMs || status.timeoutMs, IMAGE_PROVIDER_TIMEOUT_MS);
+}
+
+function providerImageAcceptHeader(route = {}, responseMode = {}) {
+  if (isLingsuanImagesRoute(route)) return 'application/json';
+  return responseMode.stream ? 'text/event-stream, application/json' : '*/*';
+}
+
 function routeImageGenerationEndpoint(route = {}) {
+  if (isLingsuanImagesRoute(route) || isPackyImagesRoute(route)) return '/v1/images/generations';
   const candidates = [route.imageGenerationEndpoint, route.generationEndpoint, route.imageEndpoint, route.endpoint, route.requestPath].filter(Boolean);
   const generation = candidates.find(value => /\/images\/generations\b/i.test(String(value)));
   if (generation) return generation;
@@ -789,6 +1226,7 @@ function routeImageGenerationEndpoint(route = {}) {
 }
 
 function routeImageEditEndpoint(route = {}) {
+  if (isLingsuanImagesRoute(route) || isPackyImagesRoute(route)) return '/v1/images/edits';
   const candidates = [route.imageEditEndpoint, route.editEndpoint, route.imageEndpoint, route.endpoint, route.requestPath].filter(Boolean);
   return candidates.find(value => /\/images\/edits\b/i.test(String(value))) || '/v1/images/edits';
 }
@@ -813,7 +1251,7 @@ function roundToMultiple(value, multiple = 16) {
 
 function parseImageRatio(value = '') {
   const raw = String(value || '').trim().toLowerCase();
-  const match = raw.match(/^(\d+(?:\.\d+)?)\s*[:x]\s*(\d+(?:\.\d+)?)$/);
+  const match = raw.match(/^(\d+(?:\.\d+)?)\s*[:x×]\s*(\d+(?:\.\d+)?)$/);
   if (!match) return null;
   const width = Number(match[1]);
   const height = Number(match[2]);
@@ -821,6 +1259,17 @@ function parseImageRatio(value = '') {
   const ratio = width / height;
   if (!Number.isFinite(ratio) || ratio <= 0) return null;
   return Math.max(1 / 3, Math.min(3, ratio));
+}
+
+function normalizeImageRatio(value = '', fallback = '') {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'auto') return 'auto';
+  const match = raw.match(/^(\d+(?:\.\d+)?)\s*[:x×]\s*(\d+(?:\.\d+)?)$/);
+  if (!match) return fallback;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return fallback;
+  return `${width}:${height}`;
 }
 
 function parseExplicitImageSize(value = '') {
@@ -881,6 +1330,109 @@ function providerImageSize(value = '', sizeTierValue = '') {
   const width = ratio >= 1 ? longSide : longSide * ratio;
   const height = ratio >= 1 ? longSide / ratio : longSide;
   return clampImageSize(width, height);
+}
+
+function providerImageRequestSize(options = {}, sizeTierValue = '') {
+  const ratio = normalizeImageRatio(options.ratio || options.aspectRatio, '');
+  return providerImageSize(ratio || options.size || '1:1', sizeTierValue);
+}
+
+const PROVIDER_IMAGE_ASPECT_TOLERANCE = 0.03;
+
+function providerImageDimensions(buffer, ext = '') {
+  if (!Buffer.isBuffer(buffer)) return null;
+  const type = String(ext || '').trim().toLowerCase();
+  if ((type === 'png' || buffer.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) && buffer.length >= 24) {
+    const width = buffer.readUInt32BE(16);
+    const height = buffer.readUInt32BE(20);
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+  if ((type === 'jpg' || type === 'jpeg' || (buffer[0] === 0xff && buffer[1] === 0xd8)) && buffer.length >= 10) {
+    const sofMarkers = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
+    let offset = 2;
+    while (offset + 3 < buffer.length) {
+      if (buffer[offset] !== 0xff) {
+        offset += 1;
+        continue;
+      }
+      while (offset < buffer.length && buffer[offset] === 0xff) offset += 1;
+      const marker = buffer[offset++];
+      if (marker === 0xd8 || marker === 0xd9) continue;
+      if (marker === 0xda || offset + 2 > buffer.length) break;
+      const segmentLength = buffer.readUInt16BE(offset);
+      if (segmentLength < 2 || offset + segmentLength > buffer.length) break;
+      if (sofMarkers.has(marker) && segmentLength >= 7) {
+        const height = buffer.readUInt16BE(offset + 3);
+        const width = buffer.readUInt16BE(offset + 5);
+        return width > 0 && height > 0 ? { width, height } : null;
+      }
+      offset += segmentLength;
+    }
+    return null;
+  }
+  if ((type === 'webp' || (buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP')) && buffer.length >= 30) {
+    const chunkType = buffer.subarray(12, 16).toString('ascii');
+    if (chunkType === 'VP8X') {
+      return { width: 1 + buffer.readUIntLE(24, 3), height: 1 + buffer.readUIntLE(27, 3) };
+    }
+    if (chunkType === 'VP8L' && buffer[20] === 0x2f) {
+      const width = 1 + (buffer[21] | ((buffer[22] & 0x3f) << 8));
+      const height = 1 + ((buffer[22] >> 6) | (buffer[23] << 2) | ((buffer[24] & 0x0f) << 10));
+      return { width, height };
+    }
+    if (chunkType === 'VP8 ' && buffer[23] === 0x9d && buffer[24] === 0x01 && buffer[25] === 0x2a) {
+      return { width: buffer.readUInt16LE(26) & 0x3fff, height: buffer.readUInt16LE(28) & 0x3fff };
+    }
+    return null;
+  }
+  if ((type === 'gif' || buffer.subarray(0, 6).toString('ascii').startsWith('GIF8')) && buffer.length >= 10) {
+    const width = buffer.readUInt16LE(6);
+    const height = buffer.readUInt16LE(8);
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+  if ((type === 'bmp' || (buffer[0] === 0x42 && buffer[1] === 0x4d)) && buffer.length >= 26) {
+    const width = Math.abs(buffer.readInt32LE(18));
+    const height = Math.abs(buffer.readInt32LE(22));
+    return width > 0 && height > 0 ? { width, height } : null;
+  }
+  return null;
+}
+
+function providerImageAspectValidation(decoded = {}, providerRequest = {}) {
+  const expectedSize = String(providerRequest?.size || providerRequest?.resolvedSize || '').trim().toLowerCase();
+  if (!expectedSize || expectedSize === 'auto') return { valid: true, skipped: true, expectedSize };
+  const expected = parseExplicitImageSize(expectedSize);
+  if (!expected) return { valid: true, skipped: true, expectedSize };
+  const actual = providerImageDimensions(decoded.buffer, decoded.ext);
+  if (!actual) {
+    return { valid: false, code: 'PROVIDER_IMAGE_DIMENSIONS_UNKNOWN', expectedSize, expected, actual: null };
+  }
+  const expectedRatio = expected.width / expected.height;
+  const actualRatio = actual.width / actual.height;
+  const deviation = Math.abs(actualRatio - expectedRatio) / expectedRatio;
+  return {
+    valid: deviation <= PROVIDER_IMAGE_ASPECT_TOLERANCE,
+    code: deviation <= PROVIDER_IMAGE_ASPECT_TOLERANCE ? '' : 'PROVIDER_IMAGE_ASPECT_RATIO_MISMATCH',
+    expectedSize,
+    expected,
+    actual,
+    deviation
+  };
+}
+
+function providerImageAspectWarning(validation = {}) {
+  if (!validation || validation.valid || validation.skipped) return null;
+  const actualSize = validation.actual ? `${validation.actual.width}x${validation.actual.height}` : '';
+  const message = validation.code === 'PROVIDER_IMAGE_DIMENSIONS_UNKNOWN'
+    ? `上游已返回图片，但无法读取真实尺寸（请求 ${validation.expectedSize}）；已保留并显示原图`
+    : `上游返回图片比例与请求不一致：要求 ${validation.expectedSize}，实际 ${actualSize}；已保留并显示原图`;
+  return {
+    code: validation.code,
+    message,
+    expectedSize: validation.expectedSize,
+    actualSize,
+    deviation: Number.isFinite(validation.deviation) ? validation.deviation : null
+  };
 }
 
 function providerImageQuality(value = '', sizeTierValue = '') {
@@ -1641,7 +2193,8 @@ function mockChatCompletion(messages = [], model = AI_TEXT_MODEL) {
 
 async function callProviderChat(messages, options = {}) {
   const status = providerStatus();
-  const model = options.model || reqBodyModel(options) || AI_TEXT_MODEL;
+  const route = resolveTextRoute(options);
+  const model = resolveTextProviderModel(options.model || reqBodyModel(options), route);
   if (!status.enabled) {
     return mockChatCompletion(messages, model);
   }
@@ -1696,6 +2249,947 @@ async function callProviderChat(messages, options = {}) {
   }
 }
 
+function resolveChatModel(model = '') {
+  const available = allowedChatModels();
+  const requested = normalizeRequestedChatModelKey(model || AI_TEXT_MODEL, available);
+  return available.find(item => item.k === requested) || available[0] || TXT[0];
+}
+
+function chatRequestPayload(body = {}, model) {
+  const allowedKeys = [
+    'messages',
+    'stream',
+    'tools',
+    'tool_choice',
+    'parallel_tool_calls',
+    'temperature',
+    'top_p',
+    'max_tokens',
+    'max_completion_tokens',
+    'response_format',
+    'reasoning_effort',
+    'seed',
+    'stop',
+    'presence_penalty',
+    'frequency_penalty'
+  ];
+  const payload = { model };
+  allowedKeys.forEach(key => {
+    if (body[key] !== undefined) payload[key] = body[key];
+  });
+  payload.stream = body.stream === true;
+  return payload;
+}
+
+function chatStepHash(body = {}, model = '') {
+  return crypto.createHash('sha256').update(JSON.stringify({ model, messages: body.messages || [] })).digest('hex');
+}
+
+function isChatToolContinuation(body = {}) {
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const lastMessage = messages[messages.length - 1];
+  if (lastMessage?.role === 'assistant' && Array.isArray(lastMessage.content)) {
+    const embeddedToolCalls = lastMessage.content
+      .filter(item => item?.type === 'tool_call' && item.tool_call)
+      .map(item => item.tool_call);
+    if (
+      embeddedToolCalls.length > 0 &&
+      embeddedToolCalls.every(call => String(call?.name || '').trim() && call?.output != null)
+    ) return true;
+  }
+  let firstTrailingTool = messages.length;
+  while (firstTrailingTool > 0 && messages[firstTrailingTool - 1]?.role === 'tool') {
+    firstTrailingTool -= 1;
+  }
+  if (firstTrailingTool === messages.length || firstTrailingTool === 0) return false;
+  const assistant = messages[firstTrailingTool - 1];
+  const toolCalls = Array.isArray(assistant?.tool_calls) ? assistant.tool_calls : [];
+  if (assistant?.role !== 'assistant' || toolCalls.length === 0) return false;
+  const expectedCallIds = new Set(toolCalls.map(call => String(call?.id || '')).filter(Boolean));
+  return messages.slice(firstTrailingTool).every(message => {
+    const callId = String(message?.tool_call_id || '');
+    return callId && expectedCallIds.has(callId);
+  });
+}
+
+const reserveChatCharge = db.transaction((requestId, user, model, stepHash, allowContinuation) => {
+  const existing = db.prepare('SELECT * FROM chat_text_charges WHERE request_id=?').get(requestId);
+  if (existing) {
+    const step = db.prepare('SELECT * FROM chat_text_steps WHERE request_id=? AND step_hash=?').get(requestId, stepHash);
+    if (step) return { duplicate: true, charge: existing, step };
+    if (existing.user_id !== user.id || existing.model_key !== model.k) {
+      throw integrationError(409, 'CHAT_REQUEST_ID_CONFLICT', '消息标识与原请求不一致，请发送一条新消息');
+    }
+    if (existing.status === 'refunded' || !allowContinuation) {
+      return { duplicate: true, charge: existing };
+    }
+    const now = Date.now();
+    db.prepare('INSERT INTO chat_text_steps (request_id,step_hash,status,created_at,updated_at) VALUES (?,?,?,?,?)')
+      .run(requestId, stepHash, 'reserved', now, now);
+    if (existing.status === 'completed') {
+      db.prepare("UPDATE chat_text_charges SET status='reserved', updated_at=? WHERE request_id=? AND status='completed'")
+        .run(now, requestId);
+    }
+    return { duplicate: false, continuation: true, charge: { ...existing, status: 'reserved' } };
+  }
+  const cost = Number(model.p || 0);
+  const current = db.prepare('SELECT balance FROM users WHERE id=?').get(user.id);
+  const before = Number(current?.balance ?? 0);
+  if (before < cost) {
+    throw integrationError(400, 'INSUFFICIENT_BALANCE', `算力不足，需要 ${cost}，当前 ${before}`, { cost, balance: before });
+  }
+  const after = before - cost;
+  const updated = db.prepare('UPDATE users SET balance=? WHERE id=? AND balance=?').run(after, user.id, before);
+  if (updated.changes !== 1) {
+    throw integrationError(409, 'BALANCE_CHANGED', '余额状态已变化，请重试');
+  }
+  const now = Date.now();
+  db.prepare('INSERT INTO chat_text_charges (request_id,user_id,model_key,cost,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?)')
+    .run(requestId, user.id, model.k, cost, 'reserved', now, now);
+  db.prepare('INSERT INTO chat_text_steps (request_id,step_hash,status,created_at,updated_at) VALUES (?,?,?,?,?)')
+    .run(requestId, stepHash, 'reserved', now, now);
+  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
+    .run(user.id, 'chat', -cost, before, after, `AI 对话: ${model.k}`);
+  return { duplicate: false, charge: { request_id: requestId, user_id: user.id, model_key: model.k, cost, status: 'reserved' } };
+});
+
+const completeChatStep = db.transaction((requestId, stepHash, awaitingToolResult = false) => {
+  const now = Date.now();
+  db.prepare("UPDATE chat_text_steps SET status='completed', updated_at=? WHERE request_id=? AND step_hash=? AND status='reserved'")
+    .run(now, requestId, stepHash);
+  if (!awaitingToolResult) {
+    db.prepare("UPDATE chat_text_charges SET status='completed', updated_at=? WHERE request_id=? AND status='reserved'")
+      .run(now, requestId);
+  }
+});
+
+const refundChatCharge = db.transaction((requestId, reason = '上游调用失败', stepHash = '') => {
+  const charge = db.prepare("SELECT * FROM chat_text_charges WHERE request_id=? AND status='reserved'").get(requestId);
+  if (!charge) return false;
+  const user = db.prepare('SELECT balance FROM users WHERE id=?').get(charge.user_id);
+  if (!user) return false;
+  const before = Number(user.balance || 0);
+  const after = before + Number(charge.cost || 0);
+  db.prepare('UPDATE users SET balance=? WHERE id=?').run(after, charge.user_id);
+  db.prepare("UPDATE chat_text_charges SET status='refunded', updated_at=? WHERE request_id=?")
+    .run(Date.now(), requestId);
+  if (stepHash) {
+    db.prepare("UPDATE chat_text_steps SET status='refunded', updated_at=? WHERE request_id=? AND step_hash=? AND status='reserved'")
+      .run(Date.now(), requestId, stepHash);
+  } else {
+    db.prepare("UPDATE chat_text_steps SET status='refunded', updated_at=? WHERE request_id=? AND status='reserved'")
+      .run(Date.now(), requestId);
+  }
+  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
+    .run(charge.user_id, 'chat_refund', Number(charge.cost || 0), before, after, `AI 对话退款: ${reason}`);
+  return true;
+});
+
+function sendMockChatStream(res, messages, model) {
+  const completion = mockChatCompletion(messages, model);
+  const text = String(completion.choices?.[0]?.message?.content || '本地 mock 回复');
+  const id = completion.id || uid('chatcmpl_');
+  res.status(200);
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.write(`data: ${JSON.stringify({ id, object: 'chat.completion.chunk', created: completion.created, model, choices: [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }] })}\n\n`);
+  res.write(`data: ${JSON.stringify({ id, object: 'chat.completion.chunk', created: completion.created, model, choices: [{ index: 0, delta: { content: text }, finish_reason: null }] })}\n\n`);
+  res.write(`data: ${JSON.stringify({ id, object: 'chat.completion.chunk', created: completion.created, model, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`);
+  res.end('data: [DONE]\n\n');
+}
+
+function chatContentText(content) {
+  const items = Array.isArray(content) ? content : [content];
+  return items.map(item => {
+    if (typeof item === 'string') return item;
+    return String(item?.text || item?.value || '');
+  }).filter(Boolean).join('\n').trim();
+}
+
+function chatContentImageCount(content) {
+  const items = Array.isArray(content) ? content : [content];
+  return items.filter(item => {
+    const type = String(item?.type || '').toLowerCase();
+    return type === 'image_url' || type === 'input_image';
+  }).length;
+}
+
+function chatImageToolName(tools = [], suffix = '') {
+  return (Array.isArray(tools) ? tools : [])
+    .map(tool => tool?.type === 'function' ? String(tool.function?.name || '') : '')
+    .find(name => name && (
+      name.endsWith(suffix) ||
+      name.startsWith(`${suffix}_mcp_`)
+    )) || '';
+}
+
+function chatImageToolNameMatches(name = '', baseName = '') {
+  const normalized = String(name || '');
+  return normalized === baseName || normalized.endsWith(baseName) || normalized.startsWith(`${baseName}_mcp_`);
+}
+
+function chatMessagesUseImageTools(messages = [], toolNames = []) {
+  const names = new Set(toolNames.filter(Boolean));
+  return messages.some(message => (Array.isArray(message?.tool_calls) ? message.tool_calls : [])
+    .some(call => names.has(String(call?.function?.name || ''))));
+}
+
+function chatContentToResponsesContent(content, options = {}) {
+  const items = Array.isArray(content) ? content : [{ type: 'text', text: String(content || '') }];
+  return items.map(item => {
+    if (typeof item === 'string') return { type: 'input_text', text: item };
+    const type = String(item?.type || '').toLowerCase();
+    if (type === 'image_url' || type === 'input_image') {
+      if (options.replaceImages) {
+        return { type: 'input_text', text: '[当前消息包含图片附件，网站生图工具会自动读取该附件]' };
+      }
+      const imageUrl = typeof item.image_url === 'string' ? item.image_url : item.image_url?.url || item.imageUrl || item.url || '';
+      return imageUrl ? { type: 'input_image', image_url: imageUrl, detail: item.detail || item.image_url?.detail || 'auto' } : null;
+    }
+    return { type: 'input_text', text: String(item?.text || item?.value || '') };
+  }).filter(item => item && (item.type !== 'input_text' || item.text));
+}
+
+function chatMessagesToResponsesInput(messages = [], options = {}) {
+  return messages.map(message => {
+    const role = ['system', 'developer', 'user', 'assistant'].includes(message?.role) ? message.role : 'user';
+    const content = message?.role === 'tool'
+      ? [{ type: 'input_text', text: `Tool result ${message.tool_call_id || ''}: ${String(message.content || '')}` }]
+      : chatContentToResponsesContent(message?.content, options);
+    return { role, content: content.length > 0 ? content : [{ type: 'input_text', text: '' }] };
+  });
+}
+
+function chatMessageReferenceImages(messages = []) {
+  const latestUserMessage = [...messages].reverse().find(message => message?.role === 'user') || {};
+  const content = Array.isArray(latestUserMessage.content) ? latestUserMessage.content : [];
+  return content.map(item => {
+    const type = String(item?.type || '').toLowerCase();
+    if (type !== 'image_url' && type !== 'input_image') return '';
+    return typeof item.image_url === 'string' ? item.image_url : item.image_url?.url || item.imageUrl || item.url || '';
+  }).map(value => String(value || '').trim()).filter(Boolean);
+}
+
+function chatPlanReferenceImages(plan = {}) {
+  return (Array.isArray(plan?.referenceImages) ? plan.referenceImages : [])
+    .map(item => typeof item === 'string' ? item : item?.url)
+    .map(value => String(value || '').trim())
+    .filter(Boolean);
+}
+
+async function chatPlanningInputImages(req, body = {}, savedPlan = null) {
+  const currentReferences = Array.isArray(req.integrationReferenceImages) ? req.integrationReferenceImages : [];
+  const messageReferences = chatMessageReferenceImages(body.messages);
+  const savedReferences = chatPlanReferenceImages(savedPlan);
+  const sources = currentReferences.length > 0
+    ? currentReferences
+    : messageReferences.length > 0
+      ? messageReferences
+      : savedReferences;
+  if (sources.length > 4) {
+    throw integrationError(400, 'CHAT_REFERENCE_IMAGE_LIMIT', '电商主图设计师一次最多读取 4 张参考图片，请删除多余图片后重试');
+  }
+  const allowedMimes = new Set(['image/png', 'image/jpeg', 'image/webp']);
+  const result = [];
+  for (let index = 0; index < sources.length; index += 1) {
+    const normalizedUrl = normalizeChatReferenceImage(sources[index]) || sources[index];
+    const file = await loadReferenceImageFile({ url: normalizedUrl }, req);
+    if (!allowedMimes.has(file.mime)) {
+      throw integrationError(400, 'CHAT_REFERENCE_IMAGE_TYPE', `参考图片 ${index + 1} 不是受支持的 PNG、JPEG 或 WebP 图片`);
+    }
+    if (!file.buffer.length || file.buffer.length > IMAGE_PROXY_MAX_BYTES) {
+      throw integrationError(400, 'CHAT_REFERENCE_IMAGE_SIZE', `参考图片 ${index + 1} 为空或超过 ${Math.floor(IMAGE_PROXY_MAX_BYTES / 1024 / 1024)}MB 限制`);
+    }
+    result.push({
+      type: 'input_image',
+      image_url: `data:${file.mime};base64,${file.buffer.toString('base64')}`,
+      detail: 'high'
+    });
+  }
+  return result;
+}
+
+function chatToolsToResponsesTools(tools = []) {
+  if (!Array.isArray(tools)) return undefined;
+  const converted = tools.map(tool => {
+    if (tool?.type !== 'function' || !tool.function?.name) return null;
+    return {
+      type: 'function',
+      name: tool.function.name,
+      description: tool.function.description || '',
+      parameters: tool.function.parameters || { type: 'object', properties: {} },
+      ...(tool.function.strict !== undefined ? { strict: !!tool.function.strict } : {})
+    };
+  }).filter(Boolean);
+  return converted.length > 0 ? converted : undefined;
+}
+
+function chatToolChoiceToResponsesToolChoice(toolChoice) {
+  if (toolChoice === undefined || toolChoice === null) return undefined;
+  if (typeof toolChoice === 'string') return toolChoice;
+  if (toolChoice?.type === 'function' && toolChoice.function?.name) {
+    return { type: 'function', name: toolChoice.function.name };
+  }
+  return undefined;
+}
+
+function isStructuredEcommerceImageBrief(text = '') {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  const hasPlatform = /(?:平台|渠道)\s*[:：]?\s*(?:淘宝|天猫|京东|拼多多|抖音|小红书|亚马逊|1688|速卖通|shopee|tiktok)/i.test(value);
+  const hasCanvasSpec = /(?:\d{2,5}\s*[x×*]\s*\d{2,5}|(?:尺寸|画布|比例)\s*[:：]?\s*(?:\d{2,5}\s*[x×*]\s*\d{2,5}|\d{1,3}\s*[:：]\s*\d{1,3}))/i.test(value);
+  const hasCommerceGoal = /(?:目标人群|目标用户|受众|主打|卖点|商品|产品|包装|规格|容量)/i.test(value);
+  return hasPlatform && hasCanvasSpec && hasCommerceGoal;
+}
+
+function responsesRequestFromChat(body = {}, model, options = {}) {
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const tools = chatToolsToResponsesTools(body.tools);
+  const isEcommerceAgent = options.agentId === ECOMMERCE_MAIN_IMAGE_AGENT_ID;
+  const preparePlanTool = isEcommerceAgent ? chatImageToolName(body.tools, 'prepare_ecommerce_image_plan') : '';
+  const confirmPlanTool = isEcommerceAgent ? chatImageToolName(body.tools, 'confirm_ecommerce_image_plan') : '';
+  const prepareImageTool = chatImageToolName(body.tools, 'prepare_image_generation');
+  const executeImageTool = chatImageToolName(body.tools, 'execute_image_generation');
+  const latestUserMessage = [...messages].reverse().find(message => message?.role === 'user') || {};
+  const latestUserText = chatContentText(latestUserMessage.content);
+  const latestUserImageCount = chatContentImageCount(latestUserMessage.content);
+  const asksForNewImage = /(?:生图|图生图|文生图|生成[^\n]{0,20}(?:图片|图像|海报|主图)|制作[^\n]{0,20}(?:图片|图像|海报|主图)|创建[^\n]{0,20}(?:图片|图像|海报|主图)|做(?:一|1)?张|绘制[^\n]{0,20}(?:图片|图像|海报)|设计[^\n]{0,20}(?:图片|图像|海报|主图))/i.test(latestUserText)
+    || isStructuredEcommerceImageBrief(latestUserText);
+  const asksToEditAttachedImage = latestUserImageCount > 0
+    && /(?:修改|编辑|重绘|扩图|延展|拉长|拉宽|左右拉|上下拉|放大画布|更换背景|去除背景|抠图|局部)/i.test(latestUserText);
+  const asksForEcommercePlan = !!preparePlanTool && asksForNewImage
+    && (latestUserImageCount >= 2 || /(?:电商)?主图|参考图.*(?:风格|排版)|(?:风格|排版).*参考图/i.test(latestUserText));
+  const asksForImageRevision = /^(?:修改图片|修改这张|保持当前方案[，, ]*再出一版|再出一版)/i.test(latestUserText);
+  const confirmsImagePlan = /确认方案\s+[A-F0-9]{6,32}/i.test(latestUserText);
+  const confirmsImageQuote = /确认生图\s+[A-F0-9]{6,32}/i.test(latestUserText);
+  const imageToolWorkflow = chatMessagesUseImageTools(messages, [preparePlanTool, confirmPlanTool, prepareImageTool, executeImageTool]);
+  const shouldUseWebsiteImageTools = !!prepareImageTool
+    && (asksForNewImage || asksToEditAttachedImage || asksForImageRevision || confirmsImagePlan || confirmsImageQuote || imageToolWorkflow);
+  const input = chatMessagesToResponsesInput(messages, { replaceImages: shouldUseWebsiteImageTools });
+  if (prepareImageTool) {
+    input.unshift({
+      role: 'developer',
+      content: [{
+        type: 'input_text',
+        text: preparePlanTool && confirmPlanTool
+          ? `电商主图必须先真实分析用户本轮的文字要求和全部参考图片，再使用 ${preparePlanTool} 提交你自由创作的完整设计提示词，并把识别/拟定的上图文案拆入字段。不得套用通用商品文案，不得固定图片顺序角色；每张图参考什么必须服从用户提示词并写进方案。用户确认或修改文案后，必须重新思考并使用 ${confirmPlanTool} 提交一份完整 finalPrompt，再生成报价；不得由服务器模板拼接方案。普通非电商图片才可使用 ${prepareImageTool} 直接报价。报价后仍需等待用户下一条消息确认，再使用 ${executeImageTool || 'execute_image_generation'}。禁止直接生成、返回或转述图片 Base64。`
+          : `网站图片生成必须使用 ${prepareImageTool} 先报价，并等待用户下一条消息确认后再使用 ${executeImageTool || 'execute_image_generation'}。当前消息附件会由工具自动读取。禁止直接生成、返回或转述图片 Base64。`
+      }]
+    });
+  }
+  const request = {
+    model,
+    input
+  };
+  let toolChoice = chatToolChoiceToResponsesToolChoice(body.tool_choice);
+  if (confirmsImageQuote && executeImageTool) {
+    toolChoice = { type: 'function', name: executeImageTool };
+  } else if (confirmsImagePlan && confirmPlanTool) {
+    toolChoice = { type: 'function', name: confirmPlanTool };
+  } else if ((asksForEcommercePlan || (asksForImageRevision && imageToolWorkflow)) && preparePlanTool) {
+    toolChoice = { type: 'function', name: preparePlanTool };
+  } else if ((asksForNewImage || asksToEditAttachedImage) && prepareImageTool) {
+    toolChoice = { type: 'function', name: prepareImageTool };
+  }
+  if (confirmsImagePlan && options.savedPlan && confirmPlanTool) {
+    const savedPlan = options.savedPlan;
+    input.unshift({
+      role: 'developer',
+      content: [{
+        type: 'input_text',
+        text: [
+          '下面是当前会话中已保存的 GPT 主图方案。用户本轮消息包含最终表格值和可选修改说明。',
+          '请基于原方案重新创作一份完整、可直接交给图像模型的 finalPrompt；不要机械拼字段，也不要改变用户指定的参考图作用。',
+          `用户原始要求：${normalizeChatImagePlanText(savedPlan.originalRequest || '', 4000)}`,
+          `原始设计方案：${normalizeChatImagePlanText(savedPlan.designPrompt || '', 12000)}`,
+          `参考关系：${normalizeChatReferenceRoles(savedPlan.referenceRoles).map(role => `图${role.imageIndex}：${role.roleDescription}`).join('；')}`,
+          `原表格文案：${normalizeChatCopyItems(savedPlan.copyItems, savedPlan.copy).map(item => `${item.label}：${item.text || '（空）'}（${item.source}）`).join('；')}`,
+          `必须调用 ${confirmPlanTool}，并提供 confirmationCode、designPrompt、copyItems、adjustment 和重新生成的 finalPrompt。`
+        ].join('\n')
+      }]
+    });
+  }
+  if (toolChoice?.type === 'function' && (
+    chatImageToolNameMatches(toolChoice.name, 'prepare_ecommerce_image_plan') ||
+    chatImageToolNameMatches(toolChoice.name, 'confirm_ecommerce_image_plan')
+  )) {
+    const planningImages = Array.isArray(options.planningImages) ? options.planningImages : [];
+    const latestUserInput = [...input].reverse().find(item => item?.role === 'user');
+    if (latestUserInput && planningImages.length > 0) {
+      latestUserInput.content = [
+        ...(Array.isArray(latestUserInput.content) ? latestUserInput.content.filter(item => item?.type !== 'input_image') : []),
+        ...planningImages
+      ];
+    }
+  }
+  const maxOutputTokens = Number(body.max_completion_tokens || body.max_tokens || 0);
+  if (tools) request.tools = tools;
+  if (toolChoice !== undefined) request.tool_choice = toolChoice;
+  if (Number.isFinite(maxOutputTokens) && maxOutputTokens > 0) request.max_output_tokens = Math.min(maxOutputTokens, 32768);
+  return request;
+}
+
+function responsesFunctionCalls(data = {}) {
+  if (!Array.isArray(data.output)) return [];
+  return data.output.filter(item => item?.type === 'function_call' && item?.name).map(item => ({
+    id: item.call_id || item.id || uid('call_'),
+    type: 'function',
+    function: {
+      name: item.name,
+      arguments: typeof item.arguments === 'string' ? item.arguments : JSON.stringify(item.arguments || {})
+    }
+  }));
+}
+
+function responsesChatOutputText(data = {}) {
+  const direct = typeof data.output_text === 'string' ? data.output_text.trim() : '';
+  if (direct) return direct;
+  if (!Array.isArray(data.output)) return '';
+  return data.output
+    .filter(item => item?.type === 'message' && Array.isArray(item.content))
+    .flatMap(item => item.content)
+    .filter(item => ['output_text', 'text'].includes(String(item?.type || '').toLowerCase()))
+    .map(item => typeof item?.text === 'string' ? item.text.trim() : '')
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+}
+
+function responsesHasNativeImageOutput(data = {}) {
+  return Array.isArray(data.output) && data.output.some(item => item?.type === 'image_generation_call' && item?.result);
+}
+
+function responsesToChatCompletion(data = {}, model) {
+  const content = responsesChatOutputText(data);
+  const toolCalls = responsesFunctionCalls(data);
+  const finishReason = toolCalls.length > 0 ? 'tool_calls' : 'stop';
+  return {
+    id: data.id || uid('chatcmpl_'),
+    object: 'chat.completion',
+    created: Math.floor(Date.now() / 1000),
+    model: data.model || model,
+    choices: [{
+      index: 0,
+      message: {
+        role: 'assistant',
+        content: content || null,
+        ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {})
+      },
+      finish_reason: finishReason
+    }],
+    usage: {
+      prompt_tokens: Number(data.usage?.input_tokens || data.usage?.prompt_tokens || 0),
+      completion_tokens: Number(data.usage?.output_tokens || data.usage?.completion_tokens || 0),
+      total_tokens: Number(data.usage?.total_tokens || (Number(data.usage?.input_tokens || 0) + Number(data.usage?.output_tokens || 0)) || 0)
+    }
+  };
+}
+
+const CANVAS_PROMPT_ENHANCE_MAX_REFERENCES = 4;
+const CANVAS_PROMPT_ENHANCE_MIN_LENGTH = 160;
+const canvasPromptEnhanceInFlight = new Set();
+
+function buildCanvasPromptEnhancementSystemPrompt(referenceCount = 0) {
+  const labels = Array.from({ length: referenceCount }, (_, index) => canvasPromptImageLabel(index));
+  return [
+    '你是专业的图像生成与图像编辑提示词编排器。你的任务是准确理解用户目标和参考图，而不是脱离需求自由创作。',
+    '先在内部判断任务类型、每张参考图的角色、允许修改范围、必须保持内容和冲突优先级，但不要输出分析过程。',
+    '优先级：用户明确要求 > 用户明确锁定内容 > 主体或产品参考 > 构图版式参考 > 场景背景参考 > 风格参考 > 默认审美优化。',
+    '严格区分参考图角色：主体/产品图用于锁定身份和关键结构；版式图只参考位置、留白和层级；风格图只参考色彩、光影、材质和氛围；不得把不同参考图中的品牌、商品、人物或文字混在一起。',
+    '只把会改变主体身份、产品结构、人物身份、Logo、标签和指定文字的内容写成硬性锁定；背景、道具、空间层次、镜头、光影和材质表现可以在不违背用户要求时合理优化。',
+    '用户指定的文字必须原样保留，不润色、不缩写、不增删；不要虚构价格、功效、认证、促销、品牌、Logo、二维码或不存在的文案。',
+    '局部编辑要明确编辑区域，并要求未授权区域保持不变；自然衔接原图透视、光线、色温、景深、阴影和环境反射。',
+    '最终提示词必须明确写出：任务目标、每张参考图的用途、主体和关键识别、允许修改内容、构图与镜头、场景与背景、光影与色温、材质与细节、文字规则、成像质量和必要负面约束。',
+    '成像质量要使用可执行描述，例如焦点准确、边缘干净、微观材质清楚、曝光受控、自然高光、真实阴影、无压缩糊感；不要只堆砌“8K、超清、大师级”等空泛词。',
+    '目标长度约 500–900 个中文字符；信息不足时可以更短，但必须比原提示词更完整且不添加未经授权的核心内容。',
+    '只输出一段可直接提交给图片模型的最终中文提示词正文，不要标题、解释、编号、Markdown 或前后寒暄。',
+    referenceCount > 0 ? `参考图按顺序为：${labels.join('、')}。必须按用户描述确定各图角色。` : '本次没有参考图，只扩写用户提供的文字需求。'
+  ].join('\n');
+}
+
+function buildCanvasPromptEnhancementFallback(prompt = '', referenceCount = 0) {
+  const requirement = String(prompt || '').trim() || '生成一张高质量电商产品图片';
+  return [
+    referenceCount > 0
+      ? `参考图按顺序为：${Array.from({ length: referenceCount }, (_, index) => canvasPromptImageLabel(index)).join('、')}；严格按照用户描述分配产品、主体、构图、场景和风格角色，不混用参考图中的商品、品牌或文字。`
+      : '本次没有参考图，以用户文字需求为唯一创作依据。',
+    `任务目标：${requirement}。`,
+    '主体保持清晰、比例准确、结构完整，产品或人物的关键识别特征稳定；仅调整用户授权的内容。构图层级明确，焦点落在核心主体，背景与道具服务主体且不喧宾夺主。光线方向统一，曝光受控，高光不过曝，阴影真实落地，材质纹理、边缘和环境反射自然。画面焦点准确、细节清楚、色彩干净、无压缩糊感，避免主体变形、比例错误、边缘光晕、廉价 CG 感、乱码、水印、二维码和多余主体。'
+  ].join('\n');
+}
+
+function normalizeCanvasEnhancedPrompt(value = '') {
+  return String(value || '')
+    .trim()
+    .replace(/^```(?:text|markdown)?\s*/i, '')
+    .replace(/```$/i, '')
+    .replace(/^(?:最终)?(?:生图)?提示词\s*[:：]\s*/i, '')
+    .trim()
+    .slice(0, 12000);
+}
+
+async function loadCanvasPromptEnhancementReferences(body = {}, req) {
+  const candidates = imageReferenceCandidates(body);
+  if (candidates.length > CANVAS_PROMPT_ENHANCE_MAX_REFERENCES) {
+    const error = new Error(`AI 扩写一次最多读取 ${CANVAS_PROMPT_ENHANCE_MAX_REFERENCES} 张参考图`);
+    error.code = 'CANVAS_PROMPT_REFERENCE_LIMIT';
+    throw error;
+  }
+  const allowedMimes = new Set(['image/png', 'image/jpeg', 'image/webp']);
+  const result = [];
+  for (let index = 0; index < candidates.length; index += 1) {
+    const file = await loadReferenceImageFile(candidates[index], req);
+    if (!allowedMimes.has(file.mime)) {
+      const error = new Error(`参考图 ${index + 1} 仅支持 PNG、JPEG 或 WebP`);
+      error.code = 'CANVAS_PROMPT_REFERENCE_TYPE';
+      throw error;
+    }
+    if (!file.buffer.length || file.buffer.length > IMAGE_PROXY_MAX_BYTES) {
+      const error = new Error(`参考图 ${index + 1} 为空或超过 ${Math.floor(IMAGE_PROXY_MAX_BYTES / 1024 / 1024)}MB 限制`);
+      error.code = 'CANVAS_PROMPT_REFERENCE_SIZE';
+      throw error;
+    }
+    result.push({
+      label: canvasPromptImageLabel(index),
+      image: {
+        type: 'input_image',
+        image_url: `data:${file.mime};base64,${file.buffer.toString('base64')}`,
+        detail: 'high'
+      }
+    });
+  }
+  return result;
+}
+
+function buildCanvasPromptEnhancementInput(prompt = '', references = []) {
+  const originalPrompt = String(prompt || '').trim();
+  return [
+    {
+      role: 'system',
+      content: [{ type: 'input_text', text: buildCanvasPromptEnhancementSystemPrompt(references.length) }]
+    },
+    {
+      role: 'user',
+      content: [
+        { type: 'input_text', text: `请扩写下面的原始提示词。原始提示词中的明确要求和指定文字必须保留：\n${originalPrompt || '请根据参考图生成一张高质量电商图片。'}` },
+        ...references.map(reference => reference.image)
+      ]
+    }
+  ];
+}
+
+function localWebsiteImageWorkflowCompletion(body = {}, model = '') {
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const preparePlanTool = chatImageToolName(body.tools, 'prepare_ecommerce_image_plan');
+  const confirmPlanTool = chatImageToolName(body.tools, 'confirm_ecommerce_image_plan');
+  const prepareImageTool = chatImageToolName(body.tools, 'prepare_image_generation');
+  const executeImageTool = chatImageToolName(body.tools, 'execute_image_generation');
+  const imageToolKind = (name = '') => {
+    const normalized = String(name || '');
+    if (
+      normalized === preparePlanTool ||
+      normalized === 'prepare_ecommerce_image_plan' ||
+      normalized.startsWith('prepare_ecommerce_image_plan_mcp_')
+    ) return 'prepare-plan';
+    if (
+      normalized === confirmPlanTool ||
+      normalized === 'confirm_ecommerce_image_plan' ||
+      normalized.startsWith('confirm_ecommerce_image_plan_mcp_')
+    ) return 'confirm-plan';
+    if (
+      normalized === prepareImageTool ||
+      normalized === 'prepare_image_generation' ||
+      normalized.startsWith('prepare_image_generation_mcp_')
+    ) return 'prepare';
+    if (
+      normalized === executeImageTool ||
+      normalized === 'execute_image_generation' ||
+      normalized.startsWith('execute_image_generation_mcp_')
+    ) return 'execute';
+    return '';
+  };
+  const completionFromToolOutput = (outputText = '', toolKind = '') => {
+    const normalizedOutput = String(outputText || '').trim();
+    const confirmationCode = normalizedOutput.match(/确认生图\s+([A-F0-9]{6,32})/i)?.[1]?.toUpperCase() || '';
+    const planCode = normalizedOutput.match(/确认方案\s+([A-F0-9]{6,32})/i)?.[1]?.toUpperCase() || '';
+    const finalText = toolKind === 'execute'
+      ? (normalizedOutput.includes('图片生成完成') ? '图片生成完成，结果见上方。需要修改时请在结果卡下方填写修改要求。' : normalizedOutput)
+      : toolKind === 'prepare-plan' && planCode
+        ? '主图方案已整理，请检查文案表单并点击“确认方案”。'
+      : confirmationCode
+        ? `生图报价已生成，请回复：**确认生图 ${confirmationCode}**`
+        : normalizedOutput;
+    if (!finalText) return null;
+    return responsesToChatCompletion({
+      id: uid('chatcmpl_image_tool_'),
+      model,
+      output_text: finalText
+    }, model);
+  };
+
+  const lastMessage = messages[messages.length - 1];
+  const embeddedToolCalls = lastMessage?.role === 'assistant' && Array.isArray(lastMessage.content)
+    ? lastMessage.content
+      .filter(item => item?.type === 'tool_call' && item.tool_call)
+      .map(item => item.tool_call)
+    : [];
+  if (embeddedToolCalls.length > 0 && embeddedToolCalls.every(call => imageToolKind(call?.name))) {
+    const outputText = embeddedToolCalls
+      .map(call => typeof call?.output === 'string' ? call.output : chatContentText(call?.output))
+      .filter(Boolean)
+      .join('\n\n');
+    const completion = completionFromToolOutput(
+      outputText,
+      embeddedToolCalls.map(call => imageToolKind(call?.name)).find(kind => kind === 'execute')
+        || embeddedToolCalls.map(call => imageToolKind(call?.name)).find(kind => kind === 'confirm-plan')
+        || embeddedToolCalls.map(call => imageToolKind(call?.name)).find(kind => kind === 'prepare-plan')
+        || embeddedToolCalls.map(call => imageToolKind(call?.name)).find(Boolean)
+        || ''
+    );
+    if (completion) return completion;
+  }
+
+  let firstTrailingTool = messages.length;
+  while (firstTrailingTool > 0 && messages[firstTrailingTool - 1]?.role === 'tool') {
+    firstTrailingTool -= 1;
+  }
+  if (firstTrailingTool > 0 && firstTrailingTool < messages.length) {
+    const assistant = messages[firstTrailingTool - 1];
+    const toolCalls = Array.isArray(assistant?.tool_calls) ? assistant.tool_calls : [];
+    const toolNamesByCallId = new Map(toolCalls.map(call => [
+      String(call?.id || ''),
+      String(call?.function?.name || '')
+    ]));
+    const trailingTools = messages.slice(firstTrailingTool);
+    const onlyWebsiteImageTools = assistant?.role === 'assistant'
+      && trailingTools.length > 0
+      && trailingTools.every(message => imageToolKind(toolNamesByCallId.get(String(message?.tool_call_id || ''))));
+    if (onlyWebsiteImageTools) {
+      const outputText = trailingTools.map(message => chatContentText(message.content)).filter(Boolean).join('\n\n');
+      const usedKinds = trailingTools.map(message => imageToolKind(toolNamesByCallId.get(String(message?.tool_call_id || ''))));
+      const usedKind = usedKinds.find(kind => kind === 'execute')
+        || usedKinds.find(kind => kind === 'confirm-plan')
+        || usedKinds.find(kind => kind === 'prepare-plan')
+        || usedKinds.find(Boolean)
+        || '';
+      const completion = completionFromToolOutput(outputText, usedKind);
+      if (completion) return completion;
+    }
+  }
+
+  const latestUserMessage = [...messages].reverse().find(message => message?.role === 'user') || {};
+  const latestUserText = chatContentText(latestUserMessage.content);
+  const confirmationCode = latestUserText.match(/确认生图\s+([A-F0-9]{6,32})/i)?.[1]?.toUpperCase() || '';
+  if (confirmationCode && executeImageTool) {
+    return responsesToChatCompletion({
+      id: uid('chatcmpl_image_confirm_'),
+      model,
+      output: [{
+        id: uid('fc_image_confirm_'),
+        type: 'function_call',
+        status: 'completed',
+        call_id: uid('call_'),
+        name: executeImageTool,
+        arguments: JSON.stringify({ confirmationCode })
+      }]
+    }, model);
+  }
+  return null;
+}
+
+function sendConvertedChatStream(res, completion) {
+  const choice = completion.choices[0];
+  const message = choice.message || {};
+  const base = { id: completion.id, object: 'chat.completion.chunk', created: completion.created, model: completion.model };
+  res.status(200);
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }] })}\n\n`);
+  if (message.content) {
+    res.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { content: message.content }, finish_reason: null }] })}\n\n`);
+  }
+  if (message.tool_calls?.length) {
+    res.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { tool_calls: message.tool_calls.map((call, index) => ({ index, ...call })) }, finish_reason: null }] })}\n\n`);
+  }
+  res.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: choice.finish_reason || 'stop' }] })}\n\n`);
+  res.end('data: [DONE]\n\n');
+}
+
+const CHAT_REFUNDED_EMPTY_OUTPUT_MESSAGE = '上游模型未返回有效内容，本次请求已自动退款。请换一个更具体的问题后重新发送。';
+const CHAT_REFUNDED_NATIVE_IMAGE_MESSAGE = '上游文本模型绕过网站报价直接返回了图片数据，本次文本请求已自动退款且图片数据未写入聊天。请重新发送一条生图消息，系统会先展示报价，确认后再执行生图。';
+const CHAT_REFUNDED_PROVIDER_MESSAGE = '上游 AI 服务暂时不可用，本次请求已自动退款。请发送一条新消息后重试。';
+const CHAT_REFUNDED_INVALID_ECOMMERCE_PLAN_MESSAGE = 'GPT‑5.6 未返回完整的电商主图方案，本次请求已自动退款。请重新发送需求后重试。';
+
+function sendChatRefundedMessage(req, res, model, message = CHAT_REFUNDED_PROVIDER_MESSAGE) {
+  const completion = responsesToChatCompletion({
+    id: uid('chatcmpl_refund_'),
+    model,
+    output_text: message
+  }, model);
+  if (req.body?.stream === true) return sendConvertedChatStream(res, completion);
+  return res.json(completion);
+}
+
+function validateEcommerceWorkflowResponse(data = {}, expectedToolName = '', referenceImageCount = 0) {
+  if (!expectedToolName) return { ok: true };
+  const call = responsesFunctionCalls(data).find(item => item?.function?.name === expectedToolName);
+  if (!call) return { ok: false, reason: 'GPT‑5.6 未按要求返回方案工具结果' };
+  let args;
+  try {
+    args = JSON.parse(call.function.arguments || '{}');
+  } catch {
+    return { ok: false, reason: 'GPT‑5.6 返回的方案参数不是有效 JSON' };
+  }
+  if (chatImageToolNameMatches(expectedToolName, 'prepare_ecommerce_image_plan')) {
+    const roles = normalizeChatReferenceRoles(args.referenceRoles);
+    if (normalizeChatImagePlanText(args.designPrompt, 12000).length < 40) {
+      return { ok: false, reason: 'GPT‑5.6 返回的完整设计方案过短' };
+    }
+    if (referenceImageCount > 0 && roles.length === 0) {
+      return { ok: false, reason: 'GPT‑5.6 没有说明参考图片的实际用途' };
+    }
+    if (roles.some(role => role.imageIndex > referenceImageCount && referenceImageCount > 0)) {
+      return { ok: false, reason: 'GPT‑5.6 返回了不存在的参考图片序号' };
+    }
+  }
+  if (chatImageToolNameMatches(expectedToolName, 'confirm_ecommerce_image_plan')) {
+    if (normalizeChatImagePlanText(args.finalPrompt, 12000).length < 40) {
+      return { ok: false, reason: 'GPT‑5.6 没有返回完整的最终生图提示词' };
+    }
+  }
+  return { ok: true, args };
+}
+
+async function ecommerceWorkflowRequestOptions(req, body = {}) {
+  const agentId = req.integrationAgentId || '';
+  if (agentId !== ECOMMERCE_MAIN_IMAGE_AGENT_ID) return { agentId };
+  const context = {
+    user: req.integrationUser,
+    conversationId: req.integrationConversationId,
+    messageId: req.integrationMessageId
+  };
+  const savedRecord = latestChatImagePlan(context);
+  const savedPlan = savedRecord?.plan ? normalizeChatImagePlanV2(savedRecord.plan) : null;
+  const latestUserMessage = [...(Array.isArray(body.messages) ? body.messages : [])].reverse().find(message => message?.role === 'user') || {};
+  const latestUserText = chatContentText(latestUserMessage.content);
+  const shouldLoadImages = chatContentImageCount(latestUserMessage.content) > 0
+    || (req.integrationReferenceImages || []).length > 0
+    || /确认方案\s+[A-F0-9]{6,32}|^(?:修改图片|修改这张|保持当前方案[，, ]*再出一版|再出一版)/i.test(latestUserText);
+  const planningImages = shouldLoadImages ? await chatPlanningInputImages(req, body, savedPlan) : [];
+  return { agentId, savedPlan, planningImages };
+}
+
+async function proxyLibreChatResponsesRoute(req, res, { route, status, model, requestId, stepHash }) {
+  const controller = new AbortController();
+  const timeoutMs = req.integrationAgentId === ECOMMERCE_MAIN_IMAGE_AGENT_ID
+    ? Math.max(status.timeoutMs, ECOMMERCE_TEXT_PROVIDER_TIMEOUT_MS)
+    : status.timeoutMs;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const workflowOptions = await ecommerceWorkflowRequestOptions(req, req.body);
+    const providerRequest = responsesRequestFromChat(req.body, model.k, workflowOptions);
+    const upstream = await fetchProvider(joinProviderUrl(status.baseUrl, routeTextEndpoint(route)), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${providerAuthKey('text', route)}`
+      },
+      body: JSON.stringify(providerRequest),
+      signal: controller.signal
+    });
+    const data = await upstream.json().catch(() => ({}));
+    if (!upstream.ok) {
+      const reason = data.error?.message || data.message || `HTTP ${upstream.status}`;
+      refundChatCharge(requestId, reason, stepHash);
+      console.warn('[CHAT_PROVIDER_REQUEST_REFUNDED]', JSON.stringify({ requestId, model: model.k, status: upstream.status }));
+      return sendChatRefundedMessage(req, res, model.k);
+    }
+    const expectedToolName = providerRequest.tool_choice?.type === 'function'
+      && (
+        chatImageToolNameMatches(providerRequest.tool_choice.name, 'prepare_ecommerce_image_plan') ||
+        chatImageToolNameMatches(providerRequest.tool_choice.name, 'confirm_ecommerce_image_plan')
+      )
+      ? providerRequest.tool_choice.name
+      : '';
+    const ecommerceValidation = validateEcommerceWorkflowResponse(data, expectedToolName, workflowOptions.planningImages?.length || 0);
+    if (!ecommerceValidation.ok) {
+      refundChatCharge(requestId, ecommerceValidation.reason, stepHash);
+      console.warn('[CHAT_ECOMMERCE_PLAN_REFUNDED]', JSON.stringify({ requestId, model: model.k, reason: ecommerceValidation.reason }));
+      return sendChatRefundedMessage(req, res, model.k, CHAT_REFUNDED_INVALID_ECOMMERCE_PLAN_MESSAGE);
+    }
+    const completion = responsesToChatCompletion(data, model.k);
+    const message = completion.choices[0]?.message;
+    if (!message?.content && !message?.tool_calls?.length) {
+      const nativeImageOutput = responsesHasNativeImageOutput(data);
+      console.warn('[CHAT_PROVIDER_BAD_RESPONSE]', JSON.stringify({
+        requestId,
+        model: model.k,
+        status: String(data.status || ''),
+        incompleteReason: String(data.incomplete_details?.reason || ''),
+        nativeImageOutput,
+        shape: providerResponseShape(data)
+      }));
+      refundChatCharge(requestId, nativeImageOutput ? 'Provider Responses 绕过生图报价返回图片数据' : 'Provider Responses 返回格式错误', stepHash);
+      completion.choices[0].message.content = nativeImageOutput ? CHAT_REFUNDED_NATIVE_IMAGE_MESSAGE : CHAT_REFUNDED_EMPTY_OUTPUT_MESSAGE;
+      completion.choices[0].finish_reason = 'stop';
+      if (req.body?.stream === true) return sendConvertedChatStream(res, completion);
+      return res.json(completion);
+    }
+    completeChatStep(requestId, stepHash, message.tool_calls?.length > 0);
+    if (req.body?.stream === true) return sendConvertedChatStream(res, completion);
+    return res.json(completion);
+  } catch (error) {
+    refundChatCharge(requestId, error.message || '上游调用失败', stepHash);
+    console.warn('[CHAT_PROVIDER_REQUEST_REFUNDED]', JSON.stringify({
+      requestId,
+      model: model.k,
+      status: error.name === 'AbortError' ? 'timeout' : 'network-error',
+      code: String(error.code || '')
+    }));
+    if (res.headersSent) return res.end();
+    if (Number(error.status || 0) >= 400 && Number(error.status || 0) < 500 && /^CHAT_REFERENCE_IMAGE_/.test(String(error.code || ''))) {
+      return sendChatRefundedMessage(req, res, model.k, `${error.message}。本次未调用 GPT‑5.6，已退回 5 算力。`);
+    }
+    return sendChatRefundedMessage(req, res, model.k);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function proxyLibreChatCompletion(req, res) {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  if (!Array.isArray(body.messages)) {
+    throw integrationError(400, 'CHAT_MESSAGES_REQUIRED', '缺少 messages');
+  }
+  const latestUserText = chatContentText([...(body.messages || [])].reverse().find(message => message?.role === 'user')?.content || '');
+  if (!req.integrationAgentId && /确认方案\s+[A-F0-9]{6,32}/i.test(latestUserText)) {
+    const completion = responsesToChatCompletion({
+      id: uid('chatcmpl_agent_required_'),
+      model: body.model || AI_TEXT_MODEL,
+      output_text: '当前旧会话缺少“电商主图设计师”身份，请新建会话并重新选择该智能体后再生成方案。'
+    }, body.model || AI_TEXT_MODEL);
+    if (body.stream === true) return sendConvertedChatStream(res, completion);
+    return res.json(completion);
+  }
+  const managedAgent = req.integrationAgentId
+    ? chatSettingsState().managedAgents.find(agent => agent.id === req.integrationAgentId && agent.enabled)
+    : null;
+  const model = resolveChatModel(managedAgent?.model || body.model);
+  const route = resolveTextRoute({ model: model.k, textModel: model.k });
+  const status = routeProviderStatus(route, 'text');
+  if (!status.enabled) {
+    if (body.stream === true) return sendMockChatStream(res, body.messages, model.k);
+    const completion = mockChatCompletion(body.messages, model.k);
+    delete completion.success;
+    delete completion.provider;
+    return res.json(completion);
+  }
+
+  const requestId = req.integrationMessageId || uid('chatreq_');
+  const stepHash = chatStepHash(body, model.k);
+  const reservation = reserveChatCharge(requestId, req.integrationUser, model, stepHash, isChatToolContinuation(body));
+  if (reservation.duplicate) {
+    const chargeStatus = String(reservation.charge?.status || 'reserved');
+    if (chargeStatus === 'refunded') {
+      return sendChatRefundedMessage(req, res, model.k);
+    }
+    if (chargeStatus === 'completed') {
+      throw integrationError(409, 'CHAT_REQUEST_COMPLETED', '该消息已经完成，请勿重复提交');
+    }
+    throw integrationError(409, 'CHAT_REQUEST_IN_PROGRESS', '该消息正在处理，请勿重复提交');
+  }
+
+  const localImageCompletion = localWebsiteImageWorkflowCompletion(body, model.k);
+  if (localImageCompletion) {
+    const awaitingToolResult = localImageCompletion.choices.some(choice => choice?.finish_reason === 'tool_calls' || choice?.message?.tool_calls?.length > 0);
+    completeChatStep(requestId, stepHash, awaitingToolResult);
+    if (body.stream === true) return sendConvertedChatStream(res, localImageCompletion);
+    return res.json(localImageCompletion);
+  }
+
+  if (isResponsesTextRoute(route)) {
+    return proxyLibreChatResponsesRoute(req, res, { route, status, model, requestId, stepHash });
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), status.timeoutMs);
+  let emitted = false;
+  let sawToolCalls = false;
+  let detectionTail = '';
+  const onClose = () => {
+    if (!res.writableEnded) controller.abort();
+  };
+  req.on('aborted', onClose);
+  res.on('close', onClose);
+  try {
+    const upstream = await fetchProvider(joinProviderUrl(status.baseUrl, routeTextChatEndpoint(route)), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${providerAuthKey('text', route)}`
+      },
+      body: JSON.stringify(chatRequestPayload(body, model.k)),
+      signal: controller.signal
+    });
+    if (!upstream.ok) {
+      const upstreamBody = await upstream.json().catch(() => ({}));
+      const reason = upstreamBody.error?.message || upstreamBody.message || `HTTP ${upstream.status}`;
+      refundChatCharge(requestId, reason, stepHash);
+      console.warn('[CHAT_PROVIDER_REQUEST_REFUNDED]', JSON.stringify({ requestId, model: model.k, status: upstream.status }));
+      return sendChatRefundedMessage(req, res, model.k);
+    }
+
+    if (body.stream === true) {
+      res.status(200);
+      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      const reader = upstream.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        emitted = emitted || value.length > 0;
+        const detectionText = detectionTail + Buffer.from(value).toString('utf8');
+        sawToolCalls = sawToolCalls || /["']tool_calls["']/.test(detectionText);
+        detectionTail = detectionText.slice(-256);
+        if (!res.write(Buffer.from(value))) {
+          await new Promise(resolve => res.once('drain', resolve));
+        }
+      }
+      completeChatStep(requestId, stepHash, sawToolCalls);
+      return res.end();
+    }
+
+    const data = await upstream.json().catch(() => ({}));
+    if (!Array.isArray(data.choices)) {
+      refundChatCharge(requestId, 'Provider 返回格式错误', stepHash);
+      return sendChatRefundedMessage(req, res, model.k, CHAT_REFUNDED_EMPTY_OUTPUT_MESSAGE);
+    }
+    const awaitingToolResult = data.choices.some(choice => choice?.finish_reason === 'tool_calls' || choice?.message?.tool_calls?.length > 0);
+    completeChatStep(requestId, stepHash, awaitingToolResult);
+    return res.json(data);
+  } catch (error) {
+    if (!emitted) refundChatCharge(requestId, error.message || '上游调用失败', stepHash);
+    else completeChatStep(requestId, stepHash, false);
+    if (res.headersSent) return res.end();
+    console.warn('[CHAT_PROVIDER_REQUEST_REFUNDED]', JSON.stringify({
+      requestId,
+      model: model.k,
+      status: error.name === 'AbortError' ? 'timeout' : 'network-error'
+    }));
+    return sendChatRefundedMessage(req, res, model.k);
+  } finally {
+    clearTimeout(timer);
+    req.off('aborted', onClose);
+    res.off('close', onClose);
+  }
+}
+
 function responsesInputToChatMessages(input) {
   if (typeof input === 'string') return [{ role: 'user', content: input }];
   if (!Array.isArray(input)) {
@@ -1723,7 +3217,8 @@ function responsesInputToChatMessages(input) {
 }
 
 function shouldUseChatForTextRoute(route = {}, status = {}) {
-  if (String(route.chatEndpoint || '').includes('/chat/completions')) return true;
+  if (isResponsesTextRoute(route)) return false;
+  if ([route.chatEndpoint, route.endpoint, route.requestPath].some(value => String(value || '').includes('/chat/completions'))) return true;
   return String(status.gateway || '').toLowerCase() === 'new-api';
 }
 
@@ -1731,7 +3226,7 @@ async function callProviderResponses(input, options = {}) {
   const status = options.status || routeProviderStatus(options.route, 'text');
   const timeoutMs = positiveNumber(options.timeoutMs, status.timeoutMs || PROVIDER_TIMEOUT_MS);
   const requestStatus = { ...status, timeoutMs };
-  const model = options.model || AI_TEXT_MODEL;
+  const model = resolveTextProviderModel(options.model, options.route || resolveTextRoute(options));
   if (!status.enabled) {
     return {
       success: true,
@@ -1793,16 +3288,79 @@ const providerImageRequestDelay = (options = {}) => {
 };
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const PROVIDER_PRE_TLS_RETRY_LIMIT = 2;
+
+function isProviderPreTlsDisconnect(error) {
+  const message = [error?.message, error?.cause?.message]
+    .filter(Boolean)
+    .join(' ');
+  return /client network socket disconnected before secure tls connection was established/i.test(message);
+}
+
+function providerImageRequestErrorMessage(error) {
+  if (error?.name === 'AbortError') return 'Provider 图生图超时';
+  const code = String(error?.code || error?.cause?.code || '').trim().toUpperCase();
+  const reason = [error?.message, error?.cause?.message]
+    .map(value => String(value || '').trim())
+    .filter(Boolean)
+    .join(' ')
+    .replace(/https?:\/\/\S+/gi, 'Provider');
+  const fingerprint = `${code} ${reason}`;
+  if (isProviderPreTlsDisconnect(error)) {
+    return `Provider 图生图尚未建立到中转站的安全连接${code ? `（${code}）` : ''}，请稍后重试或检查线路`;
+  }
+  if (/ECONNRESET|SOCKET HANG UP/i.test(fingerprint)) {
+    return `Provider 图生图上传连接被重置${code ? `（${code}）` : ''}，请稍后重试或检查线路`;
+  }
+  if (/ENOTFOUND|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|ECONNREFUSED/i.test(fingerprint)) {
+    return `Provider 图生图网络连接失败${code ? `（${code}）` : ''}${reason ? `：${reason.slice(0, 160)}` : ''}`;
+  }
+  if (reason) return `Provider 图生图失败${code ? `（${code}）` : ''}：${reason.slice(0, 200)}`;
+  return `Provider 图生图失败${code ? `（${code}）` : ''}`;
+}
+
+async function fetchProviderWithPreTlsRetry(createRequest) {
+  let retryCount = 0;
+  while (true) {
+    try {
+      return {
+        response: await createRequest(),
+        preTlsRetryCount: retryCount
+      };
+    } catch (error) {
+      if (!isProviderPreTlsDisconnect(error) || retryCount >= PROVIDER_PRE_TLS_RETRY_LIMIT) {
+        throw error;
+      }
+      retryCount += 1;
+      await wait(400 * (2 ** (retryCount - 1)));
+    }
+  }
+}
+
 let providerImageRequestQueue = Promise.resolve();
 let providerImageRequestPending = 0;
+
+function notifyProviderImageQueue(options = {}, status, queuePosition) {
+  if (typeof options.onQueueStatus !== 'function') return;
+  try {
+    options.onQueueStatus({
+      status,
+      queuePosition: status === 'pending' ? queuePosition : 0,
+      pendingCount: providerImageRequestPending
+    });
+  } catch {}
+}
 
 function runQueuedProviderImageRequest(runRequest, options = {}) {
   const delayMs = providerImageRequestDelay(options);
   const shouldDelay = !!options.forceQueueDelay || providerImageRequestPending > 0;
+  const queuePosition = providerImageRequestPending + 1;
   providerImageRequestPending += 1;
+  notifyProviderImageQueue(options, 'pending', queuePosition);
   const previous = providerImageRequestQueue.catch(() => {});
   const queued = previous.then(async () => {
     if (shouldDelay && delayMs > 0) await wait(delayMs);
+    notifyProviderImageQueue(options, 'running', queuePosition);
     return runRequest();
   });
   providerImageRequestQueue = queued.catch(() => {}).finally(() => {
@@ -1824,16 +3382,318 @@ async function runQueuedProviderImageBatch(count, runRequest, options = {}) {
   return requestResults;
 }
 
+function normalizeProviderImageResponseFormat(value = 'url') {
+  return String(value || '').trim().toLowerCase() === 'b64_json' ? 'b64_json' : 'url';
+}
+
+function normalizeProviderImageStream(value = false) {
+  return value === true || ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
+}
+
+function normalizeProviderImagePartialImages(value = 0) {
+  return Math.max(0, Math.min(Math.trunc(Number(value) || 0), 3));
+}
+
+function lingsuanImageRequestExamples(route = {}) {
+  const model = firstString(route.defaultImageModel, route.dm, 'gpt-image-2');
+  return [
+    {
+      label: '文生图',
+      method: 'POST',
+      endpoint: '/v1/images/generations',
+      contentType: 'application/json',
+      requestFormat: LINGSUAN_IMAGES_API_FORMAT,
+      body: { model, prompt: 'string', size: '1024x1024', quality: 'high', output_format: 'png', n: 1 }
+    },
+    {
+      label: '图生图 / 局部重绘',
+      method: 'POST',
+      endpoint: '/v1/images/edits',
+      contentType: 'multipart/form-data',
+      requestFormat: LINGSUAN_IMAGES_API_FORMAT,
+      body: { model, 'image[]': '<file>', prompt: 'string', size: '1024x1024', quality: 'high', output_format: 'png', n: 1 }
+    }
+  ];
+}
+
+function packyImageRequestExamples(route = {}) {
+  const model = firstString(route.defaultImageModel, route.dm, 'gpt-image-2');
+  return [
+    {
+      label: '文生图',
+      method: 'POST',
+      endpoint: '/v1/images/generations',
+      contentType: 'application/json',
+      requestFormat: PACKY_IMAGES_API_FORMAT,
+      body: { model, prompt: 'string', size: '1024x1024', quality: 'high', output_format: 'png', n: 1 }
+    },
+    {
+      label: '图生图 / 局部重绘',
+      method: 'POST',
+      endpoint: '/v1/images/edits',
+      contentType: 'multipart/form-data',
+      requestFormat: PACKY_IMAGES_API_FORMAT,
+      body: { model, image: '<file>', prompt: 'string', size: '1024x1024', quality: 'high', output_format: 'png', n: 1 }
+    }
+  ];
+}
+
+function normalizeApiProviderRoute(route = {}) {
+  if (routeKind(route) === 'text') {
+    const model = textRouteModelKey(route);
+    const sourceExamples = Array.isArray(route.requestExamples) && route.requestExamples.length > 0
+      ? route.requestExamples
+      : [{
+          label: '文本生成',
+          method: 'POST',
+          endpoint: routeTextEndpoint(route),
+          contentType: 'application/json',
+          requestFormat: route.requestFormat || route.apiFormat || 'openai-responses',
+          body: { input: 'string' }
+        }];
+    const requestExamples = sourceExamples.map(example => ({
+      ...example,
+      body: { ...(example.body || {}), model }
+    }));
+    return {
+      ...route,
+      dm: model,
+      defaultTextModel: model,
+      requestExamples,
+      requestBodyExample: { ...(route.requestBodyExample || requestExamples[0]?.body || {}), model }
+    };
+  }
+  const lingsuanImages = isLingsuanImagesRoute(route);
+  const packyImages = isPackyImagesRoute(route);
+  if (!lingsuanImages && !packyImages) return route;
+  const format = lingsuanImages ? LINGSUAN_IMAGES_API_FORMAT : PACKY_IMAGES_API_FORMAT;
+  const normalized = {
+    ...route,
+    apiFormat: format,
+    requestFormat: format,
+    endpoint: '/v1/images/generations',
+    requestPath: '/v1/images/generations',
+    imageEndpoint: '/v1/images/generations',
+    imageEditEndpoint: '/v1/images/edits',
+    imageResponseFormat: lingsuanImages ? 'b64_json' : 'url',
+    imageStream: false,
+    imagePartialImages: 0
+  };
+  normalized.requestExamples = lingsuanImages
+    ? lingsuanImageRequestExamples(normalized)
+    : packyImageRequestExamples(normalized);
+  normalized.requestBodyExample = normalized.requestExamples[0].body;
+  return normalized;
+}
+
+function providerImageResponseMode(route = {}) {
+  if (isLingsuanImagesRoute(route)) {
+    return { stream: false, responseFormat: 'b64_json', partialImages: undefined };
+  }
+  if (isPackyImagesRoute(route)) {
+    return { stream: false, responseFormat: 'url', partialImages: undefined };
+  }
+  const officialRoute = officialRouteDefinition(route);
+  const responseFormat = normalizeProviderImageResponseFormat(
+    firstString(route.imageResponseFormat, officialRoute?.imageResponseFormat, 'url')
+  );
+  const rawStream = route.imageStream !== undefined ? route.imageStream : officialRoute?.imageStream;
+  const stream = normalizeProviderImageStream(rawStream);
+  const rawPartialImages = route.imagePartialImages !== undefined
+    ? route.imagePartialImages
+    : officialRoute?.imagePartialImages;
+  const partialImages = stream
+    ? normalizeProviderImagePartialImages(rawPartialImages)
+    : undefined;
+  return {
+    stream,
+    responseFormat,
+    partialImages
+  };
+}
+
+function looksLikeProviderImageBase64(value = '') {
+  const raw = String(value || '').trim();
+  if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(raw)) return true;
+  return raw.length >= 32 && raw.length <= 40 * 1024 * 1024 && /^[a-z0-9+/=\r\n]+$/i.test(raw);
+}
+
+function parseProviderImageSse(text = '') {
+  const events = [];
+  let eventName = '';
+  let dataLines = [];
+  const flush = () => {
+    if (!dataLines.length) {
+      eventName = '';
+      return;
+    }
+    const rawData = dataLines.join('\n').trim();
+    dataLines = [];
+    if (!rawData || rawData === '[DONE]') {
+      eventName = '';
+      return;
+    }
+    try {
+      const parsed = JSON.parse(rawData);
+      if (eventName && parsed && typeof parsed === 'object' && !Array.isArray(parsed) && !parsed.type) {
+        parsed.type = eventName;
+      }
+      events.push(parsed);
+    } catch {
+      events.push({ type: eventName || 'message', data: rawData });
+    }
+    eventName = '';
+  };
+  for (const line of String(text || '').replace(/\r\n/g, '\n').split('\n')) {
+    if (!line) {
+      flush();
+    } else if (line.startsWith('event:')) {
+      eventName = line.slice(6).trim();
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trimStart());
+    }
+  }
+  flush();
+  return events;
+}
+
+function collectProviderImageResults(value, images = [], seen = new Set(), inheritedPartial = false) {
+  const addCandidate = (candidateValue, metadata = {}) => {
+    const raw = String(candidateValue || '').trim();
+    if (!raw) return;
+    const isUrl = /^https?:\/\//i.test(raw);
+    if (!isUrl && !looksLikeProviderImageBase64(raw)) return;
+    const key = `${isUrl ? 'url' : 'b64'}:${raw}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    images.push({
+      ...(isUrl ? { url: raw } : { b64_json: raw }),
+      ...(metadata.revised_prompt ? { revised_prompt: metadata.revised_prompt } : {})
+    });
+  };
+  if (typeof value === 'string') {
+    if (!inheritedPartial) addCandidate(value);
+    return images;
+  }
+  if (Array.isArray(value)) {
+    value.forEach(item => collectProviderImageResults(item, images, seen, inheritedPartial));
+    return images;
+  }
+  if (!value || typeof value !== 'object') return images;
+  const eventType = firstString(value.type, value.event, value.object);
+  const partial = inheritedPartial || /partial/i.test(eventType);
+  if (partial) return images;
+  const directUrl = firstString(value.url, value.imageUrl, value.image_url);
+  const encoded = firstString(value.b64_json, value.b64Json, value.base64, value.dataUrl, value.data_url);
+  const result = typeof value.result === 'string' ? value.result : '';
+  addCandidate(encoded || directUrl || result, { revised_prompt: firstString(value.revised_prompt, value.revisedPrompt) });
+  for (const key of ['data', 'images', 'results', 'output', 'response', 'content']) {
+    if (value[key] !== undefined) collectProviderImageResults(value[key], images, seen, false);
+  }
+  if (value.result && typeof value.result === 'object') {
+    collectProviderImageResults(value.result, images, seen, false);
+  }
+  return images;
+}
+
+function safeProviderImageUpstream(value, depth = 0) {
+  if (depth > 10) return '[TRUNCATED]';
+  if (Array.isArray(value)) return value.map(item => safeProviderImageUpstream(item, depth + 1));
+  if (!value || typeof value !== 'object') {
+    if (typeof value === 'string' && looksLikeProviderImageBase64(value)) {
+      return `[BASE64_IMAGE:${value.length}]`;
+    }
+    return value;
+  }
+  const safe = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item === 'string' && (
+      ['b64_json', 'b64Json', 'base64', 'dataUrl', 'data_url', 'partial_image_b64'].includes(key) ||
+      (key === 'result' && looksLikeProviderImageBase64(item))
+    )) {
+      safe[key] = `[BASE64_IMAGE:${item.length}]`;
+    } else {
+      safe[key] = safeProviderImageUpstream(item, depth + 1);
+    }
+  }
+  return safe;
+}
+
+function providerImageResponseMessage(value, depth = 0) {
+  if (depth > 8 || !value) return '';
+  if (typeof value === 'string') return value.length <= 1000 ? value : '';
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const message = providerImageResponseMessage(item, depth + 1);
+      if (message) return message;
+    }
+    return '';
+  }
+  if (typeof value !== 'object') return '';
+  if (typeof value.message === 'string' && value.message.trim()) return value.message.trim();
+  if (value.error) {
+    const message = providerImageResponseMessage(value.error, depth + 1);
+    if (message) return message;
+  }
+  return '';
+}
+
+async function parseProviderImageResponse(resp) {
+  const contentType = resp.headers.get('content-type') || '';
+  const text = await resp.text();
+  const isEventStream = /text\/event-stream/i.test(contentType) || /^\s*(?:event|data):/m.test(text);
+  let payload = {};
+  let eventCount = 0;
+  if (isEventStream) {
+    const events = parseProviderImageSse(text);
+    payload = events;
+    eventCount = events.length;
+  } else if (text.trim()) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = { raw: text.slice(0, 4000) };
+    }
+  }
+  const images = collectProviderImageResults(payload);
+  const safePayload = safeProviderImageUpstream(payload);
+  return {
+    contentType,
+    isEventStream,
+    eventCount,
+    images,
+    message: providerImageResponseMessage(payload),
+    data: isEventStream
+      ? { stream: true, eventCount, events: safePayload }
+      : safePayload
+  };
+}
+
+function providerImageEmptyResponse(status, upstream) {
+  return {
+    success: false,
+    code: 'PROVIDER_IMAGE_EMPTY_BILLED_RESPONSE',
+    message: '上游返回成功状态，但没有提供最终图片 URL 或 Base64（可能只有 revised_prompt/usage）。本地未保存结果且不会扣除算力；上游可能已经计费，请凭任务记录联系线路处理。',
+    provider: status,
+    upstream
+  };
+}
+
 async function callProviderImageGeneration(prompt, options = {}) {
   const status = options.status || routeProviderStatus(options.route, 'image');
+  const timeoutMs = providerImageTimeoutMs(options.route, status);
   const model = options.model || options.modelKey || AI_IMAGE_MODEL;
   const count = Math.max(1, Math.min(Number(options.n || options.count || options.imageCount || 1) || 1, 4));
   const sizeTier = options.sizeTier || options.resolution || options.clarity || options.quality;
-  const size = providerImageSize(options.size || options.ratio || options.aspectRatio, sizeTier);
+  const size = providerImageRequestSize(options, sizeTier);
   const quality = providerImageQuality(options.imageQuality || options.providerQuality || options.qualityMode || options.quality, sizeTier);
   const outputFormat = providerImageOutputFormat(options.output_format || options.outputFormat);
   const background = providerImageBackground(options.background || options.bg);
   const moderation = providerImageModeration(options.moderation || options.moderationMode);
+  const responseMode = providerImageResponseMode(options.route);
+  const lingsuanImages = isLingsuanImagesRoute(options.route);
+  const packyImages = isPackyImagesRoute(options.route);
+  const strictImages = lingsuanImages || packyImages;
   if (!status.enabled) {
     return {
       success: true,
@@ -1846,59 +3706,58 @@ async function callProviderImageGeneration(prompt, options = {}) {
   try {
     const requestResults = await runQueuedProviderImageBatch(count, async () => {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), status.imageTimeoutMs || status.timeoutMs);
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const requestUrl = joinProviderUrl(status.baseUrl, routeImageGenerationEndpoint(options.route));
-        const resp = await fetch(requestUrl, {
+        const requestPayload = strictImages
+          ? { model, prompt, size, quality, output_format: outputFormat, n: 1 }
+          : {
+              model,
+              prompt,
+              size,
+              quality,
+              background,
+              output_format: outputFormat,
+              moderation,
+              response_format: responseMode.responseFormat,
+              ...(responseMode.stream ? { stream: true } : {}),
+              ...(responseMode.stream ? { partial_images: responseMode.partialImages } : {}),
+              n: 1
+            };
+        const requestBody = JSON.stringify(requestPayload);
+        const { response: resp, preTlsRetryCount } = await fetchProviderWithPreTlsRetry(() => fetch(requestUrl, {
           method: 'POST',
           headers: {
-            'Accept': '*/*',
+            'Accept': providerImageAcceptHeader(options.route, responseMode),
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${providerAuthKey('image', options.route)}`
           },
-          body: JSON.stringify({
-            model,
-            prompt,
-            size,
-            quality,
-            background,
-            output_format: outputFormat,
-            moderation,
-            response_format: 'url',
-            n: 1
-          }),
+          body: requestBody,
+          agent: providerImageAgentForUrl(requestUrl),
           signal: controller.signal
-        });
-        const contentType = resp.headers.get('content-type') || '';
-        const data = await resp.json().catch(() => ({}));
-        const upstreamItem = { status: resp.status, contentType, data };
+        }));
+        const parsed = await parseProviderImageResponse(resp);
+        const upstreamItem = {
+          status: resp.status,
+          contentType: parsed.contentType,
+          stream: parsed.isEventStream,
+          eventCount: parsed.eventCount,
+          data: parsed.data,
+          transportMode: providerImageTransportForUrl(requestUrl),
+          preTlsRetryCount
+        };
         if (!resp.ok) {
           return {
             success: false,
             code: 'PROVIDER_IMAGE_FAILED',
-            message: data.message || data.error?.message || `Provider returned ${resp.status}`,
+            message: parsed.message || `Provider returned ${resp.status}`,
             provider: status,
             upstreamStatus: resp.status,
-            upstream: data,
+            upstream: parsed.data,
             upstreamItem
           };
         }
-        const rawImages = Array.isArray(data.data)
-          ? data.data
-          : Array.isArray(data.images)
-            ? data.images
-            : Array.isArray(data.results)
-              ? data.results
-              : [];
-        const images = rawImages
-          .map((item) => {
-            const raw = item && typeof item === 'object' ? item : { url: item };
-            return raw.url || raw.imageUrl || raw.image_url || raw.b64_json || raw.b64Json
-              ? raw
-              : null;
-          })
-          .filter(Boolean);
-        return { success: true, images, upstreamItem };
+        return { success: true, images: parsed.images, upstreamItem };
       } catch (err) {
         return {
           success: false,
@@ -1918,17 +3777,28 @@ async function callProviderImageGeneration(prompt, options = {}) {
       result.images.forEach((item) => images.push({ ...item, index: images.length }));
     });
     if (!images.length) {
-      return {
-        success: false,
-        code: 'PROVIDER_IMAGE_EMPTY',
-        message: upstream.some(item => item.contentType && !String(item.contentType).toLowerCase().includes('json'))
-          ? 'Provider 返回的不是 JSON，请检查 Base URL 和图片接口路径是否包含 /v1'
-          : 'Provider 没有返回有效图片',
-        provider: status,
-        upstream
-      };
+      return providerImageEmptyResponse(status, upstream);
     }
-    return { success: true, mock: false, provider: status, images, upstream, request: { endpoint: routeImageGenerationEndpoint(options.route), model, size, quality, background, output_format: outputFormat, moderation, response_format: 'url', n: 1, requestedCount: count, queueMode: 'serial-delayed', queueDelayMs: providerImageRequestDelay(options) } };
+    const request = {
+      endpoint: routeImageGenerationEndpoint(options.route),
+      model,
+      size,
+      quality,
+      output_format: outputFormat,
+      ...(strictImages ? {} : {
+        background,
+        moderation,
+        response_format: responseMode.responseFormat,
+        stream: responseMode.stream,
+        partial_images: responseMode.partialImages
+      }),
+      n: 1,
+      requestedCount: count,
+      queueMode: 'serial-delayed',
+      queueDelayMs: providerImageRequestDelay(options),
+      timeoutMs
+    };
+    return { success: true, mock: false, provider: status, images, upstream, request };
   } catch (err) {
     return {
       success: false,
@@ -1941,15 +3811,20 @@ async function callProviderImageGeneration(prompt, options = {}) {
 
 async function callProviderImageEdit(prompt, options = {}) {
   const status = options.status || routeProviderStatus(options.route, 'image');
+  const timeoutMs = providerImageTimeoutMs(options.route, status);
   const model = options.model || options.modelKey || AI_IMAGE_MODEL;
   const count = Math.max(1, Math.min(Number(options.n || options.count || options.imageCount || 1) || 1, 4));
   const sizeTier = options.sizeTier || options.resolution || options.clarity || options.quality;
-  const size = providerImageSize(options.size || options.ratio || options.aspectRatio, sizeTier);
+  const size = providerImageRequestSize(options, sizeTier);
   const quality = providerImageQuality(options.imageQuality || options.providerQuality || options.qualityMode || options.quality, sizeTier);
   const outputFormat = providerImageOutputFormat(options.output_format || options.outputFormat);
   const inputFidelity = providerImageInputFidelity(options.input_fidelity || options.inputFidelity);
   const background = providerImageBackground(options.background || options.bg);
   const moderation = providerImageModeration(options.moderation || options.moderationMode);
+  const responseMode = providerImageResponseMode(options.route);
+  const lingsuanImages = isLingsuanImagesRoute(options.route);
+  const packyImages = isPackyImagesRoute(options.route);
+  const strictImages = lingsuanImages || packyImages;
   const references = imageReferenceCandidates(options.body || options);
   if (!references.length) {
     return callProviderImageGeneration(prompt, options);
@@ -1978,71 +3853,117 @@ async function callProviderImageEdit(prompt, options = {}) {
         fileName: file.fileName || `reference-${i + 1}.${providerImageExt(file.mime)}`
       });
     }
+    const editRequestUrl = joinProviderUrl(status.baseUrl, routeImageEditEndpoint(options.route));
+    const editRequestMeta = {
+      model,
+      size,
+      quality,
+      output_format: outputFormat,
+      ...(strictImages ? {} : {
+        response_format: responseMode.responseFormat,
+        stream: responseMode.stream,
+        partial_images: responseMode.partialImages,
+        input_fidelity: inputFidelity,
+        background,
+        moderation
+      }),
+      n: 1,
+      queueMode: 'serial-delayed',
+      queueDelayMs: providerImageRequestDelay(options),
+      timeoutMs,
+      endpoint: routeImageEditEndpoint(options.route),
+      requestedCount: count,
+      referenceImageCount: references.length,
+      submittedReferenceImageCount: referenceFiles.length,
+      referenceImageField: lingsuanImages ? 'image[]' : 'image',
+      referenceImageFieldMode: referenceFiles.length > 1 && !maskFile ? 'repeated' : 'single',
+      referenceImageBytes: referenceFiles.map((file) => file.buffer.length),
+      referenceImageTotalBytes: referenceFiles.reduce((total, file) => total + file.buffer.length, 0),
+      referenceImageMimeTypes: referenceFiles.map((file) => file.mime),
+      transportMode: providerImageTransportForUrl(editRequestUrl)
+    };
     const requestResults = await runQueuedProviderImageBatch(count, async () => {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), status.imageTimeoutMs || status.timeoutMs);
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const form = new FormData();
-        form.append('model', model);
-        form.append('prompt', prompt);
-        form.append('size', size);
-        form.append('quality', quality);
-        form.append('background', background);
-        form.append('output_format', outputFormat);
-        form.append('moderation', moderation);
-        form.append('response_format', 'url');
-        form.append('n', '1');
-        form.append('input_fidelity', inputFidelity);
-        referenceFiles.forEach((file, index) => {
-          form.append('image', new Blob([file.buffer], { type: file.mime }), file.fileName || `reference-${index + 1}.${providerImageExt(file.mime)}`);
-        });
-        if (maskFile) form.append('mask', new Blob([maskFile.buffer], { type: maskFile.mime }), maskFile.fileName);
-        const requestUrl = joinProviderUrl(status.baseUrl, routeImageEditEndpoint(options.route));
-        const resp = await fetch(requestUrl, {
+        const createForm = () => {
+          const form = new FormData();
+          form.append('model', model);
+          if (strictImages) {
+            referenceFiles.forEach((file, index) => {
+              form.append(lingsuanImages ? 'image[]' : 'image', new Blob([file.buffer], { type: file.mime }), file.fileName || `reference-${index + 1}.${providerImageExt(file.mime)}`);
+            });
+            if (maskFile) form.append('mask', new Blob([maskFile.buffer], { type: maskFile.mime }), maskFile.fileName);
+            form.append('prompt', prompt);
+            form.append('size', size);
+            form.append('quality', quality);
+            form.append('output_format', outputFormat);
+            form.append('n', '1');
+            return form;
+          }
+          form.append('prompt', prompt);
+          form.append('size', size);
+          form.append('quality', quality);
+          form.append('background', background);
+          form.append('output_format', outputFormat);
+          form.append('moderation', moderation);
+          form.append('response_format', responseMode.responseFormat);
+          if (responseMode.stream) {
+            form.append('stream', 'true');
+            form.append('partial_images', String(responseMode.partialImages));
+          }
+          form.append('n', '1');
+          form.append('input_fidelity', inputFidelity);
+          referenceFiles.forEach((file, index) => {
+            form.append('image', new Blob([file.buffer], { type: file.mime }), file.fileName || `reference-${index + 1}.${providerImageExt(file.mime)}`);
+          });
+          if (maskFile) form.append('mask', new Blob([maskFile.buffer], { type: maskFile.mime }), maskFile.fileName);
+          return form;
+        };
+        const requestUrl = editRequestUrl;
+        const { response: resp, preTlsRetryCount } = await fetchProviderWithPreTlsRetry(() => fetch(requestUrl, {
           method: 'POST',
           headers: {
-            'Accept': '*/*',
+            'Accept': providerImageAcceptHeader(options.route, responseMode),
             'Authorization': `Bearer ${providerAuthKey('image', options.route)}`
           },
-          body: form,
+          body: createForm(),
+          agent: providerImageAgentForUrl(requestUrl),
           signal: controller.signal
-        });
-        const contentType = resp.headers.get('content-type') || '';
-        const data = await resp.json().catch(() => ({}));
-        const upstreamItem = { status: resp.status, contentType, data };
+        }));
+        const parsed = await parseProviderImageResponse(resp);
+        const upstreamItem = {
+          status: resp.status,
+          contentType: parsed.contentType,
+          stream: parsed.isEventStream,
+          eventCount: parsed.eventCount,
+          data: parsed.data,
+          transportMode: providerImageTransportForUrl(requestUrl),
+          preTlsRetryCount
+        };
         if (!resp.ok) {
           return {
             success: false,
             code: 'PROVIDER_IMAGE_EDIT_FAILED',
-            message: data.message || data.error?.message || `Provider returned ${resp.status}`,
+            message: parsed.message || `Provider returned ${resp.status}`,
             provider: status,
             upstreamStatus: resp.status,
-            upstream: data,
-            upstreamItem
+            upstream: parsed.data,
+            upstreamItem,
+            request: { ...editRequestMeta, preTlsRetryCount }
           };
         }
-        const rawImages = Array.isArray(data.data)
-          ? data.data
-          : Array.isArray(data.images)
-            ? data.images
-            : Array.isArray(data.results)
-              ? data.results
-              : [];
-        const images = rawImages
-          .map((item) => {
-            const raw = item && typeof item === 'object' ? item : { url: item };
-            return raw.url || raw.imageUrl || raw.image_url || raw.b64_json || raw.b64Json
-              ? raw
-              : null;
-          })
-          .filter(Boolean);
-        return { success: true, images, upstreamItem };
+        return { success: true, images: parsed.images, upstreamItem };
       } catch (err) {
         return {
           success: false,
           code: err.name === 'AbortError' ? 'PROVIDER_IMAGE_EDIT_TIMEOUT' : 'PROVIDER_IMAGE_EDIT_ERROR',
-          message: err.name === 'AbortError' ? 'Provider 图生图超时' : (err.message || 'Provider 图生图失败'),
-          provider: status
+          message: providerImageRequestErrorMessage(err),
+          provider: status,
+          request: {
+            ...editRequestMeta,
+            preTlsRetryCount: Number(err?.providerPreTlsRetryCount || 0)
+          }
         };
       } finally {
         clearTimeout(timer);
@@ -2056,15 +3977,7 @@ async function callProviderImageEdit(prompt, options = {}) {
       result.images.forEach((item) => images.push({ ...item, index: images.length }));
     });
     if (!images.length) {
-      return {
-        success: false,
-        code: 'PROVIDER_IMAGE_EDIT_EMPTY',
-        message: upstream.some(item => item.contentType && !String(item.contentType).toLowerCase().includes('json'))
-          ? 'Provider 返回的不是 JSON，请检查 Base URL 和图生图接口路径是否包含 /v1'
-          : 'Provider 没有返回有效图片',
-        provider: status,
-        upstream
-      };
+      return providerImageEmptyResponse(status, upstream);
     }
     return {
       success: true,
@@ -2074,30 +3987,15 @@ async function callProviderImageEdit(prompt, options = {}) {
       images,
       upstream,
       request: {
-        model,
-        size,
-        quality,
-        output_format: outputFormat,
-        response_format: 'url',
-        n: 1,
-        queueMode: 'serial-delayed',
-        queueDelayMs: providerImageRequestDelay(options),
-        input_fidelity: inputFidelity,
-        background,
-        moderation,
-        endpoint: routeImageEditEndpoint(options.route),
-        requestedCount: count,
-        referenceImageCount: references.length,
-        submittedReferenceImageCount: referenceFiles.length,
-        referenceImageField: 'image',
-        referenceImageFieldMode: referenceFiles.length > 1 && !maskFile ? 'repeated' : 'single'
+        ...editRequestMeta,
+        preTlsRetryCount: Math.max(0, ...upstream.map((item) => Number(item.preTlsRetryCount || 0)))
       }
     };
   } catch (err) {
     return {
       success: false,
       code: err.name === 'AbortError' ? 'PROVIDER_IMAGE_EDIT_TIMEOUT' : 'PROVIDER_IMAGE_EDIT_ERROR',
-      message: err.name === 'AbortError' ? 'Provider 图生图超时' : (err.message || 'Provider 图生图失败'),
+      message: providerImageRequestErrorMessage(err),
       provider: status
     };
   }
@@ -2199,7 +4097,9 @@ function routeIdentity(route = RTS[0]) {
 
 function baseModelsForRoute(route = RTS[0]) {
   const kind = routeKind(route);
-  const sourceModels = kind === 'text' ? TXT : IMG;
+  const sourceModels = kind === 'text'
+    ? [{ k: textRouteModelKey(route), n: textModelDisplayName(textRouteModelKey(route), route), p: 5, q: ['1k'] }]
+    : IMG;
   return sourceModels.map(m => fmt(m, route));
 }
 
@@ -2302,13 +4202,15 @@ function modelRowsForRoute(route = RTS[0], options = {}) {
   const baseModels = baseModelsForRoute(route);
   const overrides = modelPriceState().filter(row => routeMatchesModelRow(row, route));
   const usedOverrideIds = new Set();
-  const mergedModels = baseModels.map(model => {
+  const mergedModels = baseModels.flatMap(model => {
     const override = overrides.find(row => modelMatchesRow(model, row));
     if (override && override.id) usedOverrideIds.add(override.id);
-    return normalizeRouteModel(override || {}, route, model);
+    if (override?.deleted) return [];
+    return [normalizeRouteModel(override || {}, route, model)];
   });
   const extraModels = overrides
     .filter(row => !row.id || !usedOverrideIds.has(row.id))
+    .filter(row => !row.deleted)
     .filter(row => !baseModels.some(model => modelMatchesRow(model, row)))
     .map(row => normalizeRouteModel(row, route));
   const models = [...mergedModels, ...extraModels];
@@ -2330,6 +4232,7 @@ function findPricedModel(modelKey = '', kind = 'image', preferredRoute = null) {
 }
 
 function routePayload(route = RTS[0], options = {}) {
+  route = normalizeApiProviderRoute(route);
   const kind = routeKind(route);
   const baseModels = baseModelsForRoute(route);
   const models = options.includeModelOverrides === false
@@ -2342,14 +4245,41 @@ function routePayload(route = RTS[0], options = {}) {
   const defaultModel = models.find(model =>
     [model.modelKey, model.realName, model.realModelName, model.displayName, model.modelId, model.id].filter(Boolean).includes(route.dm)
   ) || baseModels.find(model => [model.modelKey, model.realName, model.displayName].includes(route.dm)) || models[0] || baseModels[0] || null;
-  const officialRoute = RTS.find(item =>
-    [item.id, item.rk].includes(id) ||
-    [item.id, item.rk].includes(key) ||
-    (item.dm && item.dm === route.dm)
-  );
+  const officialRoute = officialRouteDefinition(route);
   const officialExamples = Array.isArray(officialRoute && officialRoute.requestExamples)
     ? officialRoute.requestExamples
     : null;
+  const imageResponseMode = kind === 'image' ? providerImageResponseMode(route) : null;
+  const lingsuanImages = isLingsuanImagesRoute(route);
+  const packyImages = isPackyImagesRoute(route);
+  const strictImages = lingsuanImages || packyImages;
+  const storedExamples = strictImages
+    ? (lingsuanImages ? lingsuanImageRequestExamples(route) : packyImageRequestExamples(route))
+    : (Array.isArray(route.requestExamples) && route.requestExamples.length
+        ? route.requestExamples
+        : officialExamples || []);
+  const requestExamples = kind === 'image'
+    ? storedExamples.map((example) => {
+        const multipart = /multipart/i.test(String(example.contentType || '')) || /图生图|编辑|局部/.test(String(example.label || ''));
+        const body = strictImages
+          ? { ...(example.body || {}) }
+          : { ...(example.body || {}), response_format: imageResponseMode.responseFormat };
+        if (!strictImages && imageResponseMode.stream) {
+          body.stream = true;
+          body.partial_images = imageResponseMode.partialImages;
+        } else {
+          delete body.stream;
+          delete body.partial_images;
+        }
+        return {
+          ...example,
+          endpoint: multipart
+            ? routeImageEditEndpoint(route)
+            : routeImageGenerationEndpoint(route),
+          body
+        };
+      })
+    : storedExamples;
   return {
     ...route,
     id,
@@ -2385,8 +4315,11 @@ function routePayload(route = RTS[0], options = {}) {
     requestFormat: route.requestFormat || route.apiFormat || officialRoute?.requestFormat || '',
     endpoint: route.endpoint || route.requestPath || officialRoute?.endpoint || '',
     requestPath: route.requestPath || route.endpoint || officialRoute?.endpoint || '',
-    requestBodyExample: route.requestBodyExample || (officialExamples ? officialExamples[0].body : null),
-    requestExamples: officialExamples || (Array.isArray(route.requestExamples) ? route.requestExamples : []),
+    imageResponseFormat: imageResponseMode?.responseFormat || '',
+    imageStream: imageResponseMode?.stream || false,
+    imagePartialImages: imageResponseMode?.partialImages ?? 0,
+    requestBodyExample: requestExamples[0]?.body || route.requestBodyExample || null,
+    requestExamples,
     models
   };
 }
@@ -2451,29 +4384,48 @@ app.post('/api/auth/send-email-code', (req, res) => {
   res.json({ ok: true, expiresIn: 300, cooldown: 60, code });
 });
 
-app.post('/api/auth/send-reset-code', (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ message: '邮箱不能为空' });
-  const code = rcode();
-  db.prepare('INSERT INTO email_codes (email,code,type,expires_at,created_at) VALUES (?,?,?,?,?)').run(email,code,'reset',Date.now()+300000,Date.now());
-  console.log(`[RESET] ${email} -> ${code}`);
-  const mockPayload = ENABLE_REAL_EMAIL
-    ? {}
-    : { code, message: `如果该邮箱已注册，验证码将发送到邮箱。测试验证码：${code}` };
-  res.json({ message: '如果该邮箱已注册，验证码将发送到邮箱', cooldown: 60, expiresIn: 300, ...mockPayload });
+app.post('/api/auth/send-reset-code', (_req, res) => {
+  res.status(410).json({
+    success: false,
+    code: 'RESET_CODE_FLOW_DISABLED',
+    message: '当前内网不使用重置验证码，请输入用户名直接设置新密码'
+  });
 });
 
 app.post('/api/auth/reset-password', (req, res) => {
-  const { email, code, password, newPassword } = req.body;
-  const nextPassword = password || newPassword;
-  if (!email || !code || !nextPassword) return res.status(400).json({ message: '缺少邮箱、验证码或新密码' });
-  const saved = db.prepare('SELECT * FROM email_codes WHERE email=? AND type=? ORDER BY created_at DESC LIMIT 1').get(email,'reset');
-  if (!saved || saved.code !== code || Date.now() > saved.expires_at) return res.status(400).json({ message: '验证码错误或已过期' });
-  const user = db.prepare('SELECT * FROM users WHERE email=?').get(email);
-  if (!user) return res.status(404).json({ message: '该邮箱未注册' });
+  const username = String(req.body.username || '').trim();
+  const nextPassword = String(req.body.newPassword || req.body.password || '');
+  if (!username || !nextPassword) {
+    return res.status(400).json({
+      success: false,
+      code: 'RESET_FIELDS_REQUIRED',
+      message: '请输入用户名和新密码'
+    });
+  }
+  if (nextPassword.length < 6) {
+    return res.status(400).json({
+      success: false,
+      code: 'PASSWORD_TOO_SHORT',
+      message: '新密码至少需要 6 位'
+    });
+  }
+  const user = db.prepare('SELECT * FROM users WHERE username=?').get(username);
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      code: 'ACCOUNT_NOT_FOUND',
+      message: '账号不存在，请检查用户名'
+    });
+  }
+  if (user.role === 'admin') {
+    return res.status(403).json({
+      success: false,
+      code: 'ADMIN_SELF_RESET_FORBIDDEN',
+      message: '管理员账号不能通过找回密码入口重置'
+    });
+  }
   db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(h(nextPassword), user.id);
-  db.prepare('DELETE FROM email_codes WHERE email=? AND type=?').run(email,'reset');
-  res.json({ success: true, message: '密码已重置' });
+  res.json({ success: true, message: '密码已重置，请使用新密码登录' });
 });
 
 app.post('/api/admin/login', (req, res) => {
@@ -2608,6 +4560,79 @@ app.use('/uploads', express.static(uploadDir));
 
 // ===================== AI GENERATION =====================
 const fetch = (...args) => import('node-fetch').then(({default:f})=>f(...args));
+const providerHttpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 32,
+  maxFreeSockets: 8
+});
+function normalizeLingsuanImageProxyUrl(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported protocol');
+    return parsed.toString();
+  } catch {
+    throw new Error('LINGSUAN_IMAGE_PROXY_URL 必须是有效的 HTTP(S) 代理地址');
+  }
+}
+const LINGSUAN_IMAGE_PROXY_URL = normalizeLingsuanImageProxyUrl(process.env.LINGSUAN_IMAGE_PROXY_URL);
+const LINGSUAN_IMAGE_PROXY_HOSTS = new Set(['lingsuan.top']);
+const providerImageProxyAgent = LINGSUAN_IMAGE_PROXY_URL
+  ? new HttpsProxyAgent(LINGSUAN_IMAGE_PROXY_URL, { keepAlive: true })
+  : null;
+
+function isLingsuanImageProxyTarget(url = '') {
+  if (!providerImageProxyAgent) return false;
+  try {
+    const parsed = new URL(String(url));
+    return parsed.protocol === 'https:' && LINGSUAN_IMAGE_PROXY_HOSTS.has(parsed.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+function providerImageAgentForUrl(url = '') {
+  let protocol = '';
+  try { protocol = new URL(String(url)).protocol; } catch {}
+  if (protocol !== 'https:') return undefined;
+  return isLingsuanImageProxyTarget(url) ? providerImageProxyAgent : undefined;
+}
+
+function providerImageTransportForUrl(url = '') {
+  let protocol = '';
+  try { protocol = new URL(String(url)).protocol; } catch {}
+  if (protocol !== 'https:') return 'http-direct';
+  return isLingsuanImageProxyTarget(url) ? 'https-proxy' : 'https-default-direct';
+}
+
+function isProviderPreTlsReset(error) {
+  return error?.code === 'ECONNRESET'
+    && /before secure tls connection was established/i.test(String(error?.message || ''));
+}
+
+async function fetchProvider(url, options = {}) {
+  const requestOptions = { ...options };
+  if (String(url).toLowerCase().startsWith('https://') && !requestOptions.agent) {
+    requestOptions.agent = providerHttpsAgent;
+  }
+
+  const retryDelays = [250, 750];
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await fetch(url, requestOptions);
+    } catch (error) {
+      if (attempt >= retryDelays.length || requestOptions.signal?.aborted || !isProviderPreTlsReset(error)) {
+        throw error;
+      }
+      const providerHost = (() => {
+        try { return new URL(String(url)).host; } catch { return 'provider'; }
+      })();
+      console.warn(`[PROVIDER_TLS_RETRY] ${providerHost} TLS handshake reset, retry ${attempt + 1}/${retryDelays.length}`);
+      await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]));
+    }
+  }
+}
 
 app.post('/api/generation/estimate-cost', optionalAuth, (req, res) => {
   const modelKey = req.body.modelKey || req.body.model || req.body.realName || req.body.realModelName || req.body.imageModelKey || IMG[0].k;
@@ -2665,34 +4690,213 @@ app.get('/api/mock-image/:id.svg', (req, res) => {
 </svg>`);
 });
 
+function imageProxyError(status, code, message) {
+  const error = new Error(message);
+  error.status = status;
+  error.code = code;
+  return error;
+}
+
+function imageProxySignature(rawUrl = '') {
+  return crypto.createHmac('sha256', JWT_SECRET).update(String(rawUrl || ''), 'utf8').digest('hex');
+}
+
+function imageProxyTargetFromDisplayUrl(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw, 'http://image-proxy.local');
+    if (parsed.pathname !== '/api/proxy-image') return '';
+    const target = String(parsed.searchParams.get('url') || '').trim();
+    return /^https?:\/\//i.test(target) ? target : '';
+  } catch {
+    return '';
+  }
+}
+
+function signedImageProxyUrl(rawUrl = '') {
+  const target = String(rawUrl || '').trim();
+  return `/api/proxy-image?url=${encodeURIComponent(target)}&sig=${imageProxySignature(target)}`;
+}
+
+const LEGACY_IMAGE_PROXY_TARGETS = new Set(
+  db.prepare("SELECT result_url FROM generations WHERE result_url LIKE '%/api/proxy-image?url=%' AND result_url NOT LIKE '%&sig=%'")
+    .all()
+    .map(row => imageProxyTargetFromDisplayUrl(row.result_url))
+    .filter(Boolean)
+);
+
+function isKnownLegacyImageProxyTarget(rawUrl = '') {
+  const target = String(rawUrl || '').trim();
+  if (LEGACY_IMAGE_PROXY_TARGETS.has(target)) return true;
+  const rows = db.prepare("SELECT result_url FROM generations WHERE result_url LIKE '%/api/proxy-image?url=%' AND result_url NOT LIKE '%&sig=%'").all();
+  for (const row of rows) {
+    const knownTarget = imageProxyTargetFromDisplayUrl(row.result_url);
+    if (knownTarget) LEGACY_IMAGE_PROXY_TARGETS.add(knownTarget);
+  }
+  return LEGACY_IMAGE_PROXY_TARGETS.has(target);
+}
+
+function normalizedProxyHostname(value = '') {
+  return String(value || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+}
+
+function isBlockedProxyIpv4(address = '') {
+  const octets = String(address || '').split('.').map(Number);
+  if (octets.length !== 4 || octets.some(value => !Number.isInteger(value) || value < 0 || value > 255)) return true;
+  const [a, b, c] = octets;
+  return a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 0 && c === 0) ||
+    (a === 192 && b === 0 && c === 2) ||
+    (a === 192 && b === 88 && c === 99) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
+    a >= 224;
+}
+
+function isBlockedProxyIp(address = '') {
+  const normalized = normalizedProxyHostname(address).split('%')[0];
+  const version = net.isIP(normalized);
+  if (version === 4) return isBlockedProxyIpv4(normalized);
+  if (version !== 6) return true;
+  if (normalized === '::' || normalized === '::1' || normalized.startsWith('::ffff:')) return true;
+  if (!/^[23][0-9a-f]{3}:/.test(normalized)) return true;
+  if (normalized.startsWith('2001:0:') || normalized.startsWith('2001:10:') || normalized.startsWith('2001:db8:')) return true;
+  return false;
+}
+
+async function validateImageProxyUrl(rawUrl = '') {
+  let url;
+  try {
+    url = new URL(String(rawUrl || ''));
+  } catch {
+    throw imageProxyError(400, 'IMAGE_PROXY_BAD_URL', '图片地址无效');
+  }
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+    throw imageProxyError(400, 'IMAGE_PROXY_BAD_URL', '图片地址无效');
+  }
+  if ((url.protocol === 'http:' && url.port && url.port !== '80') || (url.protocol === 'https:' && url.port && url.port !== '443')) {
+    throw imageProxyError(403, 'IMAGE_PROXY_PORT_FORBIDDEN', '图片代理不允许访问该端口');
+  }
+  const hostname = normalizedProxyHostname(url.hostname);
+  if (!hostname || hostname.includes('%') || hostname === 'localhost' || hostname.endsWith('.localhost') || /\.(?:local|internal|lan|home|corp)$/.test(hostname)) {
+    throw imageProxyError(403, 'IMAGE_PROXY_PRIVATE_ADDRESS', '图片代理不允许访问内网地址');
+  }
+  let addresses;
+  if (net.isIP(hostname)) {
+    addresses = [{ address: hostname }];
+  } else {
+    try {
+      addresses = await dns.promises.lookup(hostname, { all: true, verbatim: true });
+    } catch {
+      throw imageProxyError(502, 'IMAGE_PROXY_DNS_FAILED', '图片地址解析失败');
+    }
+  }
+  if (!addresses.length || addresses.some(item => isBlockedProxyIp(item.address))) {
+    throw imageProxyError(403, 'IMAGE_PROXY_PRIVATE_ADDRESS', '图片代理不允许访问内网或特殊用途地址');
+  }
+  return url;
+}
+
+async function fetchValidatedProxyImage(rawUrl, signal) {
+  let currentUrl = await validateImageProxyUrl(rawUrl);
+  for (let redirectCount = 0; redirectCount <= IMAGE_PROXY_MAX_REDIRECTS; redirectCount += 1) {
+    const upstream = await fetch(currentUrl, {
+      headers: { 'User-Agent': 'hjm-mb-clone/1.0' },
+      redirect: 'manual',
+      signal
+    });
+    if (![301, 302, 303, 307, 308].includes(upstream.status)) return upstream;
+    const location = upstream.headers.get('location');
+    if (!location) {
+      throw imageProxyError(502, 'IMAGE_PROXY_REDIRECT_INVALID', '图片代理收到无效重定向');
+    }
+    if (redirectCount >= IMAGE_PROXY_MAX_REDIRECTS) {
+      throw imageProxyError(502, 'IMAGE_PROXY_REDIRECT_LIMIT', '图片代理重定向次数过多');
+    }
+    await cancelProxyResponseBody(upstream.body);
+    currentUrl = await validateImageProxyUrl(new URL(location, currentUrl).toString());
+  }
+  throw imageProxyError(502, 'IMAGE_PROXY_REDIRECT_LIMIT', '图片代理重定向次数过多');
+}
+
+async function cancelProxyResponseBody(body) {
+  if (!body) return;
+  if (typeof body.cancel === 'function') {
+    await body.cancel().catch(() => {});
+    return;
+  }
+  if (typeof body.destroy === 'function') body.destroy();
+}
+
+async function readProxyImageBody(upstream) {
+  const declaredLength = Number(upstream.headers.get('content-length') || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > IMAGE_PROXY_MAX_BYTES) {
+    throw imageProxyError(413, 'IMAGE_PROXY_TOO_LARGE', '图片文件超过代理大小限制');
+  }
+  if (!upstream.body) return Buffer.alloc(0);
+  const chunks = [];
+  let total = 0;
+  const appendChunk = async (value) => {
+    const chunk = Buffer.from(value);
+    total += chunk.length;
+    if (total > IMAGE_PROXY_MAX_BYTES) {
+      await cancelProxyResponseBody(upstream.body);
+      throw imageProxyError(413, 'IMAGE_PROXY_TOO_LARGE', '图片文件超过代理大小限制');
+    }
+    chunks.push(chunk);
+  };
+  if (typeof upstream.body.getReader === 'function') {
+    const reader = upstream.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      await appendChunk(value);
+    }
+  } else {
+    for await (const value of upstream.body) {
+      await appendChunk(value);
+    }
+  }
+  return Buffer.concat(chunks, total);
+}
+
 app.get('/api/proxy-image', async (req, res) => {
   const rawUrl = String(req.query.url || '').trim();
-  if (!/^https?:\/\//i.test(rawUrl)) {
-    return res.status(400).json({ success: false, code: 'IMAGE_PROXY_BAD_URL', message: '图片地址无效' });
+  const signature = String(req.query.sig || '').trim();
+  const signedRequest = timingSafeEqualText(signature, imageProxySignature(rawUrl));
+  if (!signedRequest && !isKnownLegacyImageProxyTarget(rawUrl)) {
+    return res.status(403).json({ success: false, code: 'IMAGE_PROXY_FORBIDDEN', message: '图片代理签名无效或缺失' });
   }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
   try {
-    const upstream = await fetch(rawUrl, {
-      headers: { 'User-Agent': 'hjm-mb-clone/1.0' },
-      signal: controller.signal
-    });
+    const upstream = await fetchValidatedProxyImage(rawUrl, controller.signal);
     if (!upstream.ok) {
       return res.status(502).json({ success: false, code: 'IMAGE_PROXY_UPSTREAM_FAILED', message: `图片代理读取失败：${upstream.status}` });
     }
-    const contentType = upstream.headers.get('content-type') || 'image/png';
-    if (!contentType.toLowerCase().startsWith('image/')) {
+    const contentType = String(upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif', 'image/bmp'].includes(contentType)) {
       return res.status(415).json({ success: false, code: 'IMAGE_PROXY_NOT_IMAGE', message: '上游地址不是图片内容' });
     }
-    const arrayBuffer = await upstream.arrayBuffer();
+    const body = await readProxyImageBody(upstream);
     res.setHeader('Content-Type', contentType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.send(Buffer.from(arrayBuffer));
+    res.send(body);
   } catch (err) {
-    res.status(502).json({
+    const status = Number(err.status || 502);
+    res.status(status).json({
       success: false,
-      code: err.name === 'AbortError' ? 'IMAGE_PROXY_TIMEOUT' : 'IMAGE_PROXY_ERROR',
-      message: err.name === 'AbortError' ? '图片代理读取超时' : (err.message || '图片代理读取失败')
+      code: err.name === 'AbortError' ? 'IMAGE_PROXY_TIMEOUT' : (err.code || 'IMAGE_PROXY_ERROR'),
+      message: err.name === 'AbortError' ? '图片代理读取超时' : (err.code ? err.message : '图片代理读取失败')
     });
   } finally {
     clearTimeout(timer);
@@ -2706,15 +4910,162 @@ function placeholderUrl(prompt = '') {
 }
 function imageDisplayUrl(url = '') {
   const value = String(url || '').trim();
-  if (/^https?:\/\//i.test(value)) return `/api/proxy-image?url=${encodeURIComponent(value)}`;
+  const target = imageProxyTargetFromDisplayUrl(value) || (/^https?:\/\//i.test(value) ? value : '');
+  if (target) return signedImageProxyUrl(target);
   return value;
+}
+function providerImagePayload(buffer) {
+  if (!Buffer.isBuffer(buffer) || buffer.length < 8 || buffer.length > 30 * 1024 * 1024) return null;
+  if (buffer.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) return { buffer, ext: 'png' };
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return { buffer, ext: 'jpg' };
+  if (buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP') return { buffer, ext: 'webp' };
+  if (buffer.subarray(0, 6).toString('ascii').startsWith('GIF8')) return { buffer, ext: 'gif' };
+  if (buffer[0] === 0x42 && buffer[1] === 0x4d) return { buffer, ext: 'bmp' };
+  if (buffer.subarray(4, 8).toString('ascii') === 'ftyp' && /avif|avis/.test(buffer.subarray(8, 32).toString('ascii'))) {
+    return { buffer, ext: 'avif' };
+  }
+  return null;
+}
+function providerImageBuffer(value = '') {
+  let encoded = String(value || '').trim();
+  if (!encoded) return null;
+  const dataUrl = encoded.match(/^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\r\n]+)$/i);
+  if (dataUrl) encoded = dataUrl[2];
+  if (encoded.length < 32 || encoded.length > 40 * 1024 * 1024 || !/^[a-z0-9+/=\r\n]+$/i.test(encoded)) return null;
+  try {
+    const buffer = Buffer.from(encoded.replace(/\s+/g, ''), 'base64');
+    return providerImagePayload(buffer);
+  } catch {}
+  return null;
+}
+function persistProviderImagePayload(decoded) {
+  if (!decoded) return '';
+  const directory = path.join(uploadDir, 'generated');
+  fs.mkdirSync(directory, { recursive: true });
+  const digest = crypto.createHash('sha256').update(decoded.buffer).digest('hex').slice(0, 32);
+  const fileName = `${digest}.${decoded.ext}`;
+  const filePath = path.join(directory, fileName);
+  if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, decoded.buffer);
+  return `/uploads/generated/${fileName}`;
+}
+function persistProviderImage(value = '') {
+  return persistProviderImagePayload(providerImageBuffer(value));
+}
+async function fetchProviderImageForPersistence(rawUrl, signal) {
+  if (ALLOW_PRIVATE_PROVIDER_IMAGE_PERSIST) {
+    return fetch(rawUrl, {
+      headers: { 'User-Agent': 'hjm-mb-clone/1.0' },
+      redirect: 'follow',
+      signal
+    });
+  }
+  return fetchValidatedProxyImage(rawUrl, signal);
+}
+async function loadRemoteProviderImagePayload(rawUrl = '') {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const upstream = await fetchProviderImageForPersistence(rawUrl, controller.signal);
+    if (!upstream.ok) {
+      await cancelProxyResponseBody(upstream.body);
+      throw imageProxyError(502, 'PROVIDER_IMAGE_PERSIST_UPSTREAM_FAILED', `生成图片本地保存失败：上游返回 ${upstream.status}`);
+    }
+    const contentType = String(upstream.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif', 'image/bmp'].includes(contentType)) {
+      await cancelProxyResponseBody(upstream.body);
+      throw imageProxyError(415, 'PROVIDER_IMAGE_PERSIST_NOT_IMAGE', '生成图片本地保存失败：上游内容不是受支持的图片');
+    }
+    const body = await readProxyImageBody(upstream);
+    const decoded = providerImagePayload(body);
+    if (!decoded) {
+      throw imageProxyError(415, 'PROVIDER_IMAGE_PERSIST_INVALID_IMAGE', '生成图片本地保存失败：图片签名无效');
+    }
+    return decoded;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw imageProxyError(504, 'PROVIDER_IMAGE_PERSIST_TIMEOUT', '生成图片本地保存超时，请稍后重试');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function persistRemoteProviderImage(rawUrl = '') {
+  return persistProviderImagePayload(await loadRemoteProviderImagePayload(rawUrl));
+}
+async function persistProviderImageResults(items = [], providerRequest = {}) {
+  const trustedProviderRequest = providerRequest && typeof providerRequest === 'object' && Object.keys(providerRequest).length
+    ? providerRequest
+    : null;
+  const prepared = await Promise.all((Array.isArray(items) ? items : []).map(async (item) => {
+    const raw = item && typeof item === 'object' ? item : { url: item };
+    const directUrl = firstString(raw.url, raw.imageUrl, raw.image_url);
+    const encodedImage = firstString(
+      raw.b64_json,
+      raw.b64Json,
+      raw.base64,
+      raw.dataUrl,
+      raw.data_url,
+      !/^https?:\/\//i.test(directUrl) && !directUrl.startsWith('/') ? directUrl : ''
+    );
+    const decoded = /^https?:\/\//i.test(directUrl)
+      ? await loadRemoteProviderImagePayload(directUrl)
+      : providerImageBuffer(encodedImage);
+    if (!decoded) {
+      if (encodedImage) {
+        throw imageProxyError(415, 'PROVIDER_IMAGE_PERSIST_INVALID_IMAGE', '生成图片本地保存失败：图片签名无效');
+      }
+      return { raw, decoded: null, validation: null };
+    }
+    const itemRequest = trustedProviderRequest || (
+      raw.providerRequest && typeof raw.providerRequest === 'object'
+        ? raw.providerRequest
+        : raw.request && typeof raw.request === 'object'
+          ? raw.request
+          : {}
+    );
+    const validation = providerImageAspectValidation(decoded, itemRequest);
+    const aspectRatioWarning = providerImageAspectWarning(validation);
+    return { raw, decoded, validation, aspectRatioWarning };
+  }));
+  return prepared.map(({ raw, decoded, validation, aspectRatioWarning }) => {
+    if (!decoded) return raw;
+    const persistedUrl = persistProviderImagePayload(decoded);
+    const actual = validation.actual || providerImageDimensions(decoded.buffer, decoded.ext);
+    return {
+      ...raw,
+      url: persistedUrl,
+      imageUrl: persistedUrl,
+      image_url: persistedUrl,
+      ...(actual ? { width: actual.width, height: actual.height, actualWidth: actual.width, actualHeight: actual.height } : {}),
+      ...(aspectRatioWarning ? {
+        warning: firstString(raw.warning, aspectRatioWarning.message),
+        warnings: [...(Array.isArray(raw.warnings) ? raw.warnings : []), aspectRatioWarning],
+        aspectRatioWarning
+      } : {})
+    };
+  });
 }
 function normalizeTaskImage(item, idx, taskId) {
   const raw = item && typeof item === 'object' ? item : { url: item };
-  const url = raw.url || raw.imageUrl || raw.image_url || raw.b64_json || raw.b64Json || placeholderUrl(taskId);
+  const { b64_json, b64Json, base64, dataUrl, data_url, ...safeRaw } = raw;
+  const directUrl = firstString(raw.url, raw.imageUrl, raw.image_url);
+  if (/^https?:\/\//i.test(directUrl)) {
+    throw imageProxyError(500, 'PROVIDER_IMAGE_NOT_PERSISTED', '生成图片尚未保存到本地，拒绝写入外部地址');
+  }
+  const directIsUrl = /^https?:\/\//i.test(directUrl) || directUrl.startsWith('/');
+  const persistedUrl = persistProviderImage(firstString(
+    raw.b64_json,
+    raw.b64Json,
+    raw.base64,
+    raw.dataUrl,
+    raw.data_url,
+    directIsUrl ? '' : directUrl
+  ));
+  const url = (directIsUrl ? directUrl : '') || persistedUrl || placeholderUrl(taskId);
   const normalizedUrl = /^data:image\//i.test(url) || /^https?:\/\//i.test(url) || url.startsWith('/') ? url : `data:image/png;base64,${url}`;
   const finalUrl = imageDisplayUrl(normalizedUrl);
-  return { ...raw, id: raw.id || `${taskId}_${idx}`, url: finalUrl, imageUrl: finalUrl, preview: finalUrl, originalUrl: normalizedUrl };
+  return { ...safeRaw, id: raw.id || `${taskId}_${idx}`, url: finalUrl, imageUrl: finalUrl, preview: finalUrl, originalUrl: normalizedUrl };
 }
 function makeTaskResponse(task) {
   return {
@@ -2858,8 +5209,8 @@ function createPendingTask(req, source = {}) {
   const task = {
     id: taskId,
     userId: req.user.userId,
-    status: 'running',
-    progress: Number(source.progress || 90),
+    status: 'pending',
+    progress: Number(source.progress || 6),
     prompt,
     modelKey,
     cost,
@@ -2883,8 +5234,23 @@ function createPendingTask(req, source = {}) {
   return task;
 }
 
+function updatePendingTaskQueueState(task, status, meta = {}) {
+  if (!task || !['pending', 'running'].includes(task.status)) return task;
+  const nextStatus = status === 'running' ? 'running' : 'pending';
+  task.status = nextStatus;
+  task.progress = nextStatus === 'running' ? Math.max(40, Number(task.progress || 0)) : Math.min(20, Math.max(6, Number(task.progress || 0)));
+  task.request = {
+    ...(task.request && typeof task.request === 'object' ? task.request : {}),
+    queueMode: 'serial-delayed',
+    queuePosition: nextStatus === 'pending' ? Math.max(1, Number(meta.queuePosition || 1)) : 0
+  };
+  task.updatedAt = new Date().toISOString();
+  return task;
+}
+
 function completePendingTask(task, source = {}) {
   if (!task) return null;
+  if (task.status === 'cancelled') return task;
   const modelKey = source.modelKey || source.model || task.modelKey || IMG[0].k;
   const imageCount = Math.max(1, Math.min(Number(source.imageCount || task.imageCount || 1) || 1, 4));
   const prompt = source.prompt || task.prompt || '生成图片';
@@ -2939,6 +5305,7 @@ function completePendingTask(task, source = {}) {
 
 function failPendingTask(task, source = {}) {
   if (!task) return null;
+  if (task.status === 'cancelled') return task;
   task.status = 'failed';
   task.progress = 100;
   task.errorMessage = source.message || source.errorMessage || '图片生成接口调用失败';
@@ -3183,7 +5550,8 @@ async function runImageToolEdit(req, res, type = 'inpaint') {
         provider: providerResult.provider
       });
     }
-    res.json(makeImageToolResponse(providerResult, req.body, operationType));
+    const persistedImages = await persistProviderImageResults(providerResult.images, providerResult.request);
+    res.json(makeImageToolResponse({ ...providerResult, images: persistedImages }, req.body, operationType));
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -3223,11 +5591,12 @@ async function runImageToolOutpaint(req, res) {
       });
     }
 
+    const persistedImages = await persistProviderImageResults(providerResult.images, providerResult.request);
     const task = createCompletedTask(req, {
       prompt,
       modelKey: model,
       imageCount: 1,
-      results: providerResult.images,
+      results: persistedImages,
       request: providerResult.request
     });
     res.json({
@@ -3252,14 +5621,31 @@ async function runImageToolReversePrompt(req, res) {
     const imageUrl = normalizeImageToolUrl(req.body.imageUrl || req.body.image || req.body.url || req.body.originalUrl);
     if (!imageUrl) return res.status(400).json({ success: false, code: 'IMAGE_TOOL_IMAGE_REQUIRED', message: '缺少待分析图片' });
 
-    const route = resolveRequestImageRoute(req.body);
-    const model = String(req.body.textModel || req.body.model || AI_TEXT_MODEL || 'gpt-5.5').trim();
-    const input = [
+    let reference;
+    try {
+      reference = await loadReferenceImageFile({ url: imageUrl }, req);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        code: 'IMAGE_TOOL_IMAGE_UNREADABLE',
+        message: error.message || '待分析图片读取失败'
+      });
+    }
+
+    const route = resolveTextRoute(req.body);
+    const model = String(req.body.textModel || req.body.textModelKey || route?.dm || AI_TEXT_MODEL).trim();
+    const instruction = [
       '请根据下面这张电商图片，反推出适合文生图或图生图使用的中文提示词。',
       '输出一段完整提示词，包含主体、构图、光线、材质、背景、文字/包装要点、画面风格和电商转化重点。',
-      '不要输出解释，不要输出列表标题。',
-      `图片地址：${imageUrl}`
+      '不要输出解释，不要输出列表标题。'
     ].join('\n');
+    const input = [{
+      role: 'user',
+      content: [
+        { type: 'input_text', text: instruction },
+        { type: 'input_image', image_url: `data:${reference.mime};base64,${reference.buffer.toString('base64')}` }
+      ]
+    }];
     const providerResult = await callProviderResponses(input, { route, model });
     if (!providerResult.success) {
       return res.status(502).json({
@@ -3332,7 +5718,7 @@ app.post('/api/canvas/generate-prompt', auth, async (req, res) => {
   }
 
   const route = resolveTextRoute(req.body || {});
-  const model = String(req.body.textModel || req.body.model || route?.dm || AI_TEXT_MODEL || 'gpt-5.5').trim();
+  const model = String(req.body.textModel || req.body.model || route?.dm || AI_TEXT_MODEL).trim();
   const fallbackPrompt = buildCanvasPromptFallback(draft.requirement, draft.imageCount);
   const providerResult = await callProviderResponses(draft.input, { route, model });
   const providerPrompt = providerResult.success && !providerResult.mock ? imageToolOutputText(providerResult) : '';
@@ -3354,11 +5740,96 @@ app.post('/api/canvas/generate-prompt', auth, async (req, res) => {
   });
 });
 
+app.post('/api/canvas/enhance-prompt', auth, async (req, res) => {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const originalPrompt = String(body.currentPrompt || body.prompt || body.requirement || body.text || '').trim().slice(0, 12000);
+  const referenceCount = imageReferenceCandidates(body).length;
+  if (!originalPrompt && referenceCount <= 0) {
+    return res.status(400).json({
+      success: false,
+      code: 'CANVAS_PROMPT_INPUT_REQUIRED',
+      message: '请先输入提示词或连接参考图'
+    });
+  }
+
+  const userKey = String(req.user.userId || '');
+  if (canvasPromptEnhanceInFlight.has(userKey)) {
+    return res.status(429).json({
+      success: false,
+      code: 'CANVAS_PROMPT_ENHANCE_IN_FLIGHT',
+      message: '当前提示词正在扩写，请等待完成后再试'
+    });
+  }
+
+  canvasPromptEnhanceInFlight.add(userKey);
+  try {
+    let references;
+    try {
+      references = await loadCanvasPromptEnhancementReferences(body, req);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        code: error.code || 'CANVAS_PROMPT_REFERENCE_UNREADABLE',
+        message: error.message || '参考图读取失败'
+      });
+    }
+
+    const route = resolveTextRoute(body);
+    const model = String(route?.dm || AI_TEXT_MODEL).trim();
+    const providerResult = await callProviderResponses(
+      buildCanvasPromptEnhancementInput(originalPrompt, references),
+      { route, model }
+    );
+    if (!providerResult.success) {
+      return res.status(502).json({
+        success: false,
+        code: providerResult.code || 'CANVAS_PROMPT_ENHANCE_FAILED',
+        message: providerResult.message || 'GPT‑5.6 提示词扩写失败，原提示词未修改',
+        provider: providerResult.provider
+      });
+    }
+
+    const providerPrompt = providerResult.mock ? '' : normalizeCanvasEnhancedPrompt(imageToolOutputText(providerResult));
+    if (!providerResult.mock && providerPrompt.length < CANVAS_PROMPT_ENHANCE_MIN_LENGTH) {
+      return res.status(502).json({
+        success: false,
+        code: 'CANVAS_PROMPT_ENHANCE_OUTPUT_TOO_SHORT',
+        message: 'GPT‑5.6 返回的提示词过短，原提示词未修改',
+        provider: providerResult.provider
+      });
+    }
+
+    const prompt = providerPrompt || buildCanvasPromptEnhancementFallback(originalPrompt, references.length);
+    return res.json({
+      success: true,
+      mock: !!providerResult.mock,
+      free: true,
+      costPoints: 0,
+      prompt,
+      text: prompt,
+      originalPrompt,
+      imageCount: references.length,
+      imageLabels: references.map(reference => reference.label),
+      textModel: model,
+      textRouteId: route?.id || route?.routeId || '',
+      provider: providerResult.provider
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      code: 'CANVAS_PROMPT_ENHANCE_ERROR',
+      message: error.message || '提示词扩写失败，原提示词未修改'
+    });
+  } finally {
+    canvasPromptEnhanceInFlight.delete(userKey);
+  }
+});
+
 app.get('/api/canvas/ecommerce-suite/config', (req, res) => {
   const config = ecommerceSuitePublicConfig();
   const defaults = config.defaults || defaultEcommerceSuiteAgent.defaults;
   const imageModel = resolveImageModelKey({ imageModelKey: defaults.imageModelKey || AI_IMAGE_MODEL });
-  const textModel = String(defaults.textModelKey || AI_TEXT_MODEL || 'gpt-5.5').trim();
+  const textModel = String(defaults.textModelKey || AI_TEXT_MODEL).trim();
   res.json({
     success: true,
     enabled: config.enabled !== false,
@@ -3395,7 +5866,7 @@ app.post('/api/canvas/ecommerce-suite/prompts', auth, async (req, res) => {
 
   const textRoute = resolveTextRoute(body);
   const imageRoute = resolveImageRoute(body, req.user.userId);
-  const textModel = String(body.textModel || body.textModelKey || textRoute?.dm || AI_TEXT_MODEL || 'gpt-5.5').trim();
+  const textModel = String(body.textModel || body.textModelKey || textRoute?.dm || AI_TEXT_MODEL).trim();
   const imageModel = resolveImageModelKey({ ...body, model: body.imageModel || body.imageModelKey || body.model || imageRoute?.dm || AI_IMAGE_MODEL });
   const analysisCost = modelCost(textModel, 'text');
   const estimatedImageCostPerSection = modelCost(imageModel, 'image') * context.imageCount;
@@ -3551,6 +6022,7 @@ app.post('/api/canvas/ecommerce-suite/generate', auth, async (req, res) => {
     imageResult.images.forEach((image, index) => {
       results.push({
         ...image,
+        providerRequest: imageResult.request,
         sectionKey: plan.sectionKey,
         sectionName: plan.sectionName,
         title: plan.title || plan.sectionName,
@@ -3567,13 +6039,14 @@ app.post('/api/canvas/ecommerce-suite/generate', auth, async (req, res) => {
     });
   }
 
+  const persistedResults = await persistProviderImageResults(results);
   const task = createCompletedTask(req, {
     prompt: plans.map(plan => `${plan.sectionName}: ${plan.prompt}`).join('\n\n'),
     finalPrompt: usedPlanPrompts.map(item => item.prompt).join('\n\n---\n\n'),
     analysisSummary: `已生成 ${plans.length} 个电商套图板块。`,
     modelKey: imageModel,
     imageCount: Math.max(1, results.length),
-    results,
+    results: persistedResults,
     cost: imageCost,
     totalCost: imageCost,
     imageCost,
@@ -3625,7 +6098,7 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
   const textRoute = resolveTextRoute(body);
   const imageRoute = resolveImageRoute(body, req.user.userId);
   const debugAnalysisOnly = body.debugAnalysisOnly === true && u.role === 'admin';
-  const textModel = String(body.textModel || body.textModelKey || textRoute?.dm || AI_TEXT_MODEL || 'gpt-5.5').trim();
+  const textModel = String(body.textModel || body.textModelKey || textRoute?.dm || AI_TEXT_MODEL).trim();
   const imageModel = resolveImageModelKey({ ...body, model: body.imageModel || body.imageModelKey || body.model || imageRoute?.dm || AI_IMAGE_MODEL });
   const imageCount = Math.max(1, Math.min(Number(body.imageCount || body.count || body.n || 1) || 1, 4));
   const analysisCost = modelCost(textModel, 'text');
@@ -3654,8 +6127,8 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
       success: false,
       code: analysisTimedOut ? 'CANVAS_DIALOG_ANALYSIS_TIMEOUT' : (textResult.code || 'CANVAS_DIALOG_ANALYSIS_FAILED'),
       message: analysisTimedOut
-        ? `GPT 5.5 分析超时（已等待 ${Math.round(CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS / 1000)} 秒），请稍后重试或减少参考图/提示词长度`
-        : (textResult.message || 'GPT 5.5 分析失败，请稍后重试'),
+        ? `GPT 5.6 Terra 分析超时（已等待 ${Math.round(CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS / 1000)} 秒），请稍后重试或减少参考图/提示词长度`
+        : (textResult.message || 'GPT 5.6 Terra 分析失败，请稍后重试'),
       stage: 'analysis',
       provider: textResult.provider,
       analysisCost,
@@ -3693,7 +6166,7 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
     return res.status(502).json({
       success: false,
       code: 'CANVAS_DIALOG_ANALYSIS_BAD_RESPONSE',
-      message: 'GPT 5.5 未返回可用的生图提示词，请稍后重试',
+      message: 'GPT 5.6 Terra 未返回可用的生图提示词，请稍后重试',
       provider: textResult.provider,
       stage: 'analysis',
       extractedTextLength: imageToolOutputText(textResult).length,
@@ -3738,13 +6211,14 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
     });
   }
 
+  const persistedResults = await persistProviderImageResults(imageResult.images, imageResult.request);
   const task = createCompletedTask(req, {
     prompt: providerPrompt,
     finalPrompt: providerPrompt,
     analysisSummary: agentPlan.analysisSummary,
     modelKey: imageModel,
     imageCount,
-    results: imageResult.images,
+    results: persistedResults,
     cost: totalCost,
     totalCost,
     analysisCost,
@@ -3799,6 +6273,7 @@ app.post('/api/generate/tasks', auth, async (req, res) => {
     route: imageRoute,
     request: { pending: true, hasReferenceImages }
   });
+  providerOptions.onQueueStatus = meta => updatePendingTaskQueueState(task, meta.status, meta);
   res.status(202).json({
     success: true,
     accepted: true,
@@ -3836,11 +6311,12 @@ app.post('/api/generate/tasks', auth, async (req, res) => {
         });
         return;
       }
+      const persistedResults = await persistProviderImageResults(providerResult.images, providerResult.request);
       completePendingTask(runningTask, {
         prompt: providerPrompt,
         modelKey,
         imageCount,
-        results: providerResult.images,
+        results: persistedResults,
         request: providerResult.request,
         cost: total,
         totalCost: total,
@@ -3865,29 +6341,30 @@ app.get('/api/generate/tasks/:id', auth, (req, res) => {
   res.json(makeTaskResponse(task));
 });
 
-app.post('/api/template/generate-image', auth, async (req, res) => {
-  const prompt = pickTemplatePrompt(req.body);
-  const modelKey = resolveImageModelKey(req.body);
-  const imageCount = Number(req.body.imageCount || req.body.count || req.body.n || 1);
-  const negativePrompt = req.body.negativePrompt || '';
-  if (!prompt) return res.status(400).json({ message: '请输入提示词' });
-  if (!modelKey) return res.status(400).json({ message: '请选择可用的图片模型' });
+async function executeTemplateImageGeneration(userId, body = {}, requestContext = {}) {
+  const prompt = pickTemplatePrompt(body);
+  const modelKey = resolveImageModelKey(body);
+  const imageCount = Number(body.imageCount || body.count || body.n || 1);
+  const negativePrompt = body.negativePrompt || '';
+  if (!prompt) throw integrationError(400, 'IMAGE_PROMPT_REQUIRED', '请输入提示词');
+  if (!modelKey) throw integrationError(400, 'IMAGE_MODEL_REQUIRED', '请选择可用的图片模型');
 
   const all = [...IMG, ...TXT];
-  const m = all.find(x=>x.k===modelKey) || IMG[0];
-  const cp = m ? m.p : 15;
-  const cnt = Math.max(1, Math.min(imageCount || 1, 4));
-  const total = cp * cnt;
-
-  const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.userId);
-  if (!u) return res.status(401).json({ success: false, code: 'AUTH_USER_NOT_FOUND', message: '登录状态已失效，请重新登录' });
-  if (u.balance < total) return res.status(400).json({ message: `算力不足，需要 ${total}，当前 ${u.balance}` });
+  const model = all.find(item => item.k === modelKey) || IMG[0];
+  const unitCost = model ? model.p : 15;
+  const count = Math.max(1, Math.min(imageCount || 1, 4));
+  const total = unitCost * count;
+  const user = db.prepare('SELECT * FROM users WHERE id=?').get(userId);
+  if (!user) throw integrationError(401, 'AUTH_USER_NOT_FOUND', '登录状态已失效，请重新登录');
+  if (user.balance < total) {
+    throw integrationError(400, 'INSUFFICIENT_BALANCE', `算力不足，需要 ${total}，当前 ${user.balance}`, { totalCost: total, balance: user.balance });
+  }
 
   const fullPrompt = `${prompt}${negativePrompt ? '，避免：' + negativePrompt : ''}`;
-  const hasReferenceImages = imageReferenceCandidates(req.body).length > 0;
-  const imageRoute = resolveImageRoute(req.body, req.user.userId);
-  const providerPrompt = buildEcommerceImagePrompt(fullPrompt, { body: req.body, hasReferenceImages });
-  const providerOptions = { ...req.body, body: req.body, req, route: imageRoute, model: modelKey, n: cnt };
+  const hasReferenceImages = imageReferenceCandidates(body).length > 0;
+  const imageRoute = resolveImageRoute(body, userId);
+  const providerPrompt = buildEcommerceImagePrompt(fullPrompt, { body, hasReferenceImages });
+  const providerOptions = { ...body, body, req: requestContext, route: imageRoute, model: modelKey, n: count };
   let providerResult = hasReferenceImages
     ? await callProviderImageEdit(providerPrompt, providerOptions)
     : await callProviderImageGeneration(providerPrompt, providerOptions);
@@ -3903,20 +6380,28 @@ app.post('/api/template/generate-image', auth, async (req, res) => {
     }
   }
   if (!providerResult.success) {
-    return res.status(502).json({
-      success: false,
-      code: providerResult.code || 'PROVIDER_IMAGE_FAILED',
-      message: providerResult.message || '图片生成接口调用失败',
-      provider: providerResult.provider
-    });
+    throw integrationError(502, providerResult.code || 'PROVIDER_IMAGE_FAILED', providerResult.message || '图片生成接口调用失败', { provider: providerResult.provider });
   }
+  const persistedResults = await persistProviderImageResults(providerResult.images, providerResult.request);
 
-  const results = providerResult.images;
-  const task = createCompletedTask(req, { prompt: providerPrompt, modelKey, imageCount: cnt, results, request: providerResult.request });
-  const nb = u.balance - total;
-  db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
-  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)').run(u.id,'generation',-total,u.balance,nb,`AI生图: ${modelKey} x${cnt}`);
-  res.json({
+  const remainingBalance = user.balance - total;
+  const charged = db.prepare('UPDATE users SET balance=? WHERE id=? AND balance=?').run(remainingBalance, user.id, user.balance);
+  if (charged.changes !== 1) {
+    throw integrationError(409, 'BALANCE_CHANGED', '余额状态已变化，请重新生成');
+  }
+  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
+    .run(user.id, 'generation', -total, user.balance, remainingBalance, `AI生图: ${modelKey} x${count}`);
+  const taskRequest = { ...requestContext, body, user: { userId } };
+  const task = createCompletedTask(taskRequest, {
+    prompt: providerPrompt,
+    modelKey,
+    imageCount: count,
+    results: persistedResults,
+    request: providerResult.request,
+    cost: total,
+    source: 'template-image'
+  });
+  return {
     success: true,
     mock: !!providerResult.mock,
     editMode: !!providerResult.editMode,
@@ -3929,10 +6414,21 @@ app.post('/api/template/generate-image', auth, async (req, res) => {
     status: 'success',
     progress: 100,
     totalCost: total,
-    remainingBalance: nb,
+    remainingBalance,
     prompt: providerPrompt,
     modelKey
-  });
+  };
+}
+
+app.post('/api/template/generate-image', auth, async (req, res, next) => {
+  try {
+    res.json(await executeTemplateImageGeneration(req.user.userId, req.body, req));
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({ success: false, code: error.code || 'IMAGE_GENERATION_FAILED', message: error.message, provider: error.provider });
+    }
+    next(error);
+  }
 });
 
 app.post('/api/template/reverse-prompt', auth, async (req, res) => {
@@ -3978,24 +6474,27 @@ app.post('/api/template/reverse-prompt', auth, async (req, res) => {
 
 app.get('/api/user/generations', auth, (req, res) => {
   const rows = db.prepare('SELECT * FROM generations WHERE user_id=? ORDER BY created_at DESC LIMIT 50').all(req.user.userId);
-  const items = rows.map(row => ({
-    ...row,
-    id: row.id,
-    url: row.result_url || row.resultUrl || '',
-    imageUrl: row.result_url || row.resultUrl || '',
-    resultUrl: row.result_url || row.resultUrl || '',
-    result_url: row.result_url || '',
-    prompt: row.prompt || '',
-    label: row.prompt ? String(row.prompt).slice(0, 30) : '生成图片',
-    model: row.model_key || row.model || '',
-    modelKey: row.model_key || row.modelKey || '',
-    cost: row.cost || 0,
-    status: row.status || 'completed',
-    createdAt: row.created_at,
-    created_at: row.created_at,
-    size: '1024x1024',
-    quality: 'standard'
-  }));
+  const items = rows.map(row => {
+    const resultUrl = imageDisplayUrl(row.result_url || row.resultUrl || '');
+    return {
+      ...row,
+      id: row.id,
+      url: resultUrl,
+      imageUrl: resultUrl,
+      resultUrl,
+      result_url: resultUrl,
+      prompt: row.prompt || '',
+      label: row.prompt ? String(row.prompt).slice(0, 30) : '生成图片',
+      model: row.model_key || row.model || '',
+      modelKey: row.model_key || row.modelKey || '',
+      cost: row.cost || 0,
+      status: row.status || 'completed',
+      createdAt: row.created_at,
+      created_at: row.created_at,
+      size: '1024x1024',
+      quality: 'standard'
+    };
+  });
   res.json({ items, data: items, success: true });
 });
 
@@ -4021,6 +6520,15 @@ app.delete('/api/user/generations', auth, (req, res) => {
   let result;
   if (resultUrl) {
     result = db.prepare('DELETE FROM generations WHERE user_id=? AND result_url=?').run(req.user.userId, resultUrl);
+    const requestedTarget = imageProxyTargetFromDisplayUrl(resultUrl);
+    if (result.changes === 0 && requestedTarget) {
+      const legacyMatch = db.prepare('SELECT id,result_url FROM generations WHERE user_id=? ORDER BY created_at DESC')
+        .all(req.user.userId)
+        .find(row => imageProxyTargetFromDisplayUrl(row.result_url) === requestedTarget);
+      if (legacyMatch) {
+        result = db.prepare('DELETE FROM generations WHERE id=? AND user_id=?').run(legacyMatch.id, req.user.userId);
+      }
+    }
   }
   if ((!result || result.changes === 0) && prompt) {
     result = db.prepare('DELETE FROM generations WHERE id IN (SELECT id FROM generations WHERE user_id=? AND prompt=? ORDER BY created_at DESC LIMIT 1)').run(req.user.userId, prompt);
@@ -4036,12 +6544,701 @@ app.delete('/api/user/generations', auth, (req, res) => {
   });
 });
 
+app.get('/api/chat/status', (_req, res) => {
+  const settings = chatSettingsState();
+  const accessReady = ENABLE_LIBRECHAT && settings.accessEnabled;
+  res.json({
+    success: true,
+    enabled: ENABLE_LIBRECHAT,
+    accessEnabled: settings.accessEnabled,
+    accessReady,
+    chatPath: '/chat/',
+    message: accessReady
+      ? 'AI 对话服务可用'
+      : (ENABLE_LIBRECHAT ? settings.maintenanceMessage : 'AI 对话服务暂未部署')
+  });
+});
+
+app.get('/api/chat/home-catalog', auth, (req, res) => {
+  const settings = chatSettingsState();
+  if (!ENABLE_LIBRECHAT || !settings.accessEnabled) {
+    return res.status(503).json({
+      success: false,
+      code: 'LIBRECHAT_MAINTENANCE',
+      message: settings.maintenanceMessage
+    });
+  }
+  const allowed = new Set(settings.allowedModels);
+  const agents = settings.managedAgents
+    .filter(agent => agent.enabled && allowed.has(agent.model))
+    .map(agent => ({
+      ...agent,
+      imageToolsEnabled: settings.imageToolsEnabled && agent.imageToolsEnabled
+    }));
+  res.json({
+    success: true,
+    agents,
+    skills: { enabled: true, privateCreate: true, publicSharing: false }
+  });
+});
+
 app.post('/api/chat/completions', auth, async (req, res) => {
   const { messages } = req.body;
   if (!messages) return res.status(400).json({ message: '缺少 messages' });
   const result = await callProviderChat(messages, req.body);
   if (!result.success) return res.status(502).json(result);
   res.json(result);
+});
+
+// ===================== LIBRECHAT INTEGRATION =====================
+const hashIntegrationToken = (value) => crypto.createHash('sha256').update(String(value || '')).digest('hex');
+
+app.post('/api/integrations/librechat/sso-ticket', auth, (req, res) => {
+  if (!ENABLE_LIBRECHAT) {
+    return res.status(404).json({ success: false, code: 'LIBRECHAT_DISABLED', message: 'AI 对话服务暂未启用' });
+  }
+  const chatSettings = chatSettingsState();
+  if (!chatSettings.accessEnabled) {
+    return res.status(503).json({ success: false, code: 'LIBRECHAT_MAINTENANCE', message: chatSettings.maintenanceMessage });
+  }
+  const user = db.prepare("SELECT id,username,email,role,status FROM users WHERE id=? AND status='active'").get(req.user.userId);
+  if (!user) {
+    return res.status(401).json({ success: false, code: 'AUTH_USER_NOT_FOUND', message: '登录状态已失效，请重新登录' });
+  }
+  const now = Date.now();
+  const ticket = crypto.randomBytes(32).toString('base64url');
+  const expiresAt = now + LIBRECHAT_SSO_TTL_SECONDS * 1000;
+  db.prepare('DELETE FROM chat_sso_tickets WHERE expires_at<? OR used_at IS NOT NULL').run(now - 60 * 1000);
+  db.prepare('INSERT INTO chat_sso_tickets (token_hash,user_id,expires_at,created_at) VALUES (?,?,?,?)')
+    .run(hashIntegrationToken(ticket), user.id, expiresAt, now);
+  res.json({ success: true, ticket, expiresAt, chatPath: '/chat/' });
+});
+
+const consumeSsoTicket = db.transaction((ticketHash, now) => {
+  const row = db.prepare('SELECT * FROM chat_sso_tickets WHERE token_hash=? AND used_at IS NULL AND expires_at>=?').get(ticketHash, now);
+  if (!row) return null;
+  const consumed = db.prepare('UPDATE chat_sso_tickets SET used_at=? WHERE token_hash=? AND used_at IS NULL').run(now, ticketHash);
+  if (consumed.changes !== 1) return null;
+  return db.prepare("SELECT id,username,email,role,status FROM users WHERE id=? AND status='active'").get(row.user_id) || null;
+});
+
+app.post('/api/integrations/librechat/sso-exchange', integrationServiceAuth, (req, res) => {
+  const ticket = String(req.body?.ticket || '').trim();
+  if (!ticket) {
+    return res.status(400).json({ success: false, code: 'SSO_TICKET_REQUIRED', message: '缺少登录票据' });
+  }
+  const user = consumeSsoTicket(hashIntegrationToken(ticket), Date.now());
+  if (!user) {
+    return res.status(401).json({ success: false, code: 'SSO_TICKET_INVALID', message: '登录票据无效、已过期或已使用' });
+  }
+  res.json({
+    success: true,
+    user: {
+      id: user.id,
+      username: user.username,
+      name: user.username,
+      email: user.email,
+      role: user.role === 'admin' ? 'ADMIN' : 'USER'
+    }
+  });
+});
+
+app.get('/api/integrations/librechat/v1/models', integrationServiceAuth, integrationUser, (req, res) => {
+  const chatSettings = chatSettingsState();
+  if (!chatSettings.textChatEnabled) {
+    return res.status(403).json({ success: false, code: 'LIBRECHAT_TEXT_DISABLED', message: 'Chat 文本对话已由管理员关闭' });
+  }
+  res.json({
+    object: 'list',
+    data: allowedChatModels(chatSettings).map(item => ({
+      id: item.k,
+      object: 'model',
+      created: 0,
+      owned_by: 'hajimi-ai',
+      name: item.n,
+      price: item.p
+    }))
+  });
+});
+
+app.post('/api/integrations/librechat/v1/chat/completions', integrationServiceAuth, integrationUser, async (req, res, next) => {
+  if (!chatSettingsState().textChatEnabled) {
+    return res.status(403).json({ success: false, code: 'LIBRECHAT_TEXT_DISABLED', message: 'Chat 文本对话已由管理员关闭' });
+  }
+  try {
+    await proxyLibreChatCompletion(req, res);
+  } catch (error) {
+    next(error);
+  }
+});
+
+function imageQuoteCost(modelKey, imageCount) {
+  const model = IMG.find(item => item.k === modelKey) || IMG[0];
+  const count = Math.max(1, Math.min(Number(imageCount || 1) || 1, 4));
+  return { model, count, total: Number(model?.p || 15) * count };
+}
+
+function normalizeChatReferenceImage(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^data:image\//i.test(raw)) return raw;
+  if (raw.startsWith('/images/')) return `${LIBRECHAT_INTERNAL_URL}${raw}`;
+  if (raw.startsWith('/chat/images/')) return `${LIBRECHAT_INTERNAL_URL}${raw.slice('/chat'.length)}`;
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      const url = new URL(raw);
+      if (url.pathname.startsWith('/chat/images/')) {
+        return `${LIBRECHAT_INTERNAL_URL}${url.pathname.slice('/chat'.length)}${url.search}`;
+      }
+      if (url.pathname.startsWith('/images/')) {
+        return `${LIBRECHAT_INTERNAL_URL}${url.pathname}${url.search}`;
+      }
+    } catch {}
+    return raw;
+  }
+  return '';
+}
+
+const CHAT_IMAGE_PLAN_TTL_MS = 30 * 60 * 1000;
+const CHAT_IMAGE_PLAN_MARKER = 'HJM_IMAGE_PLAN_FORM';
+
+function normalizeChatImagePlanText(value = '', maxLength = 1000) {
+  return String(value || '').trim().slice(0, maxLength);
+}
+
+function normalizeChatImagePlanList(value = [], maxItems = 6) {
+  const source = Array.isArray(value) ? value : String(value || '').split(/[|｜、,，\n]/);
+  return Array.from(new Set(source.map(item => normalizeChatImagePlanText(item, 120)).filter(Boolean))).slice(0, maxItems);
+}
+
+function normalizeChatImagePlanCopy(value = {}) {
+  const source = value && typeof value === 'object' ? value : {};
+  return {
+    mainTitle: normalizeChatImagePlanText(source.mainTitle, 120),
+    subtitle: normalizeChatImagePlanText(source.subtitle, 160),
+    sellingPoints: normalizeChatImagePlanList(source.sellingPoints),
+    badges: normalizeChatImagePlanList(source.badges),
+    footer: normalizeChatImagePlanText(source.footer, 200),
+    specification: normalizeChatImagePlanText(source.specification, 120),
+    otherText: normalizeChatImagePlanText(source.otherText, 300)
+  };
+}
+
+function chatImagePlanCopyFields(copy = {}) {
+  const normalized = normalizeChatImagePlanCopy(copy);
+  return [
+    { key: 'mainTitle', label: '主标题', value: normalized.mainTitle },
+    { key: 'subtitle', label: '副标题', value: normalized.subtitle },
+    { key: 'sellingPoints', label: '核心卖点', value: normalized.sellingPoints.join('｜') },
+    { key: 'badges', label: '圆形卖点章', value: normalized.badges.join('｜') },
+    { key: 'footer', label: '底部横幅', value: normalized.footer },
+    { key: 'specification', label: '规格/容量', value: normalized.specification },
+    { key: 'otherText', label: '其他上图文字', value: normalized.otherText }
+  ];
+}
+
+function normalizeChatReferenceRoles(value = []) {
+  const source = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  return source.reduce((items, role) => {
+    const rawIndex = Number(role?.imageIndex || role?.index || 0);
+    const imageIndex = Number.isInteger(rawIndex) && rawIndex >= 1 && rawIndex <= 4 ? rawIndex : 0;
+    const roleDescription = normalizeChatImagePlanText(role?.roleDescription || role?.description || role?.role, 1000);
+    if (!imageIndex || !roleDescription || seen.has(imageIndex)) return items;
+    seen.add(imageIndex);
+    items.push({ imageIndex, roleDescription });
+    return items;
+  }, []).sort((left, right) => left.imageIndex - right.imageIndex);
+}
+
+function normalizeChatCopyItems(value, legacyCopy = {}) {
+  const source = Array.isArray(value)
+    ? value
+    : chatImagePlanCopyFields(legacyCopy).filter(field => field.value).map(field => ({
+        id: `legacy-${field.key}`,
+        label: field.label,
+        text: field.value,
+        source: 'GPT 拟定'
+      }));
+  const seen = new Set();
+  return source.reduce((items, item, index) => {
+    const fallbackId = `copy-${index + 1}`;
+    let id = cleanSettingKey(item?.id || fallbackId, fallbackId).slice(0, 80);
+    while (seen.has(id)) id = `${fallbackId}-${items.length + 1}`;
+    const label = normalizeChatImagePlanText(item?.label || '上图文案', 80);
+    const text = normalizeChatImagePlanText(item?.text ?? item?.value, 500);
+    const rawSource = normalizeChatImagePlanText(item?.source, 120);
+    const sourceLabel = /^识别自图片\s*[1-4]$/i.test(rawSource) ? rawSource.replace(/图片\s*/i, '图片 ') : 'GPT 拟定';
+    if (!label && !text) return items;
+    seen.add(id);
+    items.push({ id, label: label || '上图文案', text, source: sourceLabel });
+    return items;
+  }, []).slice(0, 20);
+}
+
+function normalizeChatImagePlanV2(plan = {}) {
+  const source = plan && typeof plan === 'object' ? plan : {};
+  const legacyDesignParts = [source.visualDirection, source.composition, source.background].map(value => normalizeChatImagePlanText(value, 2000)).filter(Boolean);
+  const legacyRoles = [
+    source.productSummary ? { imageIndex: 1, roleDescription: source.productSummary } : null,
+    source.referenceSummary ? { imageIndex: 2, roleDescription: source.referenceSummary } : null
+  ].filter(Boolean);
+  return {
+    ...source,
+    version: 2,
+    originalRequest: normalizeChatImagePlanText(source.originalRequest, 4000),
+    designPrompt: normalizeChatImagePlanText(source.designPrompt || legacyDesignParts.join('\n'), 12000),
+    referenceRoles: normalizeChatReferenceRoles(source.referenceRoles?.length ? source.referenceRoles : legacyRoles),
+    copyItems: normalizeChatCopyItems(source.copyItems, source.copy),
+    adjustment: normalizeChatImagePlanText(source.adjustment || source.copyRevision || source.revisionNotes, 2400),
+    revisionNotes: normalizeChatImagePlanText(source.revisionNotes, 2400),
+    modelKey: normalizeChatImagePlanText(source.modelKey || IMG[0].k, 160),
+    imageRouteId: normalizeChatImagePlanText(source.imageRouteId, 160),
+    imageCount: Math.max(1, Math.min(Number(source.imageCount || 1) || 1, 4)),
+    negativePrompt: normalizeChatImagePlanText(source.negativePrompt, 4000),
+    ratio: normalizeChatImagePlanText(source.ratio || '1:1', 30),
+    referenceImages: chatPlanReferenceImages(source).slice(0, 4).map(url => ({ url })),
+    previousResultImages: Array.isArray(source.previousResultImages) ? source.previousResultImages.slice(0, 4) : []
+  };
+}
+
+function chatImagePlanFormMarker(result = {}) {
+  const plan = normalizeChatImagePlanV2(result.plan);
+  const payload = {
+    version: 2,
+    confirmationCode: result.confirmationCode,
+    designPrompt: plan.designPrompt,
+    referenceRoles: plan.referenceRoles,
+    copyItems: plan.copyItems,
+    adjustment: plan.adjustment
+  };
+  return `[${CHAT_IMAGE_PLAN_MARKER}:${Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')}]`;
+}
+
+function chatImagePlanUserText(result = {}) {
+  const plan = normalizeChatImagePlanV2(result.plan);
+  const roleLines = plan.referenceRoles.map(role => `- 图${role.imageIndex}：${role.roleDescription}`);
+  const copyLines = plan.copyItems.map(item => `- ${item.label}：${item.text || '（留空）'}（${item.source}）`);
+  return [
+    '### 电商主图设计方案',
+    '',
+    plan.designPrompt,
+    '',
+    '### 图片参考关系',
+    '',
+    ...(roleLines.length > 0 ? roleLines : ['- 由用户提示词决定；没有预设图1/图2角色']),
+    ...(plan.revisionNotes ? [`- 本轮修改：${plan.revisionNotes}`] : []),
+    '',
+    '### 上图文案',
+    '',
+    ...copyLines,
+    '',
+    '请检查下方完整方案和动态文案表。可以直接修改方案、文案名称和内容，也可以添加或删除文案；来源标记只用于识别。确认方案前不会调用生图。',
+    '',
+    `请点击“确认方案”，或回复：**确认方案 ${result.confirmationCode}**`,
+    '',
+    chatImagePlanFormMarker(result)
+  ].join('\n');
+}
+
+function appendConfirmedChatImageConstraints(finalPrompt = '', plan = {}) {
+  const normalized = normalizeChatImagePlanV2(plan);
+  const roles = normalized.referenceRoles.map(role => `图${role.imageIndex}：${role.roleDescription}`).join('；');
+  const exactCopy = normalized.copyItems.filter(item => item.text).map(item => `${item.label}必须逐字显示为“${item.text}”`).join('；');
+  return [
+    normalizeChatImagePlanText(finalPrompt, 12000),
+    roles ? `确定性参考约束：参考图片按上传顺序编号，并严格按以下关系使用：${roles}。` : '',
+    exactCopy ? `确定性文字约束：${exactCopy}；不得新增其他上图文字。` : '确定性文字约束：不得擅自新增上图文字。',
+    normalized.adjustment ? `用户补充约束：${normalized.adjustment}` : '',
+    '输出检查：中文无乱码、无错别字、无水印、无二维码，不得把参考图中的无关商品或文字混入最终画面。'
+  ].filter(Boolean).join('\n');
+}
+
+function readChatImagePlan(row) {
+  if (!row) return null;
+  try {
+    return { ...row, plan: normalizeChatImagePlanV2(JSON.parse(row.plan_json)) };
+  } catch {
+    return null;
+  }
+}
+
+function latestChatImagePlan(context = {}) {
+  const conversationId = String(context.conversationId || '').trim();
+  const row = conversationId
+    ? db.prepare("SELECT * FROM chat_image_plans WHERE user_id=? AND conversation_id=? AND status IN ('draft','confirmed','generated') ORDER BY created_at DESC LIMIT 1")
+      .get(context.user.id, conversationId)
+    : db.prepare("SELECT * FROM chat_image_plans WHERE user_id=? AND status IN ('draft','confirmed','generated') ORDER BY created_at DESC LIMIT 1")
+      .get(context.user.id);
+  return readChatImagePlan(row);
+}
+
+function createChatImageQuote(context, input = {}, options = {}) {
+  if (!context.messageId) throw new Error('缺少当前消息 ID，无法创建安全生图报价');
+  const imageRoute = resolveImageRoute({ imageRouteId: input.imageRouteId }, context.user.id);
+  if (!imageRoute || routeKind(imageRoute) !== 'image' || imageRoute.enabled === false || imageRoute.status === 'disabled') {
+    throw new Error('所选生图线路当前不可用，请重新选择');
+  }
+  const pricing = imageQuoteCost(input.modelKey, input.imageCount);
+  if (Number(context.user.balance || 0) < pricing.total) {
+    throw new Error(`算力不足，需要 ${pricing.total}，当前 ${context.user.balance}`);
+  }
+  const quoteId = uid('imgquote_');
+  const confirmationCode = crypto.randomBytes(3).toString('hex').toUpperCase();
+  const now = Date.now();
+  const referenceSource = (options.referenceImages || []).length > 0
+    ? options.referenceImages
+    : (context.referenceImages || []).length > 0
+      ? context.referenceImages
+      : input.referenceImages || [];
+  const referenceImages = referenceSource
+    .map(item => normalizeChatReferenceImage(typeof item === 'string' ? item : item?.url))
+    .filter(Boolean)
+    .slice(0, 4);
+  const requestBody = {
+    prompt: normalizeChatImagePlanText(input.prompt, 8000),
+    modelKey: pricing.model.k,
+    imageRouteId: routeIdOf(imageRoute),
+    imageRouteKey: routeKeyOf(imageRoute),
+    imageRouteName: routeDisplayName(imageRoute),
+    imageCount: pricing.count,
+    negativePrompt: normalizeChatImagePlanText(input.negativePrompt, 4000),
+    ratio: normalizeChatImagePlanText(input.ratio, 30) || '1:1',
+    referenceImages: referenceImages.map(url => ({ url })),
+    ...(options.planId ? { planId: options.planId } : {})
+  };
+  db.prepare('INSERT INTO chat_image_quotes (id,user_id,request_json,confirmation_hash,origin_message_id,cost,status,expires_at,created_at) VALUES (?,?,?,?,?,?,?,?,?)')
+    .run(quoteId, context.user.id, JSON.stringify(requestBody), hashIntegrationToken(confirmationCode), context.messageId, pricing.total, 'pending', now + 5 * 60 * 1000, now);
+  return {
+    quoteId,
+    confirmationCode,
+    modelKey: pricing.model.k,
+    modelName: pricing.model.n,
+    imageRouteId: routeIdOf(imageRoute),
+    imageRouteName: routeDisplayName(imageRoute),
+    imageCount: pricing.count,
+    mode: referenceImages.length > 0 ? 'image-to-image' : 'text-to-image',
+    referenceImageCount: referenceImages.length,
+    totalCost: pricing.total,
+    currentBalance: Number(context.user.balance || 0),
+    expiresAt: new Date(now + 5 * 60 * 1000).toISOString(),
+    requestBody
+  };
+}
+
+function chatImageQuoteUserText(result) {
+  const modeLabel = result.referenceImageCount > 0 ? '参考图生成' : '文字生成';
+  return [
+    '### 生图报价已准备',
+    '',
+    `- 生成方式：${modeLabel}`,
+    `- 使用模型：${result.modelName}`,
+    `- 生图线路：${result.imageRouteName}`,
+    `- 生成数量：${result.imageCount} 张`,
+    `- 参考图片：${result.referenceImageCount} 张`,
+    `- 预计消耗：${result.totalCost} 算力`,
+    `- 当前余额：${result.currentBalance} 算力`,
+    '',
+    `请在下一条消息回复：**确认生图 ${result.confirmationCode}**`,
+    '',
+    '报价 5 分钟内有效，确认前不会执行生图。'
+  ].join('\n');
+}
+
+function chatImageResultUserText(result) {
+  const imageLines = (result.images || [])
+    .map((image, index) => String(image?.url || '').trim() ? `![生成图片 ${index + 1}](${String(image.url).trim()})` : '')
+    .filter(Boolean);
+  return [
+    '### 图片生成完成',
+    '',
+    ...(result.imageRouteName ? [`- 生图线路：${result.imageRouteName}`] : []),
+    `- 生成数量：${imageLines.length} 张`,
+    `- 消耗算力：${result.totalCost}`,
+    `- 剩余余额：${result.remainingBalance} 算力`,
+    ...(imageLines.length > 0 ? ['', ...imageLines] : []),
+    '',
+    '是否需要修改这张图片？可在下方填写修改要求后重新生成方案，也可以保持当前方案再出一版。原产品图和参考图会继续保留。'
+  ].join('\n');
+}
+
+function createWebsiteMcpServer(context) {
+  const server = new McpServer({ name: 'hajimi-website-tools', version: '1.0.0' });
+  server.registerTool(
+    'prepare_ecommerce_image_plan',
+    {
+      title: '准备电商主图方案',
+      description: '仅供 ecommerce-main-image 智能体使用。根据用户文字和实际看到的参考图片生成完整、非模板化的设计方案、图片角色和动态上图文案表。此工具不会报价或生图。',
+      inputSchema: {
+        originalRequest: z.string().min(1).max(4000),
+        designPrompt: z.string().min(40).max(12000),
+        referenceRoles: z.array(z.object({
+          imageIndex: z.number().int().min(1).max(4),
+          roleDescription: z.string().min(1).max(1000)
+        })).max(4),
+        copyItems: z.array(z.object({
+          id: z.string().max(80).optional(),
+          label: z.string().min(1).max(80),
+          text: z.string().max(500),
+          source: z.string().max(120)
+        })).max(20),
+        revisionNotes: z.string().max(2400).optional(),
+        modelKey: z.string().optional(),
+        imageRouteId: z.string().max(160).optional(),
+        imageCount: z.number().int().min(1).max(4).optional(),
+        negativePrompt: z.string().max(4000).optional(),
+        ratio: z.string().max(30).optional(),
+        referenceImages: z.array(z.string().min(1).max(4096)).max(4).optional()
+      }
+    },
+    async (input) => {
+      if (context.agentId !== ECOMMERCE_MAIN_IMAGE_AGENT_ID) throw new Error('该方案工具只允许“电商主图设计师”使用，请重新选择智能体');
+      if (!context.messageId) throw new Error('缺少当前消息 ID，无法保存主图方案');
+      const previous = latestChatImagePlan(context);
+      const base = normalizeChatImagePlanV2(previous?.plan || {});
+      const currentReferences = (context.referenceImages || []).map(normalizeChatReferenceImage).filter(Boolean);
+      const inputReferences = (input.referenceImages || []).map(normalizeChatReferenceImage).filter(Boolean);
+      const previousReferences = chatPlanReferenceImages(base).map(normalizeChatReferenceImage).filter(Boolean);
+      if (currentReferences.length > 4 || inputReferences.length > 4) {
+        throw new Error('电商主图设计师一次最多使用 4 张参考图片，请删除多余图片后重试');
+      }
+      const referenceImages = (currentReferences.length > 0 ? currentReferences : inputReferences.length > 0 ? inputReferences : previousReferences).slice(0, 4);
+      if (referenceImages.length === 0) throw new Error('请至少上传一张商品或参考图片，并在提示词中说明它的用途');
+      const referenceRoles = normalizeChatReferenceRoles(input.referenceRoles?.length ? input.referenceRoles : base.referenceRoles);
+      if (referenceRoles.length === 0 || referenceRoles.some(role => role.imageIndex > referenceImages.length)) {
+        throw new Error('方案中的图片角色与实际上传图片不匹配，请让 GPT‑5.6 重新分析图片');
+      }
+      const plan = normalizeChatImagePlanV2({
+        ...base,
+        originalRequest: input.originalRequest || base.originalRequest,
+        designPrompt: input.designPrompt,
+        referenceRoles,
+        copyItems: input.copyItems,
+        adjustment: '',
+        revisionNotes: input.revisionNotes || '',
+        modelKey: input.modelKey || base.modelKey || IMG[0].k,
+        imageRouteId: input.imageRouteId || base.imageRouteId || '',
+        imageCount: input.imageCount || base.imageCount || 1,
+        negativePrompt: input.negativePrompt || base.negativePrompt || '',
+        ratio: input.ratio || base.ratio || '1:1',
+        referenceImages: referenceImages.map(url => ({ url })),
+        previousResultImages: base.previousResultImages || []
+      });
+      const planId = uid('imgplan_');
+      const confirmationCode = crypto.randomBytes(3).toString('hex').toUpperCase();
+      const now = Date.now();
+      if (previous?.id && previous.status === 'draft') {
+        db.prepare("UPDATE chat_image_plans SET status='superseded',updated_at=? WHERE id=? AND user_id=?")
+          .run(now, previous.id, context.user.id);
+      }
+      db.prepare('INSERT INTO chat_image_plans (id,user_id,conversation_id,plan_json,confirmation_hash,origin_message_id,status,expires_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
+        .run(planId, context.user.id, context.conversationId || '', JSON.stringify(plan), hashIntegrationToken(confirmationCode), context.messageId, 'draft', now + CHAT_IMAGE_PLAN_TTL_MS, now, now);
+      const result = {
+        planId,
+        confirmationCode,
+        status: 'draft',
+        referenceImageCount: referenceImages.length,
+        plan,
+        expiresAt: new Date(now + CHAT_IMAGE_PLAN_TTL_MS).toISOString(),
+        instruction: `请让用户检查方案表单。用户确认前不得调用 prepare_image_generation 或 execute_image_generation。`
+      };
+      return { content: [{ type: 'text', text: chatImagePlanUserText(result) }], structuredContent: result };
+    }
+  );
+
+  server.registerTool(
+    'confirm_ecommerce_image_plan',
+    {
+      title: '确认电商主图方案',
+      description: '仅供 ecommerce-main-image 智能体使用。根据用户编辑后的完整方案与动态文案重新创作 finalPrompt，然后创建报价；此步骤不会调用图片 Provider。',
+      inputSchema: {
+        confirmationCode: z.string().min(6).max(32),
+        designPrompt: z.string().min(40).max(12000),
+        copyItems: z.array(z.object({
+          id: z.string().max(80).optional(),
+          label: z.string().min(1).max(80),
+          text: z.string().max(500),
+          source: z.string().max(120).optional()
+        })).max(20),
+        adjustment: z.string().max(2400).optional(),
+        finalPrompt: z.string().min(40).max(12000)
+      }
+    },
+    async ({ confirmationCode, designPrompt, copyItems = [], adjustment = '', finalPrompt }) => {
+      if (context.agentId !== ECOMMERCE_MAIN_IMAGE_AGENT_ID) throw new Error('该确认工具只允许“电商主图设计师”使用，请重新选择智能体');
+      if (!context.messageId) throw new Error('缺少当前消息 ID，无法确认主图方案');
+      const normalizedCode = String(confirmationCode).toUpperCase();
+      const confirmationHash = hashIntegrationToken(normalizedCode);
+      const conversationId = String(context.conversationId || '').trim();
+      const row = conversationId
+        ? db.prepare("SELECT * FROM chat_image_plans WHERE user_id=? AND conversation_id=? AND confirmation_hash=? AND status='draft' ORDER BY created_at DESC LIMIT 1")
+          .get(context.user.id, conversationId, confirmationHash)
+        : db.prepare("SELECT * FROM chat_image_plans WHERE user_id=? AND confirmation_hash=? AND status='draft' ORDER BY created_at DESC LIMIT 1")
+          .get(context.user.id, confirmationHash);
+      const record = readChatImagePlan(row);
+      if (!record) throw new Error('主图方案不存在、已确认或已被新方案替代');
+      if (record.expires_at < Date.now()) throw new Error('主图方案已过期，请重新生成方案');
+      if (record.origin_message_id === context.messageId) throw new Error('必须等待用户确认方案后再生成提示词');
+      if (!timingSafeEqualText(record.confirmation_hash, confirmationHash)) throw new Error('方案确认码不正确');
+      const savedPlan = normalizeChatImagePlanV2(record.plan);
+      const savedSources = new Map(savedPlan.copyItems.map(item => [item.id, item.source]));
+      const plan = normalizeChatImagePlanV2({
+        ...savedPlan,
+        designPrompt,
+        copyItems: copyItems.map(item => ({ ...item, source: savedSources.get(cleanSettingKey(item.id || '', '')) || 'GPT 拟定' })),
+        adjustment
+      });
+      const constrainedFinalPrompt = appendConfirmedChatImageConstraints(finalPrompt, plan);
+      const quote = createChatImageQuote(context, {
+        prompt: constrainedFinalPrompt,
+        modelKey: plan.modelKey,
+        imageRouteId: plan.imageRouteId,
+        imageCount: plan.imageCount,
+        negativePrompt: plan.negativePrompt,
+        ratio: plan.ratio
+      }, {
+        planId: record.id,
+        referenceImages: plan.referenceImages
+      });
+      plan.finalPrompt = constrainedFinalPrompt;
+      plan.quoteId = quote.quoteId;
+      const now = Date.now();
+      const updated = db.prepare("UPDATE chat_image_plans SET plan_json=?,status='confirmed',confirmed_at=?,updated_at=? WHERE id=? AND user_id=? AND status='draft'")
+        .run(JSON.stringify(plan), now, now, record.id, context.user.id);
+      if (updated.changes !== 1) {
+        db.prepare('DELETE FROM chat_image_quotes WHERE id=? AND user_id=?').run(quote.quoteId, context.user.id);
+        throw new Error('主图方案正在处理或已经确认');
+      }
+      const previewLines = plan.copyItems.filter(item => item.text).map(item => `- ${item.label}：${item.text}（${item.source}）`);
+      const contentText = [
+        '### 方案已确认，最终提示词已生成',
+        '',
+        ...previewLines,
+        ...(plan.adjustment ? ['', `- 补充修改：${plan.adjustment}`] : []),
+        '',
+        chatImageQuoteUserText(quote)
+      ].join('\n');
+      return {
+        content: [{ type: 'text', text: contentText }],
+        structuredContent: { ...quote, planId: record.id, finalPrompt: constrainedFinalPrompt, designPrompt: plan.designPrompt, copyItems: plan.copyItems }
+      };
+    }
+  );
+
+  server.registerTool(
+    'prepare_image_generation',
+    {
+      title: '准备网站生图',
+      description: '检查网站图片模型、张数、当前消息附件和余额并创建一次性报价。当前消息附图会自动作为图生图参考，无需把图片内容写进参数。必须先调用此工具并等待用户在下一条消息明确确认。',
+      inputSchema: {
+        prompt: z.string().min(1).max(8000),
+        modelKey: z.string().default(IMG[0].k),
+        imageRouteId: z.string().max(160).optional(),
+        imageCount: z.number().int().min(1).max(4).default(1),
+        negativePrompt: z.string().max(4000).optional(),
+        ratio: z.string().max(30).optional(),
+        referenceImages: z.array(z.string().min(1).max(4096)).max(4).optional()
+      }
+    },
+    async (input) => {
+      const result = createChatImageQuote(context, input);
+      result.instruction = `工具结果已经提供面向普通用户的中文报价。请简洁确认，并要求用户在下一条消息明确回复“确认生图 ${result.confirmationCode}”。不要展示 quoteId、modelKey、MCP 名称、工具参数或原始 JSON，也不要在当前轮次执行生图。`;
+      return { content: [{ type: 'text', text: chatImageQuoteUserText(result) }], structuredContent: result };
+    }
+  );
+
+  server.registerTool(
+    'execute_image_generation',
+    {
+      title: '执行网站生图',
+      description: '执行已经报价且由用户在后续消息中明确确认的网站生图请求。报价只能使用一次。',
+      inputSchema: {
+        quoteId: z.string().min(1).optional(),
+        confirmationCode: z.string().min(6).max(32)
+      }
+    },
+    async ({ quoteId = '', confirmationCode }) => {
+      if (!context.messageId) throw new Error('缺少当前消息 ID，无法确认生图');
+      const normalizedCode = String(confirmationCode).toUpperCase();
+      const confirmationHash = hashIntegrationToken(normalizedCode);
+      const quote = quoteId
+        ? db.prepare('SELECT * FROM chat_image_quotes WHERE id=? AND user_id=?').get(quoteId, context.user.id)
+        : db.prepare("SELECT * FROM chat_image_quotes WHERE user_id=? AND confirmation_hash=? AND status='pending' ORDER BY created_at DESC LIMIT 1")
+          .get(context.user.id, confirmationHash);
+      if (!quote || quote.status !== 'pending') throw new Error('生图报价不存在或已经使用');
+      if (quote.expires_at < Date.now()) throw new Error('生图报价已过期，请重新报价');
+      if (quote.origin_message_id === context.messageId) throw new Error('必须等待用户在下一条消息中明确确认后才能生图');
+      if (!timingSafeEqualText(quote.confirmation_hash, confirmationHash)) {
+        throw new Error('生图确认码不正确');
+      }
+      const claimed = db.prepare("UPDATE chat_image_quotes SET status='processing', used_at=? WHERE id=? AND user_id=? AND status='pending'")
+        .run(Date.now(), quote.id, context.user.id);
+      if (claimed.changes !== 1) throw new Error('生图报价正在处理或已经使用');
+      try {
+        const quoteRequest = JSON.parse(quote.request_json);
+        const result = await executeTemplateImageGeneration(context.user.id, quoteRequest, context.request);
+        db.prepare("UPDATE chat_image_quotes SET status='completed', used_at=? WHERE id=?").run(Date.now(), quote.id);
+        const output = {
+          quoteId: quote.id,
+          taskId: result.taskId,
+          images: result.images,
+          totalCost: result.totalCost,
+          remainingBalance: result.remainingBalance,
+          prompt: result.prompt,
+          modelKey: result.modelKey,
+          imageRouteId: quoteRequest.imageRouteId || '',
+          imageRouteName: quoteRequest.imageRouteName || routeDisplayName(resolveImageRoute(quoteRequest, context.user.id)),
+          editMode: !!result.editMode,
+          referenceImageCount: quoteRequest.referenceImages?.length || 0
+        };
+        if (quoteRequest.planId) {
+          const planRow = db.prepare('SELECT plan_json FROM chat_image_plans WHERE id=? AND user_id=?').get(quoteRequest.planId, context.user.id);
+          if (planRow?.plan_json) {
+            try {
+              const plan = JSON.parse(planRow.plan_json);
+              plan.lastGeneratedImages = result.images || [];
+              plan.lastGeneratedAt = new Date().toISOString();
+              db.prepare("UPDATE chat_image_plans SET plan_json=?,status='generated',updated_at=? WHERE id=? AND user_id=?")
+                .run(JSON.stringify(plan), Date.now(), quoteRequest.planId, context.user.id);
+            } catch {}
+          }
+        }
+        return { content: [{ type: 'text', text: chatImageResultUserText(output) }], structuredContent: output };
+      } catch (error) {
+        db.prepare("UPDATE chat_image_quotes SET status='failed', used_at=? WHERE id=?").run(Date.now(), quote.id);
+        throw error;
+      }
+    }
+  );
+  return server;
+}
+
+app.all('/api/integrations/librechat/mcp', integrationServiceAuth, integrationUser, async (req, res) => {
+  if (!chatSettingsState().imageToolsEnabled) {
+    return res.status(403).json({ jsonrpc: '2.0', error: { code: -32003, message: 'Chat 生图工具已由管理员关闭' }, id: req.body?.id ?? null });
+  }
+  const server = createWebsiteMcpServer({
+    user: req.integrationUser,
+    messageId: req.integrationMessageId,
+    conversationId: req.integrationConversationId,
+    agentId: req.integrationAgentId,
+    referenceImages: req.integrationReferenceImages,
+    request: req
+  });
+  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+  res.on('close', () => {
+    transport.close().catch(() => {});
+    server.close().catch(() => {});
+  });
+  try {
+    await server.connect(transport);
+    await transport.handleRequest(req, res, req.body);
+  } catch (error) {
+    console.error('[LIBRECHAT_MCP_ERROR]', error);
+    if (!res.headersSent) {
+      res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: error.message || 'MCP 请求失败' }, id: null });
+    }
+  }
 });
 
 app.post('/api/user/preferences/api-provider', auth, (req, res) => {
@@ -4121,76 +7318,56 @@ function balanceLogRow(row) {
   };
 }
 function generationRows(limit = 100) {
-  return db.prepare('SELECT * FROM generations ORDER BY created_at DESC LIMIT ?').all(limit).map(row => ({
-    id: row.id,
-    taskId: row.id,
-    userId: row.user_id,
-    username: db.prepare('SELECT username FROM users WHERE id=?').get(row.user_id)?.username || 'local',
-    lineKey: 'route_6789',
-    routeId: 'pub_route_64f93e01e8f3',
-    routeName: '6789',
-    routeDisplayName: '6789',
-    model: row.model_key,
-    modelKey: row.model_key,
-    modelDisplayName: row.model_key,
-    resolvedModel: row.model_key,
-    prompt: row.prompt,
-    promptPreview: String(row.prompt || '').slice(0, 120),
-    promptLength: String(row.prompt || '').length,
-    resultUrl: row.result_url,
-    imageUrl: row.result_url,
-    status: row.status === 'completed' ? 'success' : (row.status || 'success'),
-    progress: row.status === 'failed' ? 100 : 100,
-    cost: row.cost || 0,
-    costPoints: row.cost || 0,
-    chargeStatus: '已扣费',
-    imageCount: 1,
-    size: '1024x1024',
-    resolvedSize: '1024x1024',
-    quality: 'standard',
-    referenceImages: [],
-    referenceImageCount: 0,
-    referenceImageTotalSizeText: '0 KB',
-    createdAt: row.created_at,
-    updatedAt: row.created_at,
-    finishedAt: row.created_at,
-    errorMessage: ''
-  }));
-}
-function mockOrders() {
-  const users = db.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT 20').all();
-  return users.map((u, i) => ({
-    id: `order_${i + 1}`,
-    orderNo: `HJM${String(i + 1).padStart(6, '0')}`,
-    userId: u.id,
-    username: u.username,
-    email: u.email,
-    amount: [19.9, 49, 99, 199][i % 4],
-    credits: [200, 600, 1500, 4000][i % 4],
-    payMethod: ['wechat', 'alipay', 'stripe'][i % 3],
-    status: ['paid', 'pending', 'closed'][i % 3],
-    createdAt: u.created_at,
-    paidAt: i % 3 === 0 ? u.created_at : ''
-  }));
+  return db.prepare('SELECT * FROM generations ORDER BY created_at DESC LIMIT ?').all(limit).map(row => {
+    const status = row.status === 'completed' ? 'success' : (row.status || 'success');
+    const finished = ['success', 'failed', 'error', 'cancelled'].includes(status);
+    const cost = Number(row.cost || 0);
+    return {
+      id: row.id,
+      taskId: row.id,
+      userId: row.user_id,
+      username: db.prepare('SELECT username FROM users WHERE id=?').get(row.user_id)?.username || 'local',
+      model: row.model_key,
+      modelKey: row.model_key,
+      modelDisplayName: row.model_key,
+      resolvedModel: row.model_key,
+      prompt: row.prompt,
+      promptPreview: String(row.prompt || '').slice(0, 120),
+      promptLength: String(row.prompt || '').length,
+      resultUrl: row.result_url,
+      imageUrl: row.result_url,
+      status,
+      progress: finished ? 100 : 0,
+      cost,
+      costPoints: cost,
+      chargeStatus: cost > 0 ? '已记录扣费' : '无扣费记录',
+      imageCount: row.result_url ? 1 : 0,
+      createdAt: row.created_at,
+      updatedAt: row.created_at,
+      finishedAt: finished ? row.created_at : undefined
+    };
+  });
 }
 function modelPriceRows() {
   const overrides = modelPriceState();
   const overrideMap = new Map(overrides.map(row => [row.id, row]));
-  const baseRows = filteredRoutes('', { includeModelOverrides: false, includeDisabledModels: true }).flatMap(route => route.models.map(model => {
+  const baseRows = filteredRoutes('', { includeModelOverrides: false, includeDisabledModels: true }).flatMap(route => route.models.flatMap(model => {
     const id = `${route.id}:${model.modelKey}`;
     const override = overrideMap.get(id) || {};
-    return normalizeRouteModel({
+    if (override.deleted) return [];
+    return [normalizeRouteModel({
       ...override,
       id,
       routeId: route.id,
       routeKey: route.routeKey,
       routeName: route.displayName
-    }, route, model);
+    }, route, model)];
   }));
   const baseIds = new Set(baseRows.map(row => row.id));
   const routes = filteredRoutes('', { includeModelOverrides: false, includeDisabledModels: true });
   const extraRows = overrides
     .filter(row => !baseIds.has(row.id))
+    .filter(row => !row.deleted)
     .map(row => {
       const route = routes.find(item => routeMatchesModelRow(row, item)) || routes[0] || routePayload(RTS[0], { includeModelOverrides: false, includeDisabledModels: true });
       return normalizeRouteModel(row, route);
@@ -4203,14 +7380,17 @@ function modelPriceRows() {
 
 app.get('/api/admin/users', auth, admin, (req, res) => {
   const q = String(req.query.keyword || req.query.q || '').trim().toLowerCase();
-  let users = db.prepare('SELECT * FROM users ORDER BY created_at DESC').all().map(adminUserRow);
+  let users = db.prepare("SELECT * FROM users WHERE status NOT IN ('deleted','purged') ORDER BY created_at DESC").all().map(adminUserRow);
   if (q) users = users.filter(u => [u.username, u.email, u.role, u.status].some(v => String(v || '').toLowerCase().includes(q)));
   const payload = pageList(users, req);
   res.json({ ...payload, users: payload.items, success: true });
 });
 app.get('/api/admin/dashboard', auth, admin, (req, res) => {
   const totalUsers = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
+  const todayNewUsers = db.prepare("SELECT COUNT(*) as c FROM users WHERE date(created_at,'localtime')=date('now','localtime')").get().c;
   const totalGenerations = db.prepare('SELECT COUNT(*) as c FROM generations').get().c;
+  const todayGenerations = db.prepare("SELECT COUNT(*) as c FROM generations WHERE date(created_at,'localtime')=date('now','localtime')").get().c;
+  const apiFailures = db.prepare("SELECT COUNT(*) as c FROM generations WHERE status IN ('failed','error')").get().c;
   const totalCredits = db.prepare('SELECT COALESCE(SUM(balance),0) as s FROM users').get().s;
   const totalCost = db.prepare('SELECT COALESCE(SUM(cost),0) as s FROM generations').get().s;
   const modelUsageList = db.prepare(`
@@ -4246,14 +7426,14 @@ app.get('/api/admin/dashboard', auth, admin, (req, res) => {
   }));
   const stats = {
     totalUsers,
-    todayNewUsers: totalUsers,
-    todayOrderAmount: mockOrders().reduce((sum, o) => sum + (o.status === 'paid' ? Number(o.amount || 0) : 0), 0),
+    todayNewUsers,
+    todayOrderAmount: 0,
     totalGenerations,
-    todayGenerations: totalGenerations,
+    todayGenerations,
     totalCredits,
     totalConsumedPoints: totalCost,
     totalCost,
-    apiFailures: 0,
+    apiFailures,
     activeUsers: db.prepare("SELECT COUNT(*) as c FROM users WHERE status='active'").get().c,
     routeCount: routeState().length,
     modelCount: modelPriceRows().length
@@ -4263,7 +7443,7 @@ app.get('/api/admin/dashboard', auth, admin, (req, res) => {
     userTotal: totalUsers,
     usersTotal: totalUsers,
     totalUserCount: totalUsers,
-    todayUserCount: totalUsers,
+    todayUserCount: todayNewUsers,
     generationTotal: totalGenerations,
     consumedPoints: totalCost,
     consumedCredits: totalCost
@@ -4273,6 +7453,11 @@ app.get('/api/admin/dashboard', auth, admin, (req, res) => {
     summary: dashboardStats,
     stats: dashboardStats,
     cards: dashboardStats,
+    dataQuality: {
+      ordersAvailable: false,
+      routeUsageAvailable: false,
+      message: '支付订单与历史生成线路尚未写入可统计的数据表，相关区域不展示推算值。'
+    },
     recentTasks: generationRows(8),
     routes: filteredRoutes(),
     modelPrices: modelPriceRows().slice(0, 12),
@@ -4282,17 +7467,11 @@ app.get('/api/admin/dashboard', auth, admin, (req, res) => {
       list: modelUsageList
     },
     routeUsage: {
+      available: false,
+      reason: 'generation_route_not_recorded',
       totalCredits: totalCost,
       totalCount: totalGenerations,
-      list: filteredRoutes().map(route => ({
-        routeId: route.id,
-        routeKey: route.routeKey,
-        routeName: route.displayName,
-        totalCredits: Math.round(totalCost / Math.max(1, routeState().length) * 100) / 100,
-        totalCount: Math.ceil(totalGenerations / Math.max(1, routeState().length)),
-        successCount: Math.ceil(totalGenerations / Math.max(1, routeState().length)),
-        failCount: 0
-      }))
+      list: []
     },
     ranking: {
       range: req.query.range || 'today',
@@ -4318,15 +7497,27 @@ app.get('/api/admin/dashboard/user-credit-ranking', auth, admin, (req, res) => {
 });
 app.patch('/api/admin/users/:id/status', auth, admin, (req, res) => {
   const status = req.body.status || 'active';
+  if (!['active', 'disabled', 'banned'].includes(status)) {
+    return res.status(400).json({ success: false, code: 'INVALID_USER_STATUS', message: '用户状态无效' });
+  }
+  if (String(req.user.userId) === String(req.params.id) && status !== 'active') {
+    return res.status(409).json({ success: false, code: 'ADMIN_SELF_LOCK_BLOCKED', message: '不能停用或封禁当前管理员账号' });
+  }
   const r = db.prepare('UPDATE users SET status=? WHERE id=?').run(status, req.params.id);
   if (!r.changes) return res.status(404).json({ message: '用户不存在' });
   res.json({ success: true, user: adminUserRow(db.prepare('SELECT * FROM users WHERE id=?').get(req.params.id)) });
 });
 app.post('/api/admin/users/:id/balance', auth, admin, (req, res) => {
   const amount = Number(req.body.amount ?? req.body.changeAmount ?? 0);
+  if (!Number.isFinite(amount) || amount === 0) {
+    return res.status(400).json({ success: false, code: 'INVALID_BALANCE_AMOUNT', message: '余额调整值必须是非零数字' });
+  }
   const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.params.id);
   if (!user) return res.status(404).json({ message: '用户不存在' });
   const next = user.balance + amount;
+  if (next < 0) {
+    return res.status(409).json({ success: false, code: 'INSUFFICIENT_BALANCE', message: '调整后余额不能小于 0' });
+  }
   db.prepare('UPDATE users SET balance=? WHERE id=?').run(next, user.id);
   db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
     .run(user.id, 'admin_adjust', amount, user.balance, next, req.body.remark || '管理员调整余额');
@@ -4335,7 +7526,25 @@ app.post('/api/admin/users/:id/balance', auth, admin, (req, res) => {
 app.post('/api/admin/users/:id/security-check', auth, admin, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.params.id);
   if (!user) return res.status(404).json({ message: '用户不存在' });
-  res.json({ success: true, riskLevel: 'low', checks: ['账号状态正常', '余额记录正常', '未发现异常登录'] });
+  const duplicateUsername = db.prepare('SELECT COUNT(*) AS count FROM users WHERE lower(username)=lower(?) AND id<>?').get(user.username, user.id).count;
+  const duplicateEmail = user.email
+    ? db.prepare('SELECT COUNT(*) AS count FROM users WHERE lower(email)=lower(?) AND id<>?').get(user.email, user.id).count
+    : 0;
+  const latestBalanceLog = db.prepare('SELECT after_balance FROM balance_logs WHERE user_id=? ORDER BY created_at DESC, id DESC LIMIT 1').get(user.id);
+  const checks = [];
+  const issues = [];
+  if (['active', 'disabled', 'banned'].includes(user.status)) checks.push(`账号状态：${user.status}`);
+  else issues.push(`账号状态异常：${user.status || 'unknown'}`);
+  if (Number.isFinite(Number(user.balance)) && Number(user.balance) >= 0) checks.push(`余额有效：${Number(user.balance)}`);
+  else issues.push('余额不是有效的非负数');
+  if (!duplicateUsername && !duplicateEmail) checks.push('用户名和邮箱未发现重复');
+  else issues.push(`身份字段重复：用户名 ${duplicateUsername}，邮箱 ${duplicateEmail}`);
+  if (!latestBalanceLog || Math.abs(Number(latestBalanceLog.after_balance) - Number(user.balance)) < 0.001) checks.push('最新余额日志与当前余额一致');
+  else issues.push('最新余额日志与当前余额不一致');
+  const riskLevel = issues.some(item => item.includes('余额不是') || item.includes('身份字段重复'))
+    ? 'high'
+    : (issues.length ? 'medium' : 'low');
+  res.json({ success: true, riskLevel, checks: [...issues, ...checks], issues });
 });
 app.post('/api/admin/users/:id/reset-password', auth, admin, (req, res) => {
   const password = req.body.password || req.body.newPassword || '';
@@ -4346,12 +7555,18 @@ app.post('/api/admin/users/:id/reset-password', auth, admin, (req, res) => {
       message: '生产模式重置密码必须显式提供新密码'
     });
   }
+  if (password && String(password).length < 6) {
+    return res.status(400).json({ success: false, code: 'PASSWORD_TOO_SHORT', message: '新密码至少需要 6 位' });
+  }
   const nextPassword = password || 'admin123';
   const r = db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(h(nextPassword), req.params.id);
   if (!r.changes) return res.status(404).json({ message: '用户不存在' });
-  res.json({ success: true, password: nextPassword });
+  res.json({ success: true, message: '密码已重置' });
 });
 app.delete('/api/admin/users/:id', auth, admin, (req, res) => {
+  if (String(req.user.userId) === String(req.params.id)) {
+    return res.status(409).json({ success: false, code: 'ADMIN_SELF_DELETE_BLOCKED', message: '不能删除当前管理员账号' });
+  }
   const r = db.prepare("UPDATE users SET status='deleted' WHERE id=?").run(req.params.id);
   if (!r.changes) return res.status(404).json({ message: '用户不存在' });
   res.json({ success: true });
@@ -4361,22 +7576,35 @@ app.get('/api/admin/recycle-bin/users', auth, admin, (req, res) => {
   res.json({ ...pageList(rows, req), users: rows, success: true });
 });
 app.post('/api/admin/recycle-bin/users/:id/restore', auth, admin, (req, res) => {
-  const r = db.prepare("UPDATE users SET status='active' WHERE id=?").run(req.params.id);
-  res.json({ success: r.changes > 0 });
+  const r = db.prepare("UPDATE users SET status='active' WHERE id=? AND status='deleted'").run(req.params.id);
+  if (!r.changes) return res.status(404).json({ success: false, message: '回收站中不存在该用户' });
+  res.json({ success: true });
 });
 app.delete('/api/admin/recycle-bin/users/:id/permanent', auth, admin, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id=?').get(req.params.id);
   if (!user) return res.status(404).json({ message: '用户不存在' });
+  if (user.status !== 'deleted') {
+    return res.status(409).json({ success: false, code: 'USER_NOT_IN_RECYCLE_BIN', message: '只能永久清理回收站中的用户' });
+  }
   db.prepare("UPDATE users SET username=?, email=?, status='purged', avatar_url='' WHERE id=?")
     .run(`deleted_${Date.now()}`, `deleted_${Date.now()}@local`, req.params.id);
   res.json({ success: true });
 });
 app.get('/api/admin/orders', auth, admin, (req, res) => {
-  const rows = mockOrders();
-  res.json({ ...pageList(rows, req), orders: rows, success: true });
+  const payload = pageList([], req);
+  res.json({
+    ...payload,
+    orders: payload.items,
+    success: true,
+    available: false,
+    code: ENABLE_REAL_PAYMENT ? 'ORDER_STORAGE_UNAVAILABLE' : 'PAYMENT_DISABLED',
+    message: ENABLE_REAL_PAYMENT ? '真实订单数据表尚未接入' : '支付功能未启用，当前没有真实订单数据'
+  });
 });
 app.patch('/api/admin/orders/:id/status', auth, admin, (req, res) => {
-  res.json({ success: true, id: req.params.id, status: req.body.status || 'paid' });
+  const code = ENABLE_REAL_PAYMENT ? 'ORDER_STORAGE_UNAVAILABLE' : 'PAYMENT_DISABLED';
+  const message = ENABLE_REAL_PAYMENT ? '真实订单数据表尚未接入，不能修改订单状态' : '支付功能未启用，不能修改订单状态';
+  res.status(409).json({ success: false, code, message });
 });
 app.get('/api/admin/usage-logs', auth, admin, (req, res) => {
   const rows = db.prepare('SELECT * FROM balance_logs ORDER BY created_at DESC LIMIT 200').all().map(balanceLogRow);
@@ -4461,6 +7689,9 @@ app.post('/api/admin/api-providers', auth, admin, (req, res) => {
     chatEndpoint: req.body.chatEndpoint || '',
     imageEndpoint: req.body.imageEndpoint || '',
     imageEditEndpoint: req.body.imageEditEndpoint || '',
+    imageResponseFormat: normalizeProviderImageResponseFormat(req.body.imageResponseFormat),
+    imageStream: normalizeProviderImageStream(req.body.imageStream),
+    imagePartialImages: normalizeProviderImagePartialImages(req.body.imagePartialImages),
     videoEndpoint: req.body.videoEndpoint || '',
     defaultTextModel: req.body.defaultTextModel || '',
     defaultImageModel: req.body.defaultImageModel || '',
@@ -4468,9 +7699,10 @@ app.post('/api/admin/api-providers', auth, admin, (req, res) => {
     multiplier: Number(req.body.multiplier || req.body.rate || 1),
     remark: req.body.remark || req.body.note || ''
   };
-  const routes = [...routeState(), rawRoute];
+  const normalizedRoute = normalizeApiProviderRoute(rawRoute);
+  const routes = [...routeState(), normalizedRoute];
   saveRouteState(routes);
-  const route = routePayload(rawRoute);
+  const route = routePayload(normalizedRoute);
   res.json({ success: true, item: route, provider: route, route });
 });
 app.put('/api/admin/api-providers', auth, admin, (req, res) => {
@@ -4487,7 +7719,8 @@ app.put('/api/admin/api-providers', auth, admin, (req, res) => {
     const routeKey = route.routeKey || route.lineKey || route.routeCode || route.code || route.key || route.rk || id;
     const name = route.displayName || route.name || route.routeDisplayName || route.routeName || route.dn || routeKey;
     const previous = previousRoutes.find(item => [item.id, item.rk, item.routeKey, item.lineKey, item.code].includes(id) || [item.id, item.rk, item.routeKey, item.lineKey, item.code].includes(routeKey)) || {};
-    return {
+    const imageResponseMode = providerImageResponseMode({ ...previous, ...route, id, rk: routeKey });
+    return normalizeApiProviderRoute({
       id,
       rk: routeKey,
       name,
@@ -4511,13 +7744,16 @@ app.put('/api/admin/api-providers', auth, admin, (req, res) => {
       chatEndpoint: route.chatEndpoint || '',
       imageEndpoint: route.imageEndpoint || '',
       imageEditEndpoint: route.imageEditEndpoint || '',
+      imageResponseFormat: imageResponseMode.responseFormat,
+      imageStream: imageResponseMode.stream,
+      imagePartialImages: imageResponseMode.partialImages ?? 0,
       videoEndpoint: route.videoEndpoint || '',
       defaultTextModel: route.defaultTextModel || '',
       defaultImageModel: route.defaultImageModel || '',
       defaultVideoModel: route.defaultVideoModel || '',
       multiplier: Number(route.multiplier || route.rate || 1),
       remark: route.remark || route.note || ''
-    };
+    });
   });
   saveRouteState(nextRoutes);
   const rows = nextRoutes.map(routePayload);
@@ -4528,7 +7764,8 @@ app.put('/api/admin/api-providers/:id', auth, admin, (req, res) => {
   let updated = null;
   const nextRoutes = routes.map(route => {
     if (![route.id, route.rk, route.routeKey, route.lineKey].includes(req.params.id)) return route;
-    updated = {
+    const imageResponseMode = providerImageResponseMode({ ...route, ...req.body });
+    updated = normalizeApiProviderRoute({
       ...route,
       ...req.body,
       id: route.id,
@@ -4549,6 +7786,9 @@ app.put('/api/admin/api-providers/:id', auth, admin, (req, res) => {
       chatEndpoint: req.body.chatEndpoint ?? route.chatEndpoint ?? '',
       imageEndpoint: req.body.imageEndpoint ?? route.imageEndpoint ?? '',
       imageEditEndpoint: req.body.imageEditEndpoint ?? route.imageEditEndpoint ?? '',
+      imageResponseFormat: imageResponseMode.responseFormat,
+      imageStream: imageResponseMode.stream,
+      imagePartialImages: imageResponseMode.partialImages ?? 0,
       videoEndpoint: req.body.videoEndpoint ?? route.videoEndpoint ?? '',
       defaultTextModel: req.body.defaultTextModel ?? route.defaultTextModel ?? '',
       defaultImageModel: req.body.defaultImageModel ?? route.defaultImageModel ?? '',
@@ -4559,7 +7799,7 @@ app.put('/api/admin/api-providers/:id', auth, admin, (req, res) => {
       def: req.body.isDefault ?? req.body.def ?? route.def,
       dm: req.body.defaultModelKey || req.body.defaultModelRealName || req.body.defaultModelDisplayName || route.dm,
       enabled: req.body.enabled !== false
-    };
+    });
     return updated;
   });
   if (!updated) return res.status(404).json({ success: false, code: 'ROUTE_NOT_FOUND', message: 'API 线路不存在' });
@@ -4605,7 +7845,7 @@ app.post('/api/admin/api-providers/:id/test', auth, admin, async (req, res) => {
     mock: !!result.mock,
     latencyMs: Date.now() - startedAt,
     message: result.success
-      ? (kind === 'image' ? '图片线路连接正常，Packy Images API 已返回图片' : '文本线路连接正常，Responses API 已返回结果')
+      ? (kind === 'image' ? '图片线路连接正常，Images API 已返回图片' : '文本线路连接正常，Responses API 已返回结果')
       : result.message,
     provider: status,
     route: { id: req.params.id, type: kind, model },
@@ -4616,7 +7856,7 @@ app.post('/api/admin/api-providers/:id/test', auth, admin, async (req, res) => {
 });
 app.post('/api/admin/api-providers/:id/fetch-models', auth, admin, (req, res) => {
   const route = findRouteByAnyId(req.params.id);
-  res.json({ success: true, items: (route.cat === 'text' ? TXT : IMG).map(m => fmt(m, route)) });
+  res.json({ success: true, items: baseModelsForRoute(route) });
 });
 app.post('/api/admin/api-providers/:id/set-default', auth, admin, (req, res) => {
   const routes = routeState();
@@ -4646,9 +7886,14 @@ app.get('/api/admin/model-prices', auth, admin, (req, res) => {
   });
 });
 app.post('/api/admin/routes/:id/models', auth, admin, (req, res) => {
-  const route = findRouteByAnyId(req.params.id);
+  const route = routeState().find(r => [r.id, r.routeId, r.lineId, r.rk, r.routeKey, r.lineKey, r.code].includes(req.params.id));
+  if (!route) return res.status(404).json({ success: false, code: 'ROUTE_NOT_FOUND', message: '线路不存在' });
+  const modelKey = String(req.body.modelKey || req.body.realName || '').trim();
+  const price = Number(req.body.pricePoints ?? req.body.price ?? 10);
+  if (!modelKey) return res.status(400).json({ success: false, code: 'MODEL_KEY_REQUIRED', message: '模型标识不能为空' });
+  if (!Number.isFinite(price) || price < 0) return res.status(400).json({ success: false, code: 'INVALID_MODEL_PRICE', message: '模型价格必须是大于或等于 0 的数字' });
   const defaultQualities = routeKind(route) === 'image' ? IMAGE_CLARITY_OPTIONS : ['1k'];
-  const model = fmt({ k: req.body.modelKey || req.body.realName || 'custom-model', n: req.body.displayName || req.body.name || req.body.modelKey || 'Custom Model', p: Number(req.body.pricePoints || req.body.price || 10), q: req.body.qualities || defaultQualities }, route);
+  const model = fmt({ k: modelKey, n: req.body.displayName || req.body.name || modelKey, p: price, q: req.body.qualities || defaultQualities }, route);
   const rows = modelPriceState();
   const nextRows = rows.filter(row => row.id !== `${route.id}:${model.modelKey}`);
   nextRows.push({
@@ -4670,8 +7915,11 @@ app.post('/api/admin/routes/:id/models', auth, admin, (req, res) => {
 });
 app.patch('/api/admin/route-models/:id', auth, admin, (req, res) => {
   const rows = modelPriceRows();
-  const existing = rows.find(row => row.id === req.params.id) || { id: req.params.id };
-  const item = { ...existing, ...req.body, id: req.params.id };
+  const existing = rows.find(row => row.id === req.params.id);
+  if (!existing) return res.status(404).json({ success: false, code: 'MODEL_NOT_FOUND', message: '模型不存在' });
+  const price = Number(req.body.pricePoints ?? req.body.price ?? existing.pricePoints ?? 0);
+  if (!Number.isFinite(price) || price < 0) return res.status(400).json({ success: false, code: 'INVALID_MODEL_PRICE', message: '模型价格必须是大于或等于 0 的数字' });
+  const item = { ...existing, ...req.body, price, pricePoints: price, deleted: false, id: req.params.id };
   const nextRows = modelPriceState().filter(row => row.id !== req.params.id);
   nextRows.push(item);
   saveModelPriceState(nextRows);
@@ -4679,7 +7927,8 @@ app.patch('/api/admin/route-models/:id', auth, admin, (req, res) => {
 });
 app.patch('/api/admin/route-models/:id/enabled', auth, admin, (req, res) => {
   const rows = modelPriceRows();
-  const existing = rows.find(row => row.id === req.params.id) || { id: req.params.id };
+  const existing = rows.find(row => row.id === req.params.id);
+  if (!existing) return res.status(404).json({ success: false, code: 'MODEL_NOT_FOUND', message: '模型不存在' });
   const item = { ...existing, enabled: req.body.enabled !== false };
   const nextRows = modelPriceState().filter(row => row.id !== req.params.id);
   nextRows.push(item);
@@ -4687,7 +7936,10 @@ app.patch('/api/admin/route-models/:id/enabled', auth, admin, (req, res) => {
   res.json({ success: true, id: req.params.id, enabled: item.enabled });
 });
 app.delete('/api/admin/route-models/:id', auth, admin, (req, res) => {
+  const existing = modelPriceRows().find(row => row.id === req.params.id);
+  if (!existing) return res.status(404).json({ success: false, code: 'MODEL_NOT_FOUND', message: '模型不存在' });
   const nextRows = modelPriceState().filter(row => row.id !== req.params.id);
+  nextRows.push({ ...existing, id: req.params.id, enabled: false, status: 'deleted', deleted: true });
   saveModelPriceState(nextRows);
   res.json({ success: true, id: req.params.id });
 });
@@ -4697,21 +7949,20 @@ app.get('/api/admin/generate-tasks', auth, admin, (req, res) => {
     status: task.status === 'completed' ? 'success' : task.status,
     username: db.prepare('SELECT username FROM users WHERE id=?').get(task.userId)?.username || 'local',
     userId: task.userId,
-    lineKey: task.lineKey || task.routeKey || '默认线路',
-    routeDisplayName: task.routeDisplayName || task.routeName || task.lineKey || task.routeKey || '默认线路',
+    lineKey: task.lineKey || task.routeKey || '',
+    routeDisplayName: task.routeDisplayName || task.routeName || task.lineKey || task.routeKey || '',
     model: task.modelKey,
     modelDisplayName: task.modelKey,
     resolvedModel: task.modelKey,
     promptPreview: String(task.prompt || '').slice(0, 120),
     promptLength: String(task.prompt || '').length,
-    imageCount: Array.isArray(task.images) ? task.images.length : 1,
-    size: '1024x1024',
-    resolvedSize: '1024x1024',
-    quality: 'standard',
-    chargeStatus: task.status === 'success' || task.status === 'completed' ? '已扣费' : (task.status === 'failed' ? '未扣费' : '待结算'),
-    referenceImages: [],
-    referenceImageCount: 0,
-    referenceImageTotalSizeText: '0 KB',
+    imageCount: Array.isArray(task.images) ? task.images.length : 0,
+    size: task.request?.size || '',
+    resolvedSize: task.request?.size || '',
+    quality: task.request?.quality || '',
+    chargeStatus: task.status === 'success' || task.status === 'completed'
+      ? (Number(task.cost || 0) > 0 ? '已记录扣费' : '无扣费记录')
+      : (task.status === 'failed' ? '未完成' : '待结算'),
     finishedAt: task.updatedAt
   }));
   const rows = [...memoryTasks, ...generationRows(100)];
@@ -4724,23 +7975,30 @@ app.get('/api/admin/generate-tasks', auth, admin, (req, res) => {
     running: filtered.filter(t => t.status === 'running').length,
     success: filtered.filter(t => t.status === 'success').length,
     failed: filtered.filter(t => t.status === 'failed').length,
-    queueMode: 'local-mock'
+    queueMode: 'runtime-memory+history',
+    dataScope: '运行时内存任务与 SQLite 生成历史；历史记录未保存线路、尺寸、质量和参考图字段'
   };
   const payload = pageList(filtered, req);
   res.json({ success: true, ...payload, tasks: payload.items, summary });
 });
 app.post('/api/admin/generate-tasks/:id/cancel', auth, admin, (req, res) => {
   const task = tasks.get(req.params.id);
-  if (task) {
-    task.status = 'cancelled';
-    task.errorMessage = req.body.reason || '管理员取消';
-    task.updatedAt = new Date().toISOString();
+  if (!task) return res.status(404).json({ success: false, code: 'ACTIVE_TASK_NOT_FOUND', message: '未找到可取消的运行时任务' });
+  if (!['pending', 'running'].includes(task.status)) {
+    return res.status(409).json({ success: false, code: 'TASK_NOT_CANCELLABLE', message: '只有等待中或运行中的任务可以取消' });
   }
+  task.status = 'cancelled';
+  task.errorMessage = req.body.reason || '管理员取消';
+  task.updatedAt = new Date().toISOString();
   res.json({ success: true, id: req.params.id, status: 'cancelled' });
 });
 app.delete('/api/admin/generate-tasks/:id', auth, admin, (req, res) => {
-  tasks.delete(req.params.id);
-  res.json({ success: true, id: req.params.id });
+  if (tasks.delete(req.params.id)) {
+    return res.json({ success: true, id: req.params.id, source: 'runtime' });
+  }
+  const result = db.prepare('DELETE FROM generations WHERE id=?').run(req.params.id);
+  if (!result.changes) return res.status(404).json({ success: false, code: 'TASK_NOT_FOUND', message: '任务记录不存在' });
+  res.json({ success: true, id: req.params.id, source: 'history' });
 });
 app.get('/api/admin/generate-tasks/:id/reference-images/:imageId/thumb', auth, admin, (req, res) => {
   res.redirect(302, placeholderUrl(`reference ${req.params.imageId}`));
@@ -4763,6 +8021,157 @@ app.put('/api/admin/template-workflows', auth, admin, (req, res) => {
   saveTemplateWorkflowState(next);
   res.json({ success: true, ...next, items: next.templates || [], data: next.templates || [] });
 });
+
+function adminChatSettingsPayload() {
+  const settings = chatSettingsState();
+  const provider = providerStatus();
+  const now = Date.now();
+  const usage = {
+    activeSsoTickets: Number(db.prepare('SELECT COUNT(*) AS count FROM chat_sso_tickets WHERE used_at IS NULL AND expires_at>=?').get(now)?.count || 0),
+    textCharges: Number(db.prepare('SELECT COUNT(*) AS count FROM chat_text_charges').get()?.count || 0),
+    imageQuotes: Number(db.prepare('SELECT COUNT(*) AS count FROM chat_image_quotes').get()?.count || 0)
+  };
+  return {
+    settings,
+    deployment: {
+      enabled: ENABLE_LIBRECHAT,
+      accessReady: ENABLE_LIBRECHAT && settings.accessEnabled,
+      bridgeSecretConfigured: hasConfiguredSecret(LIBRECHAT_BRIDGE_SECRET),
+      realAiEnabled: provider.enabled,
+      providerMode: provider.mode,
+      providerKeyConfigured: provider.textKeyConfigured,
+      providerBaseConfigured: !!provider.baseUrl && !/example\.com/i.test(provider.baseUrl),
+      providerModel: AI_TEXT_MODEL,
+      ssoTtlSeconds: LIBRECHAT_SSO_TTL_SECONDS,
+      chatPath: '/chat/',
+      apiPath: '/chat-api/',
+      skills: {
+        enabled: true,
+        privateCreate: true,
+        publicSharing: false
+      },
+      mcp: {
+        websiteTools: settings.imageToolsEnabled,
+        externalInstall: false
+      }
+    },
+    models: TXT.map(item => ({ id: item.k, name: item.n, price: item.p })),
+    usage
+  };
+}
+
+async function probeLibreChatHealth() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4000);
+  const startedAt = Date.now();
+  try {
+    const response = await fetch(`${LIBRECHAT_INTERNAL_URL}/health`, { signal: controller.signal });
+    return {
+      ok: response.ok,
+      status: response.status,
+      latencyMs: Date.now() - startedAt,
+      message: response.ok ? 'LibreChat 内部健康检查通过' : `LibreChat 返回 HTTP ${response.status}`
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      latencyMs: Date.now() - startedAt,
+      message: error.name === 'AbortError' ? 'LibreChat 健康检查超时' : `LibreChat 无法连接: ${error.message}`
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function providerTestContent(data = {}) {
+  const normalized = imageToolOutputText(data);
+  if (normalized) return normalized;
+  const content = data.choices?.[0]?.message?.content;
+  if (typeof content === 'string') return content.trim();
+  if (Array.isArray(content)) {
+    return content.map(item => typeof item === 'string' ? item : item?.text || '').join('').trim();
+  }
+  return '';
+}
+
+async function runRealChatProviderTest({ model, prompt }) {
+  const route = resolveTextRoute({ model, textModel: model });
+  const status = routeProviderStatus(route, 'text');
+  if (!status.enabled) {
+    throw integrationError(409, 'CHAT_PROVIDER_NOT_READY', '真实 AI 中转尚未启用，需配置服务器端地址、密钥并设置 ENABLE_REAL_AI=true');
+  }
+  const allowedModel = allowedChatModels().find(item => item.k === model);
+  if (!allowedModel) {
+    throw integrationError(400, 'CHAT_PROVIDER_MODEL_NOT_ALLOWED', '测试模型不在 Chat 允许模型列表中');
+  }
+
+  const controller = new AbortController();
+  const timeoutMs = Math.min(Math.max(Number(status.timeoutMs || 30000), 5000), 45000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const startedAt = Date.now();
+  try {
+    const routeProtocol = String(route.requestFormat || route.apiFormat || route.endpoint || '').toLowerCase();
+    const useResponses = routeProtocol.includes('responses') && !routeProtocol.includes('chat/completions');
+    const requestUrl = joinProviderUrl(status.baseUrl, useResponses ? routeTextEndpoint(route) : routeTextChatEndpoint(route));
+    const requestBody = useResponses
+      ? {
+          model: allowedModel.k,
+          input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }],
+          max_output_tokens: 16
+        }
+      : {
+          model: allowedModel.k,
+          messages: [{ role: 'user', content: prompt }],
+          stream: false,
+          temperature: 0,
+          max_tokens: 16
+        };
+    const response = await fetchProvider(requestUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${providerAuthKey('text', route)}`
+      },
+      body: JSON.stringify(requestBody),
+      signal: controller.signal
+    });
+    const data = await response.json().catch(() => ({}));
+    const latencyMs = Date.now() - startedAt;
+    if (!response.ok) {
+      const providerMessage = String(data.error?.message || data.message || `Provider returned HTTP ${response.status}`).slice(0, 500);
+      throw integrationError(502, 'CHAT_PROVIDER_TEST_FAILED', providerMessage, { upstreamStatus: response.status, latencyMs });
+    }
+    const content = providerTestContent(data);
+    if (!content) {
+      throw integrationError(502, 'CHAT_PROVIDER_TEST_BAD_RESPONSE', '中转站响应成功，但没有返回可读取的文本内容', { upstreamStatus: response.status, latencyMs });
+    }
+    return {
+      model: String(data.model || allowedModel.k),
+      content: content.slice(0, 1000),
+      latencyMs,
+      finishReason: data.choices?.[0]?.finish_reason || '',
+      usage: {
+        promptTokens: Number(data.usage?.prompt_tokens || data.usage?.input_tokens || 0),
+        completionTokens: Number(data.usage?.completion_tokens || data.usage?.output_tokens || 0),
+        totalTokens: Number(data.usage?.total_tokens || (Number(data.usage?.input_tokens || 0) + Number(data.usage?.output_tokens || 0)) || 0)
+      },
+      providerMode: status.mode,
+      protocol: useResponses ? 'responses' : 'chat/completions',
+      testedAt: new Date().toISOString()
+    };
+  } catch (error) {
+    if (error.status) throw error;
+    throw integrationError(
+      502,
+      error.name === 'AbortError' ? 'CHAT_PROVIDER_TEST_TIMEOUT' : 'CHAT_PROVIDER_TEST_REQUEST_FAILED',
+      error.name === 'AbortError' ? `真实中转测试超过 ${timeoutMs}ms` : `真实中转测试请求失败: ${error.message}`
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 app.get('/api/admin/settings', auth, admin, (req, res) => {
   const settings = settingsState();
   res.json({ success: true, settings, data: settings, ...settings });
@@ -4770,6 +8179,56 @@ app.get('/api/admin/settings', auth, admin, (req, res) => {
 app.patch('/api/admin/settings', auth, admin, (req, res) => {
   const settings = saveSettingsState({ ...settingsState(), ...(req.body || {}) });
   res.json({ success: true, settings, data: settings, ...settings });
+});
+app.get('/api/admin/chat/settings', auth, admin, (req, res) => {
+  res.json({ success: true, ...adminChatSettingsPayload() });
+});
+app.patch('/api/admin/chat/settings', auth, admin, (req, res) => {
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const current = chatSettingsState();
+  const next = saveChatSettingsState({
+    accessEnabled: body.accessEnabled ?? current.accessEnabled,
+    textChatEnabled: body.textChatEnabled ?? current.textChatEnabled,
+    imageToolsEnabled: body.imageToolsEnabled ?? current.imageToolsEnabled,
+    allowedModels: body.allowedModels ?? current.allowedModels,
+    maintenanceMessage: body.maintenanceMessage ?? current.maintenanceMessage,
+    managedAgents: body.managedAgents ?? current.managedAgents
+  });
+  res.json({ success: true, ...adminChatSettingsPayload(), settings: next });
+});
+app.post('/api/admin/chat/test', auth, admin, async (req, res) => {
+  const payload = adminChatSettingsPayload();
+  const libreChatHealth = await probeLibreChatHealth();
+  const checks = [
+    { key: 'deployment', label: 'Chat 部署开关', ok: payload.deployment.enabled, message: payload.deployment.enabled ? 'ENABLE_LIBRECHAT 已启用' : 'ENABLE_LIBRECHAT 未启用' },
+    { key: 'bridge-secret', label: '内部服务密钥', ok: payload.deployment.bridgeSecretConfigured, message: payload.deployment.bridgeSecretConfigured ? '内部服务密钥已配置' : '内部服务密钥未配置' },
+    { key: 'runtime-access', label: '运行时访问', ok: payload.settings.accessEnabled, message: payload.settings.accessEnabled ? 'Chat 访问已开放' : payload.settings.maintenanceMessage },
+    { key: 'models', label: '文本模型', ok: allowedChatModels(payload.settings).length > 0, message: `已开放 ${allowedChatModels(payload.settings).length} 个文本模型` },
+    { key: 'librechat-health', label: 'LibreChat 服务', ...libreChatHealth }
+  ];
+  res.json({
+    success: true,
+    healthy: checks.every(item => item.ok),
+    checkedAt: new Date().toISOString(),
+    checks,
+    ...payload
+  });
+});
+app.post('/api/admin/chat/test-provider', auth, admin, async (req, res, next) => {
+  try {
+    if (req.body?.confirmRealCall !== true) {
+      return res.status(400).json({ success: false, code: 'REAL_PROVIDER_CONFIRMATION_REQUIRED', message: '必须明确确认本次真实中转测试可能消耗 Provider 额度' });
+    }
+    const prompt = String(req.body?.prompt || '请只回复 OK').trim().slice(0, 500);
+    if (!prompt) {
+      return res.status(400).json({ success: false, code: 'CHAT_PROVIDER_TEST_PROMPT_REQUIRED', message: '请输入测试提示词' });
+    }
+    const model = String(req.body?.model || allowedChatModels()[0]?.k || '').trim();
+    const result = await runRealChatProviderTest({ model, prompt });
+    res.json({ success: true, result });
+  } catch (error) {
+    next(error);
+  }
 });
 app.all('/api/admin/*', auth, admin, (req, res) => {
   res.status(404).json({
@@ -4828,17 +8287,59 @@ app.use('/api', (req, res) => {
 app.use((err, req, res, next) => {
   console.error('[SERVER_ERROR]', err);
   if (res.headersSent) return next(err);
-  res.status(err.status || 500).json({
-    success: false,
-    code: err.code || 'SERVER_ERROR',
-    message: err.message || '服务器内部错误'
-  });
+  const status = err.status || 500;
+  const code = err.code || 'SERVER_ERROR';
+  const message = err.message || '服务器内部错误';
+  if (/^\/api\/integrations\/librechat\/v1(?:\/|$)/.test(req.path)) {
+    const extra = {};
+    if (Number.isFinite(err.cost)) extra.cost = err.cost;
+    if (Number.isFinite(err.balance)) extra.balance = err.balance;
+    return res.status(status).json(integrationOpenAiErrorPayload(code, message, extra));
+  }
+  res.status(status).json({ success: false, code, message });
 });
 
 // ===================== SPA FALLBACK =====================
-const sourceAdminRoutePattern = /^\/admin(?:\/.*)?$/;
+const sourceFrontendRoutePattern = /^\/(?:admin(?:\/.*)?|gallery\/?)$/;
+const chatFallbackRoutePattern = /^\/chat(?:\/.*)?$/;
 
-app.get(sourceAdminRoutePattern, (req, res) => {
+app.get(/^\/(?:chat|CHAT)\/?$/, (req, res, next) => {
+  if (req.path === '/chat/') return next();
+  return res.redirect(308, '/chat/');
+});
+
+app.get(chatFallbackRoutePattern, (req, res) => {
+  res.status(503);
+  res.set('Cache-Control', 'no-store');
+  res.set('Retry-After', '30');
+  res.type('html').send(`<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI 对话正在启动</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: #f3f5f7; color: #17212b; }
+    main { width: min(460px, 100%); padding: 32px; border: 1px solid #dce2e7; border-radius: 8px; background: #fff; box-shadow: 0 12px 36px rgba(17, 24, 39, .08); }
+    h1 { margin: 0 0 12px; font-size: 24px; letter-spacing: 0; }
+    p { margin: 0 0 24px; color: #52606d; line-height: 1.7; }
+    a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border-radius: 6px; background: #176b4d; color: #fff; font-weight: 600; text-decoration: none; }
+    a:focus-visible { outline: 3px solid rgba(23, 107, 77, .25); outline-offset: 3px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>AI 对话正在启动</h1>
+    <p>聊天服务尚未接入当前端口。现有网站、模板和画布功能不受影响。</p>
+    <a href="/">返回首页</a>
+  </main>
+</body>
+</html>`);
+});
+
+app.get(sourceFrontendRoutePattern, (req, res) => {
   const sourceIndex = path.join(sourceFrontendDist, 'index.html');
   res.sendFile(fs.existsSync(sourceIndex) ? sourceIndex : path.join(__dirname, 'index.html'));
 });

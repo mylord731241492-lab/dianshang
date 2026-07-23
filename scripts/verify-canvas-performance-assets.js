@@ -8,18 +8,22 @@ const files = {
   perfCss: path.join(root, 'assets', 'canvas-performance-mode.css'),
   imagePolishJs: path.join(root, 'assets', 'canvas-image-node-polish.js'),
   imagePolishCss: path.join(root, 'assets', 'canvas-image-node-polish.css'),
+  promptEnhancerJs: path.join(root, 'assets', 'canvas-prompt-enhancer.js'),
+  promptEnhancerCss: path.join(root, 'assets', 'canvas-prompt-enhancer.css'),
   nodeRadiusCss: path.join(root, 'assets', 'canvas-node-radius-fix.css'),
   canvasCss: path.join(root, 'assets', 'Canvas-D1auYH9L.css'),
   canvasA: path.join(root, 'assets', 'Canvas-B8bY9_QL.js'),
   canvasB: path.join(root, 'assets', 'Canvas-yGc8b2gf.js'),
   promptFlowJs: path.join(root, 'assets', 'canvas-chat-prompt-flow.js'),
   promptFlowCss: path.join(root, 'assets', 'canvas-chat-prompt-flow.css'),
+  imagePreviewRuntime: path.join(root, 'assets', 'canvas-image-preview-runtime.js'),
   entryA: path.join(root, 'assets', 'index-DglIsp_g.js'),
   entryB: path.join(root, 'assets', 'index-ZrBcanD1.js'),
   server: path.join(root, 'server.js'),
   frameBudgetPs: path.join(root, 'scripts', 'smoke-canvas-frame-budget-ui.ps1'),
   frameBudgetRunner: path.join(root, 'scripts', 'smoke-canvas-frame-budget-ui-runner.js'),
-  preflight: path.join(root, 'scripts', 'preflight-check.ps1')
+  preflight: path.join(root, 'scripts', 'preflight-check.ps1'),
+  productionSmoke: path.join(root, 'scripts', 'smoke-internal-prod.ps1')
 };
 
 function read(file) {
@@ -43,6 +47,8 @@ const perfJs = read(files.perfJs);
 const perfCss = read(files.perfCss);
 const imagePolishJs = read(files.imagePolishJs);
 const imagePolishCss = read(files.imagePolishCss);
+const promptEnhancerJs = read(files.promptEnhancerJs);
+const promptEnhancerCss = read(files.promptEnhancerCss);
 const nodeRadiusCss = read(files.nodeRadiusCss);
 const canvasCss = read(files.canvasCss);
 const entryA = read(files.entryA);
@@ -50,30 +56,67 @@ const entryB = read(files.entryB);
 const server = read(files.server);
 const promptFlowJs = read(files.promptFlowJs);
 const promptFlowCss = read(files.promptFlowCss);
+const imagePreviewRuntime = read(files.imagePreviewRuntime);
 const frameBudgetPs = read(files.frameBudgetPs);
 const frameBudgetRunner = read(files.frameBudgetRunner);
 const preflight = read(files.preflight);
+const productionSmoke = read(files.productionSmoke);
 const canvasBundles = [
   ['Canvas-B8bY9_QL.js', read(files.canvasA)],
   ['Canvas-yGc8b2gf.js', read(files.canvasB)]
 ];
 
-assertIncludes('index.html', html, 'canvas-performance-mode.js?v=20260629perf5');
-assertIncludes('index.html', html, 'canvas-performance-mode.css?v=20260629perf5');
-assertIncludes('index.html', html, 'canvas-image-node-polish.js?v=20260703mask1');
-assertIncludes('index.html', html, 'canvas-image-node-polish.css?v=20260703mask1');
+assertIncludes('index.html', html, 'canvas-performance-mode.js?v=20260704canvasleave1');
+assertIncludes('index.html', html, 'canvas-performance-mode.css?v=20260704usercenter1');
+assertIncludes('index.html', html, 'canvas-image-node-polish.js?v=20260708loadguard1');
+assertIncludes('index.html', html, 'canvas-image-node-polish.css?v=20260721promptread1');
+assertIncludes('index.html', html, 'canvas-prompt-enhancer.js?v=20260721enhance1');
+assertIncludes('index.html', html, 'canvas-prompt-enhancer.css?v=20260721enhance1');
 assertIncludes('index.html', html, 'canvas-node-radius-fix.css?v=20260701title1');
-assertIncludes('index.html', html, 'canvas-chat-prompt-flow.js?v=20260701suite20');
+assertIncludes('index.html', html, 'canvas-chat-prompt-flow.js?v=20260704canvasleave1');
 assertIncludes('index.html', html, 'canvas-chat-prompt-flow.css?v=20260701suite20');
-assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260703freegen1');
+assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260717reversecopy1');
 assertNotIncludes('index.html', html, 'canvas-ecommerce-suite-agent.js');
 assertNotIncludes('index.html', html, 'canvas-ecommerce-suite-agent.css');
 assertNotIncludes('index.html', html, 'index-DglIsp_g.js?v=20260629perf5');
 assertNotIncludes('index.html', html, 'canvas-image-node-polish.js?v=20260701image10');
 assertNotIncludes('index.html', html, 'canvas-image-node-polish.css?v=20260702fulltext1');
 assertNotIncludes('index.html', html, 'index-DglIsp_g.js?v=20260702toolbar1');
-assertIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260703freegen1');
-assertIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260703freegen1');
+assertIncludes('image polish css', imagePolishCss, '.vue-flow .image-prompt-generate-node');
+assertIncludes('image polish css', imagePolishCss, 'width: min(480px, calc(100vw - 64px)) !important;');
+assertIncludes('image polish css', imagePolishCss, 'min-height: 168px !important;');
+assertIncludes('image polish css', imagePolishCss, 'font-size: 15px !important;');
+assertIncludes('image polish css', imagePolishCss, 'font-weight: 600 !important;');
+assertIncludes('image polish css', imagePolishCss, 'line-height: 1.8 !important;');
+assertIncludes('prompt enhancer script', promptEnhancerJs, "function isCanvasPage()");
+assertIncludes('prompt enhancer script', promptEnhancerJs, "return /^\\/canvas(?:\\/|$)/");
+assertIncludes('prompt enhancer script', promptEnhancerJs, "fetch('/api/canvas/enhance-prompt'");
+assertIncludes('prompt enhancer script', promptEnhancerJs, "var MAX_REFERENCE_IMAGES = 4");
+assertIncludes('prompt enhancer script', promptEnhancerJs, "field.dispatchEvent(new Event('input', { bubbles: true }))");
+assertIncludes('prompt enhancer script', promptEnhancerJs, 'controllers.forEach(function (controller) { controller.abort(); })');
+assertIncludes('prompt enhancer script', promptEnhancerJs, 'function teardown()');
+assertNotIncludes('prompt enhancer script', promptEnhancerJs, '/api/generate/tasks');
+assertIncludes('prompt enhancer CSS', promptEnhancerCss, '.vue-flow .image-prompt-generate-node .prompt-shell.hjm-prompt-enhance-host');
+assertIncludes('prompt enhancer CSS', promptEnhancerCss, '.hjm-prompt-enhance-button');
+assertNotIncludes('prompt enhancer CSS', promptEnhancerCss, 'body .hjm-prompt-enhance-button');
+assertIncludes('production smoke', productionSmoke, 'canvas-prompt-enhancer.js?v=20260721enhance1');
+assertIncludes('production smoke', productionSmoke, 'canvas-prompt-enhancer.css?v=20260721enhance1');
+assertIncludes('production smoke', productionSmoke, '$productionPromptEnhancerJs');
+assertIncludes('production smoke', productionSmoke, 'function teardown\\(\\)');
+assertIncludes('production smoke', productionSmoke, '/api/canvas/enhance-prompt');
+assertIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260717reversecopy1');
+assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260721refcompress2');
+assertNotIncludes('canvas multi submit', canvasBundles[0][1], 'generationSubmitLocked');
+assertNotIncludes('canvas multi submit', canvasBundles[0][1], '已有生图任务正在处理中，请等待完成后再试');
+assertIncludes('canvas multi submit', canvasBundles[0][1], 'disabled:!Ce.value,onClick:fe');
+assertIncludes('canvas queue state', canvasBundles[0][1], 'taskStatus==="pending"?"排队中":"等待返回结果"');
+assertIncludes('canvas reverse prompt copy fallback', canvasBundles[0][1], 'typeof navigator!="undefined"&&navigator.clipboard&&window.isSecureContext');
+assertIncludes('canvas reverse prompt copy fallback', canvasBundles[0][1], 'd.setSelectionRange(0,d.value.length)');
+assertIncludes('canvas reverse prompt copy failure', canvasBundles[0][1], 'if(!u)throw new Error("浏览器拒绝写入剪贴板")');
+assertNotIncludes('canvas reverse prompt copy false success', canvasBundles[0][1], 'await((i=navigator.clipboard)==null?void 0:i.writeText(t.value))');
+assertIncludes('canvas image preview runtime', imagePreviewRuntime, 'const MAX_EDGE = 1024;');
+assertIncludes('canvas image preview runtime', imagePreviewRuntime, 'const MAX_CONCURRENCY = 2;');
+assertIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260707taskresume7');
 assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260703mask1');
 assertNotIncludes('entryB', entryB, 'Canvas-yGc8b2gf.js?v=20260703mask1');
 assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260702toolbar1');
@@ -100,8 +143,12 @@ assertIncludes('server.js', server, '未涂抹区域内的文字、品牌标识�
 assertIncludes('server.js', server, '你是一名专业电商设计师');
 assertIncludes('server.js', server, '保持产品比例自然，不要拉伸或变形');
 assertIncludes('server.js', server, '文字清晰，不要出现光斑和乱码');
+assertIncludes('server.js', server, "app.post('/api/canvas/enhance-prompt', auth");
+assertIncludes('server.js', server, 'const CANVAS_PROMPT_ENHANCE_MAX_REFERENCES = 4');
+assertIncludes('server.js', server, 'canvasPromptEnhanceInFlight.has(userKey)');
+assertIncludes('server.js', server, 'costPoints: 0');
+assertIncludes('server.js', server, "detail: 'high'");
 assertNotIncludes('server.js', server, '请优先理解用户需求，自由完成画面创作');
-assertNotIncludes('server.js', server, '适合电商展示');
 assertNotIncludes('server.js', server, '本次有参考图：请把参考图作为生成依据，具体改动以用户需求为准');
 assertNotIncludes('server.js', server, 'function ecommercePlatformPromptHint');
 assertNotIncludes('server.js', server, '用户提到拼多多/PDD');
@@ -154,7 +201,7 @@ assertIncludes('frame budget smoke ps1', frameBudgetPs, 'smoke-canvas-frame-budg
 assertIncludes('frame budget smoke runner', frameBudgetRunner, 'codex-canvas-frame-budget-probe');
 assertIncludes('frame budget smoke runner', frameBudgetRunner, 'longFramesOver100');
 assertIncludes('preflight', preflight, 'canvas frame budget UI smoke');
-assertIncludes('prompt flow script', promptFlowJs, "FLOW_VERSION = '20260701suite20'");
+assertIncludes('prompt flow script', promptFlowJs, "FLOW_VERSION = '20260704canvasleave1'");
 assertIncludes('prompt flow script', promptFlowJs, 'var SUITE_MAX_REFERENCE_IMAGES = 4');
 assertIncludes('prompt flow script', promptFlowJs, "var CANVAS_CHAT_SCOPE_ATTR = 'data-v-b10121f4'");
 assertIncludes('prompt flow script', promptFlowJs, "var CANVAS_CHAT_PLACEHOLDER = '请输出你的提示词'");
@@ -272,7 +319,15 @@ for (const [name, bundle] of canvasBundles) {
   assertIncludes(name, bundle, 'stroke:"#3b82f6",strokeWidth:((p=n.style)==null?void 0:p.strokeWidth)||2');
   assertIncludes(name, bundle, 'stroke:"#3b82f6",strokeWidth:((g=n.style)==null?void 0:g.strokeWidth)||2');
   assertIncludes(name, bundle, '},800)},l3=');
-  assertIncludes(name, bundle, 'noteSaveDeferred?.("auto");Zo();return');
+  if (name === 'Canvas-B8bY9_QL.js') {
+    assertIncludes(name, bundle, 'noteSaveDeferred?.("auto");Zo(t);return');
+    assertIncludes(name, bundle, 'Unsupported mime type:');
+    assertIncludes(name, bundle, 'a.width=r.width,a.height=r.height');
+    assertNotIncludes(name, bundle, 'HJM_CANVAS_REFERENCE_MAX_SIDE');
+    assertNotIncludes(name, bundle, 'function hjmReferenceUrlToDataUrl');
+  } else {
+    assertIncludes(name, bundle, 'noteSaveDeferred?.("auto");Zo();return');
+  }
   assertIncludes(name, bundle, 'noteSaveDeferred?.("viewport");l3();return');
   assertIncludes(name, bundle, 'R=()=>{Dt(()=>{P();const E=()=>{P(),setTimeout(P,80)}');
   assertIncludes(name, bundle, 'typeof requestAnimationFrame=="function"?requestAnimationFrame(E):setTimeout(E,0)');
@@ -330,6 +385,6 @@ for (const [name, bundle] of canvasBundles) {
 console.log(JSON.stringify({
   ok: true,
   checked: Object.keys(files),
-  version: '20260629perf5+20260703mask1+20260703freegen1+20260701title1+suite20',
+  version: '20260704canvasleave1+20260708loadguard1+20260715serverstore1+20260717reversecopy1+20260701title1+suite20',
   saveDeferral: true
 }, null, 2));

@@ -1,4 +1,14 @@
 ARG NODE_IMAGE=node:20-bookworm
+FROM ${NODE_IMAGE} AS frontend-build
+
+WORKDIR /build/frontend
+
+COPY frontend/package*.json ./
+RUN npm ci
+
+COPY frontend/ ./
+RUN npm run build
+
 FROM ${NODE_IMAGE}
 
 WORKDIR /app
@@ -10,6 +20,10 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 COPY . .
+
+COPY --from=frontend-build /build/frontend/dist /app/frontend/dist
+
+RUN node scripts/patch-canvas-server-image-storage.js
 
 RUN mkdir -p /app/data /app/uploads /app/logs
 

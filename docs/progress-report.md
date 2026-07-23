@@ -25,6 +25,162 @@
 - 需要人工介入：
 ```
 
+## 2026-07-13 Chat MCP 工具续传 409 修复进度报告
+
+- 分支：`main`，工作区保留既有未提交改动。
+- 完成内容：复现并修复 LibreChat 在 `prepare_image_generation` 返回后，以同一消息 ID 续传工具结果时被误判为已完成的问题；消息级文本费用仍只扣一次，新增步骤级请求指纹幂等，模型返回工具调用时不再提前完成整条消息。
+- 修改文件：`server.js`、`scripts/test-librechat-tool-continuation.js`、`scripts/smoke-librechat-integration.ps1`、Chat 接口契约和状态文档。
+- 验证方式：临时 SQLite + 本地假 Responses Provider 回归；`node --check server.js`；disposable API smoke；重建 3464 app；完整 LibreChat 集成 smoke；检查容器、镜像、数据库迁移、账号余额和正式 3456 首页。
+- 验证结果：回归修复前稳定返回 `409 CHAT_REQUEST_COMPLETED`，修复后完成工具调用、工具续传和最终回复，文本只扣一次 5 点，完全相同续传即使改变 SSE/温度参数仍返回 409；3464 app 为 healthy，镜像 `sha256:454aea5749b17ffaa31739e022d15ce31f0bafc5f84e29582641ea0c68dabbf1`，测试账号余额保持 95，正式 3456 返回 200。
+- 当前完成度：代码与无费用自动验证完成；旧报价已过期，需从 Chat 发送新的生图请求，再在下一条消息输入页面给出的确认码，才能验收真实图片执行。
+- 新发现问题：没有新增代码问题；真实生图仍会产生外部 Provider 费用，自动测试未执行。
+- 未完成清单：一次真实图片生成、图片消息展示、现有生成历史写入和图片扣费仍待人工确认费用后验收；正式 3456 未切换。
+- 下一轮建议：用户在 3464 新对话发送具体生图提示，收到报价后另发“确认生图 XXXXXX”；若仍失败，保留该对话不要重试旧消息，直接继续排查新的错误。
+- 需要人工介入：完整真实验收包含“请求生图”和“确认生图”两条用户消息，按当前价格通常各扣 5 点文本费用，再按报价扣 10 点图片费用，合计预计 20 点；需用户主动操作或明确授权付费调用。
+
+## 2026-07-13 Chat 真实测试模式恢复进度报告
+
+- 分支：`main`，没有修改业务代码。
+- 完成内容：定位用户收到“本地 mock 回复”的原因是 app 重建时直接使用 Compose，`CHAT_TEST_ENABLE_REAL_AI` 未传入而回退到安全默认 `false`；使用既有真实测试启动脚本重新创建 3464 栈。
+- 修改文件：仅状态文档；运行态通过 `scripts/start-librechat-real-test.ps1 -Port 3464` 恢复。
+- 验证方式：读取容器脱敏环境状态；检查 app、LibreChat、MongoDB、gateway 健康；运行完整无费用 Chat smoke；查询预览账号余额和最新 charge。
+- 验证结果：容器为 `ENABLE_REAL_AI=true`、Provider Base/Key 已配置；完整 smoke 通过；Mock 消息没有新增 charge，账号余额仍为 95。
+- 当前完成度：3464 已恢复真实文本中转测试状态，可刷新页面后重新发送生图请求。
+- 新发现问题：测试 Compose 的 `false` 默认值是必要的费用保护，但人工重建真实测试 app 时必须走专用脚本。
+- 未完成清单：真实图片生成仍待用户按新报价在下一条消息确认；正式 3456 未切换。
+- 下一轮建议：刷新 3464，新建对话并重新发送具体生图要求；不要继续使用 Mock 消息或已过期报价。
+- 需要人工介入：完整真实验收预计消耗约 20 点。
+
+## 2026-07-13 Chat 内置 MCP 测试充值进度报告
+
+- 分支：`main`，工作区保留既有未提交改动。
+- 完成内容：按用户明确要求，通过现有 3464 后台余额接口给当前预览账号增加 100 点。
+- 修改文件：仅更新状态文档；测试数据写入 3464 独立 SQLite。
+- 验证方式：检查接口回包、用户余额和最新 `balance_logs`。
+- 验证结果：账号 `chatpreview1783664988609` 余额 0 → 100，最新流水 `admin_adjust +100`。
+- 当前完成度：用户可在 `/chat/c/new` 自行继续内置 MCP 测试。
+- 新发现问题：无。
+- 未完成清单：真实文本或生图结果等待用户操作后再核对；正式 3456 未改动。
+- 下一轮建议：先发送生图需求，确认模型只报价而不立即执行；收到确认码后再决定是否执行真实生图。
+- 需要人工介入：真实 Provider 调用由用户在 Chat 页面主动触发。
+
+## 2026-07-13 Chat 内置 MCP 进度报告
+
+- 分支：`main`，工作区保留既有未提交改动。
+- 完成内容：把 `hajimi-website` 从用户可选 MCP 改为内置默认能力；聊天菜单、侧栏 MCP 设置、智能体 MCP 添加入口全部隐藏；LibreChat 后端始终把该服务器合并到临时 Agent。
+- 修改文件：`integrations/librechat/librechat.yaml`、`integrations/librechat/patches/apply-patches.js`、`scripts/smoke-librechat-integration.ps1`、四份状态文档。
+- 验证方式：对固定 `v0.8.6-rc1` 源码包重放补丁并做语法检查；两次完整 LibreChat 前端构建；仅重建 3464 LibreChat 容器；运行无费用集成 smoke；在现有登录态页面检查 DOM。
+- 验证结果：新镜像 `sha256:7d3831a657dd03c7ba3e8d406d07d492f42f21b577b745ea62473b08529a7035` healthy；MCP 工具列表仍含报价和执行工具；页面不再出现三个 MCP 选择/管理入口；Skills 与消息输入仍存在。
+- 当前完成度：内置 MCP 默认注入与 UI 收口完成，可进入报价/确认的无费用或受控验收。
+- 新发现问题：无新增阻塞；浏览器日志中只保留容器重启窗口的历史 503，没有在最终页面检查中观察到新错误。
+- 未完成清单：当前测试账号余额为 0，真实生图前需用户确认充值和 Provider 费用；正式 3456 尚未部署该镜像。
+- 下一轮建议：先用 mock/无费用方式检查模型收到两项工具，再由用户确认一次真实生图报价与执行。
+- 需要人工介入：充值、真实生图和生产切换继续按门禁确认。
+
+## 2026-07-13 lingsuan 真实文本成功验收进度报告
+
+- 分支：`main`，工作区保留既有未提交改动。
+- 完成内容：用户保存 lingsuan Key 并明确要求重新测试后，先完成脱敏配置检查，再仅发起一次 `gpt-5.5` 真实请求并核对账务。
+- 修改文件：仅更新三份状态文档，本轮未修改业务代码或运行配置。
+- 验证方式：检查 3464 测试库中的 URL、接口、模型、启用状态与 Key 存在性；调用一次 LibreChat 集成桥接；查询 charge、余额流水和容器健康状态。
+- 验证结果：请求 `manual-lingsuan-retest-1783917466339` 返回 HTTP 200 和 `OK`，usage 总计 4691 Tokens；charge 为 `completed`，余额 5 → 0；四个测试容器 healthy。
+- 当前完成度：lingsuan GPT 5.5 文本中转、主站用户映射、真实计费和响应转换已通过。
+- 新发现问题：单次极短提示仍报告 4686 输入 Tokens，后续应关注上游或 Agent 系统上下文带来的 Token 成本。
+- 未完成清单：Chat 页面端到端再次发送前需补充测试算力；真实 MCP 生图仍未付费验收；正式 3456 尚未切换。
+- 下一轮建议：不要继续重复文本付费测试，先决定是否为测试账号充值并进入 Skills/MCP 生图验收。
+- 需要人工介入：任何充值、真实生图或生产切换继续按门禁确认。
+
+## 2026-07-13 lingsuan 文本线路地址修正进度报告
+
+- 分支：`main`，工作区保留既有未提交改动。
+- 完成内容：按用户提供的完整地址，通过现有后台 API 把 3464 的 GPT 5.5 文本线路 Base URL 更新为 `https://lingsuan.top/v1`，保留模型、接口和启用状态。
+- 修改文件：仅更新三份状态文档；运行配置写入 3464 独立测试数据库。
+- 验证方式：读取后台更新响应和 SQLite 脱敏配置状态，检查四个测试容器健康状态与测试账号余额。
+- 验证结果：Base URL、`/responses`、`gpt-5.5` 和启用状态均正确；四容器 healthy；余额仍为 5；未调用 Provider。
+- 当前完成度：URL 格式问题已修正。
+- 新发现问题：该文本线路没有独立 API Key，当前会回退全局中转 Key；平台切换后不能保证全局 Key 与 lingsuan 匹配。
+- 未完成清单：用户需在后台填写 lingsuan 对应的线路 API Key；之后再次真实测试仍需明确确认。
+- 下一轮建议：先保存 Key 并做脱敏配置检查，再决定是否执行一次付费调用。
+- 需要人工介入：填写 lingsuan API Key，密钥不会由文档或日志记录。
+
+## 2026-07-13 LibreChat 真实文本重新测试进度报告
+
+- 分支：`main`，工作区保留既有未提交改动。
+- 完成内容：按用户明确确认只发起一次真实文本请求；失败后核对实际保存的 Provider 配置、charge、余额流水和 app 日志。
+- 修改文件：仅更新三份状态文档，本轮未修改业务代码或 Provider 配置。
+- 验证方式：通过 3464 集成桥接发送一次 `gpt-5.5` 非流式请求；查询 SQLite 与容器日志。
+- 验证结果：请求 `manual-retest-1783917204270` 返回 502，根因为当前 Base URL `lingsuan.top/v1` 缺少 `https://`；charge 已自动退款，余额保持 5。另有一笔更早的浏览器请求也因相同原因退款。
+- 当前完成度：退款保护正常；本次没有形成 Provider 稳定性对照，因为请求未到达上游。
+- 新发现问题：后台当前实际保存值与此前截图不同，且 URL 不完整。
+- 未完成清单：用户确认 API Key 来源后恢复完整 Base URL，再决定是否进行下一次真实调用。
+- 下一轮建议：先保存并无费用检查配置，不自动重新发送模型请求。
+- 需要人工介入：确认使用 Packy 还是 lingsuan 的 API Key 和完整 Base URL。
+
+## 2026-07-13 LibreChat 真实文本最终人工验收进度报告
+
+- 分支：`main`，工作区保留既有未提交改动。
+- 完成内容：核对用户最后两笔真实 Chat 请求、LibreChat Mongo 消息、主站 SQLite charge 与容器日志，确认同一账号和模型先成功返回“收到。”，随后一次请求由 Packy 返回 `completed + output=[]` 并触发既有中文退款兜底。
+- 修改文件：仅更新 `docs/current-baseline.md`、`docs/progress-report.md`、`docs/review-log.md`，本轮未修改业务代码或运行配置。
+- 验证方式：读取 3464 app/LibreChat 日志；查询 `chat_text_charges`、用户余额及 Mongo 消息内容；检查测试栈容器健康状态。
+- 验证结果：成功请求 `6ecdd80a-b264-4e56-b2ee-f4622df368a4` 返回“收到。”并完成 5 点扣费；空响应请求 `ae66f2d8-faee-4bfc-8ff0-8856042f15b5` 已退款并在页面显示中文提示；账号当前余额 5，四个测试容器 healthy。
+- 当前完成度：主站账号映射、真实中转、SSE、扣费、退款和防重复提交已形成可测试闭环；正式 `3456` 尚未切换 Chat 网关。
+- 新发现问题：Packy `gpt-5.5 /responses` 对 LibreChat Agents 请求存在间歇性空输出；同一链路可以成功返回内容，说明不是固定的本地解析或账号映射故障。
+- 未完成清单：评估更稳定的文本线路或经用户确认后改用 Provider 明确支持的 Chat Completions 模型；真实 MCP 生图仍未付费验收。
+- 下一轮建议：先在后台配置另一条稳定文本模型/线路完成对照，不为 `output=[]` 自动重试真实 Provider。
+- 需要人工介入：选择或提供另一条稳定的文本模型线路；任何新的真实文本或生图请求仍需用户主动触发。
+
+## 2026-07-13 LibreChat 零余额错误提示修复进度报告
+
+- 分支：`main`
+- 完成内容：定位用户真实 Chat 请求的 `400 status code (no body)`；确认根因是当前预览账号余额 0、模型费用 5 点，请求在 Provider 调用前被拒绝。为 LibreChat 集成接口补充 OpenAI 标准 `error.message/type/code`，同时保留主站原有 `success/code/message`；修正 PowerShell 5 smoke 对非 2xx JSON 正文的读取。
+- 修改文件：`server.js`、`scripts/smoke-librechat-integration.ps1`、`docs/current-baseline.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：先在旧容器运行新增回归断言并观察失败；重建 `3464` app；运行 `node --check server.js`、`scripts/smoke-api-disposable.ps1`、`scripts/smoke-librechat-integration.ps1 -BaseUrl http://127.0.0.1:3464`；分别用直接 HTTP 和 LibreChat 容器内 OpenAI SDK 发起零余额诊断请求。
+- 验证结果：直接接口返回 400，包含 `cost=5`、`balance=0` 和中文 `error.message`；OpenAI SDK解析为 `400 算力不足，需要 5，当前 0`，不再显示 `no body`；后端 disposable smoke 与完整 Chat 集成 smoke 均通过。没有调用 Provider，也没有新增扣费记录。
+- 当前完成度：错误提示兼容问题已修复并部署到隔离测试栈 `3464`；用户已明确授权通过现有后台接口给当前预览账号增加 10 点，余额从 0 变为 10，并写入 `admin_adjust` 流水。
+- 新发现问题：无新增阻塞；3464 预览账号与正式 3456 用户库相互隔离，符合测试栈设计。
+- 未完成清单：尚未重新发送真实 Chat 消息；正式 `3456` 未同步本修复。
+- 下一轮建议：用户在现有 Chat 页面发送“请只回复 OK”，验证真实流式回复；成功后余额预计从 10 变为 5。
+- 需要人工介入：真实文本请求会消耗 Provider Token，必须由用户在页面主动发送。
+
+## 2026-07-13 Chat 已退款消息幂等提示与响应结构诊断进度报告
+
+- 分支：`main`
+- 完成内容：定位充值后出现的 409；确认用户两次真实请求均到达 Provider，但 Responses 返回内容未被转换器识别，主站两次自动退款。保留同消息 ID 幂等保护，按 `refunded/completed/reserved` 状态返回准确错误；为首次格式异常增加只含字段结构和字符串长度的脱敏日志，便于下一次单次调用定位兼容格式。
+- 修改文件：`server.js`、`scripts/smoke-librechat-integration.ps1`、`docs/current-baseline.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：检查 app/LibreChat 日志及 `chat_text_charges`、`balance_logs`；运行 `node --check server.js`、disposable API smoke；重建 3464 app；用现有 refunded 消息 ID发起无 Provider 的重复请求；运行完整 LibreChat 集成 smoke。
+- 验证结果：两条 charge 均为 `refunded`，两次 5 点扣除均有对应 5 点退款，账号余额保持 10；重复请求返回 `CHAT_REQUEST_REFUNDED` 和“上一轮请求失败且已退款，请发送一条新消息”，没有再次调用 Provider；完整集成 smoke 通过。
+- 当前完成度：409 提示与幂等保护已修复；Responses 实际返回格式仍待一次受控真实请求采集脱敏结构后适配。
+- 新发现问题：Provider 侧可能已经计算前两次请求 Token，尽管主站算力已退款；不得自动继续真实调用。
+- 未完成清单：尚未获得新诊断日志中的实际 Responses shape；尚未适配该 shape；正式 3456 未同步。
+- 下一轮建议：用户明确确认后只发送一条全新短消息，读取 `[CHAT_PROVIDER_BAD_RESPONSE]` 脱敏结构并完成转换器适配。
+- 需要人工介入：下一次真实请求可能消耗 Provider Token，需用户明确确认。
+
+## 2026-07-13 Provider 空 output 退款提示修复进度报告
+
+- 分支：`main`
+- 完成内容：读取用户主动触发的第三次真实诊断 shape，确认 Provider 返回 `status=completed`、`error=null`、`output=[]`；将该场景从 502 错误改为 OpenAI-compatible 正常流式回复，提示上游未返回内容、本次已自动退款并建议换具体问题，避免 LibreChat 自动重试覆盖原错误为 409。
+- 修改文件：`server.js`、`scripts/smoke-librechat-integration.ps1`、`docs/current-baseline.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：检查 `[CHAT_PROVIDER_BAD_RESPONSE]` 脱敏 shape、Mongo 对话消息与 SQLite charge/refund；对照 OpenAI Responses input/output 规范和 Packy 官方 Codex Responses 说明；运行 `node --check server.js`、Provider 文本提取测试、disposable API smoke；重建 3464 app并运行完整 LibreChat 集成 smoke。
+- 验证结果：第三条 charge 为 `refunded`，当前共 3 条 refunded、余额 10；3464 app 镜像 `sha256:47d58d53b37d3fd40a9f0ae2ac5bf5cfcda4c2f530ab12fc54e947b7809af8de` healthy；完整 Chat smoke 通过，3464 `/chat/` 与正式 3456 health 均为 200。
+- 当前完成度：空 output 的退款与用户提示链路已修复；正常非空 Provider 回复待一次具体提示词验收。
+- 新发现问题：Packy 官方将 Responses 用法主要说明为 Codex 接入，并明确第三方/Agent 兼容存在不稳定风险；“测试”这种极短提示在当前长 instructions 场景得到空 output。
+- 未完成清单：尚未使用“请只回复 OK”验证非空真实回复；正式 3456 未同步。
+- 下一轮建议：用户创建新对话并只发送一次“请只回复 OK”；成功后应返回 OK 并扣 5 点，失败为空 output 时应显示退款提示且余额保持 10。
+- 需要人工介入：最终真实验收会消耗 Provider Token，必须由用户在页面主动发送。
+
+## 2026-07-10 Chat Provider TLS 稳定性修复进度报告
+
+- 分支：`main`
+- 完成内容：复现 `3464` app 容器直连 `www.packyapi.com:443` 时 TLS 握手前间歇 `ECONNRESET`；为真实文本 Provider 请求增加共享 keep-alive HTTPS Agent，并将重试严格限制为 TLS 建立前的 `ECONNRESET`，最多两次、间隔 250/750ms。真实 Chat Responses、Chat Completions 和后台真实中转探针统一使用该保护。
+- 修改文件：`server.js`、`scripts/smoke-librechat-integration.ps1`、`docs/current-baseline.md`、`docs/progress-report.md`、`docs/review-log.md`
+- 验证方式：运行 `node --check server.js`、`scripts/smoke-api-disposable.ps1`；重建 `3464` Chat 测试 app；运行 `scripts/smoke-librechat-integration.ps1 -BaseUrl http://127.0.0.1:3464`；容器内连续执行 20 次不带 API Key 的 `/v1/models` HTTPS 请求。
+- 验证结果：修复前独立 TLS 探针 8 次中 4 次握手前重置，两个 Cloudflare IPv4 地址均可连接，排除 API Key、请求体和 IPv6；修复后 20 次请求全部建立 TLS并返回预期 401，完整 Chat 集成 smoke 通过，四个测试容器 healthy。本轮没有发起付费模型或生图调用。
+- 当前完成度：TLS 故障已修复并部署到隔离测试栈 `3464`。
+- 新发现问题：宿主机通过 `127.0.0.1:7890` 代理访问 Provider，Docker 容器当前仍直连公网；本轮通过 keep-alive 和窄范围安全重试提升稳定性，没有引入代理依赖。
+- 未完成清单：尚未由用户再次点击真实付费中转测试确认业务响应；正式 `3456` 未切换到 Chat 网关。
+- 下一轮建议：用户在 `3464/admin/chat-settings` 再执行一次真实文本探针；通过后继续 Chat 生图报价/确认验收。
+- 需要人工介入：再次真实文本测试可能消耗少量 Provider 额度，必须由用户在页面明确确认。
+
 ## 2026-07-07 当前画布真实生图生产测试进度报告
 
 - 分支：`main`
@@ -2746,3 +2902,635 @@
 - Docker 同步：执行 `docker compose -f "F:\dianshang\docker\docker-compose.yml" up -d --build --force-recreate app`；最终镜像 `sha256:67bb7e40487e02a4c5499f60c82f1d9a7d75a3284f7dd61232cbdfdbfabf4a28`，镜像创建时间 `2026-07-09T05:40:07.418120767Z`，容器启动时间 `2026-07-09T05:40:16.072440369Z`，Health 为 `healthy`。
 - 验证结果：`node --check` 覆盖 Canvas、入口、Home 和 fixed model JS；`git diff --check` 通过；修改文件 UTF-8 无 BOM；`http://localhost:3456/` 和 `http://192.168.0.39:3456/` 均命中 `index-DglIsp_g.js?v=20260709agenticon1`；入口 JS 命中 `Canvas-B8bY9_QL.js?v=20260709agenticon1`；生产 Canvas chunk 命中魔法棒图标断言且旧摄像机断言为 false；`scripts/smoke-internal-prod.ps1` 通过。
 - 未覆盖风险：本轮未触发真实生图、真实 Provider 调用或真实扣费；已打开的画布页面需要强刷或重新进入画布以加载 `agenticon1` 入口。
+
+## 2026-07-09 画布恢复图片入口移除
+
+- 触发背景：用户截图指出顶部工具栏的 `恢复图片` 功能不清楚用途，要求去掉。
+- 处理内容：从 `assets/Canvas-B8bY9_QL.js` 顶部工具栏渲染中移除 `恢复图片` 按钮节点；保留其它导出、保存、设置和画布逻辑不变。
+- 缓存处理：`index.html`、`assets/index-DglIsp_g.js`、`assets/Canvas-B8bY9_QL.js`、`assets/HomeIndex-DAjDt0aj.js` 相关 query 升级为 `20260709restorehide1`，避免浏览器继续加载旧按钮。
+- Smoke 更新：`scripts/smoke-internal-prod.ps1` 增加纯 ASCII 断言，要求生产 Canvas chunk 不再包含恢复图片按钮的旧按钮 class 模式。
+- Docker 同步：执行 `docker compose -f "F:\dianshang\docker\docker-compose.yml" up -d --build --force-recreate app`；最终镜像 `sha256:842ed6809d651ac50ff324a45efcdf58575d52f3620e2c5bc146e0fbf3b115db`，镜像创建时间 `2026-07-09T05:59:17.768166901Z`，容器启动时间 `2026-07-09T05:59:26.674911027Z`，Health 为 `healthy`。
+- 验证结果：`node --check` 覆盖 Canvas、入口、Home 和 fixed model JS；`git diff --check` 通过；修改文件 UTF-8 无 BOM；`http://localhost:3456/` 和 `http://192.168.0.39:3456/` 均命中 `index-DglIsp_g.js?v=20260709restorehide1`；入口 JS 命中 `Canvas-B8bY9_QL.js?v=20260709restorehide1`；生产 Canvas chunk 不含 `恢复图片`、`一键恢复本地图片` 和旧按钮 class 模式；`agent电商套图` 仍保留魔法棒图标；`scripts/smoke-internal-prod.ps1` 通过。
+- 未覆盖风险：本轮只移除按钮入口，不删除底层本地图片恢复/授权相关内部逻辑；本轮未触发真实生图、真实 Provider 调用或真实扣费；已打开的画布页面需要强刷或重新进入画布以加载 `restorehide1` 入口。
+
+## 2026-07-09 前端登录态脏数据收口
+
+- 触发背景：用户反馈“没 token 不弹登录窗口，而是默认账号”，说明前端在 token 缺失时仍可能显示残留用户信息。
+- 问题结论：源码 `readAuthUser()` 和生产入口 `Bg()` 都会读取 `auth_user`；如果浏览器只清掉 `auth_token`，但 `auth_user` 仍残留，头像/用户名区域会继续显示旧用户，造成“默认账号已登录”的错觉。登录弹窗只在生成等需要登录的动作触发，不会在首页加载时强制弹。
+- 处理内容：`frontend/src/api/auth.ts` 的 `readAuthUser()` 增加 token 前置检查；没有 `auth_token` 时删除 `auth_user` 并返回 `null`。当前生产入口 `assets/index-DglIsp_g.js` 同步收口 `Bg()`：token 为空时设置 `yr=null` 并删除 `auth_user`。
+- 缓存处理：`index.html` 入口 query 升级为 `index-DglIsp_g.js?v=20260709authstrict1`；Canvas/Home chunk 仍沿用 `20260709restorehide1`。
+- Smoke 更新：`scripts/smoke-internal-prod.ps1` 增加入口静态断言，要求生产入口包含 token 缺失时清理 `auth_user` 的逻辑。
+- Docker 同步：执行 `docker compose -f "F:\dianshang\docker\docker-compose.yml" up -d --build --force-recreate app`；最终镜像 `sha256:f3dbb94f5fca73253546e4b34b41be7deb84925201071d160c727115e016343e`，镜像创建时间 `2026-07-09T06:12:18.658511164Z`，容器启动时间 `2026-07-09T06:12:27.218623096Z`，Health 为 `healthy`。
+- 验证结果：`npm run check:routes --prefix "F:\dianshang\frontend"` 通过；`npm run build --prefix "F:\dianshang\frontend"` 通过；相关 JS `node --check` 通过；`git diff --check` 通过；修改文件 UTF-8 无 BOM；`http://localhost:3456/` 和 `http://192.168.0.39:3456/` 均命中 `index-DglIsp_g.js?v=20260709authstrict1`；生产入口包含清理残留 `auth_user` 的逻辑；`scripts/smoke-internal-prod.ps1` 通过。
+- 未覆盖风险：尝试用内置 Playwright 做真实浏览器 localStorage 场景验证时，内置包缺少 `playwright-core`，未额外安装新依赖；本轮没有触发真实生图、真实 Provider 调用或真实扣费。
+
+## 2026-07-09 画布历史记录提示词复制
+
+- 触发背景：用户要求“图片生成历史”里的记录可以直接复制提示词。
+- 处理内容：`assets/ImageHistoryPanel-Dy2o3dPV.js` 的每张历史记录卡片新增 `复制提示词` 按钮；复制完整 `prompt` 字段，不复制被 UI 截断的预览文本；无提示词时提示“这条记录没有提示词”。按钮区改为可换行，避免移动端横向溢出。
+- 兼容处理：复制优先使用 `navigator.clipboard.writeText`，失败或非安全上下文时回退到临时 `textarea` 复制；不改 `/api/user/generations`、本地历史存储、生图、扣费和删除逻辑。
+- 缓存处理：`index.html`、`assets/index-DglIsp_g.js`、`assets/Canvas-B8bY9_QL.js` 的相关 query 升级为 `20260709historycopy1`，确保历史弹层 chunk 命中新版本。
+- Smoke 更新：`scripts/smoke-internal-prod.ps1` 更新入口、Canvas 和历史弹层 chunk 版本断言，并新增 `复制提示词`、`提示词已复制`、`navigator.clipboard.writeText` 静态断言。
+- Docker 同步：执行 `docker compose -f "F:\dianshang\docker\docker-compose.yml" up -d --build --force-recreate app`；最终镜像 `sha256:74cb8f83d6b7b117557fdcbf90d8a2cb133cf16825f908ba70cac3c6226bb33c`，镜像创建时间 `2026-07-09T06:29:40.397396808Z`，容器启动时间 `2026-07-09T06:29:48.925365595Z`，Health 为 `healthy`。
+- 验证结果：`node --check` 覆盖历史弹层、Canvas 和入口 JS；`git diff --check` 通过；修改文件 UTF-8 无 BOM；`http://192.168.0.39:3456/` 命中 `index-DglIsp_g.js?v=20260709historycopy1`；入口命中 `Canvas-B8bY9_QL.js?v=20260709historycopy1` 和 `ImageHistoryPanel-Dy2o3dPV.js?v=20260709historycopy1`；历史弹层 chunk 包含 `复制提示词`、`提示词已复制` 和 `navigator.clipboard.writeText`；`scripts/smoke-internal-prod.ps1` 通过。
+- 未覆盖风险：本轮不触发真实生图、真实 Provider 调用或真实扣费；已打开的画布页面需要强刷或重新进入画布以加载 `historycopy1` 入口。
+
+## 2026-07-10 模板 UI 双链路优化（本地完成，未部署）
+
+- 触发背景：用户要求自主检查并优化模板 UI，同时给出后续 UI 建议。
+- 现状确认：当前 `http://127.0.0.1:3456/template-image` / 3456 生产链路仍使用打包资产模板工作台；`frontend/src/views/TemplateImageSource.vue` 是后续源码模板页，两者不是同一运行入口。
+- 当前页面优化：`assets/template-workbench-gallery-polish.css` 隐藏画廊中与视觉卡片重复的模板清单，1440 桌面改为 4 列并把卡片高度从 258px 收到 230px；1024 为 3 列、390 为单列。模板编辑区重新分配模板列表、输入、结果和任务队列列宽，1180 以下把模板切换改为 116px 高的横向滚动条。
+- 源码页优化：`TemplateImageSource.vue` 和 `app.css` 增加局部亮色主题、紧凑顶部栏、模板图标选项、分区标题、结果空态、粘性操作栏和三档响应式布局，修复全局深色主题导致浅色输入内容不可见的问题。
+- 缓存与 smoke：`index.html` 的模板覆盖 CSS query 升为 `20260710gallery2`；`scripts/smoke-internal-prod.ps1` 同步断言新版 query、4 列密度、重复侧栏隐藏和 230px 卡片高度。
+- 验证结果：源码前端 `npm run build`、`npm run check:routes`、`git diff --check` 和 UTF-8 无 BOM 检查通过；应用内浏览器实测 1440/1024/390 均无横向溢出，模板卡片点击可进入对应编辑区，浏览器控制台无 error/warn。
+- 部署状态：未执行 Docker 重建，未改动 3456 生产容器；当前工作树还包含本轮之前的多项未提交生产资产改动，未在没有单独部署确认的情况下把它们一并发布。
+- 后续建议：为后台模板配置增加真实案例封面和 `coverUrl` 管理，模板卡片优先展示实际生成效果，而不是统一示意图；这是下一步提升模板选择效率最明显的方向。
+
+## 2026-07-10 `/chat/` 独立聊天集成（实现中）
+
+- 固定 LibreChat `v0.8.6-rc1` 和完整上游提交 `947bfa4c...`，使用小型补丁实现 `/chat/` 子路径、自动主站 SSO、白标和“返回首页”，没有把 React 组件并入 Vue，也没有使用 iframe。该 RC 是首个包含原生 `SKILL.md` Skills 的官方版本线；已确认管理员/用户角色分别具备公共发布和私有创建权限，默认用户公开分享关闭。
+- 主站新增 60 秒一次性 SSO 票据、服务端原子消费、独立 OpenAI 兼容文本桥接、SSE/工具调用、消息级幂等计费，以及官方 MCP SDK 生图报价/下一轮确认工具。
+- Compose 增加 `gateway/librechat/chat-mongodb` 隔离服务和 `chat` profile；Nginx 严格分流 `/chat/*`、`/chat-api/*`、`/api/*`、`/assets/*`，聊天上游故障只返回聊天维护页。正式覆盖文件会清空 app 的宿主机端口，确保只有 gateway 暴露 `3456`，基础 Compose 仍可用于旧 app 直连回滚。
+- 首页已增加“AI 对话”入口并通过 Playwright 视觉检查；非首页路由不会安装该按钮，现有画布代码未修改。
+- 一次性后端测试已通过 SSO 单次消费、SSE、错误服务密钥、MCP 工具发现、生图报价/确认、生成历史和 mock 模式扣费。
+- 首次完成编译的是后来确认不含 Skills 的 `v0.8.3`；镜像导出被 Docker Desktop 内容库 I/O 错误阻塞，根因是 `C:` 盘 0 GB，可回收 Docker 构建缓存约 20.7 GB。当前基线已切到 `v0.8.6-rc1`，等待确认只清理构建缓存后重新编译并继续 3457 容器和浏览器验收。
+- 当前没有切换 3456，没有真实 Provider 调用、真实生图或生产扣费。
+- 修复主站直连 `/chat/` 空蓝屏：根因是聊天网关尚未启动时路径被主站 SPA fallback 接管，Vue 无对应路由只渲染全局背景。现在 SPA fallback 前增加 503 启动提示页和规范化跳转，独立端口 `3463` 已完成浏览器预览。
+
+## 2026-07-10 LibreChat 测试栈实跑与 F 盘缓存迁移
+
+- npm 缓存迁到 `F:\dev-cache\npm`，pip 缓存迁到 `F:\dev-cache\pip`；Docker WSL 数据盘迁到 `F:\DockerDesktopData\wsl`，原路径保留 junction。迁移后原容器、镜像和卷均存在，Docker 恢复运行，C 盘空闲约 36.4 GB。
+- 清理 Docker BuildKit 可回收缓存约 21 GB；未删除应用数据卷。LibreChat 官方 `v0.8.6-rc1` 源码包保存在 F 盘缓存，构建前校验 SHA-256 `ccc1adcbe0e7ab62839c2ab952bb2b3d6d7371eab8aaa13d84fbce4c629fb5ad`，官方标签提交仍为 `947bfa4c40e6b8c84346d23c1678cd83071c5179`。
+- LibreChat Dockerfile 改为本地固定源码上下文、`node:20-bookworm` 基镜像、持久 npm cache mount，并关闭构建期在线 audit/fund；最终镜像 `dianshang-librechat:v0.8.6-rc1-hjm1` 构建成功。
+- 旧参考容器占用 `3457`，因此测试 Compose 增加可配置端口和 public origin，本轮使用 `http://127.0.0.1:3464`。app、MongoDB、LibreChat、gateway 四容器均为 healthy。
+- 自动 smoke 通过首页、健康检查、大小写规范跳转、聊天子路由刷新、静态资源隔离、聊天 API 双入口、注册、一次性 SSO、模型桥接、MCP 两个生图工具、错误服务密钥和跨用户身份拒绝。
+- 应用内浏览器实测登录后进入 `/chat/c/new`，页面显示 `gpt-5.5`、Skills、MCP 设置和返回首页；Skills 面板可打开，显示 Create Skill/My Skills，控制台无 error。
+- 正式 `3456` 未切换，未触发真实 Provider、真实生图或真实扣费。
+
+## 2026-07-10 LibreChat Skills 简体中文补全
+
+- 补齐 LibreChat `zh-Hans` 中缺失的 Skills 全套词条，覆盖列表、搜索、创建、编辑、上传、权限、状态和错误提示；可见入口统一使用“技能”。
+- 将控制面板、调整侧栏、附件选项和工具选项的残留英文无障碍标签改为中文。
+- 重建 `dianshang-librechat:v0.8.6-rc1-hjm1`，只滚动更新 `3464` 的 LibreChat 与 gateway；主站 app、MongoDB、正式 `3456` 未改动。
+- 浏览器确认“技能 / 创建技能 / 我的技能 / 暂无技能 / 编写技能说明 / 上传技能”均为中文，控制台无 error；完整 SSO/MCP smoke 通过。
+- 截图中的 `chatpreview...@local.test` 是隔离测试账号，不是待翻译文案，也未进入正式用户后台。当前代码已实现用户 ID/邮箱 SSO 映射和主站模型/余额/生图桥接，但聊天记录与 Skills 仍由独立 MongoDB 保存，现有后台页面尚不展示这些记录。
+
+## 2026-07-10 LibreChat 登录回跳与用户态验收
+
+- 修复旧打包登录页固定跳转用户中心的问题：`assets/chat-entry-link.js` 只接收 `/chat` 或 `/chat/*` 站内目标，使用 `sessionStorage` 暂存，检测到主站 token 后自动回到聊天页，避免开放重定向和长期 token 复制。
+- 重新构建并仅滚动更新 `3464` 隔离测试栈的 app/gateway；正式 `3456` 未重建、未切换。
+- 浏览器实测未登录访问 `/chat/` 会进入 `login?redirect=/chat/`，测试账号登录后到 `/chat/c/new`；mock 模型成功创建对话并返回本地回复。
+- 用户 A 创建私有 `private-skill-a`，退出主站并切换到新建用户 B 后，Skills 列表显示“暂无技能”，未泄露用户 A 的技能，私有 Skills 跨用户隔离通过。
+- `scripts/smoke-librechat-integration.ps1` 增加登录回跳静态标记断言，防止后续镜像遗漏安全回跳逻辑；本轮未执行真实 Provider、真实生图或真实扣费。
+- 最终验证：LibreChat 集成 smoke 全部通过；测试 app、MongoDB、LibreChat、gateway 均为 healthy，镜像分别为 `752237fba41f`、`9814652e33f0`、`6cbcf1de20c7`、`30f1c0d78e0a`；正式 `192.168.0.39:3456` 首页和 `/api/health` 仍为 200。
+
+## 2026-07-10 Chat 后台设置测试版
+
+- 源码后台新增 `/admin/chat-settings` 和侧栏入口，集中展示 Chat 部署、Mock/真实 Provider、SSO、Skills、MCP 与使用计数。
+- 新增 `GET/PATCH /api/admin/chat/settings` 与 `POST /api/admin/chat/test`；运行时设置写入 `app_state`，容器密钥、MongoDB 地址和 Provider Key 不返回浏览器。
+- Chat 访问、文本对话、MCP 生图和允许模型开关已接入真实请求路径；维护提示会在 Chat 访问关闭时返回。
+- `3464` 重建测试 app/gateway，页面保存回显、恢复原值和五项无费用连接测试通过；开关约束实测为 SSO 503、文本 403、MCP 403，恢复后完整集成 smoke 通过。
+- `node --check`、23/23 路由检查、Vue typecheck/build、API disposable smoke、桌面/390px 无横向溢出和浏览器控制台检查均通过；正式 `3456` 未重建，未执行真实 Provider、生图或扣费。
+
+## 2026-07-10 Chat 真实 API 中转与 Responses 适配
+
+- 后台增加“实际 API 中转测试”，带真实费用二次确认、模型/提示词输入和响应、协议、耗时、Tokens 展示；未确认请求固定返回 400，不会访问 Provider。
+- 初次诊断发现根 `.env` Key 只开放 `gpt-image-2`，无法调用 `gpt-5.5`；改为只读复用主站 `data.db` 中已配置的 GPT 5.5 官转线路，不输出或下发 Key。
+- 官转线路使用 OpenAI Responses 且要求消息数组；后端已按线路协议自动选择 `responses` 或 `chat/completions`，并把 Responses 文本/函数调用转换为 LibreChat 所需 Chat Completions 和 SSE。
+- 真实后台测试返回 `OK`，耗时 4350ms；真实 LibreChat 流式桥接返回 `OK` 与 `[DONE]`，测试管理员扣除 5 点测试算力，`chat_text_charges` 状态为 `completed`。
+- 新增 `scripts/smoke-librechat-real-provider.ps1`，只有显式 `-ConfirmPaidCall` 才会产生真实调用；新增 `scripts/start-librechat-real-test.ps1`，以后可安全重建真实 `3464` 测试栈。
+- 正式 `3456` 未重建、未切换；未执行真实生图。
+
+## 2026-07-10 Chat 后台控件对比度修复
+
+- 用户截图复现“看不到框和字”：全局 `NConfigProvider` 使用 darkTheme，Chat 源码后台为浅色页面，但输入、下拉和 Alert 没有局部覆盖 Naive 变量，计算样式为白字、10% 白背景和透明边框。
+- 仅在 Chat 设置页范围覆盖控件变量：白色输入背景、`#0f172a` 文字、`#b8c7d1` 常驻边框、绿色聚焦态；真实调用警告改为浅橙底深棕字，顶部提示改为浅蓝底深蓝字，多选模型标签改为浅绿底深绿字。
+- 同一浏览器计算样式断言从白字/透明边框变为深色字/可见边框，桌面横向溢出为 0；`smoke-librechat-integration.ps1` 新增生产 CSS bundle 对比度断言并通过。
+- 前端 typecheck/build、真实 `3464` 测试 app 重建和完整无费用集成 smoke 通过；本轮未再次请求真实 Provider，正式 `3456` 未改动。
+
+## 2026-07-13 Chat 内置 MCP Endpoint 回归修复
+
+- 触发背景：用户在内置 MCP 版本发送消息后，LibreChat 页面返回 `Endpoint option not provided`；主站测试账号余额仍为 100，确认错误发生在 Provider 和计费之前。
+- 根因：补丁在 `buildOptions` 内把 `req.body` 替换为新对象，而上层 `buildEndpointOption` 中间件仍把异步返回的 `endpointOption` 写入旧对象。后续 Agent 初始化读取新对象时缺少 endpoint 配置。
+- 修复：保留原请求对象，只更新 `req.body.ephemeralAgent` 并合并 `hajimi-website`；增加 `mcpSettings.allowedAddresses: ['app:3456']`，只允许 LibreChat 访问 Docker 内部主站 MCP 地址。
+- 测试护栏：`scripts/smoke-librechat-integration.ps1` 会拒绝补丁再次替换 `req.body`，并通过第二张 SSO 票据创建 LibreChat 用户会话、重连 MCP、断言 `oauthRequired=false` 和两个生图工具均存在。
+- 运行验证：固定源码补丁重放和语法检查通过；LibreChat 完整前端构建通过；只重建并替换 3464 的 LibreChat 容器，镜像为 `sha256:853fe7c27958e7c620e08b6503cfbd3f659a41cce57779b94120212649bc9c82`，容器 healthy。
+- 页面验证：临时关闭测试栈文本桥接后发送初始化探针，页面返回预期 403，证明 Agent 已越过 endpoint 初始化且未进入 Provider；随后恢复文本开关。测试账号 `chatpreview1783664988609` 余额保持 100，本轮没有真实文本、生图或扣费。
+- 发布边界：正式 3456 未重建、未切换统一网关，现有主站、画布和后台生产行为不受本轮测试容器更新影响。
+
+## 2026-07-13 Chat 文生图与图生图链路修复
+
+- 用户先遇到 LibreChat 附件 `ENOENT`，随后在新消息中遇到 Provider 账号并发上限；后者对应文本预扣已自动退款，测试账号余额保持 95，不能用同一已退款消息 ID 重试。
+- 根因一：原 Compose 只持久化 `/app/uploads`，而 LibreChat 本地图片实际写入 `/app/client/public/images`。正式与测试 Compose 均新增独立图片卷；当前第二张上传图迁移后强制重建 LibreChat，文件 SHA-256 仍为 `258595b238eb8494b0f48342399d49ba619bbcbb4d10f422018dd08c6ca89432`。
+- 根因二：模型虽然能读取消息附件，但 `prepare_image_generation` 没有收到 LibreChat 的附件路径，报价会错误保存空参考图。LibreChat 补丁现从当前消息 attachments 提取最多 4 个 `/images/*` 路径，经动态 MCP 头传给主站；主站规范化为 Docker 内部图片地址并与工具参数去重合并。
+- 路由结果：报价含参考图时执行 `/v1/images/edits` multipart 图生图，无参考图时执行 `/v1/images/generations` JSON 文生图；返回结果新增模式和参考图数量，现有报价确认、余额、幂等、退款和生成历史边界不变。
+- 新增 `scripts/test-chat-image-generation-tools.js`，使用临时数据库、假 Provider 和本地 PNG，验证文生图与图生图各完成一次、两笔 10 点扣费、两条历史记录以及正确端点分流；与工具续接回归、API disposable smoke、完整 3464 集成 smoke 均通过。
+- 固定 LibreChat 源码补丁在干净源码包上重放并完成前端构建；测试 app 镜像 `sha256:33245c9a762255c2099ae021d4621a07c2713e6faef4a07549c9845daebd3187`、LibreChat 镜像 `sha256:ab43fc0982b9378fab41b925d98db844ca83ade8f0f3f243d23207b42e905e92`，app、LibreChat、gateway healthy，`http://127.0.0.1:3464/chat/c/new` 返回 200。
+- 本轮没有调用真实 Provider 或执行付费图片生成；正式 `192.168.0.39:3456` 首页和健康接口仍为 200，正式容器未重建。
+
+## 2026-07-13 Chat 原生图片 Base64 展示修复
+
+- 用户在旧消息“左右拉长”上再次请求后，页面显示以 `iVBOR` 开头的超长字符串。MongoDB 确认 assistant 内容为 2,474,626 字符；无费用解码得到有效 PNG，大小 1,855,947 字节、1326×1187，内容为红黄促销手举牌。
+- 根因：文本 Responses 上游返回 `image_generation_call.result`，通用文本提取器递归读取了 `result`，把图片 Base64 转成 Chat 文本；该路径绕过 MCP 报价、图片扣费和生成历史，只完成一笔 5 点文本扣费。
+- 修复：Responses Chat 使用严格文本提取，只接受 `output_text` 和 message 文本；发现网站生图/带图编辑意图时，强制 `prepare_image_generation`，确认码消息强制 `execute_image_generation`，并用附件占位说明替代发给文本 Provider 的图片字节。上游仍绕过工具返回原生图片时，丢弃 Base64、退款并返回中文提示。
+- 图片接口兜底：Provider 返回 `b64_json` 或裸 Base64 时，校验 PNG/JPEG/WebP/GIF 签名后写入持久化 `/uploads/generated/`；任务、MCP 结果和 `generations` 删除原始 Base64 字段，只保留短 URL。
+- 回归由失败状态 `finish_reason=stop` 修复为 `tool_calls`；同时验证原生图片绕过退款、Base64 不泄漏、落盘字节一致、文生图/图生图接口分流、报价确认、扣费与历史。API disposable smoke 和 3464 完整集成 smoke 均通过。
+- 3464 app 最终镜像为 `sha256:89ddba21361b573ee7f3aa1968da20c9a01e6a078b1ec505c1a5efb2fe09b588`，app、LibreChat、gateway healthy；测试账号余额 90。本轮修复过程没有再次调用真实 Provider，正式 3456 未重建且首页/健康接口均为 200。
+
+## 2026-07-13 Chat 首页托管智能体与 Skills
+
+- 主站 Chat 设置新增 `managedAgents`，默认提供 4 个电商智能体；管理员可在 `/admin/chat-settings` 新增、编辑、启停、删除并选择模型、Skills 与网站生图能力。
+- 新增 `GET /api/chat/home-catalog` 登录用户目录接口。Chat 首页读取后台启用的智能体，点击后写入 LibreChat 原生临时智能体、系统指令和工具状态；首页 Skills 与输入框技能按钮复用同一待提交队列。
+- 普通用户的 LibreChat 原生智能体入口已关闭，私有 Skills 创建继续保留。Provider Key、MongoDB 和内部服务密钥不进入首页目录响应。
+- `server.js` 语法、Vue TypeScript/Vite 构建、旧 API disposable smoke、干净 LibreChat 补丁重放、LibreChat 完整前端构建和 3464 完整集成 smoke 全部通过；浏览器实测智能体选中和 Skill 排队状态正确，未发送真实模型或生图请求。
+## 2026-07-14 账号 731241492 密码重置
+
+- 按用户明确要求重置生产环境 `731241492` 的登录密码，维护记录不保存明文密码。
+- 操作前已生成数据库备份 `docker/data/backups/data.db.before-password-reset-731241492-20260714-023059.db`。
+- 最终通过受管理员保护的 `POST /api/admin/users/:id/reset-password` 完成重置，避免直接修改运行中 SQLite 连接。
+- 使用生产入口 `http://192.168.0.39:3456/api/auth/login` 验证返回 200，并通过 `/api/user/profile` 确认登录用户为 `731241492`。
+## 2026-07-14 生图 Provider TLS 握手前断开修复
+
+- 复现依据：生产任务记录同时出现 Packy 与领算 `/images/edits` 在 TLS 握手完成前断开；两条线路 Key、模型目录和无扣费连通性检查均正常。
+- 修改 `server.js`，仅对此精确错误做最多 2 次短退避重试；图生图重试会重新创建 multipart 请求体。
+- 新增 `scripts/test-provider-pre-tls-retry.js`，覆盖成功恢复、普通 socket 错误不重试、业务错误不重试和重试上限。
+- 更新 `scripts/check-packy-gpt-image-adapter-coverage.js`，同步模板生图入口并断言两个图片适配器都经过安全重试包装。
+- 验证通过：`node --check server.js`、重试回归、适配器覆盖、一次性 API smoke、`3464` 完整 LibreChat 集成 smoke。
+- `3464` 测试 App 已完整重建；未执行真实生图，未产生 Provider 费用；正式 `3456` 等待发布确认。
+
+## 2026-07-14 画布操作延迟第一轮优化
+
+- 优化目标：只处理画布拖拽、缩放后保存和历史快照造成的本地主线程卡顿，不测试中转或模型性能。
+- 优化前生产实测：10 个节点、9 个图片节点；一次节点拖拽往返约产生 1.039 秒主线程任务、0.703 秒脚本执行，缩放停止后的延迟保存约产生 0.610 秒脚本执行。画布图片 DOM 使用约 22.8MB data URL，浏览器堆曾达到约 3.17GB。
+- 根因：拖拽松手同步执行项目保存；画布节点、连线、历史和项目存储连续使用 `JSON.stringify/parse` 深拷贝，Base64 图片字符串在关键交互路径被重复序列化。
+- 实施：画布快照改为保持 JSON 语义的结构克隆；历史初始化、入栈、分组操作和撤销恢复复用；拖拽结束改走 800ms 合并保存；项目存储移除清洗后的第二次 JSON 深拷贝。
+- 版本：主入口、Canvas 和项目数据 chunk query 统一升级为 `20260714opperf1`。
+- 验证：新旧克隆等价断言通过；65.15MB 同规模载荷基准由 140.69ms/195.45MB 降至 0.04ms/约 0.02MB；语法检查、画布性能资产断言、画布操作断言、Packy 尺寸与适配器检查、Provider 文本抽取、backend/canvas boundary smoke、生产 smoke 全部通过。
+- 发布：Docker 完整重建，镜像 `sha256:3f2186238ec115c5bca559c8604547e40c6f80f694108dc17f3fc7607ae6c7fa`，容器 healthy；3456 命中新入口/Canvas/项目数据资源，旧入口继续返回 410/404。
+- 实际操作复测：生产页已恢复原 10 节点、9 图片项目；因复测时双开同一重画布造成内存叠加和浏览器控制阻塞，重复页已清理。优化后单页拖拽、缩放和悬停量化结果尚未取得，下一轮必须在单页状态补测后再评价最终手感。
+- 本轮未调用真实中转、文本模型或图片模型，未产生 Provider 费用。
+
+## 2026-07-14 画布操作延迟第二轮优化与单页验收
+
+- 第二轮将节点拖拽、Alt 拖拽和视口变化改为布局轻保存：节点位置和 viewport 写入 `ai-canvas-layout-patches`，普通布局操作不再立即重写浏览器本地项目库中的整份工作流；完整保存和删除会清理对应布局补丁，工作流 JSON 格式不变。
+- 主入口、Canvas 和项目数据 chunk query 升级为 `20260714opperf2`。Docker 完整重建镜像为 `sha256:5ed20315d951fbfe34285a32366221bbe96f72aee8735164944179641623fb61`，镜像创建时间 `2026-07-14T05:31:35.270571554Z`，容器启动时间 `2026-07-14T05:32:30.23178897Z`，容器 healthy；3456 生产 smoke 和旧资源 410/404 隔离检查通过。
+- 单页 Playwright 复测固定 10 节点、9 张 2528×1696 图片和 80% 缩放。最终通过轮拖拽前进/复位动作耗时 173.98/147.22ms，松手后稳定 39.28/24.22ms；平移前进/复位动作耗时 174.04/169.02ms，稳定 30.14/31.96ms；缩放往返动作 141.91ms，稳定 30.39ms。三类操作均精确复位，操作期长任务为 0。
+- 连续悬停 11 次没有长任务；保存定时器漂移约 1ms；无 pageerror、console error 或生成请求。测试从首次导航前拦截项目写入，生产项目 `data` 和 `updated_at` 前后完全一致。
+- 实际手感判断：拖拽、平移和缩放已没有优化前松手后约 0.6–1 秒的主线程停顿，释放后约 1–2 帧完成稳定；当前单页重负载场景通过。Base64 图片常驻内存仍是后续内存治理项，但不再阻塞本轮操作性能验收。
+
+## 2026-07-14 画布大图常驻内存去重与复测
+
+- 根因确认：生产项目数据库和工作流 JSON 均约 14KB，没有持久化 Base64 大字符串；高内存来自浏览器恢复本地图片后，同一 data URL 被多个图片别名字段分别持有，另有解码位图、图片缓存和 GPU 占用。
+- 实施：项目从 IndexedDB/localStorage 恢复时，在单次项目树内归一长度超过 1024 的 `data:image/*`、Base64 和 mask 字符串；相同内容复用一个值，不建立全局缓存，不改变 JSON、工作流保存格式和服务端数据。
+- 强制 GC 对照：同一 10 节点项目、9 张 2528×1696 图片、每张 6 个别名，JS 堆从 `210175460` 字节降至 `20717148` 字节，减少 `189458312` 字节，约 90.14%；9 张图仍全部加载，DOM 节点和事件监听器数量不变。
+- 主入口、Canvas 和项目数据 chunk query 升级为 `20260714opperf3`。Docker 镜像 `sha256:8a7b16835e221c62fdb467baed74d4492a0ed55f00ac6747c6a78f2a2112ffe4`，创建时间 `2026-07-14T06:43:53.455694647Z`，容器启动时间 `2026-07-14T06:44:37.445870173Z`，容器 healthy；生产 smoke、旧资源隔离及 `/`、`/canvas`、`/user/center` 直连均通过。
+- 修正 Playwright 审计脚本的旧资源号和视口外拖拽目标后，真实命中 `node_3`：拖拽前进/复位、平移前进/复位和缩放往返全部准确恢复，稳定耗时分别为 38.68/38.56ms、38.97/35.80ms、24.49ms，操作期长任务为 0。
+- 测试从首次导航前拦截项目写入和所有生成请求；生产项目数据与更新时间保持不变。本轮没有调用中转、文本模型、图片模型或付费接口。
+- 剩余边界：2528×1696 图片解码后单张 RGBA 理论占用约 16.36MiB，9 张约 147.2MiB，且浏览器还有图片缓存与 GPU 资源；这些不属于 JS 堆，任务管理器总内存不会等比例下降。
+
+## 2026-07-14 画布 1024px 预览解码与 GPU 内存治理
+
+- 在现有本地素材预览索引中增加 `w1024` WebP，保留 `w500/w200/w100`；旧素材不强制迁移。新增 `assets/canvas-image-preview-runtime.js`，为内联 Base64、`/uploads` 和代理图片提供最长边 1024px 的运行时 WebP 预览。
+- 图片节点常态使用预览，选中、编辑、下载或 `forceOriginal` 时使用原图；离开 900 画布单位预加载边界后释放图片引用，返回后复用缓存。预览池最多 24 个闲置项、TTL 30 秒、并发转换 2 张；离开 `/canvas` 撤销全部 Object URL 和定时器。
+- 兼容边界保持：原图字段、工作流 JSON、历史快照、自动保存和服务端项目均未改变；运行时 Blob URL、引用计数和缓存状态不进入节点数据。GIF、SVG、小图和转换失败继续回退原图。
+- Playwright 固定 10 节点、9 张 2528×1696 图片：常态全部为 1024×687 预览，估算解码像素内存 24.15MiB；强制 GC 后 JS 堆 16.19MiB；选中切原图、取消选中 31.43ms 恢复，离屏引用归零，Fit View 返回 145.53ms 恢复，无破图。
+- 操作回归通过：拖拽、平移、缩放准确复位，稳定耗时 23.25–35.26ms，超过 150ms 的长任务为 0。测试从导航前拦截项目写入和所有生成请求，生产项目 `data`、`updated_at` 前后不变。
+- 严格 Renderer + GPU 私有内存下降 30% 的验收未通过：稳定基线 776.05MiB，优化后中位 1267.52MiB（+63.33%）；Working Set 也由 1042.90MiB 升至 1425.94MiB。按计划不宣称完成，已保留当前版本并采集 `output/playwright/canvas-memory-infra-trace.json.gz` 和摘要。轨迹显示 Renderer 强制 GC 后 allocator-accounted private footprint 约 223MiB，`cc/image_memory` 约 58.40MiB，仍有两个完整原图光栅缓存项。
+- 新增运行时回归覆盖预览选择、缓存复用、并发限制、TTL、Object URL 撤销、Base64 有界缓存键和 JSON 运行态隔离；语法、静态断言、前端构建、画布边界 smoke、生产 smoke 均通过。
+- 资源 query 升级为 `20260714opperf4`。Docker 完整重建镜像 `sha256:6813e03c38d389c39f7e221264352225e1bc14561c9475c0120d68b1bcab9bd4`，容器 healthy；3456 的 `/`、`/canvas`、`/user/center`、资源哈希和旧资源隔离均通过。本轮未调用中转、Provider、模型或付费接口。
+
+## 2026-07-15 上线前安全阻塞修复
+
+- 生产邮件未启用时，密码重置验证码接口最初收口为不泄露验证码；随后按用户确认的账号直重置方案彻底关闭旧流程，统一返回 `410 RESET_CODE_FLOW_DISABLED`，不生成、不响应、不记录重置码。注册和兑换码未修改。
+- 图片代理新增 HMAC 签名、真实生成记录旧地址兼容、每跳 DNS/私网/端口检查、手动重定向门禁、光栅图片白名单和 20 MiB 默认流式大小限制。用户可写项目数据不能为任意 URL 获得签名或旧版权限。
+- 生产库只读审计 `quick_check=ok`；4 个项目、35 条生成记录存在旧代理地址，项目内 49 处旧地址均有真实生成记录来源，不需要改写生产数据。
+- 生产备份脚本改为显式维护窗口：停应用、调用 `scripts/backup-sqlite.js` 执行 SQLite backup、`quick_check/integrity_check`、恢复原容器状态并等待健康；未传确认参数直接拒绝。`scripts/test-sqlite-backup.js` 已验证 25 行临时数据与两项完整性检查。
+- 新增安全专项回归并通过；一次性 API smoke、backend/canvas boundary smoke、Provider TLS 重试和 Packy 适配器覆盖也已通过。随后用户确认把当前工作区全部改动一起发布，正式 3456 的一致性备份、完整 Docker 重建和生产验收均已完成；本轮未执行付费生图。
+
+## 2026-07-15 内网账号直重置
+
+- 用户明确确认当前为小范围内网分发，找回密码按便利模式处理：普通用户输入用户名、新密码和确认密码即可重置，不使用邮箱或验证码；注册和兑换码保持不变。
+- 后端 `POST /api/auth/reset-password` 改为接收 `username/newPassword`，新密码至少 6 位；普通账号不存在返回明确提示，管理员账号返回 `403 ADMIN_SELF_RESET_FORBIDDEN`。
+- 当前旧前台复用现有 `assets/auth-direct-register-bridge.js`：找回密码表单隐藏并禁用邮箱、验证码，只提交用户名和新密码；资源 query 升级为 `20260715directreset1`。
+- 静态与专项回归已验证普通用户直重置、重置后登录、短密码拒绝、管理员拒绝、旧重置码流程关闭，以及图片代理门禁无回退。
+- 使用 Playwright 命名隔离会话、临时生产模式服务和临时 SQLite 完成真实页面端到端复测：表单字段正确，重置后返回登录页，新密码登录成功，控制台 0 错误；临时进程、数据库和会话文件已清理。
+- 这是用户接受的低安全内网方案，存在知道用户名即可抢重置的风险，不得直接用于公网。
+- 生产发布前完成 `docker/backup/internal-prod-20260715-100024` 一致性备份，数据库 `quick_check/integrity_check` 均为 `ok`。完整重建后的镜像为 `sha256:73e9e0eea09d2d3d890ac6a12d65d8f07b7c3047fb2b124c4e905d4999be80cf`，容器 healthy，3456 生产 smoke 与旧资源隔离通过。
+- 线上首页已命中 `20260715directreset1`；旧重置码接口返回 `410 RESET_CODE_FLOW_DISABLED`，账号直重置缺字段返回 `400 RESET_FIELDS_REQUIRED`。隔离浏览器直接访问 3456 确认表单字段正确、控制台 0 错误；没有对真实用户执行重置，也没有调用真实 Provider。
+## 2026-07-15 Windows Docker 便携迁移包
+
+- 用户确认后续部署环境为 Windows Server + Docker Compose，本轮在本机完成迁移准备，不引入新数据库、对象存储或第三方备份依赖。
+- 生产备份脚本现在在同一个显式维护窗口内采集 SQLite、工作流、上传/生成图片和日志；格式版本 2 清单改用相对路径、制品字节数、SHA-256、SQLite `quick_check/integrity_check` 和 `docker/.env` 指纹。
+- 新增默认拒绝覆盖的 Windows 恢复脚本与独立清单校验工具；真实 `.env` 和源码通过单独渠道复制，恢复默认不自动启动 Docker。
+- 临时目录迁移演练已通过：数据库、工作流、图片、日志完全恢复，`.env` 指纹不一致在写入前被拒绝，重复恢复被空目录门禁拒绝，篡改归档被 SHA-256 门禁拒绝。
+- 新增 ADR-0003，并同步 Docker README、内网生产手册和当前基线。当前 3456 生产容器未停止、未重建、未调用 Provider。
+- 用户确认内部数据量较小，备份固定写入本机 `docker/backup`；不增加云盘、NAS、S3/MinIO 或自动异地同步。
+
+## 2026-07-15 图库白屏与 Provider 图片外链持久化
+
+- 独立 Playwright 浏览器复现正式 `/gallery` HTTP 200 白屏：`#app` 只有空的 Naive UI Provider，浏览器没有请求 `GallerySource`。源码组件和 `frontend/dist` 均完整，根因是 `server.js` 只把 `/admin/*` 交给源码入口。
+- `server.js` 现在只额外把 `/gallery` 分发到 `frontend/dist/index.html`；生产已命中 `index-DmNWOEif.js` 和 `GallerySource-BFlvOHL9.js`。图库显示 10 条记录、3 张可用图和 7 个明确的旧外链失效占位；错误的 `127.0.0.1` 旧版链接已移除。
+- 发现并修复更核心的数据持久化缺口：旧实现只持久化 Base64，Provider URL 会直接进入 SQLite。现有所有生图、编辑、Agent 和异步任务调用点均先下载 HTTP(S) 图片，通过原代理安全门禁和图片签名/大小检查后写入 `/uploads/generated/<sha256>.<ext>`，再写入 `generations`；未落盘外链由 `PROVIDER_IMAGE_NOT_PERSISTED` 拒绝。
+- 现有 URL 假 Provider 回归在修复前稳定失败为 `/api/proxy-image?...`，修复后与 Base64 回归一起通过，落盘字节一致；同时修复 `node-fetch` Node Stream 与 Web Stream 读取兼容。`node --check`、前端构建、安全专项、一次性 API smoke 和只读生产 smoke 均通过，没有真实 Provider 调用。
+- 正式 app 已完整重建为镜像 `sha256:f15acd6c47de5d45314f100059624343f8dbefec0f5a82e698d23cb313907f22`，容器 healthy。注册和兑换码实现未修改；生产 smoke 使用 `-ReadOnly`，只读取兑换码列表，不创建或删除兑换码。Chat 仍保持未切换的 503 维护态。
+
+## 2026-07-15 明日生产迁移上线门禁收口
+
+- 按现有 PRD、ADR-0003 和内网运行手册落盘 `docs/plans/2026-07-15-internal-production-launch-gate-fixes.md`，限定不改注册、兑换码、唯一画布和本地 SQLite/文件存储。
+- 先新增失败回归，再实现 Docker 多阶段前端构建、任意层级依赖/宿主机 dist 排除、Chat 公开状态和入口门禁、后台真实数据边界、管理员密码响应脱敏以及带 SHA-256 清单的源码发布包。
+- 后台行为变更：订单不再由用户记录伪造；Dashboard 不再把总数当今日数或平均分摊线路；历史任务不再显示固定线路、尺寸、质量、参考图和 `local-mock`。源码页面增加明确的数据质量、支付未启用和历史字段未记录提示。
+- 验证通过：`node --check`、Vue TypeScript/Vite build、上线门禁、安全专项、一次性 API smoke、画布边界、Chat 图片工具本地持久化、源码路由、源码包排除/哈希和 Windows 迁移恢复演练。Docker `--no-cache` 从源码构建成功，镜像内存在 `frontend/dist` 且不含 `.env`。
+- 正式 app 完整重建为 `sha256:0ee3306d842471e418c1265e91f7dbe5d38060dc87db1f6e557dd40be255f065` 并 healthy；生产只读 smoke、主要 URL、后台新契约和隔离浏览器均通过，控制台 0 error。生产数据只读检查为用户 9、项目 17、生成 57、SQLite `quick_check=ok`，未调用真实 Provider，未增删兑换码。
+- npm 官方审计发现现有 `@modelcontextprotocol/sdk 1.17.0` 有高危公告，官方修复版本 `1.29.0`。当前正式 Chat 关闭，MCP 路由由部署开关和服务鉴权拦截；依赖升级需单独确认，正式 Chat 上线前必须完成。
+- 当前代码与镜像已具备生成格式 v2 最终迁移包的条件；旧 10:00 备份不兼容新清单校验，待明确维护窗口后重新生成。
+
+## 2026-07-15 服务器存图与取消浏览器自动下载
+
+- 明确存储边界：服务器在 `docker/uploads/generated` 持久化生图文件，SQLite 只保存短 URL；浏览器只展示结果，用户主动点击下载时才写入浏览器下载目录。
+- 修复当前画布在内网 HTTP 下把“本地文件夹不可用”自动降级为浏览器下载的问题；生成图保存助手现在返回 `server` 模式，不再创建自动下载锚点，主动下载按钮保持原实现。
+- 新增幂等打包资产补丁脚本并接入 Dockerfile；主入口、Canvas、项目存储缓存号升级为 `20260715serverstore1`，相关画布/生产 smoke 同步更新。
+- 语法、Vue build、安全专项、一次性 API、画布边界、画布性能断言、图片预览运行时和 Chat 假 Provider 生图持久化回归全部通过；没有真实 Provider 调用。
+- 生产完整重建为镜像 `sha256:89843db7969b10fb1f6fc876c757acb3fbb0ed831b32d5f9278e0dbc83b88da1`，容器 healthy，3456 生产只读 smoke 通过。
+- 隔离浏览器实测线上助手返回 `mode=server`，下载事件数为 0，控制台 0 错误。生产数据只读核对为 17/17 项目工作流匹配、9/9 本地图片引用存在；额外历史文件保留，不做自动清理。
+
+## 2026-07-15 后台核心写操作上线
+
+- 把用户管理、回收站、任务监控和模型价格从只读展示改为真实可操作页面；补齐 API 客户端、表单、加载态、成功/错误反馈、危险操作确认和当前管理员自锁保护。
+- 修复用户软删后仍留在普通列表、历史任务删除无效、内置模型删除后复现、任务取消后迟到结果仍入库、安全检查固定返回正常等后端真实性问题。
+- 一次性 API 写回归和命名隔离浏览器回归通过；浏览器完整走通用户调余额/删除/回收站恢复、历史任务删除、模型新增/禁用/删除，测试服务强制关闭真实 AI，测试数据库和会话已清理。
+- 正式 Docker 完整重建为 `sha256:6b3a47e6053915e28b59ccb144478dba08ba5e43d662a51737859d40b73a5c55` 并 healthy；生产只读 smoke、四个新动态 chunk、四组只读 API 和 `/user/center` 直连均通过。注册、兑换码、支付边界和生产业务数据未修改。早期一次临时回归误继承真实 AI 开关，可能发出 1 次上游请求但未收到结果，随后立即终止并把所有 disposable 测试强制改为 `ENABLE_REAL_AI=false`；生产验收未调用 Provider。
+
+## 2026-07-15 生图比例字段统一
+
+- 修复当前画布把比例同时提交到 `size/ratio` 的混乱契约：画布只提交冒号格式 `ratio`，后端兼容旧分隔符并统一转换为官方像素 `size`；`ratio` 与旧 `size` 冲突时以 `ratio` 为准。
+- 增加旧格式兼容、冲突优先级、显式像素和返回图片真实宽高校验；54 组尺寸映射、6 组适配器覆盖、错误比例不扣费/不写历史的集成回归、画布资源/性能静态断言、Vue build、一次性 API smoke 和画布边界 smoke 均通过，真实 AI 被关闭。
+- 主入口与 Canvas 缓存 query 更新为 `20260715ratio1`。正式 Docker 已完整重建为 `sha256:2f0345ef97b67d710e084b1b0fb31cd3c7c0386d7ff47b233858a58562c00fe5` 并为 `healthy`；生产只读 smoke 和六个生产路径直连均通过，线上新请求存在且旧混用请求不存在。注册和兑换码代码未改，未执行真实 Provider 生图。
+
+## 2026-07-15 图生图上行画布约束修复
+
+- 用户真实复测的两次 `/v1/images/edits` 均已被上游按 `$0.10` 计费，但请求 `1024x1024` 实际返回 `1086x1448`；澄清本地比例拦截只能阻止系统算力和历史写入，不能撤销上游费用。
+- Packy 最新官方示例和无费用 multipart 抓包均确认 `size=1024x1024` 已正确发送。进一步定位到快速图片生成节点的最终 Prompt 仅包含用户原话，没有比例/画布约束，带竖版参考图时中转模型会优先继承参考图比例。
+- 修复为只给图片生成节点的上行 Prompt 追加“最终输出严格为目标比例和尺寸、重新构图或扩展场景、商品主体完整、不得沿用参考图比例”；没有本地裁切、拉伸、补边或二次付费请求。
+- 本地和容器内假 Provider 集成均通过，抓包确认 `size=1024x1024` 与 `1:1` 画布提示同时存在且每张图只请求一次上游；标准 API smoke、画布边界 smoke 和生产只读 smoke 通过。
+- 正式 Docker 已完整重建为 `sha256:05a1b447005dd403ef0a204fc54445628305f8318448c172da795ee87b4938df` 并为 `healthy`；容器内存在上行约束且不存在本地裁切代码，六个生产路径均为 200。部署验收没有调用真实 Provider，注册和兑换码代码未改。
+
+### 2026-07-15 追加：全比例与自动模式覆盖
+
+- 复核确认固定比例实现本身读取节点 `ratio` 动态构造上行 Prompt 和 Provider `size`，此前缺口是测试只抓包了 `1:1`；同时发现 `自动` 会生成“严格为 auto、目标尺寸 auto”的错误提示。
+- 尺寸/Prompt 回归扩展到 13 个菜单比例 × 3 个清晰度，共 39 组；旧 `1x1/3x4/4x3/9x16/16x9` 在三个清晰度下另计 15 组，总计 54 组。每一组同时断言规范冒号比例和对应像素尺寸。
+- `自动` 现在保留 Provider `size=auto`，Prompt 改为模型按内容自然构图；带参考图时要求保持商品完整、不机械照搬原图画幅，但不强制具体比例。
+- 完整回归、容器内 54 组矩阵、容器内假 Provider 集成、生产只读 smoke 和六个生产路径均通过。最新正式镜像为 `sha256:248b679d9f36e74bb9b32bc8364ac59854dfc78e130afaa76e7144307be63249`，容器 `healthy`；没有真实 Provider 调用。
+
+## 2026-07-15 lingsuan 流式 Base64 返图进度报告
+
+- 真实问题：生产 lingsuan `/v1/images/edits` 请求返回 HTTP 200，但 JSON 只有 `revised_prompt/usage`，没有 URL 或 Base64；旧代码只按 JSON 数组读取 `url/b64_json`，因此上游已经计费但主站拿不到图片。
+- 实施内容：仅对 Host `lingsuan.top` 启用 `stream=true`、`partial_images=0`、`response_format=b64_json`；Packy 等线路保持非流式 URL 模式。文生图 JSON 与图生图 multipart 共用 SSE/JSON 解析器，只接受 completed 最终事件，兼容 `b64_json/result` 和常见嵌套容器。
+- 安全与费用：partial 预览永不保存为成品；上游 Base64 在调试摘要中替换为长度占位，最终图片经过签名、大小和比例校验后写入 `/uploads/generated/`。HTTP 200 空图返回 `PROVIDER_IMAGE_EMPTY_BILLED_RESPONSE`，本地不扣算力、不写历史、不自动重试，并明确提示上游可能已经计费。
+- 额外修复：线路元数据此前按相同 `gpt-image-2` 模型名误匹配到 Packy 示例，导致生产后台仍显示 `response_format=url`；现改为先按线路 ID/Key 精确匹配，再按模型兜底，线上元数据与实际请求保持一致。
+- 验证结果：`node --check`、54 组比例映射、6 组适配器覆盖、流式假 Provider、后端边界和 disposable API smoke 通过；容器内同一组专项回归通过。正式镜像为 `sha256:3010e87bf56dd59948c9df7096e56cccbabf53dbf3a5d0274c2542aaa845e37f`，容器 `healthy`，生产只读 smoke、六个主要 URL 和 `/api/public/routes` 流式元数据断言通过。
+- 本轮没有调用真实 lingsuan 或其他 Provider，没有产生新的付费生图请求；注册和兑换码未修改。下一步由用户主动发起一笔新图测试真实上游兼容性，不能重试此前已计费的旧任务。
+
+### 2026-07-15 追加纠正：改为线路级请求方式
+
+- 用户指出域名特判和后台固定 Packy 参考会混淆实际机制。现已删除 `IMAGE_PROVIDER_STREAMING_HOSTS`，文生图和图生图统一从当前线路读取 `imageResponseFormat/imageStream/imagePartialImages`；lingsuan 保存为 `b64_json/true/0`，Packy 保存为 `url/false/0`，修改 Base URL 不再改变协议。
+- 后台线路编辑器把“默认格式参考”改为“当前线路请求预览”，增加图片返回格式、流式返图和流式预览数量字段；真实 UI 回归打开 lingsuan、核对预览并通过保存接口回读，Packy 保持隔离。
+- 失败回归先证明旧域名判断在测试 Base URL 下不发送流式参数；修复后假 Provider 同时抓包确认 lingsuan 的 JSON/multipart 流式 Base64 和 Packy 的非流式 URL。语法、54 组尺寸、6 组适配器、Vue build、后端边界、disposable API 和后台 UI smoke 均通过。
+- 正式 Docker 已完整重建为 `sha256:f2300589cb0ff65753603c3be7b0cd88ed13820775b164861bd46e00703a8cc2`，创建时间 `2026-07-15T09:51:19.649104907Z`，容器启动时间 `2026-07-15T09:52:19.709518674Z`，当前 `healthy`。生产 lingsuan 三字段已最小写入并回读，Base URL、接口、模型、线路 Key、API Key 均保持不变；Packy 仍为 URL 非流式。
+- 容器内专项回归、生产只读 smoke、`/`、`/canvas`、`/gallery`、`/user/center`、`/admin/login`、`/admin/api-providers` 直连和线上 `AdminApiProvidersSource-CrnbmdBx.js` 断言通过。本轮未点击实际 API 测试、未调用真实 Provider、未产生费用，注册和兑换码未修改。
+
+### 2026-07-15 追加：省略 size 的单次真实诊断
+
+- 用户明确确认产生一笔真实上游费用后，直接复用生产 lingsuan 线路和刚生成的服务器图片发起一次 `/images/edits`；请求字段为 `ratio=1:1`、`quality=high`、`response_format=b64_json`、`stream=true`、`partial_images=0`，发送前程序断言不存在 `size`，重试关闭。
+- 上游返回 HTTP 200 `text/event-stream`，耗时 102687ms，共两个事件：`image_edit.partial_image` 与 `image_edit.completed`。系统只保存 completed 原图到 `/uploads/generated/manual-lingsuan-ratio-quality-high-1784110508174.png`，文件为 1939841 字节、`1254×1254`。
+- 此前真实 2K 请求为 `size=2048x2048 / quality=medium`，真实 4K 请求为 `size=2880x2880 / quality=high`，两者原图同样都是 `1254×1254`。因此排除本地漏传质量、错误 `size` 或落盘缩放；当前 lingsuan 上游既不兑现显式大尺寸，也不会从 `ratio + high` 自动推导大尺寸。
+- 本次直连没有写本地生成历史或扣用户算力，只发生一次 fetch，未重试；上游已成功返回图片，可能按其规则记录一笔真实费用。
+
+### 2026-07-15 追加纠正：纯官方格式返回真实 4K
+
+- 用户提供中转账单截图，确认此前两笔请求已被识别并按 2K/4K 档位计费；因此“上游完全忽略尺寸”的表述不准确，实际矛盾是流式 Base64 文件只有 `1254×1254`。
+- 按 [OpenAI 官方图片生成指南](https://developers.openai.com/api/docs/guides/image-generation) 核对：`gpt-image-2` 的 `size` 支持约束内任意分辨率，方图 `2880×2880` 恰好达到 8294400 总像素上限；官方图生图示例使用 `/v1/images/edits`、`image[]` 和普通 JSON，并要求 `gpt-image-2` 省略 `input_fidelity`。
+- 经用户再次明确确认，发送唯一一次纯官方 4K multipart：字段严格为 `model/image[]/prompt/size/quality/output_format/n`，值为 `gpt-image-2/参考图/提示词/2880x2880/high/png/1`；不含 `stream/partial_images/response_format/input_fidelity/ratio/background/moderation`，重试关闭。
+- 上游返回 HTTP 200 `application/json`，耗时 60985ms，响应路径为 `data[0].b64_json`；原始 PNG 保存为 `/uploads/generated/manual-lingsuan-official-4k-1784111232917.png`，7534579 字节、真实 `2880×2880`。
+- 结论纠正：lingsuan 能兑现真实 4K，失败边界在此前流式/中转扩展请求组合，而非本地压缩或模型固定限制。当前生产仍使用 SSE 扩展格式，尚未改动；本次只发一次、未重试、未写本地历史或扣本地算力，可能产生一笔上游 4K 费用。
+
+## 2026-07-16 lingsuan-images 独立接口规则进度报告
+
+- 实施内容：新增显式 `apiFormat=lingsuan-images`，不依赖 Base URL Host。该规则强制 `/v1/images/generations` 与 `/v1/images/edits`、非流式 JSON/Base64；文生图只发送 `model/prompt/size/quality/output_format/n`，图生图使用重复 `image[]` 并只发送 `model/image[]/prompt/size/quality/output_format/n`，有 mask 时才追加 `mask`。
+- 后台机制：接口格式下拉增加 `Lingsuan Images`；选择后锁定两个图片接口、Base64 返回与非流式模式，预览明确显示 `image[]` 和 `data[].b64_json`。服务端新增、单条编辑和批量保存均规范化冲突的 endpoint、stream 和 response 字段，不修改 Base URL、API Key、模型、优先级或其他线路。
+- 验证结果：假 Provider 动态抓包确认 4K 方图发送 `size=2880x2880`、`quality=high`，字段集合不含 `stream/partial_images/response_format/input_fidelity/ratio/background/moderation`；普通 JSON `data[].b64_json` 成功落盘，Packy 继续 `url + 非流式`。`node --check`、适配器覆盖、聊天/生图工具动态回归、54 组尺寸映射、disposable API、后端画布边界、Vue build 和后台 Playwright 保存回读全部通过。
+- 生产部署：先完成便携备份 `docker/backup/internal-prod-20260716-095040`，再以主工作区完整重建 app。新镜像为 `sha256:840f25b0f1235ad595e489474f9c4477e3608ffa29eb5a033bb762f41e2986fe`，创建于 `2026-07-16T01:52:55.225127908Z`，容器启动于 `2026-07-16T01:53:57.827614075Z` 并为 `healthy`。
+- 生产写入与验证：现有 lingsuan 图片线路已通过后台 API 切换为 `lingsuan-images`，Base URL、模型、线路 Key 和密钥存在状态保持不变，Packy 完全未变。只读生产 smoke、公开线路元数据、`/assets/AdminApiProvidersSource-Dkk-OV3_.js` 新规则和旧 `AdminApiProvidersSource-CrnbmdBx.js` 404 均通过。
+- 费用与边界：未点击 Provider 线路测试，没有真实 lingsuan/Packy 调用和费用；注册、兑换码实现与现有业务数据未修改。生产 smoke 临时创建并删除了一个 `SMOKE*` 兑换码，脚本已确认删除后无该记录残留。
+
+## 2026-07-16 Lingsuan 官方 JSON 请求头动态修复
+
+- 诊断恢复了生产画布任务的真实请求元数据：图生图 endpoint、`image[]`、`2880x2880`、`high`、非流式和七字段白名单均正确，上游落盘结果却为 `1254×1254`。成功纯官方 4K 手测与画布请求的参考图均为 `1254×1254 PNG`、上传名均为 `reference.png`；唯一可证明的协议差异是 `Accept: application/json` 对 `Accept: */*`。
+- 实施方式不是硬编码 lingsuan 域名或现有线路 ID，而是复用后台线路规则：`apiFormat/requestFormat=lingsuan-images` 动态返回 `Accept: application/json`，同时接入 `/v1/images/generations` 和 `/v1/images/edits`。切换为 Packy、OpenAI Images 或其他格式后继续使用各自原请求头。
+- 假 Provider 回归从后台创建/保存 Lingsuan 线路并实际捕获两类请求头，同时确认 Packy 仍为 `*/*`；语法、图片工具专项测试、Packy 覆盖和 disposable API smoke 全部通过。所有测试均为本地临时数据库和假 Provider，没有真实调用或费用。
+- 生产部署前完成便携备份 `docker/backup/internal-prod-20260716-103721`，再从主工作区完整重建 app；新镜像 `sha256:1369cb86df070ff9fd965f3fe4bf582db4f8157ffb7774c75a09f3dc8a5ca1f2` 创建于 `2026-07-16T02:38:23.878782124Z`，容器启动于 `2026-07-16T02:39:22.695184885Z` 并为 `healthy`。
+- 容器源码断言确认动态 helper 存在且在 generation/edit 两处调用；生产线路配置仍为 `lingsuan-images / b64_json / false / 0 / image[]`，Base URL、Key 存在状态和启用状态均保留。容器内假 Provider 抓包、生产只读 smoke、`/`、`/canvas`、`/user/center`、`/gallery`、`/admin/login`、`/api/public/routes` 均通过。本轮没有真实 Provider 调用或费用。
+- 用户部署后主动发起真实 4K 图生图任务 `task_mrmwnll7980e4a1c`；监控恢复出的实际请求为 `/v1/images/edits`、`image[]`、`size=2880x2880`、`quality=high`、`output_format=png`、`n=1`。任务成功返回 `/uploads/generated/e4ef7bb3eeb62baf62024e360c8e259e.png`，服务器直接读取 PNG 文件头为 `2880×2880`、7330656 字节，任务元数据 `actualWidth/actualHeight` 同为 2880。
+- 生成历史新增 `gen_mrmwojlm625df4c6` completed，本地算力按现有规则从 100 扣至 90。该真实结果确认官方 JSON 请求头修复有效；Codex 监控没有发送请求或触发重试，上游费用来自用户主动测试。
+
+## 2026-07-16 Packy 图片编辑失败诊断
+
+- 用户主动切换 Packy 后的三条任务均真实命中 `https://www.packyapi.com/v1/images/edits`：两条约 2 秒返回 `Unknown parameter: 'response_format'`，request id 分别为 `01KXMDSQQ5VD1F7X331J88AERA`、`01KXME37DJ62VV9HMGV9J0D892`；一条约 22.8 秒后 socket hang up。生成历史和余额流水均未新增，系统余额保持 90。
+- 对比 2026-07-15、Lingsuan 部署前和请求头修复前的三份生产备份，Packy 配置始终是同一 `openai-images` 格式、Base URL 与 endpoint；Lingsuan 专用分支没有匹配 Packy，最近的 Accept helper 对 Packy仍返回原 `*/*`。因此排除 Lingsuan 修改覆盖 Packy配置或请求头。
+- Packy 官方教程要求 `Sora` 分组令牌，同时明确把 `response_format=url` 列为编辑接口支持参数；当前实际通道与文档冲突。结合项目历史出现过 Packy `codex` 分组无 `gpt-image-2` 渠道，最可能需要在 Packy 后台核对当前线路 Key 分组或让 Packy 按两个 request id 检查实际渠道。
+- 5 次不带鉴权的容器 HTTPS 探针全部完成 TLS并返回 401，基础网络正常；socket hang up 作为独立上游连接中断保留。未修改业务代码、后台线路、注册或兑换码，也未由 Codex 发起真实 Provider 请求。
+- 用户随后提供 Packy 控制台截图，确认新分组实际名为 `image` 且已挂载 `gpt-image-2`；该证据推翻“必须使用 Sora、当前 Key 无模型权限”的结论。实际失败发生在已路由到模型后的字段校验，当前 `image` 通道明确拒绝 `response_format`，而公开教程仍声称支持。
+- 下一步应实现后台可选 `Packy Images` 独立格式，以严格字段白名单适配 `image` 分组并保持 Lingsuan/通用 OpenAI Images 隔离；在用户确认实现前没有改代码、改 Key 或发真实请求。
+
+## 2026-07-16 Packy Images 独立接口规则进度报告
+
+- 实施内容：新增后台可选 `packy-images` 格式。文生图 JSON 严格为 `model/prompt/size/quality/output_format/n`；图生图 multipart 严格为 `model/image/prompt/size/quality/output_format/n`，mask 按需追加。Packy 使用单数 `image`，不发送 `response_format/background/moderation/input_fidelity/stream/partial_images/ratio`。
+- 后台机制：格式下拉增加 `Packy Images`，选择后固定 `/v1/images/generations`、`/v1/images/edits`、非流式和 URL 展示元数据；请求本身不强制响应格式，统一解析器兼容 URL 与 Base64。规则只由 `apiFormat/requestFormat` 选择，不硬编码 Host 或现有线路 ID。
+- 无费用验证：后端语法、适配器覆盖、Lingsuan/Packy 假 Provider 动态抓包、disposable API、Vue build 和隔离后台 UI smoke 全部通过。Packy 文生图、图生图、URL 返回及 Lingsuan `image[]`/Base64 隔离均有实际断言；未访问真实 Provider。
+- 生产部署：先完成 `docker/backup/internal-prod-20260716-112559`，再完整重建正式镜像 `sha256:c42419ac54287b52a015aa728c6fc75b12b0c6d39515311cffcd26ebf5313e16`，创建于 `2026-07-16T03:27:17.334834357Z`，容器启动于 `2026-07-16T03:27:59.302108363Z` 并为 `healthy`。
+- 生产写入与验收：Packy 线路已从 `openai-images` 切为 `packy-images`，其他线路配置及 Packy 的 Base URL、模型、Key、倍率、优先级、默认和启用状态均保留。生产只读 smoke、公开线路元数据、新后台 chunk、旧 chunk 404、`/canvas` 和 `/user/center` 通过。
+- 费用与边界：未点击后台线路测试，未由 Codex 发真实生图，注册和兑换码实现未修改。下一步仅需用户在画布手动发起一笔 Packy 低档位真实测试并观察日志，禁止自动重试。
+
+## 2026-07-16 Packy 4K 失败进度报告
+
+- 真实验证先确认 Packy 1K 图生图成功：任务 `task_mrmyphn47a631c80` 耗时 51.2 秒，写入生成历史并正常扣除 10 点，说明 `packy-images` 鉴权、模型、编辑端点和严格字段可用。
+- 第一笔 4K `task_mrmypmhd9368d31d` 总耗时 226.4 秒：其中约 45 秒在串行队列等待前一笔 1K，真正 Provider 请求达到容器固定的 180 秒后被本地中止。第二笔 4K `task_mrmyvckla61b276f` 无排队，27.1 秒后由 Packy 返回 socket hang up。
+- 两笔失败都没有本地生成历史或算力流水，系统只记录了成功 1K 的 10 点扣费。上游费用无法从本地判断，需检查 Packy 账单。
+- 本轮只读诊断，没有修改生产配置或发起额外请求。建议后续把 Packy 4K 超时从全局 180 秒拆成线路级较长阈值，再由用户单次复测；普通 socket hang up 继续禁止自动重试以避免潜在重复费用。
+
+## 2026-07-16 Packy 独立超时部署进度
+
+- 已把 Packy 超时按 `apiFormat/requestFormat=packy-images` 独立为默认 360 秒；生成和编辑共用该规则，Lingsuan/通用线路仍为原 180 秒。没有按域名或固定 routeId 判断。
+- 适配器覆盖、假 Provider 动态测试和 disposable API smoke 通过；动态结果直接断言 Packy 请求元数据 `timeoutMs=360000`，严格字段和不自动重试边界保持不变。
+- 备份 `docker/backup/internal-prod-20260716-115848` 后完整重建镜像 `sha256:9d51431cda131e748f963faa479fa9a56d2cdb17bba1b8e21eda710b6e62ed8c`，创建于 `2026-07-16T03:59:39.663535673Z`，容器启动于 `2026-07-16T04:00:27.926045613Z` 并为 `healthy`。
+- 生产 Packy 配置和字段回读正确，3456 只读 smoke、首页、画布和用户中心通过。部署验证没有发送真实 Provider 请求，用户可直接发起单次 4K 人工复测。
+- 用户人工复测已成功：任务 `task_mrmzxzpkab2ee8f4` 耗时 196.6 秒，超过旧 180 秒阈值但在新 360 秒内完成；请求为 `/v1/images/edits + image + 2880x2880 + high`，落盘 PNG 为真实 `2880×2880`、9280326 字节，生成历史和 10 点扣费正常。
+- 复测后截图里的 socket hang up 是重建前失败节点的旧状态；新容器自启动后只有上述一笔 Packy 任务且状态 success，没有新失败或自动重试。
+
+## 2026-07-16 Chat 正式内网版启用进度
+
+- 经用户确认把 `@modelcontextprotocol/sdk` 从 `1.17.0` 精确升级到 `1.29.0`；官方 npm registry 审计从 3 个 high 降为 0，工具续接、图片工具和语法回归通过。
+- 把固定 LibreChat `v0.8.6-rc1` 归档纳入项目，SHA-256 为 `ccc1adcbe0e7ab62839c2ab952bb2b3d6d7371eab8aaa13d84fbce4c629fb5ad`；Dockerfile 和正式/测试 Compose 不再依赖 `F:\dev-cache` 或 `additional_contexts`，服务器源码包可独立重建。
+- 生产 `.env` 已启用 Chat，并使用相互独立的随机 bridge/JWT/refresh/credentials 密钥；LibreChat 自身登录、注册、社交登录和密码重置保持关闭，SSO 票据有效期固定 60 秒。
+- 切换前完成主站迁移备份 `docker/backup/internal-prod-20260716-180342`。正式 `3456` 已通过 `docker-compose.yml + docker-compose.chat-production.yml + chat profile` 切为 gateway、app、LibreChat、MongoDB 四容器，只有 gateway 暴露宿主机端口，四容器均为 `healthy`。
+- 主站 app 镜像为 `sha256:2c4396ad51ddd7bc3a52034cea16195d645356558af3f1bbe1dd5ea48070d74b`，创建于 `2026-07-16T10:03:17.251751779Z`、容器启动于 `2026-07-16T10:04:27.462170005Z`；LibreChat 镜像为 `sha256:82be11bb122de6b6a8b0db8c890a26729ace27e63ccc760072b06b99455edfda`，容器启动于 `2026-07-16T10:04:39.481450609Z`。完整重建后的 app 构建上下文由排除本地缓存和输出目录降至约 42.69 MB。
+- 生产只读 smoke、无写 Chat 设置 API smoke 和隔离浏览器真实入口均通过：一次性 SSO、会话、模型桥接、用户级 MCP、两个生图工具、4 个托管智能体、技能按钮和 Skills 区域正常；页面自动到 `/chat/c/new`，没有独立登录/注册页和 5xx。
+- 本轮没有发送 Chat 消息、没有调用真实文本或图片 Provider、没有新增扣费；没有修改注册和兑换码。明天服务器迁移创建全新 Chat 命名卷，不迁移今天的 Chat 验收映射和测试记录，主站 SQLite、工作流和图片照常迁移。
+
+## 2026-07-17 最终迁移包离线恢复进度
+
+- 最终源码 ZIP 和 `docker/backup/internal-prod-20260716-180342` 仍存在，源码包 SHA-256 复核一致；备份维护窗口记录 app 原先运行并在结束时恢复为 `healthy`。
+- 在系统随机临时目录解压完整源码，单独复制未入包的生产 `.env`，再调用正式 Windows 恢复脚本恢复真实数据；没有覆盖主工作区，也没有启动容器或调用 Provider。
+- SQLite 恢复文件 SHA-256 为 `91b4dff67736efdba838c34f80fdab2a00e9c243002e8ce43fd70f38628eb832`，与清单完全一致；`quick_check` 和 `integrity_check` 均为 `ok`。
+- 恢复数据计数为：用户 9、项目 18、生成记录 75、余额流水 193、上传文件 32、工作流文件 22。临时恢复目录通过前缀和父目录校验后已删除。
+- 当前 Docker Desktop/Engine 未运行，`192.168.0.39:3456` 不可访问；Docker context 只有本机 `default` 与 `desktop-linux`，没有已配置的远程服务器。实际部署仍需启动本机 Docker，或提供目标服务器连接、服务器内网 IP 和安装目录。
+
+## 2026-07-17 本机正式四容器重新拉起
+
+- 用户明确要求拉起服务器后，启动本机 Docker Desktop；Engine 在 55 秒等待窗口内恢复，版本为 `29.5.3`。
+- 使用正式 `docker-compose.yml + docker-compose.chat-production.yml + chat profile` 和现有已验证镜像执行 `up -d --no-build`，没有重建或改变运行代码、配置和数据。
+- app、MongoDB、LibreChat、gateway 均为 `healthy`，启动时间集中在 `2026-07-17T01:23:33Z` 至 `01:23:34Z`；只有 gateway 暴露 `0.0.0.0:3456`，其余三个容器无宿主机端口。
+- `http://192.168.0.39:3456` 生产只读 smoke 通过，兑换码只读且跳过增删；隔离浏览器 Chat 自动登录、托管智能体和 Skills 页面验收通过。
+- 本次启动与验证没有发送 Chat 消息、没有调用文本或图片 Provider、没有新增费用，也没有修改注册和兑换码。
+
+## 2026-07-17 画布反推提示词 502 修复进度
+
+- 复现结果：本地假 Provider 把错误 `/chat/completions` 路径固定返回 502，当前旧实现稳定得到与用户截图一致的 `PROVIDER_CHAT_FAILED / Provider returned 502`。
+- 根因与修复：`/api/image-tools/reverse-prompt` 误用图片线路解析器，且只向文本模型发送图片地址文字。现改为文本线路 `resolveTextRoute`，读取原图后使用 Responses 多模态 `input_image`；图片不可读时返回明确的 `400 IMAGE_TOOL_IMAGE_UNREADABLE`。
+- 修改文件：`server.js`、`scripts/test-reverse-prompt-provider-route.js`、`scripts/smoke-backend-canvas-boundary.ps1`、`docs/api-contracts.md`、`docs/api-contract-next.md`、`docs/current-baseline.md`、`docs/progress-report.md`、`docs/review-log.md`。
+- 无费用验证：`node --check server.js`、定向假 Provider 回归、`smoke-api-disposable.ps1`、`smoke-backend-canvas-boundary.ps1` 全部通过；临时数据库、临时上传目录和假 Key 均已清理，没有触达真实 Provider、生产用户、余额或生成记录。
+- 发布状态：用户确认后先完成一致性备份 `docker/backup/internal-prod-20260717-103952`，再使用正式 Chat 生产 Compose 叠加配置完整重建 app。新镜像 `sha256:f7b9d13dc4b8b2ae9407c2683e0345bab9cbc17b5d821112135dfe12260df393` 创建于 `2026-07-17T02:40:51.240873181Z`，容器启动于 `2026-07-17T02:41:14.973224356Z`，四容器均为 `healthy`。
+- 生产验收：容器源码命中 `resolveTextRoute + input_image`；生产只读 smoke 通过；`127.0.0.1:3456` 与 `192.168.0.39:3456` 的首页、目标画布、用户中心和健康接口均为 200。未授权反推探针返回 401，未调用真实 Provider、未产生扣费。
+
+## 2026-07-17 Chat 结构化简报直接报价进度
+
+- 复现：在现有 LibreChat 假 Provider 集成回归中加入用户原句 `平台淘宝，800x800，目标人群年轻女性和家庭，主打...`，旧实现请求已到 Provider，但 `tool_choice` 为 `undefined`，对应页面要求用户重复简报。
+- 修复：`server.js` 增加严格结构化电商简报识别；平台、画布规格、商业目标三类信号必须同时存在，随后复用现有新生图分支强制 `prepare_image_generation`。未新增依赖，未改普通对话和确认码协议。
+- 配置：通过现有后台 API 仅把生产文本线路 Base URL 修正为 `https://lingsuan.top/v1`；`/responses`、OpenAI Responses 格式、Key 存在状态和启用状态保持不变，没有执行真实线路测试。
+- 验证：后端语法、LibreChat 工具续接、Chat 图片工具、disposable API、画布后端边界均通过；失败回归转为 `tool_choice=prepare_image_generation`。生产只读 smoke、Chat 无费用浏览器 smoke 和 127/192 两组页面直连通过。
+- 发布：备份 `docker/backup/internal-prod-20260717-115201` 后完整重建 app。新镜像 `sha256:134ace2477f629452e4e7e5bd7ca8ebd168aca67d0f107ce467ce2484556a9be` 创建于 `2026-07-17T03:53:18.078030611Z`，容器启动于 `2026-07-17T03:53:37.750287629Z`，四容器均为 `healthy`。自动验收未发送 Chat 消息，账号余额仍为 45。
+
+## 2026-07-17 Chat 中文附件 Header 修复进度
+
+- 复现：`X-Chat-Reference-Images` 直接承载 `/images/未命名图片.png` 的 JSON 时，Node Fetch 在请求发出前稳定抛出与用户截图一致的 ByteString 异常；字符码点 26410 为“未”。
+- 修复：LibreChat 的当前消息附件列表先做 UTF-8 JSON，再编码为 `b64url:<payload>`；主站 MCP 中间件解码并保留旧原始 JSON 兼容。未修改流式协议、文本 Provider、生图 Provider、报价/确认码或扣费逻辑。
+- 回归：中文附件路径、Chat 图片工具、工具续传、一次性 API、后端边界、固定源码包补丁应用和补丁后控制器语法全部通过；生产只报价探针返回 `image-to-image` 和 1 张参考图后已清理，没有真实 Provider 请求。
+- 发布：备份 `docker/backup/internal-prod-20260717-124018` 后完整重建 app 与 LibreChat。app 镜像 `sha256:92224b69d98ff3f5d4fb605f651eac18c383cc944805fb5fd18abf7cc7703920`，LibreChat 镜像 `sha256:94c533b032ae0e0208dca7693920c93237f42ae5d3a219bb3e4a283120968db0`；四容器均为 `healthy`。生产只读 smoke、Chat 浏览器 smoke 和 127/192 两组入口检查通过。
+
+## 2026-07-17 Chat 上游 502 与二次 409 修复进度
+
+- 诊断证据：消息 `f438c916-93e3-47fc-b0ce-e791a369bacf` 首次调用 lingsuan `/responses` 返回 HTTP 502，本地先扣 5 点后完整退回；LibreChat 两秒后重放同一消息 ID，被幂等门禁在 Provider 调用前拦为 409。账号 `731241492` 余额恢复为 45，不存在第二次上游调用。
+- 修复内容：Responses 和 Chat Completions 桥接在 Provider HTTP 失败、网络失败、超时或无效响应退款后，转为正常 OpenAI Chat/SSE 中文助手消息；已退款的重复消息也返回同类消息，不再向 LibreChat 暴露 409，同时保留“不再调用 Provider”幂等保护。
+- 修改文件：`server.js`、`scripts/test-librechat-tool-continuation.js`、`scripts/smoke-librechat-integration.ps1`、`docs/api-contracts.md`、`docs/current-baseline.md`、`docs/progress-report.md`、`docs/review-log.md`。
+- 无费用验证：语法检查、`git diff --check`、一次性 API smoke 和假 Provider 幂等回归通过；假 Provider 首次返回 502，第二次同 ID 重放仍为 HTTP 200 中文退款消息，Provider 请求计数保持 1，用户余额净变化为 0。没有调用真实文本或图片 Provider，没有修改注册、兑换码或生图线路。
+- 发布进度：先生成生产备份 `docker/backup/internal-prod-20260717-111256`，再用正式 Chat Compose 完整重建 app。新镜像 `sha256:0e521ae8e7ba160e1e6084c3c20860b0e74aa2b8249df9d2eb668b5e38b4bf08`，创建于 `2026-07-17T03:13:28.33862125Z`，容器启动于 `2026-07-17T03:13:47.933026439Z`。
+- 生产验收：四容器均为 `healthy`，容器内源码命中 `CHAT_REFUNDED_PROVIDER_MESSAGE` 和 `sendChatRefundedMessage`；生产只读 smoke 通过，本机与内网地址的首页、`/api/health`、`/chat/` 均为 200，旧资源仍为 410/404。验收未发送 Chat 消息，未调用真实 Provider。
+
+## 2026-07-17 Chat 生图工具普通用户展示进度
+
+- 修复：两个内置生图工具的 MCP 文本改为中文报价/结果，内部字段只放在 `structuredContent`；LibreChat 仅对这两个工具替换通用技术卡片，并在最终助手回复后隐藏中间消息。
+- 验证：后端回归、工具续接、固定源码补丁、完整 LibreChat 前端构建和 `ToolCall` 定向组件测试 28/28 通过。生产报价探针只创建并清理报价，不调用 Provider，账号 `731241492` 余额保持 40。
+- 发布：备份 `docker/backup/internal-prod-20260717-141643` 后完整重建 app 与 LibreChat。镜像分别为 `sha256:1a8c7cbc2d19c4f62d7bdfa2255595b0f6438ef88581c83388231d965f67d763` 和 `sha256:c80e109d54ccbfb269997c2f0a4793b316ad8f6ddc86b60b0107a328b4749dbc`，四容器均为 `healthy`。
+- 生产只读 smoke、Chat 浏览器 smoke 和本机/内网全入口均通过。用户应在 `/chat/` 强刷一次后用新消息验收；历史错误文本仍属于旧会话记录。
+
+## 2026-07-17 Chat 图生图确认续接修复进度
+
+- 复盘最新失败会话：报价工具已识别 2 张参考图并创建 `image-to-image` 报价；实际停在 prepare 与 execute 之间，没有新增 generation。原因是报价卡片在后续消息存在时被隐藏，同时确认执行依赖文本 Provider 和未可靠持久化的 `quoteId`。
+- 修复：完成的报价/结果不再因 `isLast=false` 隐藏；精确确认码由主站本地转换为 `execute_image_generation` 工具调用；执行端允许只传确认码，按用户和哈希定位报价；工具完成后的中文续接也不再调用文本 Provider。现有图片编辑、报价有效期、幂等、扣费和退款边界保持不变。
+- 回归：`test-librechat-tool-continuation`、`test-chat-image-generation-tools`、disposable API、画布后端边界、LibreChat 完整构建和 `ToolCall` 28/28 用例通过。生产过期码探针确认 code-only 路由可定位报价并停在过期门禁，余额保持 30、generation 不变、未调用 Provider。
+- 发布：备份 `docker/backup/internal-prod-20260717-155419` 后完整重建 app 与 LibreChat，镜像分别为 `sha256:df61e8df09906e7bfe291a8d411dee7d090edaec98f1ea95812f08f4bff8b6bb` 和 `sha256:5c2ec27743db1bf2d1401b1f2c8e23f2c6d9a7683034b321021ff8dbd7032775`，两个容器均为 `healthy`；Docker Desktop 无需重启。
+- 生产只读 smoke、Chat 浏览器 smoke、本机/内网目标入口和新 Chat 入口包 `index.CEEARJSz.js` 均通过。下一步由用户强刷 `/chat/`，重新获取未过期确认码后人工测试真实图片 Provider。
+
+## 2026-07-17 画布重复生图排队修复进度
+
+- 复现与诊断：连续点击创建 17 个真实任务；Provider 全局串行、单次 524 约占用 120 秒，未出队任务又被前端假进度显示到 90%。生产快照最终为 11 失败、6 成功、0 活跃，不是 mock。
+- 修复：后端同一用户只允许一个 `pending/running` 图片任务，重复提交返回 `409 IMAGE_GENERATION_ALREADY_ACTIVE` 且不进队、不触达 Provider；任务取得全局 Provider 槽位后才转为 `running`。Canvas 增加同步提交锁、忙碌禁用和真实 pending/running 展示。
+- 验证：失败回归先证明旧代码首个任务错误为 `running`；修复后首个任务 `pending`、重复提交 409、Provider 请求一次、扣费与历史一次。后端语法、画布资源/预览/操作性能、Chat 图片工具、一次性 API、画布边界和 Vue build 全部通过，未调用真实 Provider。
+- 发布：备份 `docker/backup/internal-prod-20260717-165407` 后按正式 Chat Compose 完整重建 app；镜像 `sha256:e61093fd64edbae1113226a03ed7c7e11e2229dbec516d4eec20d1925f47b41f`，四容器均为 `healthy`。生产只读 smoke、Chat UI smoke、旧资源隔离和 127/192 全入口通过。
+- 旧队列的 6 个成功任务已把账号 `731241492` 余额扣至 `-30`。本轮未自动改账；是否补回需用户确认。真实 lingsuan 524 风险仍存在，但现在不会由同一用户快速点击放大为长队列。
+
+## 2026-07-17 画布连续多批提交限制撤销
+
+- 用户指出账号级单任务限制不是需求。失败回归确认第二次合法提交被 `409 IMAGE_GENERATION_ALREADY_ACTIVE` 拦截；历史基线同时确认同一生成节点连续提交多批是既有能力。
+- 已删除后端账号级 409、Canvas `generationSubmitLocked`、处理中禁用和对应红色提示；保留任务 `pending/running` 真实状态与既有 Provider 过载保护队列。两次合法提交现在都返回 202 并创建不同任务。
+- 无费用假 Provider 回归、画布静态/性能断言、Chat 图片工具、一次性 API、画布边界和 Vue build 全部通过。没有真实生图或新增费用。
+- 备份 `docker/backup/internal-prod-20260717-174410` 后按正式 Chat Compose 完整重建 app；镜像 `sha256:586be741ec20e465ddc5f47ccf7368883e39538eaa5104040c7cc82dd5c8a7ca`，四容器均 `healthy`。生产只读 smoke、旧资源隔离和 127/192 全入口通过，线上已命中 `20260717multisubmit1`。
+- 本轮没有执行余额写操作；发布后只读回查账号 `731241492` 当前余额为 `70`。连续提交会按每个成功任务分别扣费，用户仍需控制提交数量。
+
+## 2026-07-17 反推提示词复制修复进度
+
+- 根因：反推弹窗对 `navigator.clipboard` 使用可选链，HTTP 内网页面没有 Clipboard API 时不写入任何内容却继续提示成功。
+- 修复：安全上下文优先 Clipboard API，不可用或失败时使用隐藏 textarea + `execCommand("copy")` 回退；回退也失败才显示明确错误。没有修改余额、生图任务或 Provider 队列。
+- 回归：直接执行当前 Canvas 按钮函数，旧实现稳定复现空剪贴板；修复后安全、HTTP 回退、失败提示三条路径通过。画布静态/性能、后端边界和 Vue build 通过，未调用真实 Provider。
+- 发布：等待现有生图任务完成后备份 `docker/backup/internal-prod-20260717-181703`，再按正式 Chat Compose 完整重建 app。镜像 `sha256:af7a8223d49986c4a63881db9a06f15f79d5f1fa03894a1b062fd1641bedd816`，四容器均 `healthy`；生产只读 smoke、旧资源隔离和 127/192 全入口通过，线上命中 `20260717reversecopy1`。
+
+## 2026-07-20 Chat 生图普通用户流程发布进度
+
+- 诊断：报价已经由 `prepare_image_generation` 成功创建，但 LibreChat 的 content-array MCP 工具结果未被主站续接判断识别，导致报价后错误再次调用文本 Provider；页面的“上游错误”不是图片 Provider 返回，也不是流式图片结果缺失。
+- 后端：兼容标准 tool 消息与 content-array tool result；报价和图片完成后的助手续接改为本地中文。报价保存用户当时选择的生图线路，后续执行严格使用报价锁定线路。
+- 前端：Chat 输入栏增加普通用户可见的生图线路下拉框；报价卡增加“确认并生成”按钮，通过现有消息提交函数发送准确确认码，短时锁定避免重复点击。Skills 仍为可选能力，不承担报价确认 UI。
+- 验证：LibreChat 完整构建通过；工具卡 29/29、续接与图片工具假 Provider 回归、一次性 API、画布边界、生产只读 smoke、Chat 浏览器 smoke和完整无费用集成 smoke 均通过。线上资源为 `/chat/assets/index.2lAYBjDl.js`，自动验收没有发送对话或触发真实 Provider。
+- 发布：维护前活动任务 0，备份 `docker/backup/internal-prod-20260720-112113` 后完整重建 app 与 LibreChat。新镜像分别为 `sha256:06328875c8c9c028bf930e3843c01e8cbe0f18e9558b7dd12de69f4ddcd1d57c` 和 `sha256:7da252c039708a99bb10623758f2a1c02e9af027af3c9eae188e8fbb6d88ac76`；四容器均 `healthy`，127/192 的首页、Chat、画布、用户中心和健康接口全部 200。
+
+## 2026-07-20 Chat 完整 MCP 工具名确认路由修复进度
+
+- 诊断：生产工具实际命名为 `execute_image_generation_mcp_hajimi-website`，旧查找只接受以 `execute_image_generation` 结尾的名称，导致确认码没有进入 execute 工具，而是误发给文本 Provider 后 502 退款；图片 Provider 未被调用。
+- 修复：工具查找兼容 `工具名_mcp_服务名` 并保留原始完整名称。新增生产同形回归，确认消息本地返回完整 execute 工具名且不增加文本 Provider 请求；短名称兼容用例继续通过。
+- 本地验证：`node --check`、工具续接、两条图片适配器、一次性 API、一次性后台写入和画布边界 smoke 全部通过，测试数据库和假 Provider 均为临时资源，没有真实费用。
+- 发布：维护前活动任务 0，备份 `docker/backup/internal-prod-20260720-115227` 后从 `F:\dianshang` 重建 app。镜像 `sha256:5bdf35fec37461ffe4c4961095d2eca8efb0bcdbeb5325b11d1bc83ce3e6021e`，创建 `2026-07-20T03:53:09.59898336Z`，启动 `2026-07-20T03:53:39.899608308Z`；四容器均 `healthy`。
+- 生产验证：127/192 的后台、Chat、健康接口全部 200，生产只读 smoke 和无费用 LibreChat 集成 smoke 通过，容器内已命中新匹配器。历史确认码已过期，需重新报价并在 5 分钟内确认。
+
+## 2026-07-20 Chat 生图结果可视化修复进度
+
+- 诊断：图片文件和 `/uploads/generated/...` 网关路由均正常；LibreChat 工具卡的 `OutputRenderer` 把结果 Markdown 放进 `<pre>`，所以页面只显示链接文本。会话中仍保存原 tool call 和完成文本，故障不在上下文、Provider 或存储。
+- 修复：仅 `execute_image_generation` 成功结果使用现有 Markdown 组件，报价卡及确认按钮保持原实现；生产 smoke 增加 Markdown 图片渲染门禁。
+- 验证：新增组件用例在旧实现上按预期失败（29 通过、1 失败），修复后 30/30；完整 LibreChat 前端构建、Chat 浏览器 smoke、无费用集成 smoke、127/192 图片资源与入口资源检查全部通过。
+- 发布：活动任务 0，备份 `docker/backup/internal-prod-20260720-123157`；app/LibreChat 新镜像分别为 `sha256:6f528bdba4992d2baf2f741ab744bf13dabfbfd8529fed75920621ccd99ad08e`、`sha256:64c3fce3a49ae935e2f481c50995f34e19322cd825abf6557f9a90bdcd387420`，四容器 `healthy`，线上入口 `/chat/assets/index.7-3Zm5Bb.js`。自动验收没有发送消息或产生费用。
+
+## 2026-07-20 Chat 电商主图方案表单流程进度
+
+- 后端新增会话级方案状态和两个 MCP 工具，强制电商主图先产出方案表单；确认后才按最终文案创建报价，并继续沿用原始产品图和参考图执行图生图。
+- 前端工具卡新增文案表单、空白修改框、“确认方案”及图片完成后的循环修改操作；普通用户不再需要复制内部 JSON、确认码或重复上传参考图。
+- 本地验证通过：后端/补丁/测试脚本语法，两条 Chat 假 Provider 回归，一次性 API smoke，Vue 前端构建，固定 LibreChat 补丁应用及补丁后 TSX 转译。没有真实 Provider 调用或费用。
+- 发布完成：活动任务为 0，一致性备份 `docker/backup/internal-prod-20260720-141106` 后完整重建正式栈。首次验收发现并修复 LibreChat YAML 缩进导致 MCP 未注册的问题，再次重建后四容器 `healthy`。
+- 验收通过：生产只读 smoke、完整无费用 LibreChat 集成 smoke、127/192 全入口和 Chat 浏览器 smoke；线上入口 `/chat/assets/index.7YakS8m_.js` 已包含方案表单和循环修改控件，旧入口 `/chat/assets/index.7-3Zm5Bb.js` 返回 410，没有触发真实生图或 Provider 费用。
+
+## 2026-07-20 Chat 电商主图设计师 v2 重整进度
+
+- 已完成显式智能体 ID 贯穿、原图 `input_image`、任意图片角色、v2 动态文案方案、二次 GPT 生成 `finalPrompt`、确定性服务端约束和旧方案兼容；只有 `ecommerce-main-image` 进入该流程，普通 Chat 智能体保持原工具行为。
+- LibreChat 卡片已改为完整方案和动态文案可编辑，来源只读且支持增删行；确认按钮提交人类可读修改内容，图片结果继续提供修改/再出一版/完成。
+- 后台实际文本模型为 `gpt-5.6-terra`；模型目录、托管智能体、请求示例、计费和 Provider 请求已统一同步，历史 `gpt-5.5`/`gpt-5.6` 自动映射。自动验证通过后，真实多模态探测成功识别反向图片角色并返回 10 条动态文案，只扣 5 算力，未创建报价或调用图片 Provider。
+- 活动生成任务为 0，备份 `docker/backup/internal-prod-20260720-160830` 后完整重建 app 与 LibreChat；补充旧 Chat 入口隔离后重建 gateway，并以一次性迁移把生产历史智能体指令升级为 v2。app/LibreChat 镜像分别为 `sha256:35f1809f45ed6d2c8b85c1c894b66a117943a91b4f518e98da9e297df2b4bd48`、`sha256:99979eb4bfa37748ef3984769ec3cd083f4ec22729efd4643afe56e629f19849`，四容器 `healthy`。
+- 127/192 生产路径、只读主站 smoke、无费用 Chat 集成 smoke 和浏览器 smoke 全部通过；新入口 `index.1S4zO-n7.js` 为 200，上一版 `index.7YakS8m_.js` 为 410，生产智能体目录返回 `ecommerce-main-image → gpt-5.6-terra`。
+
+## 2026-07-20 Chat 电商主图真实测图进度
+
+- 生产闭环已真实跑通：两次 GPT‑5.6 多模态文本阶段均成功，最终报价确认后通过“高速专线 img2”生成图片；生成记录 `gen_mrszl6t882d8bd4f` 已完成，结果为 `/uploads/generated/d3f21e46b8d1e5a6a63475b273850bc2.png`。
+- 首次二次 GPT 调用在 120 秒超时并自动退款，已把该智能体专用文本超时调整为 240 秒后重建验证；不影响其他 Chat 智能体。
+- “官转gpt-img2”实测返回 524，失败报价未扣图片费用；备用线路成功扣 10 算力。加上两次成功 GPT 调用各 5 算力，本次余额 655 → 635。
+- 当前 app 镜像 `sha256:7e1f9dfd41c28461fd3612f25fe8cd2b725d717370b07d9ebaa7d2151cd1bcd4`，容器健康；本机和内网图片 URL 均为 200、`image/png`。
+
+## 2026-07-20 画布图片生成节点提示词透明化进度
+
+- 用户明确要求图片生成节点不再使用任何后端隐藏提示词；未来系统提示词模板必须显示在节点卡中并由用户直接编辑。
+- 已把 `/api/generate/tasks` 的提示词构造恢复为“有输入则只传节点输入，无输入则使用最短兜底”。参考图、模型、比例、清晰度、张数、图生图 `/v1/images/edits` 分流和局部绘图链路保持不变。
+- 新回归在旧实现上稳定失败于隐藏画布约束；修改后确认 multipart `prompt` 只包含“用图1产品生成电商场景图”，同时 `size=2880x2880`、`quality=high` 仍独立存在。
+- 本地验证通过：`node --check server.js`、54 组尺寸映射、6 组适配器覆盖、Chat 图片工具假 Provider、`smoke-api-disposable.ps1` 和 `smoke-backend-canvas-boundary.ps1`。未执行真实图片生成。
+- 发布前活动任务检查未发现 `pending/running`；备份 `docker/backup/internal-prod-20260720-174657` 后完整构建 app。基础 Compose 首次启动因 app 与 gateway 同占宿主机 `3456` 失败，随后使用正式 `docker-compose.chat-production.yml` 覆盖清空 app 端口并成功恢复，数据卷和 gateway 未改。
+- 新 app 镜像为 `sha256:e4391ee734994c19fa0fcf82958135c1f063756af30d7978520bc6b55da48812`，四个正式容器均 `healthy`。容器源码命中纯节点提示词实现，127/192 的首页、画布和健康接口均为 200，生产只读 smoke 通过。
+
+## 2026-07-21 Provider 有效返图保留进度
+
+- 真实请求已确认上游成功返图并计费，但旧的 3% 比例断言在文件持久化前抛错，导致请求 `576x1152`、实际 `853x1844` 的有效图片未进入画布、历史或本地文件。
+- 公共 Provider 返图持久化链已改为：先验证图片内容并落盘，再把比例偏差或尺寸未知作为警告元数据随成功结果返回。画布任务、模板和 Chat 共用该链路，均不会再因比例偏差吞掉有效返图。
+- 空结果、无效图片签名、无法解码和落盘失败仍保持失败；不裁切、不拉伸、不自动重试付费请求。
+- 54 组尺寸映射、6 组适配器覆盖、队列保护、Chat 假 Provider、一次性 API 和后端/画布边界 smoke 已通过。全部为本地假 Provider 验证，没有产生真实费用。
+- 发布前活动任务为 0；一致性备份 `docker/backup/internal-prod-20260721-101127` 后使用正式 Chat Compose 覆盖完整重建 app。新镜像为 `sha256:2190dad5a1498e051e8a20879b3a3b191071e43e36ea8e8ce20aa7bbe2515281`，四个正式容器均为 `healthy`，只有 gateway 暴露宿主机 `3456`。
+- 容器源码与容器内 54 组专项回归命中新逻辑；生产只读 smoke、旧资源隔离以及内网首页、画布、用户中心、Chat、健康接口全部通过。自动验收未调用真实 Provider。
+
+## 2026-07-21 画布大参考图上传稳定性进度
+
+- 成功/失败任务对比将故障收敛到大体积图生图 multipart：成功参考图约 232–318KB，失败参考图包含 `3840×3840`、12–14MB PNG；Docker 直连和域名 HEAD 正常，VPN 不是当前根因。
+- 画布出站副本新增 `2048px/4MB` 压缩边界并使用高质量 WebP；Data URL、同源 URL 和 `blob:` 均覆盖，跨域 URL 保持原服务端读取路径。后端新增 Provider 前 `5MB` 单图护栏和 `ECONNRESET/socket hang up` 错误规范化，不自动重放图生图 POST。
+- 假 Provider 回归确认超限任务不触达上游、余额与历史不变；Chromium 实测 11.45MB/3840 方图压为 45KB/2048 方图，小图不变。尺寸、适配器、API、画布边界、性能资产、Vue build 和生产只读 smoke 全部通过。
+- 活动任务为 0 后完成一致性备份 `docker/backup/internal-prod-20260721-173217`。修复旧构建补丁脚本的 query 幂等识别和 Chromium 捕获的 URL 正则转义后，正式 app 镜像 `sha256:2036d4ab36971b09ba2a1f63d5071b29e61baf59846ff2b43df62c4436d5d317` 已上线并健康；六个 3456 路径均为 200，未调用真实 Provider。
+
+## 2026-07-22 图片 Provider 首连接稳定性进度
+
+- 正式 gateway 访问日志确认用户两次点击都已创建任务；任务只读状态分别为 Provider 上传 `ETIMEDOUT` 与 `ECONNRESET`，排除前端未提交和后端 5MB 前置拒绝。
+- 用户授权的一次受控真实测试 `task_mrveq1ed8585d440` 使用 16,691 字节合成 PNG，仍在三次 TLS 建连后以 `ECONNRESET` 失败；复制库余额 `380→380`，没有生产写入或扣点，证明本次故障与大图体积无关。
+- 火绒修复后确认宿主机通过 IPv6 或 Clash 可达 lingsuan，但 Docker 直连其 IPv4 超时；Docker 经 `host.docker.internal:7890` 免费 HEAD 成功。Windows、WinHTTP、用户/系统和容器全局代理均未被设置。
+- 加入 `https-proxy-agent@7.0.6`，仅精确 `lingsuan.top` 的图片请求读取 `LINGSUAN_IMAGE_PROXY_URL`；其他 Provider、文本请求和 HTTP 假 Provider 直连。保留 IPv4 轮换与安全重试，普通 socket reset 仍不重放。
+- 定向路由、pre-TLS、正常/超限图生图、54 组尺寸、6 组适配器、Chat 图片工具、一次性 API、后端/画布 smoke 和 Vue 构建通过；候选与正式容器代理 HEAD 均为 3/3 成功。
+- 活动任务为 0，备份 `docker/backup/internal-prod-20260722-101000` 后完成正式双 Compose 重建。镜像 `sha256:52aec167cd9cf1a497397eee1531bc67ca09f25460a74b2348f7d893cbb5605c` 健康运行，四容器健康，生产 smoke 与六条 3456 路径通过。未自动提交新的付费生图。
+
+## 2026-07-21 Chat 图像分析 Skills 与试用引导进度
+
+- 已完整读取 `image1234.zip` 中三个 Skill 及其引用文件，并导入 `integrations/librechat/skills/`。保留原分析方法，补充 `user-invocable: true` 和面向普通用户的快速试用说明；`style-grammar-distill` 的错误单数目录 `reference/` 已修正为 `references/`。
+- Chat Skills 区已增加三张试用引导卡：上传一张图后做精确反推、上传一张图后深读意图与效果、上传同一作者至少 4–5 份报告后提炼视觉风格。按钮复用现有 Skill 选择状态，不新增第二套对话或工具机制。
+- 新增 `scripts/sync-librechat-reviewed-skills.js`，通过主站管理员 SSO 调用 LibreChat 原生导入、更新、文件上传和公开权限接口。首次复核发现权限接口会把无浏览器 User-Agent 的拒绝包装为 HTTP 200 SSE 错误；脚本现携带浏览器 User-Agent，并强制校验 public viewer grant，避免假成功。
+- 生产库已核验 3 个 Skill、14 个参考文件、3 条 public viewer ACL 和 3 条 owner ACL；三项均可由普通用户选择，但 `alwaysApply=false`，不会无条件注入所有对话。管理员无效邮箱只在 Chat SSO 内映射到内部地址，未改主站用户数据。
+- 完整 LibreChat 构建和静态集成 smoke 通过。备份 `docker/backup/internal-prod-20260721-104817` 及 LibreChat Mongo 归档后，使用正式双 Compose 全量重建；app/LibreChat 镜像分别为 `sha256:41ec57f8db7b4f722d646373fe7f1f4f0a87b478e2c50864ead8184e774ac5df`、`sha256:a85c2b93ddf3d7efa3b99167dbabd5a5184b9d50906dbf97cf4513c6dd57df40`，四容器健康。
+- 生产只读 smoke、普通用户隔离浏览器 smoke 和 3456 五条主要路径通过；浏览器实际看到三张引导卡并成功选择 `image-reverse-describe`。整个验收未发送 Chat 消息、未执行真实生图、未调用 Provider。
+
+## 2026-07-21 画布图片生成节点字体与默认窗口放大进度
+
+- 依据用户截图复核当前运行资产，确认图片生成节点组件基础样式为宽 `410px`、提示词框 `124px`、正文 `13px`。CodeGraph 仍返回回滚后已删除的 `frontend/src/views/CanvasStudio.vue` 等旧路径，实际文件树与 Git 均确认不存在，因此本轮只修改当前唯一画布的 `canvas-image-node-polish.css` 过渡层。
+- 节点默认宽度调整为 `480px`，提示词框默认最小高度调整为 `168px`；中文正文使用 `Microsoft YaHei`/`PingFang SC` 回退链，字号 `15px`、字重 `600`、行高 `1.8`，文字颜色和 placeholder 对比度同步提高。选择器带 `.vue-flow` 范围，不影响非画布页面。
+- 更新 `index.html` CSS query 为 `20260721promptread1`，并在资产护栏、后端画布边界 smoke 和生产只读 smoke 中加入版本与关键计算规则断言。新增浏览器 runner 对生产实际 CSS 做几何与字体计算检查，不保存节点或调用接口。
+- 本地画布资产、操作性能、后端边界和 Vue 构建通过。活动任务为 0 后生成备份 `docker/backup/internal-prod-20260721-114800`，使用正式双 Compose 完整重建 app；新镜像 `sha256:059e38b6fb1a253858ccce73182098d3518d09323b45a7559dccd2f7e7cf5299` 已运行且健康，其他三个正式容器保持健康。
+- 普通用户生产浏览器返回 `480 / 168 / 15px / 600 / 27px` 的预期计算值，截图人工检查通过。进入画布产生的空白示例项目已删除并回查 404；生产只读 smoke、Chat smoke 和五条 3456 路径通过，全程未触发生图或 Provider 费用。
+
+## 2026-07-21 画布图片生成节点免费 AI 扩写进度
+
+- 用户确认提示词扩写免费，不扣用户算力。新增 `/api/canvas/enhance-prompt`，复用当前 `gpt-5.6-terra` 多模态文本线路，读取当前提示词和最多 4 张真实参考图；接口返回 `free=true/costPoints=0`，无余额写入，同一用户只允许一个在途请求。
+- GPT 编排指令由“全局强锁定”调整为分层约束：用户明确要求和主体身份优先，产品/主体参考锁定关键识别，版式和风格图只承担指定角色，背景、构图、光影与材质在不冲突时允许优化。输出目标 500–900 中文字符，并明确成像清晰度要求，避免只堆叠空泛的 8K 词汇。
+- 新增 `canvas-prompt-enhancer.js/css` 小型画布适配层和 `20260721enhance1` 资源 query。按钮位于提示词框右下角，读取连接缩略图的真实 URL/Data URL，成功后触发原生 textarea `input/change` 回填但不自动生图；失败、用户中途编辑或路由离开均不覆盖原文。
+- 假 Provider 回归确认请求模型、原始提示词和真实 `input_image`；5 张图会在出站前返回 400，余额前后不变。静态资产、后端/画布 boundary smoke 与 Vue 构建通过。
+- Playwright 隔离浏览器确认按钮为 `34px` 高、右下间距 `12–13px`、文本框底部留白 `60px`；1 张参考图成功上传，353 字结果回填，生图请求数为 0；切到 `/user/center` 后调试对象、按钮和宿主 class 全部为 0。截图已人工检查。
+- 用户确认发布后，活动任务为 `pending=0、running=0`；一致性备份 `docker/backup/internal-prod-20260721-124434` 后使用正式双 Compose 完整重建 app。新镜像 `sha256:81f732edba3dfb65a94402b097573b6e1d140a5337e22c787c0edfd4ca11d5ca` 已运行，四个正式容器全部 `healthy`，gateway 仍是唯一暴露宿主机 `3456` 的容器。
+- 生产只读 smoke、旧资源隔离、新接口未认证 `401`、3456 六条主要路径及线上新 JS/CSS 哈希一致性均通过。Playwright 直访 `/user/center` 命中登录守卫，扩写调试对象、按钮和宿主均未安装；验收未调用真实 GPT/生图 Provider、未产生费用。
+
+## 2026-07-21 Docker Provider 强制代理撤回进度
+
+- 强制 Provider 走 Clash 后的真实任务返回 `socket hang up` 与 Cloudflare `524`；同用户变更前近似任务存在成功记录，且当前容器直连已恢复，因此判定强制代理会增加长任务链路风险。
+- 已逐项移除代理代码、依赖、Compose/正式环境变量及其测试，恢复原直连实现。失败任务未扣算力，余额保持 `415`；两条可选图片线路仍共享 `lingsuan.top`，上游 524 不能通过站内切线解决。
+- 备份 `docker/backup/internal-prod-20260721-155357` 后完整重建 app。新镜像 `sha256:17acdbad9309a29dc43a9137edb5e9b5974375846d6708b3364669a4ecc08464` 已健康运行，四容器健康；直连探测、生产 smoke 与主要页面均通过，未再次调用真实生图。
+
+## 2026-07-22 昨日中午生图链路复位进度
+
+- 生产数据确认中午前最后一个成功点为本地时间 `2026-07-21 11:42:30`，记录 `gen_mru3y5gbc3bcca54`；对应后续数据备份为 `docker/backup/internal-prod-20260721-114800`。旧镜像已清理，依据当天会话日志和静态资源版本恢复其出站行为。
+- 保留当前数据库与上传数据，仅回退图片网络/上传链路：移除定向代理依赖与 Compose 变量、图片 IPv4 agent、参考图体积护栏和画布出站压缩，恢复默认 HTTPS 直连与 `20260717reversecopy1`。
+- 活动任务为 0，使用当前备份 `docker/backup/internal-prod-20260722-104926` 后完成正式 app 全量重建。镜像 `sha256:c3cea04b0cc34f89aeb5652c8fbc2d1cb081a32d220ff3706478dc904969b266` 健康运行，四容器、生产 smoke 与六条 3456 路径均通过。
+- 免费直连探针 3/3 超时；这是当前网络与昨日中午的差异，不是回退代码未发布。本轮没有发起付费生图，真实返图仍需恢复 Docker 直连或经用户确认采用新的网络方案后验证。
+- 用户授权后执行一次真实最小图生图：任务 `task_mrvi9x06eec6b09e`、1.23MB PNG、1K、单图、`高速专线 img2`。主站正常返回 202 并进入 running，随后默认直连以 `ETIMEDOUT` 失败；余额前后均为 `999959`，未扣算力且未重试。当前出图结论为“不正常”，阻点仍是 Docker 到 Provider 的直连网络。
+- 新增独立 `packyapi` 路线也已由用户任务 `task_mrvihcpx82a601ae` 实际命中；2 张参考图共 2.61MB，约 18 秒后 `ECONNRESET`，余额与生成记录均未变化。Packy 免费 HEAD 可返回 403，基础连通但真实图生图上传/处理失败。Codex 检测到该任务 running 后停止了原计划的重复测试，没有再提交任务。
+- 根因不是上传护栏，而是新路线配置为通用 `new-api`，绕过了已有 `packy-images` 严格适配器。专项与假 Provider 回归确认严格格式不发送任何 Packy 禁用字段。备份 `internal-prod-20260722-112609` 后将该路线切为 `packy-images` 并完整重建 app；镜像 `sha256:1aa02a9684c56a6758b02242decc30f113776b812b6bb1076b31c7365ab89284` 与四容器健康，生产 smoke 通过。
+- 生产真实任务 `task_mrviwwh4a187fc4c` 以两张参考图成功返还 1024×1024 PNG，结果 URL 200、文件 1,004,794 字节；只在成功后扣管理员 10 点。Packy 硬接链路已验证可用，未修改其他路线的启用或默认状态。
+- 其余两条 lingsuan 路线随后完成同输入真实对照：官转 `task_mrvj4v6ia5c95ccf` 和高速专线 `task_mrvj639j8a868d87` 均在约 21.3 秒 `ETIMEDOUT`，无返图、无扣费。二者请求字段一致且共享 `lingsuan.top`，免费 HEAD 仍超时；当前上线应选择已成功验证的 Packy，不能把两条 lingsuan 视作独立网络备用。
+
+## 2026-07-22 lingsuan 图片定向代理最终恢复
+
+- 新反馈环把网络层拆开验证：Docker 对 lingsuan IPv4 连续 3 次在 TCP 前超时，容器 IPv6 为 `ENETUNREACH`；同容器通过宿主机 `7890` 发起 CONNECT 在 11ms 返回 200。宿主机无代理 IPv4也超时、IPv6可达，证明昨天可用与今天失败的差异来自网络路径状态，恢复旧代码不会恢复旧网络。
+- 用户确认后恢复 `https-proxy-agent@7.0.6`，但实现比上午版本更窄：只有精确 `lingsuan.top` 的图片 HTTPS 注入代理；Packy及其他图片请求继续不注入 Agent，文本链路和系统代理不变。静态行为回归明确覆盖大小写 Host、恶意子域名、HTTP URL、无配置回退与 Packy隔离。
+- 语法、定向代理、适配器、pre-TLS、队列、Chat 图片工具、54 组尺寸、disposable API、后端/画布 boundary、Vue build 与双 Compose 均通过。首次构建后又主动收窄非 lingsuan Agent 行为并重新构建，确保最终镜像与 main 完全一致。
+- 活动任务为 0 后完成备份 `internal-prod-20260722-130026`。最终镜像 `sha256:494af9881703ab78c686495c811746ac297762a3ca3dba74b7237ac4ed0d373e` 健康；生产无费用探针为 lingsuan 代理 404/799ms、Packy 直连 403/1125ms，容器全局代理为空。生产 smoke、旧资源和六条 3456 路径通过。
+- 用户确认后执行且仅执行一次真实付费验收：`task_mrvmoep3457ee321` 通过高速专线的 `/v1/images/edits` 发送 2 张 PNG（共 2,242,146 字节），`transportMode=https-proxy`、`preTlsRetryCount=0`，约 45.1 秒成功。结果为 1024×1024 PNG `/uploads/generated/96571fa1fa352aa8aa8b4d2e57062e3b.png`，本地文件 1,059,847 字节，生产 URL 200；余额 `999949→999939`，只产生一条 10 点扣费和一条完成记录。
+- 用户再次确认三线公平复测：官转 `task_mrvn67doe2a8727b` 与高速 `task_mrvn7hbn55b2af53` 均约 17.6 秒 `ECONNRESET`，命中各自 lingsuan Key 与定向代理但无返图、无扣费；Packy `task_mrvn8qho2704de0d` 直连约 40.1 秒成功，生成 1024×1024 PNG `/uploads/generated/b1cf1b9e5ef3fc3b7444f46589e279a4.png`，生产 URL 200，仅扣 10 点。三次均只提交一次且没有切线，当前 lingsuan 为间歇性不稳定，Packy 复测正常。
+
+## 2026-07-22 Clash lingsuan 直连覆盖与三线放行
+
+- 现场审计确认 Clash 原先不存在 Docker/lingsuan 自定义规则；灵算定向代理因此落入 `MATCH` 并使用 VPN 节点。已在备份 `mihomo-party-before-lingsuan-direct-20260722-135518` 后增加持久化 `DOMAIN-SUFFIX,lingsuan.top,DIRECT` 首位规则并重载，未改 Windows 系统代理或容器全局代理。
+- 重载后正式容器免费 HEAD 5/5 返回 404，核心日志 5/5 明确命中 `DIRECT`；Mihomo 配置检查成功。官转和高速 Key 的免费鉴权均为 200。
+- 高速 `task_mrvofoux91284e5d` 与 Packy `task_mrvohobed0186240` 分别约 62.7 秒、47.7 秒成功。官转首次 `task_mrvoeka9a8b2afb8` 在 17.6 秒重置且零扣费；间隔复测 `task_mrvolm0c0abfccb6` 约 80.2 秒成功。三条成功任务均没有回退或自动重试。
+- 三张结果均落盘并经生产 URL 200 验证；分别为 1024×1024、1024×1024、1254×1254 的有效 PNG。余额仅按三次成功从 `999929` 扣至 `999899`，最终无活动任务。
+- 普通用户接口已确认官转、高速、Packy 均为 `enabled/active` 且可选 `gpt-image-2`；四个正式容器健康。此次仅重载宿主机 Clash 覆盖，应用源码、Compose 和生产镜像未变化，无需为相同镜像再次构建。
+
+## 2026-07-22 画布 1:1 比例回退诊断
+
+- 只读恢复当前项目节点与三笔任务：节点保存 `size=1x1`，站内请求规范为 `ratio=1:1`，Provider 请求规范为像素 `size`；严格 Lingsuan JSON/multipart 不包含 `ratio` 扩展字段。
+- 两张异常竖图的 Provider 请求均明确包含 `size=1024x1024`，上游却返回 `1139×1381`、`1058×1486`，后端比例警告已命中。最新一次真正的 `4K + 1:1` 请求为 `2880x2880 + high`，失败状态是上游 502，并非本地漏传 4K 或 1:1。
+- `node --check server.js`、54 组尺寸映射与 6 组适配器覆盖测试通过。本轮没有修改代码、部署或发起付费请求。
+
+## 2026-07-22 Clash 关闭影响诊断
+
+- 两笔任务在 Clash 重新监听前约 10 秒直接报 `ECONNREFUSED 192.168.65.254:7890`，确认关闭 Clash 会中断 Docker 的灵算转接入口。
+- 当前 `lingsuan.top` 规则仍固定为 `DIRECT`，更换 VPN 节点不会改变该域名出口；切换期间若 core 重载，会中断正在上传的请求。
+- Clash 恢复后免费探针 4/5 到站，1/5 被远端重置；本轮未发真实生图或修改生产状态。
+
+## 2026-07-22 服务器部署前生图门禁
+
+- 监测到 Packy 4K 用户任务成功返回准确 `2880×2880`，高速专线 1K 用户任务成功返回准确 `1024×1024`；两张正式结果 URL 均为 200。Codex 没有额外提交付费任务。
+- 当前正式容器健康、数据库健康、灵算免费探针 5/5 到站，生产只读 smoke 通过；以“能生图”为门槛可开始准备服务器部署。
+- 高速专线 4K 仍出现过 524，因此不是“所有线路和档位完全稳定”。迁移时优先保留 Packy 默认直连，并按目标服务器实际网络决定灵算代理变量，禁止直接假设目标服务器存在本机 Clash 7890。
+
+## 2026-07-22 服务器直连 Compose 覆盖
+
+- 新增 `docker-compose.server-direct.yml`，目标服务器追加该覆盖后把灵算专用代理显式清空，不安装或依赖 Clash；当前工作站未使用该文件，继续保持 7890 转接。
+- Compose 差分验证确认本机最终值为 `http://host.docker.internal:7890`、服务器最终值为空；两套配置语法均通过。
+- 迁移运行手册、Docker README 和源码发布包必需文件断言已同步；发布包完整性测试通过。本轮未改变当前生产运行状态。
+
+## 2026-07-22 当前内网宿主机改为应用直连
+
+- 用户澄清 Windows 系统代理必须保留给 Codex，实际需要解耦的是当前 `192.168.0.39` 正式 app 与 Clash。探针确认旧容器显式指向 `host.docker.internal:7890`，Windows 用户代理也仍启用；这解释了关闭或重载 Clash 时中转站没有请求记录。
+- 保持系统代理和 Clash 不变，容器无 Key 直连灵算切换前后均连续 10/10 到站。正式 app 已完整重建为 `LINGSUAN_IMAGE_PROXY_URL=`，健康接口与生产只读 smoke 通过；未发送额外付费请求。
+- 正式 Chat Compose 默认同步改为空，避免未来按常规两文件命令重建时恢复 7890。图片专用代理改为 `.env` 显式选择，目标服务器显式清空覆盖继续保留。

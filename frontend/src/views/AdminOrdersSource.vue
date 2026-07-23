@@ -6,7 +6,7 @@ import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
 import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { NButton, NInput, NPagination, NSelect, NTag } from 'naive-ui';
+import { NAlert, NButton, NInput, NPagination, NSelect, NTag } from 'naive-ui';
 import {
   CheckCircle2,
   Clock3,
@@ -30,6 +30,8 @@ const page = ref(1);
 const pageSize = ref(10);
 const keyword = ref('');
 const statusFilter = ref('all');
+const ordersAvailable = ref(false);
+const availabilityMessage = ref('');
 
 const statusOptions = [
   { label: '全部状态', value: 'all' },
@@ -128,6 +130,8 @@ async function loadOrders() {
       pageSize: pageSize.value
     });
     orders.value = data.orders;
+    ordersAvailable.value = data.available;
+    availabilityMessage.value = data.message || '';
     total.value = data.total;
     page.value = data.page;
     pageSize.value = data.pageSize;
@@ -153,7 +157,7 @@ onMounted(loadOrders);
 
 <template>
   <AdminPageShell>
-    <AdminPageHeader eyebrow="Orders" title="订单管理" description="只读迁移版：查看订单号、用户、金额、算力、支付方式和时间，不执行改状态、退款或补单。">
+    <AdminPageHeader eyebrow="Orders" title="订单管理" description="仅展示真实支付订单；支付未接入时不生成演示订单。">
       <template #actions>
           <n-button secondary :loading="loading" @click="loadOrders">
             <template #icon><RefreshCcw :size="16" /></template>
@@ -164,6 +168,10 @@ onMounted(loadOrders);
     </AdminPageHeader>
 
     <AdminFeedback :error-message="errorMessage" />
+
+      <n-alert v-if="!ordersAvailable && availabilityMessage" type="warning" :bordered="false">
+        {{ availabilityMessage }}
+      </n-alert>
 
       <section class="admin-stat-grid" aria-label="订单统计">
         <article v-for="stat in statCards" :key="stat.label">
@@ -221,7 +229,7 @@ onMounted(loadOrders);
               <strong>{{ formatDate(order.paidAt) }}</strong>
             </div>
           </article>
-          <AdminEmptyState v-if="!visibleOrders.length && !loading" message="暂无匹配订单" />
+          <AdminEmptyState v-if="!visibleOrders.length && !loading" :message="ordersAvailable ? '暂无匹配订单' : '支付未启用，暂无真实订单'" />
         </div>
 
         <div class="admin-users-pagination">

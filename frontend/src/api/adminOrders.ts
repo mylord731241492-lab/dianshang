@@ -21,6 +21,9 @@ export interface AdminOrderListParams {
 
 export interface AdminOrderListResponse {
   success?: boolean;
+  available: boolean;
+  code?: string;
+  message?: string;
   items: AdminOrder[];
   orders: AdminOrder[];
   list?: AdminOrder[];
@@ -32,6 +35,9 @@ export interface AdminOrderListResponse {
 
 interface RawAdminOrderListResponse {
   success?: boolean;
+  available?: boolean;
+  code?: string;
+  message?: string;
   items?: AdminOrder[];
   orders?: AdminOrder[];
   list?: AdminOrder[];
@@ -49,6 +55,7 @@ export async function getAdminOrders(params: AdminOrderListParams = {}): Promise
     ...data,
     items: orders,
     orders,
+    available: data.available === true,
     total: Number(data.total ?? orders.length),
     page: Number(data.page ?? params.page ?? 1),
     pageSize: Number(data.pageSize ?? params.pageSize ?? (orders.length || 10))

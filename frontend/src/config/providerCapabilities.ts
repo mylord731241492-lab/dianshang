@@ -49,7 +49,7 @@ export const GPT_IMAGE_2_REQUEST_EXAMPLES: ProviderRequestExample[] = [
   }
 ];
 
-export const GPT_5_5_REQUEST_EXAMPLES: ProviderRequestExample[] = [
+export const GPT_5_6_TERRA_REQUEST_EXAMPLES: ProviderRequestExample[] = [
   {
     label: '文本生成',
     capability: 'text.responses',
@@ -58,7 +58,7 @@ export const GPT_5_5_REQUEST_EXAMPLES: ProviderRequestExample[] = [
     contentType: 'application/json',
     requestFormat: 'openai-responses',
     body: {
-      model: 'gpt-5.5',
+      model: 'gpt-5.6-terra',
       input: 'string'
     }
   }
@@ -66,7 +66,7 @@ export const GPT_5_5_REQUEST_EXAMPLES: ProviderRequestExample[] = [
 
 export const PROVIDER_CAPABILITY_REGISTRY: Record<string, ProviderRequestExample[]> = {
   'gpt-image-2': GPT_IMAGE_2_REQUEST_EXAMPLES,
-  'gpt-5.5': GPT_5_5_REQUEST_EXAMPLES
+  'gpt-5.6-terra': GPT_5_6_TERRA_REQUEST_EXAMPLES
 };
 
 export function getProviderRequestExamples(modelKey?: string) {

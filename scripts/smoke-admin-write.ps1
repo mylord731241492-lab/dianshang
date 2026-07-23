@@ -59,6 +59,13 @@ $userId = $registered.user.id
 if (-not $userId) {
   throw "Registered user missing id"
 }
+$userHeaders = @{ Authorization = "Bearer $($registered.token)" }
+$balanceBeforeAdjust = 0
+if ($null -ne $registered.user.balance) {
+  $balanceBeforeAdjust = [double]$registered.user.balance
+} elseif ($null -ne $registered.user.credits) {
+  $balanceBeforeAdjust = [double]$registered.user.credits
+}
 
 $disabledUser = Invoke-SmokeJson -Method "PATCH" -Path "/api/admin/users/$userId/status" -Headers $adminHeaders -Body @{
   status = "disabled"
@@ -68,10 +75,10 @@ if (-not $disabledUser.success -or $disabledUser.user.status -ne "disabled") {
 }
 
 $adjustedUser = Invoke-SmokeJson -Method "POST" -Path "/api/admin/users/$userId/balance" -Headers $adminHeaders -Body @{
-  amount = 7
+  amount = 27
   remark = "admin write smoke balance adjust"
 }
-if (-not $adjustedUser.success -or $adjustedUser.user.balance -lt 57) {
+if (-not $adjustedUser.success -or [math]::Abs(([double]$adjustedUser.user.balance) - ($balanceBeforeAdjust + 27)) -gt 0.001) {
   throw "User balance adjust failed"
 }
 
@@ -85,6 +92,32 @@ $resetPassword = Invoke-SmokeJson -Method "POST" -Path "/api/admin/users/$userId
 }
 if (-not $resetPassword.success) {
   throw "User reset password failed"
+}
+
+$generated = Invoke-SmokeJson -Method "POST" -Path "/api/template/generate-image" -Headers $userHeaders -Body @{
+  templateType = "main-image"
+  selectedPrompt = "admin core actions smoke image"
+  imageModel = "gpt-image-2"
+  imageCount = 1
+  ratio = "1:1"
+  quality = "1K"
+}
+if (-not $generated.success -or -not $generated.taskId) {
+  throw "Generation history setup failed"
+}
+
+$tasksBeforeDelete = Invoke-SmokeJson -Method "GET" -Path "/api/admin/generate-tasks" -Headers $adminHeaders
+$historyTask = $tasksBeforeDelete.items | Where-Object { $_.id -like "gen_*" -and $_.userId -eq $userId } | Select-Object -First 1
+if (-not $historyTask) {
+  throw "Generation history row missing before admin delete"
+}
+$deletedTask = Invoke-SmokeJson -Method "DELETE" -Path "/api/admin/generate-tasks/$($historyTask.id)" -Headers $adminHeaders
+if (-not $deletedTask.success -or $deletedTask.source -ne "history") {
+  throw "Generation history delete failed"
+}
+$tasksAfterDelete = Invoke-SmokeJson -Method "GET" -Path "/api/admin/generate-tasks" -Headers $adminHeaders
+if ($tasksAfterDelete.items | Where-Object { $_.id -eq $historyTask.id }) {
+  throw "Deleted generation history row is still visible"
 }
 
 $deletedUser = Invoke-SmokeJson -Method "DELETE" -Path "/api/admin/users/$userId" -Headers $adminHeaders -Body @{
@@ -119,12 +152,8 @@ if (-not $purgedUser.success) {
 }
 
 $orders = Invoke-SmokeJson -Method "GET" -Path "/api/admin/orders" -Headers $adminHeaders
-$orderId = $orders.items[0].id
-$closedOrder = Invoke-SmokeJson -Method "PATCH" -Path "/api/admin/orders/$orderId/status" -Headers $adminHeaders -Body @{
-  status = "closed"
-}
-if (-not $closedOrder.success -or $closedOrder.status -ne "closed") {
-  throw "Order status patch failed"
+if ($orders.available -ne $false -or $orders.items.Count -ne 0) {
+  throw "Orders should remain unavailable while payment storage is disabled"
 }
 
 $code = "AW" + (Get-Date -Format "MMddHHmmss")
@@ -223,6 +252,10 @@ if (-not $disabledModel.success -or $disabledModel.enabled -ne $false) {
 $deletedModel = Invoke-SmokeJson -Method "DELETE" -Path "/api/admin/route-models/$modelId" -Headers $adminHeaders
 if (-not $deletedModel.success) {
   throw "Route model delete failed"
+}
+$pricesAfterDelete = Invoke-SmokeJson -Method "GET" -Path "/api/admin/model-prices" -Headers $adminHeaders
+if ($pricesAfterDelete.models | Where-Object { $_.id -eq $modelId }) {
+  throw "Deleted route model is still visible"
 }
 
 $deletedRoute = Invoke-SmokeJson -Method "DELETE" -Path "/api/admin/api-providers/$routeId" -Headers $adminHeaders

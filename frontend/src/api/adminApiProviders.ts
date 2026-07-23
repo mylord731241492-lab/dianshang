@@ -1,6 +1,6 @@
 import { http } from './http';
 import type { AdminModelPriceModel } from './adminModelPrices';
-import { GPT_5_5_REQUEST_EXAMPLES, GPT_IMAGE_2_REQUEST_EXAMPLES } from '../config/providerCapabilities';
+import { GPT_5_6_TERRA_REQUEST_EXAMPLES, GPT_IMAGE_2_REQUEST_EXAMPLES } from '../config/providerCapabilities';
 
 export interface AdminApiProviderRequestExample {
   label: string;
@@ -57,6 +57,9 @@ export interface AdminApiProvider {
   chatEndpoint?: string;
   imageEndpoint?: string;
   imageEditEndpoint?: string;
+  imageResponseFormat?: 'url' | 'b64_json';
+  imageStream?: boolean;
+  imagePartialImages?: number;
   videoEndpoint?: string;
   defaultTextModel?: string;
   defaultImageModel?: string;
@@ -136,6 +139,9 @@ export const OFFICIAL_DUAL_API_PROVIDERS: AdminApiProvider[] = [
     requestPath: '/images/generations',
     imageEndpoint: '/v1/images/generations',
     imageEditEndpoint: '/v1/images/edits',
+    imageResponseFormat: 'url',
+    imageStream: false,
+    imagePartialImages: 0,
     requestExamples: GPT_IMAGE_2_REQUEST_EXAMPLES,
     requestBodyExample: {
       model: 'gpt-image-2',
@@ -150,24 +156,24 @@ export const OFFICIAL_DUAL_API_PROVIDERS: AdminApiProvider[] = [
   {
     id: 'pub_route_openai_gpt_5_5',
     routeKey: 'route_openai_gpt_5_5',
-    name: 'GPT 5.5',
-    displayName: 'GPT 5.5',
+    name: 'GPT 5.6 Terra',
+    displayName: 'GPT 5.6 Terra',
     type: 'text',
     category: 'text',
     group: 'text',
     enabled: true,
     status: 'active',
     priority: 9,
-    defaultModelKey: 'gpt-5.5',
-    defaultModelRealName: 'gpt-5.5',
-    defaultModelDisplayName: 'GPT 5.5',
+    defaultModelKey: 'gpt-5.6-terra',
+    defaultModelRealName: 'gpt-5.6-terra',
+    defaultModelDisplayName: 'GPT 5.6 Terra',
     apiFormat: 'openai-responses',
     requestFormat: 'openai-responses',
     endpoint: '/responses',
     requestPath: '/responses',
-    requestExamples: GPT_5_5_REQUEST_EXAMPLES,
+    requestExamples: GPT_5_6_TERRA_REQUEST_EXAMPLES,
     requestBodyExample: {
-      model: 'gpt-5.5',
+      model: 'gpt-5.6-terra',
       input: 'string'
     }
   }

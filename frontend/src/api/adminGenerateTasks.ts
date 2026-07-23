@@ -41,6 +41,7 @@ export interface AdminGenerateTaskSummary {
   success?: number;
   failed?: number;
   queueMode?: string;
+  dataScope?: string;
 }
 
 export interface AdminGenerateTaskListParams {
@@ -94,4 +95,19 @@ export async function getAdminGenerateTasks(
     pageSize: Number(data.pageSize ?? params.pageSize ?? (tasks.length || 10)),
     summary: data.summary || {}
   };
+}
+
+export async function cancelAdminGenerateTask(id: string, reason = '管理员取消') {
+  const response = await http.post<{ success: boolean; id: string; status: string }>(
+    `/api/admin/generate-tasks/${encodeURIComponent(id)}/cancel`,
+    { reason }
+  );
+  return response.data;
+}
+
+export async function deleteAdminGenerateTask(id: string) {
+  const response = await http.delete<{ success: boolean; id: string; source?: string }>(
+    `/api/admin/generate-tasks/${encodeURIComponent(id)}`
+  );
+  return response.data;
 }

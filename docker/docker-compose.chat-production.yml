@@ -1,0 +1,11 @@
+services:
+  app:
+    # In unified-gateway mode the app is reachable only on the Compose network.
+    ports: !reset []
+    environment:
+      # 默认直连 lingsuan.top；只有在 .env 明确配置时才启用图片专用代理。
+      LINGSUAN_IMAGE_PROXY_URL: ${LINGSUAN_IMAGE_PROXY_URL:-}
+
+  gateway:
+    ports: !override
+      - "${CHAT_GATEWAY_PORT:-3456}:80"

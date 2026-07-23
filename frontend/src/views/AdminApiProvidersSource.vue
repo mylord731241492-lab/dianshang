@@ -56,6 +56,9 @@ interface ProviderForm {
   chatEndpoint: string;
   imageEndpoint: string;
   imageEditEndpoint: string;
+  imageResponseFormat: 'url' | 'b64_json';
+  imageStream: boolean;
+  imagePartialImages: string;
   videoEndpoint: string;
   defaultTextModel: string;
   defaultImageModel: string;
@@ -94,6 +97,9 @@ const emptyForm = (): ProviderForm => ({
   chatEndpoint: '',
   imageEndpoint: '',
   imageEditEndpoint: '',
+  imageResponseFormat: 'url',
+  imageStream: false,
+  imagePartialImages: '0',
   videoEndpoint: '',
   defaultTextModel: '',
   defaultImageModel: '',
@@ -106,6 +112,11 @@ const emptyForm = (): ProviderForm => ({
 });
 
 const form = ref<ProviderForm>(emptyForm());
+const LINGSUAN_IMAGES_API_FORMAT = 'lingsuan-images';
+const PACKY_IMAGES_API_FORMAT = 'packy-images';
+const isLingsuanImagesFormat = computed(() => form.value.apiFormat === LINGSUAN_IMAGES_API_FORMAT);
+const isPackyImagesFormat = computed(() => form.value.apiFormat === PACKY_IMAGES_API_FORMAT);
+const isStrictImagesFormat = computed(() => isLingsuanImagesFormat.value || isPackyImagesFormat.value);
 
 const typeOptions = [
   { label: '全部线路', value: 'all' },
@@ -126,8 +137,15 @@ const categoryOptions = [
 const formatOptions = [
   { label: 'OpenAI 兼容', value: 'openai' },
   { label: 'OpenAI Images', value: 'openai-images' },
+  { label: 'Lingsuan Images', value: LINGSUAN_IMAGES_API_FORMAT },
+  { label: 'Packy Images', value: PACKY_IMAGES_API_FORMAT },
   { label: 'OpenAI Responses', value: 'openai-responses' },
   { label: 'New-API 兼容', value: 'new-api' }
+];
+
+const imageResponseFormatOptions = [
+  { label: 'URL', value: 'url' },
+  { label: 'Base64（b64_json）', value: 'b64_json' }
 ];
 
 const visibleProviders = computed(() => {
@@ -179,28 +197,117 @@ const statCards = computed(() => {
 
 const officialRoutes = OFFICIAL_DUAL_API_PROVIDERS;
 
-const defaultReferenceItems = [
-  {
-    label: 'Base URL',
-    value: 'https://www.packyapi.com/v1',
-    note: 'Packy / New-API 中转站根地址；保存时请按实际渠道域名替换。'
-  },
-  {
-    label: '文生图接口',
-    value: '/images/generations',
-    note: '{"model":"gpt-image-2","prompt":"string","size":"1024x1024","quality":"auto","output_format":"png","response_format":"url","n":1}；n 固定 1，多张由后端循环。'
-  },
-  {
-    label: '图生图接口',
-    value: '/images/edits',
-    note: 'multipart/form-data：model=gpt-image-2，image=<file>，mask=<file optional>，prompt=string，size=1024x1024，quality=auto，output_format=png，response_format=url，n=1。'
-  },
-  {
-    label: '文本接口',
-    value: '/responses',
-    note: '{"model":"gpt-5.5","input":"string"}'
+const defaultReferenceItems = computed(() => {
+  if (form.value.category === 'text') {
+    return [
+      {
+        label: '当前 Base URL',
+        value: form.value.baseUrl || '未填写',
+        note: '来自当前线路表单。'
+      },
+      {
+        label: '当前文本接口',
+        value: form.value.chatEndpoint || '/responses',
+        note: JSON.stringify({ model: form.value.defaultTextModel || 'gpt-5.6-terra', input: 'string' })
+      }
+    ];
   }
-];
+  if (form.value.category === 'video') {
+    return [
+      {
+        label: '当前 Base URL',
+        value: form.value.baseUrl || '未填写',
+        note: '来自当前线路表单。'
+      },
+      {
+        label: '当前视频接口',
+        value: form.value.videoEndpoint || '/videos/generations',
+        note: JSON.stringify({ model: form.value.defaultVideoModel || '未填写', prompt: 'string' })
+      }
+    ];
+  }
+  if (isLingsuanImagesFormat.value) {
+    return [
+      {
+        label: '当前 Base URL',
+        value: form.value.baseUrl || '未填写',
+        note: 'Lingsuan Images 只使用当前线路填写的 Base URL。'
+      },
+      {
+        label: '当前文生图接口',
+        value: '/v1/images/generations',
+        note: JSON.stringify({
+          model: form.value.defaultImageModel || 'gpt-image-2',
+          prompt: 'string',
+          size: '1024x1024',
+          quality: 'high',
+          output_format: 'png',
+          n: 1
+        })
+      },
+      {
+        label: '当前图生图接口',
+        value: '/v1/images/edits',
+        note: `multipart/form-data：model=${form.value.defaultImageModel || 'gpt-image-2'}，image[]=<file>，prompt=string，size=1024x1024，quality=high，output_format=png，n=1。返回使用官方非流式 JSON data[].b64_json。`
+      }
+    ];
+  }
+  if (isPackyImagesFormat.value) {
+    return [
+      {
+        label: '当前 Base URL',
+        value: form.value.baseUrl || '未填写',
+        note: 'Packy Images 只使用当前线路填写的 Base URL。'
+      },
+      {
+        label: '当前文生图接口',
+        value: '/v1/images/generations',
+        note: JSON.stringify({
+          model: form.value.defaultImageModel || 'gpt-image-2',
+          prompt: 'string',
+          size: '1024x1024',
+          quality: 'high',
+          output_format: 'png',
+          n: 1
+        })
+      },
+      {
+        label: '当前图生图接口',
+        value: '/v1/images/edits',
+        note: `multipart/form-data：model=${form.value.defaultImageModel || 'gpt-image-2'}，image=<file>，prompt=string，size=1024x1024，quality=high，output_format=png，n=1。Packy Images 不发送 response_format，返回 URL 或 Base64 均自动识别。`
+      }
+    ];
+  }
+  const responseFields = {
+    response_format: form.value.imageResponseFormat,
+    ...(form.value.imageStream
+      ? { stream: true, partial_images: Number(form.value.imagePartialImages || 0) }
+      : {})
+  };
+  return [
+    {
+      label: '当前 Base URL',
+      value: form.value.baseUrl || '未填写',
+      note: '来自当前线路表单，不会套用其他线路域名。'
+    },
+    {
+      label: '当前文生图接口',
+      value: form.value.imageEndpoint || '/v1/images/generations',
+      note: JSON.stringify({
+        model: form.value.defaultImageModel || 'gpt-image-2',
+        prompt: 'string',
+        size: '1024x1024',
+        ...responseFields,
+        n: 1
+      })
+    },
+    {
+      label: '当前图生图接口',
+      value: form.value.imageEditEndpoint || '/v1/images/edits',
+      note: `multipart/form-data：model=${form.value.defaultImageModel || 'gpt-image-2'}，image=<file>，prompt=string，size=1024x1024，response_format=${form.value.imageResponseFormat}${form.value.imageStream ? `，stream=true，partial_images=${Number(form.value.imagePartialImages || 0)}` : ''}，n=1。`
+    }
+  ];
+});
 
 const dualRouteReady = computed(() => {
   const currentKeys = new Set(providers.value.map((provider) => routeKeyOf(provider)));
@@ -210,7 +317,7 @@ const dualRouteReady = computed(() => {
     currentKeys.has('route_openai_gpt_image_2') &&
     currentKeys.has('route_openai_gpt_5_5') &&
     currentModels.has('gpt-image-2') &&
-    currentModels.has('gpt-5.5')
+    currentModels.has('gpt-5.6-terra')
   );
 });
 
@@ -296,7 +403,7 @@ function requestFormatLabel(provider: AdminApiProvider) {
 
 function fallbackRequestExample(provider: AdminApiProvider) {
   if (providerTypeOf(provider) === 'text') {
-    return { model: 'gpt-5.5', input: 'string' };
+    return { model: 'gpt-5.6-terra', input: 'string' };
   }
   return { model: 'gpt-image-2', prompt: 'string', size: '1024x1024', quality: 'auto', n: 1 };
 }
@@ -320,6 +427,17 @@ function startCreate() {
   errorMessage.value = '';
 }
 
+function applyApiFormatDefaults(value: string | null) {
+  if (value !== LINGSUAN_IMAGES_API_FORMAT && value !== PACKY_IMAGES_API_FORMAT) return;
+  form.value.category = 'image';
+  form.value.imageEndpoint = '/v1/images/generations';
+  form.value.imageEditEndpoint = '/v1/images/edits';
+  form.value.imageResponseFormat = value === LINGSUAN_IMAGES_API_FORMAT ? 'b64_json' : 'url';
+  form.value.imageStream = false;
+  form.value.imagePartialImages = '0';
+  if (!form.value.defaultImageModel.trim()) form.value.defaultImageModel = 'gpt-image-2';
+}
+
 function startEdit(provider: AdminApiProvider) {
   const type = providerTypeOf(provider);
   const providerEndpoint = provider.endpoint || provider.requestPath || '';
@@ -335,6 +453,9 @@ function startEdit(provider: AdminApiProvider) {
     chatEndpoint: provider.chatEndpoint || (type === 'text' ? providerEndpoint : ''),
     imageEndpoint: provider.imageEndpoint || (type === 'image' && providerEndpoint.includes('/generations') ? providerEndpoint : '/v1/images/generations'),
     imageEditEndpoint: provider.imageEditEndpoint || (type === 'image' && providerEndpoint.includes('/edits') ? providerEndpoint : '/v1/images/edits'),
+    imageResponseFormat: provider.imageResponseFormat === 'b64_json' ? 'b64_json' : 'url',
+    imageStream: provider.imageStream === true,
+    imagePartialImages: String(provider.imagePartialImages ?? 0),
     videoEndpoint: provider.videoEndpoint || (type === 'video' ? providerEndpoint : ''),
     defaultTextModel: provider.defaultTextModel || (type === 'text' ? provider.defaultModelKey || '' : ''),
     defaultImageModel: provider.defaultImageModel || (type === 'image' ? provider.defaultModelKey || '' : ''),
@@ -345,6 +466,7 @@ function startEdit(provider: AdminApiProvider) {
     isDefault: defaultOf(provider),
     remark: provider.remark || provider.note || ''
   };
+  applyApiFormatDefaults(form.value.apiFormat);
   editingId.value = providerIdOf(provider);
   formOpen.value = true;
   successMessage.value = '';
@@ -373,13 +495,16 @@ async function copyReference(item: { label: string; value: string; note: string 
   const text = `${item.label}: ${item.value}\n${item.note}`;
   try {
     await navigator.clipboard.writeText(text);
-    successMessage.value = `已复制 ${item.label} 默认格式；不会写入线路记录。`;
+    successMessage.value = `已复制 ${item.label} 请求参考。`;
   } catch {
     errorMessage.value = '复制失败，请手动选中文本复制。';
   }
 }
 
 function buildPayload(): AdminApiProviderPayload {
+  const lingsuanImages = isLingsuanImagesFormat.value;
+  const packyImages = isPackyImagesFormat.value;
+  const strictImages = lingsuanImages || packyImages;
   const payload: AdminApiProviderPayload = {
     name: form.value.name.trim() || form.value.displayName.trim(),
     displayName: form.value.displayName.trim() || form.value.name.trim(),
@@ -391,11 +516,14 @@ function buildPayload(): AdminApiProviderPayload {
     apiFormat: form.value.apiFormat,
     requestFormat: form.value.apiFormat,
     baseUrl: form.value.baseUrl.trim(),
-    endpoint: selectedEndpoint(),
-    requestPath: selectedEndpoint(),
+    endpoint: strictImages ? '/v1/images/generations' : selectedEndpoint(),
+    requestPath: strictImages ? '/v1/images/generations' : selectedEndpoint(),
     chatEndpoint: form.value.chatEndpoint.trim(),
-    imageEndpoint: form.value.imageEndpoint.trim(),
-    imageEditEndpoint: form.value.imageEditEndpoint.trim(),
+    imageEndpoint: strictImages ? '/v1/images/generations' : form.value.imageEndpoint.trim(),
+    imageEditEndpoint: strictImages ? '/v1/images/edits' : form.value.imageEditEndpoint.trim(),
+    imageResponseFormat: lingsuanImages ? 'b64_json' : (packyImages ? 'url' : form.value.imageResponseFormat),
+    imageStream: strictImages ? false : form.value.imageStream,
+    imagePartialImages: strictImages ? 0 : Number(form.value.imagePartialImages || 0),
     videoEndpoint: form.value.videoEndpoint.trim(),
     defaultModelKey: selectedDefaultModel(),
     defaultModelRealName: selectedDefaultModel(),
@@ -424,6 +552,12 @@ function validateForm() {
   if (!form.value.baseUrl.trim()) return '请填写 Base URL。';
   if (!selectedEndpoint()) return '请填写当前渠道的接口路径。';
   if (!selectedDefaultModel()) return '请填写当前渠道的默认模型。';
+  if (form.value.category === 'image') {
+    const partialImages = Number(form.value.imagePartialImages || 0);
+    if (!Number.isInteger(partialImages) || partialImages < 0 || partialImages > 3) {
+      return '流式预览数量必须是 0 到 3 的整数。';
+    }
+  }
   return '';
 }
 
@@ -544,7 +678,7 @@ async function testProvider(provider: AdminApiProvider) {
 
 async function applyOfficialDualRoutes() {
   const confirmed = window.confirm(
-    '将删除当前所有旧 API 线路，只保留 GPT Image 2 和 GPT 5.5 两条官方格式线路。此操作会写入本地后端配置，继续吗？'
+    '将删除当前所有旧 API 线路，只保留 GPT Image 2 和 GPT 5.6 Terra 两条官方格式线路。此操作会写入本地后端配置，继续吗？'
   );
   if (!confirmed) return;
   saving.value = true;
@@ -556,7 +690,7 @@ async function applyOfficialDualRoutes() {
     total.value = data.total;
     page.value = data.page;
     pageSize.value = data.pageSize;
-    successMessage.value = '已替换为官方双线路：GPT Image 2 使用 /images/generations 与 /images/edits，GPT 5.5 使用 /responses。';
+    successMessage.value = '已替换为官方双线路：GPT Image 2 使用 /images/generations 与 /images/edits，GPT 5.6 Terra 使用 /responses。';
   } catch (error) {
     errorMessage.value = getApiErrorMessage(error, '官方双线路写入失败');
   } finally {
@@ -617,10 +751,10 @@ onMounted(loadProviders);
           </n-button>
         </div>
 
-        <div class="admin-api-default-reference" aria-label="默认格式参考">
+        <div class="admin-api-default-reference" aria-label="当前线路请求预览">
           <div>
-            <strong>默认格式参考</strong>
-            <span>仅用于复制，不会自动保存到线路记录。</span>
+            <strong>当前线路请求预览</strong>
+            <span>随当前表单更新；保存时只写入这条线路，不影响其他线路。</span>
           </div>
           <button
             v-for="item in defaultReferenceItems"
@@ -634,7 +768,7 @@ onMounted(loadProviders);
           </button>
         </div>
 
-        <form class="form-grid admin-api-provider-form" @submit.prevent="saveProvider">
+        <form class="form-grid admin-api-provider-form" data-testid="api-provider-form" @submit.prevent="saveProvider">
           <label>
             后端真实名称 *
             <n-input v-model:value="form.name" placeholder="例如 new-api-main" />
@@ -654,7 +788,7 @@ onMounted(loadProviders);
           </label>
           <label>
             接口格式
-            <n-select v-model:value="form.apiFormat" clearable placeholder="例如 openai-images / openai-responses" :options="formatOptions" />
+            <n-select v-model:value="form.apiFormat" clearable placeholder="例如 openai-images / openai-responses" :options="formatOptions" @update:value="applyApiFormatDefaults" />
           </label>
           <label class="admin-api-field-wide">
             Base URL *
@@ -669,17 +803,35 @@ onMounted(loadProviders);
           <label>
             聊天接口
             <n-input v-model:value="form.chatEndpoint" placeholder="/responses" />
-            <small>GPT 5.5 默认参考：/responses。</small>
+            <small>GPT 5.6 Terra 默认参考：/responses。</small>
           </label>
           <label>
             文生图接口
-            <n-input v-model:value="form.imageEndpoint" placeholder="/v1/images/generations" />
-            <small>GPT Image 2 文生图默认参考：/v1/images/generations。</small>
+            <n-input v-model:value="form.imageEndpoint" :disabled="isStrictImagesFormat" placeholder="/v1/images/generations" />
+            <small>{{ isStrictImagesFormat ? '当前严格 Images 规则固定使用 /v1/images/generations。' : 'GPT Image 2 文生图默认参考：/v1/images/generations。' }}</small>
           </label>
           <label>
             图生图接口
-            <n-input v-model:value="form.imageEditEndpoint" placeholder="/v1/images/edits" />
-            <small>GPT Image 2 图生图 / 局部重绘默认参考：/v1/images/edits。</small>
+            <n-input v-model:value="form.imageEditEndpoint" :disabled="isStrictImagesFormat" placeholder="/v1/images/edits" />
+            <small>{{ isLingsuanImagesFormat ? 'Lingsuan Images 固定使用 /v1/images/edits 和 image[]。' : (isPackyImagesFormat ? 'Packy Images 固定使用 /v1/images/edits 和单数 image。' : 'GPT Image 2 图生图 / 局部重绘默认参考：/v1/images/edits。') }}</small>
+          </label>
+          <label v-if="form.category === 'image'">
+            图片返回格式
+            <n-select v-model:value="form.imageResponseFormat" :disabled="isStrictImagesFormat" :options="imageResponseFormatOptions" />
+            <small>{{ isLingsuanImagesFormat ? '规则固定解析官方非流式 JSON data[].b64_json。' : (isPackyImagesFormat ? 'Packy 请求不发送 response_format；URL 与 Base64 返回均自动识别。' : '保存到当前线路；URL 与 Base64 不再由域名自动判断。') }}</small>
+          </label>
+          <label v-if="form.category === 'image'" class="admin-api-switch-row">
+            流式返图
+            <span>
+              <input v-model="form.imageStream" type="checkbox" :disabled="isStrictImagesFormat" />
+              {{ form.imageStream ? '启用 SSE' : '非流式' }}
+            </span>
+            <small>{{ isLingsuanImagesFormat ? 'Lingsuan Images 固定非流式，避免上游缩小 2K/4K 结果。' : (isPackyImagesFormat ? 'Packy Images 固定非流式且不发送 stream 字段。' : '只控制当前线路，不改变其他线路。') }}</small>
+          </label>
+          <label v-if="form.category === 'image' && form.imageStream && !isStrictImagesFormat">
+            流式预览数量
+            <n-input v-model:value="form.imagePartialImages" placeholder="0" />
+            <small>0 表示只接收最终图；可填写 0–3。</small>
           </label>
           <label>
             视频接口
@@ -687,7 +839,7 @@ onMounted(loadProviders);
           </label>
           <label>
             默认聊天模型
-            <n-input v-model:value="form.defaultTextModel" placeholder="gpt-5.5" />
+            <n-input v-model:value="form.defaultTextModel" placeholder="gpt-5.6-terra" />
             <small>仅在你输入后才保存。</small>
           </label>
           <label>
@@ -792,6 +944,10 @@ onMounted(loadProviders);
               <span>{{ requestFormatLabel(provider) }}</span>
               <strong>{{ endpointOf(provider) }}</strong>
               <small>{{ requestExamplesOf(provider).map((example) => `${example.label}: ${example.endpoint}`).join(' / ') }}</small>
+              <small v-if="providerTypeOf(provider) === 'image'">
+                {{ provider.imageStream ? 'SSE 流式' : '非流式' }} · {{ provider.imageResponseFormat || 'url' }}
+                <template v-if="provider.imageStream"> · partial {{ provider.imagePartialImages ?? 0 }}</template>
+              </small>
             </div>
             <div class="admin-api-provider-meta">
               <span>{{ defaultOf(provider) ? '默认线路' : '普通线路' }}</span>

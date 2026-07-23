@@ -23,6 +23,7 @@ $oldUploadDir = $env:UPLOAD_DIR
 $oldLogDir = $env:LOG_DIR
 $oldSmokeBaseUrl = $env:SMOKE_BASE_URL
 $oldSmokeAllowWrites = $env:SMOKE_ALLOW_WRITES
+$oldEnableRealAi = $env:ENABLE_REAL_AI
 $proc = $null
 
 try {
@@ -31,6 +32,7 @@ try {
   $env:DB_PATH = Join-Path $dataDir "data.db"
   $env:UPLOAD_DIR = $uploadDir
   $env:LOG_DIR = $logDir
+  $env:ENABLE_REAL_AI = "false"
 
   $proc = Start-Process -FilePath "node" `
     -ArgumentList "server.js" `
@@ -64,6 +66,9 @@ try {
   $env:SMOKE_BASE_URL = "http://127.0.0.1:$port"
   $env:SMOKE_ALLOW_WRITES = "true"
   powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "smoke-admin-write.ps1")
+  if ($LASTEXITCODE -ne 0) {
+    throw "Disposable admin write smoke failed with exit code $LASTEXITCODE"
+  }
   Write-Host "Disposable admin write smoke checks passed with temp data dir: $dataDir"
 } finally {
   if ($proc -and -not $proc.HasExited) {
@@ -80,6 +85,7 @@ try {
   if ($null -eq $oldLogDir) { Remove-Item Env:\LOG_DIR -ErrorAction SilentlyContinue } else { $env:LOG_DIR = $oldLogDir }
   if ($null -eq $oldSmokeBaseUrl) { Remove-Item Env:\SMOKE_BASE_URL -ErrorAction SilentlyContinue } else { $env:SMOKE_BASE_URL = $oldSmokeBaseUrl }
   if ($null -eq $oldSmokeAllowWrites) { Remove-Item Env:\SMOKE_ALLOW_WRITES -ErrorAction SilentlyContinue } else { $env:SMOKE_ALLOW_WRITES = $oldSmokeAllowWrites }
+  if ($null -eq $oldEnableRealAi) { Remove-Item Env:\ENABLE_REAL_AI -ErrorAction SilentlyContinue } else { $env:ENABLE_REAL_AI = $oldEnableRealAi }
 
   if ($env:SMOKE_KEEP_TEMP -ne "true") {
     $resolvedTempRoot = Resolve-Path $tempRoot -ErrorAction SilentlyContinue

@@ -40,6 +40,11 @@ export function saveAuthSession(data: AuthResponse) {
 
 export function readAuthUser() {
   try {
+    const token = window.localStorage.getItem('auth_token');
+    if (!token) {
+      window.localStorage.removeItem('auth_user');
+      return null;
+    }
     const raw = window.localStorage.getItem('auth_user');
     return raw ? (JSON.parse(raw) as AuthUser) : null;
   } catch {

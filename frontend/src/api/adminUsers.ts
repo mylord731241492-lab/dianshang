@@ -56,3 +56,49 @@ export async function getAdminUsers(params: AdminUserListParams = {}): Promise<A
     pageSize: Number(data.pageSize ?? params.pageSize ?? (users.length || 10))
   };
 }
+
+export interface AdminUserMutationResponse {
+  success: boolean;
+  user?: AdminUser;
+  message?: string;
+  riskLevel?: string;
+  checks?: string[];
+}
+
+export async function updateAdminUserStatus(id: string, status: string) {
+  const response = await http.patch<AdminUserMutationResponse>(
+    `/api/admin/users/${encodeURIComponent(id)}/status`,
+    { status }
+  );
+  return response.data;
+}
+
+export async function adjustAdminUserBalance(id: string, amount: number, remark: string) {
+  const response = await http.post<AdminUserMutationResponse>(
+    `/api/admin/users/${encodeURIComponent(id)}/balance`,
+    { amount, remark }
+  );
+  return response.data;
+}
+
+export async function checkAdminUserSecurity(id: string) {
+  const response = await http.post<AdminUserMutationResponse>(
+    `/api/admin/users/${encodeURIComponent(id)}/security-check`
+  );
+  return response.data;
+}
+
+export async function resetAdminUserPassword(id: string, password: string) {
+  const response = await http.post<AdminUserMutationResponse>(
+    `/api/admin/users/${encodeURIComponent(id)}/reset-password`,
+    { password }
+  );
+  return response.data;
+}
+
+export async function deleteAdminUser(id: string) {
+  const response = await http.delete<AdminUserMutationResponse>(
+    `/api/admin/users/${encodeURIComponent(id)}`
+  );
+  return response.data;
+}

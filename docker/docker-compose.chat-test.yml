@@ -1,0 +1,138 @@
+name: dianshang-chat-test
+
+services:
+  app:
+    init: true
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:20-bookworm}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3456
+      JWT_SECRET: ${CHAT_TEST_JWT_SECRET:-7f5b9c0ed893a6412d68f2a14c963be5b740ac817d32e65f90c4a7b1832ed956}
+      ADMIN_BOOTSTRAP_USERNAME: chat-test-admin
+      ADMIN_BOOTSTRAP_PASSWORD: ${CHAT_TEST_ADMIN_PASSWORD:-ChatTestAdminPass2026!}
+      DATA_DIR: /app/data
+      DB_PATH: /app/data/data.db
+      WORKFLOW_DIR: /app/data/workflows
+      UPLOAD_DIR: /app/uploads
+      LOG_DIR: /app/logs
+      ENABLE_REAL_AI: ${CHAT_TEST_ENABLE_REAL_AI:-false}
+      ENABLE_REAL_EMAIL: "false"
+      ENABLE_REAL_PAYMENT: "false"
+      ENABLE_REAL_STORAGE: "false"
+      ENABLE_LIBRECHAT: "true"
+      LIBRECHAT_BRIDGE_SECRET: ${CHAT_TEST_BRIDGE_SECRET:-chat-test-bridge-secret-20260710-strong}
+      LIBRECHAT_SSO_TTL_SECONDS: 60
+      LIBRECHAT_INTERNAL_URL: http://librechat:3080
+      AI_PROVIDER_GATEWAY: ${AI_PROVIDER_GATEWAY:-new-api}
+      AI_API_BASE: ${AI_API_BASE:-}
+      AI_TEXT_KEY: ${AI_TEXT_KEY:-}
+      AI_IMAGE_KEY: ${AI_IMAGE_KEY:-}
+      AI_TEXT_MODEL: ${AI_TEXT_MODEL:-gpt-5.6-terra}
+      AI_IMAGE_MODEL: ${AI_IMAGE_MODEL:-gpt-image-2}
+      NEW_API_BASE: ${NEW_API_BASE:-}
+      NEW_API_KEY: ${NEW_API_KEY:-}
+    volumes:
+      - app_test_data:/app/data
+      - app_test_uploads:/app/uploads
+      - app_test_logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3456/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  chat-mongodb:
+    image: mongo:8.0.17
+    restart: unless-stopped
+    command: mongod --noauth
+    volumes:
+      - chat_test_mongodb:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  librechat:
+    build:
+      context: ..
+      dockerfile: integrations/librechat/Dockerfile
+      args:
+        HTTP_PROXY: ${LIBRECHAT_BUILD_PROXY:-}
+        HTTPS_PROXY: ${LIBRECHAT_BUILD_PROXY:-}
+        NO_PROXY: ${LIBRECHAT_BUILD_NO_PROXY:-localhost,127.0.0.1}
+    image: dianshang-librechat:v0.8.6-rc1-hjm1
+    restart: unless-stopped
+    depends_on:
+      chat-mongodb:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3080
+      MONGO_URI: mongodb://chat-mongodb:27017/LibreChat
+      DOMAIN_CLIENT: ${CHAT_TEST_PUBLIC_ORIGIN:-http://192.168.0.39:3457}/chat
+      DOMAIN_SERVER: ${CHAT_TEST_PUBLIC_ORIGIN:-http://192.168.0.39:3457}/chat
+      APP_TITLE: 哈吉米 AI 对话
+      CUSTOM_FOOTER: 哈吉米 AI 内部对话服务
+      CONFIG_PATH: /app/librechat.yaml
+      ENDPOINTS: custom,agents
+      ALLOW_EMAIL_LOGIN: "false"
+      ALLOW_REGISTRATION: "false"
+      ALLOW_SOCIAL_LOGIN: "false"
+      ALLOW_SOCIAL_REGISTRATION: "false"
+      ALLOW_PASSWORD_RESET: "false"
+      SEARCH: "false"
+      HJM_MAIN_APP_INTERNAL_URL: http://app:3456
+      LIBRECHAT_BRIDGE_SECRET: ${CHAT_TEST_BRIDGE_SECRET:-chat-test-bridge-secret-20260710-strong}
+      JWT_SECRET: ${CHAT_TEST_LIBRECHAT_JWT_SECRET:-chat-test-librechat-jwt-secret-20260710}
+      JWT_REFRESH_SECRET: ${CHAT_TEST_LIBRECHAT_REFRESH_SECRET:-chat-test-librechat-refresh-secret-20260710}
+      CREDS_KEY: ${CHAT_TEST_CREDS_KEY:-f34be427ebb29de8d88c107a71546019685ed8b241d8f2ed00c3df97ad2566f0}
+      CREDS_IV: ${CHAT_TEST_CREDS_IV:-e2341419ec3dd3d19b13a1a87fafcbfb}
+    volumes:
+      - ../integrations/librechat/librechat.yaml:/app/librechat.yaml:ro
+      - chat_test_uploads:/app/uploads
+      - chat_test_images:/app/client/public/images
+      - chat_test_logs:/app/api/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3080/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+
+  gateway:
+    image: nginx:1.28.0-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+      librechat:
+        condition: service_healthy
+    ports:
+      - "${CHAT_TEST_GATEWAY_PORT:-3457}:80"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/gateway-health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  app_test_data:
+  app_test_uploads:
+  app_test_logs:
+  chat_test_mongodb:
+  chat_test_uploads:
+  chat_test_images:
+  chat_test_logs:

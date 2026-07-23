@@ -2,6 +2,7 @@ import type { Component } from 'vue';
 import {
   Activity,
   BarChart3,
+  Bot,
   Coins,
   CreditCard,
   Gauge,
@@ -32,6 +33,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
   { label: 'API 线路', path: '/admin/api-providers', group: 'system', icon: KeyRound },
   { label: '模型价格', path: '/admin/model-prices', group: 'system', icon: BarChart3 },
   { label: '模板工作流', path: '/admin/template-workflows', group: 'system', icon: ListChecks },
+  { label: 'Chat 设置', path: '/admin/chat-settings', group: 'system', icon: Bot },
   { label: '系统设置', path: '/admin/settings', group: 'system', icon: Settings }
 ];
 

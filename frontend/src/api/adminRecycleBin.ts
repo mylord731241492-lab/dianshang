@@ -43,3 +43,17 @@ export async function getAdminRecycleBin(
     pageSize: Number(data.pageSize ?? params.pageSize ?? 20)
   };
 }
+
+export async function restoreAdminRecycleUser(id: string) {
+  const response = await http.post<{ success: boolean }>(
+    `/api/admin/recycle-bin/users/${encodeURIComponent(id)}/restore`
+  );
+  return response.data;
+}
+
+export async function purgeAdminRecycleUser(id: string) {
+  const response = await http.delete<{ success: boolean }>(
+    `/api/admin/recycle-bin/users/${encodeURIComponent(id)}/permanent`
+  );
+  return response.data;
+}

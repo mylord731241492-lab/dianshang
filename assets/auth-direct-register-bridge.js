@@ -83,21 +83,160 @@
     }
   }
 
-  function message(text) {
+  function notify(level, text) {
     var now = Date.now();
     if (text === lastMessageText && now - lastMessageAt < 1800) {
       return;
     }
     lastMessageText = text;
     lastMessageAt = now;
-    if (window.$message && typeof window.$message.warning === 'function') {
+    if (window.$message && typeof window.$message[level] === 'function') {
       if (activeMessage && typeof activeMessage.destroy === 'function') {
         activeMessage.destroy();
       }
-      activeMessage = window.$message.warning(text, { duration: 2200 });
+      activeMessage = window.$message[level](text, { duration: 2200 });
       return;
     }
     window.alert(text);
+  }
+
+  function message(text) {
+    notify('warning', text);
+  }
+
+  function resetPasswordInputs(form) {
+    var passwords = form.querySelectorAll('input[autocomplete="new-password"]');
+    if (passwords.length < 2) {
+      passwords = form.querySelectorAll('input[type="password"]');
+    }
+    return passwords;
+  }
+
+  function isDirectResetForm(form) {
+    if (!form) return false;
+    var username = form.querySelector('input[autocomplete="username"], input[placeholder*="用户名"], input[name*="username"]');
+    return !!username && resetPasswordInputs(form).length >= 2;
+  }
+
+  function hideDirectResetField(input) {
+    if (!input || input.getAttribute('data-hjm-direct-reset-hidden') === '1') return;
+    input.required = false;
+    input.value = '';
+    input.disabled = true;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.setAttribute('data-hjm-direct-reset-hidden', '1');
+    var field = nearestField(input);
+    if (field) {
+      field.style.display = 'none';
+      field.setAttribute('data-hjm-direct-reset-hidden', '1');
+    }
+  }
+
+  function addDirectResetHint(form) {
+    if (form.querySelector('[data-hjm-direct-reset-hint="1"]')) return;
+    var submit = form.querySelector('button[type="submit"]');
+    var hint = document.createElement('div');
+    hint.setAttribute('data-hjm-direct-reset-hint', '1');
+    hint.style.cssText = 'margin-top:8px;border:1px solid #fed7aa;background:#fff7ed;color:#c2410c;border-radius:14px;padding:9px 12px;font-size:12px;font-weight:700;line-height:1.5;';
+    hint.textContent = '当前内网支持普通用户凭用户名直接重置；管理员账号不支持此入口。';
+    if (submit && submit.parentElement) {
+      submit.parentElement.insertBefore(hint, submit);
+    } else {
+      form.appendChild(hint);
+    }
+  }
+
+  function updateDirectResetCopy(form, username) {
+    username.required = true;
+    username.setAttribute('placeholder', '请输入用户名');
+    username.setAttribute('autocomplete', 'username');
+    var usernameField = nearestField(username);
+    var usernameLabel = usernameField && usernameField.querySelector('span');
+    if (usernameLabel) usernameLabel.textContent = '用户名 (USERNAME)';
+
+    var container = form.parentElement;
+    while (container && container !== document.body && !container.querySelector('h2')) {
+      container = container.parentElement;
+    }
+    var title = container && container.querySelector('h2');
+    var subtitle = title && title.parentElement ? title.parentElement.querySelector('p') : null;
+    if (subtitle) subtitle.textContent = '输入用户名，直接设置新密码';
+  }
+
+  function installDirectReset(form) {
+    if (!isDirectResetForm(form) || form.getAttribute('data-hjm-direct-reset-form') === '1') return;
+    form.setAttribute('data-hjm-direct-reset-form', '1');
+    var username = form.querySelector('input[autocomplete="username"], input[placeholder*="用户名"], input[name*="username"]');
+    var email = form.querySelector('input[autocomplete="email"], input[type="email"], input[placeholder*="邮箱"]');
+    var code = findCodeInput(form);
+    updateDirectResetCopy(form, username);
+    hideDirectResetField(email);
+    hideDirectResetField(code);
+    addDirectResetHint(form);
+
+    form.addEventListener('submit', async function(event) {
+      if (!isDirectResetForm(form)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === 'function') {
+        event.stopImmediatePropagation();
+      }
+      if (form.getAttribute('data-hjm-direct-reset-busy') === '1') return;
+
+      var passwords = resetPasswordInputs(form);
+      var account = String(username.value || '').trim();
+      var newPassword = passwords[0] ? passwords[0].value : '';
+      var confirmPassword = passwords[1] ? passwords[1].value : '';
+      if (!account) {
+        message('请输入用户名');
+        username.focus();
+        return;
+      }
+      if (newPassword.length < 6) {
+        message('新密码至少需要 6 位');
+        if (passwords[0]) passwords[0].focus();
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        message('两次输入的新密码不一致');
+        if (passwords[1]) passwords[1].focus();
+        return;
+      }
+
+      var submit = form.querySelector('button[type="submit"]');
+      var wasDisabled = submit ? submit.disabled : false;
+      form.setAttribute('data-hjm-direct-reset-busy', '1');
+      if (submit) submit.disabled = true;
+      try {
+        var response = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: account, newPassword: newPassword })
+        });
+        var result = {};
+        try {
+          result = await response.json();
+        } catch (_) {}
+        if (!response.ok) {
+          throw new Error(result.message || '重置密码失败');
+        }
+        notify('success', result.message || '密码已重置，请使用新密码登录');
+        var backButton = Array.prototype.find.call(form.querySelectorAll('button'), function(button) {
+          return /返回登录|back\s*to\s*login/i.test(visibleText(button));
+        });
+        if (backButton) {
+          backButton.click();
+        } else {
+          window.location.href = '/login';
+        }
+      } catch (error) {
+        notify('error', error && error.message ? error.message : '重置密码失败');
+      } finally {
+        form.removeAttribute('data-hjm-direct-reset-busy');
+        if (submit && submit.isConnected) submit.disabled = wasDisabled;
+      }
+    }, true);
   }
 
   function installRegisterSubmitGuard(form) {
@@ -130,6 +269,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('form'), function(form) {
       normalizeRegisterEmailField(form);
       installRegisterSubmitGuard(form);
+      installDirectReset(form);
     });
   }
 

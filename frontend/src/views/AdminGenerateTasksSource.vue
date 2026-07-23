@@ -7,7 +7,7 @@ import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
 import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { NButton, NInput, NPagination, NProgress, NSelect, NTag } from 'naive-ui';
+import { NAlert, NButton, NInput, NPagination, NProgress, NSelect, NTag } from 'naive-ui';
 import {
   Activity,
   CheckCircle2,
@@ -16,15 +16,23 @@ import {
   RefreshCcw,
   Search,
   Timer,
+  Trash2,
   XCircle
 } from 'lucide-vue-next';
 import { clearAdminAuthSession } from '../api/adminAuth';
-import { getAdminGenerateTasks, type AdminGenerateTask } from '../api/adminGenerateTasks';
+import {
+  cancelAdminGenerateTask,
+  deleteAdminGenerateTask,
+  getAdminGenerateTasks,
+  type AdminGenerateTask
+} from '../api/adminGenerateTasks';
 import { getApiErrorMessage } from '../api/http';
 
 const router = useRouter();
 const loading = ref(true);
 const errorMessage = ref('');
+const successMessage = ref('');
+const actionLoadingId = ref('');
 const tasks = ref<AdminGenerateTask[]>([]);
 const total = ref(0);
 const page = ref(1);
@@ -38,7 +46,8 @@ const statusOptions = [
   { label: '成功', value: 'success' },
   { label: '运行中', value: 'running' },
   { label: '等待中', value: 'pending' },
-  { label: '失败', value: 'failed' }
+  { label: '失败', value: 'failed' },
+  { label: '已取消', value: 'cancelled' }
 ];
 
 const visibleTasks = computed(() => {
@@ -67,6 +76,11 @@ const statCards = computed(() => [
   { label: '失败任务', value: Number(summary.value.failed ?? 0), icon: XCircle },
   { label: '当前页消耗', value: tasks.value.reduce((sum, task) => sum + Number(task.cost ?? task.costPoints ?? 0), 0), icon: Coins }
 ]);
+
+const queueModeLabel = computed(() => {
+  if (summary.value.queueMode === 'runtime-memory+history') return '运行时 + 历史';
+  return String(summary.value.queueMode || '本地记录');
+});
 
 function formatNumber(value?: number) {
   return Number(value || 0).toLocaleString('zh-CN');
@@ -100,6 +114,14 @@ function statusLabel(status?: string) {
   return labels[status || ''] || status || '未知';
 }
 
+function isCancellable(task: AdminGenerateTask) {
+  return ['pending', 'running'].includes(task.status || '');
+}
+
+function isDeletable(task: AdminGenerateTask) {
+  return ['success', 'completed', 'failed', 'error', 'cancelled'].includes(task.status || '');
+}
+
 function friendlyError(error: unknown) {
   return getApiErrorMessage(error, '任务监控加载失败', {
     unauthorized: '请先使用管理员账号登录。',
@@ -128,6 +150,40 @@ async function loadTasks() {
   }
 }
 
+async function cancelTask(task: AdminGenerateTask) {
+  const id = task.taskId || task.id;
+  if (!window.confirm(`确认取消任务「${id}」吗？取消会停止本地结果入库；已发往上游的请求仍可能产生费用。`)) return;
+  actionLoadingId.value = `cancel:${id}`;
+  errorMessage.value = '';
+  successMessage.value = '';
+  try {
+    await cancelAdminGenerateTask(id);
+    await loadTasks();
+    successMessage.value = '任务已标记为取消。';
+  } catch (error) {
+    errorMessage.value = getApiErrorMessage(error, '取消任务失败');
+  } finally {
+    actionLoadingId.value = '';
+  }
+}
+
+async function removeTask(task: AdminGenerateTask) {
+  const id = task.taskId || task.id;
+  if (!window.confirm(`确认删除任务记录「${id}」吗？此操作不会退还已扣算力。`)) return;
+  actionLoadingId.value = `delete:${id}`;
+  errorMessage.value = '';
+  successMessage.value = '';
+  try {
+    await deleteAdminGenerateTask(id);
+    await loadTasks();
+    successMessage.value = '任务记录已删除。';
+  } catch (error) {
+    errorMessage.value = getApiErrorMessage(error, '删除任务记录失败');
+  } finally {
+    actionLoadingId.value = '';
+  }
+}
+
 async function applyFilters() {
   page.value = 1;
   await loadTasks();
@@ -143,7 +199,7 @@ onMounted(loadTasks);
 
 <template>
   <AdminPageShell>
-    <AdminPageHeader eyebrow="Generation Tasks" title="任务监控" description="只读迁移版：查看生成任务、模型线路、进度、消耗和错误，不执行取消或删除。">
+    <AdminPageHeader eyebrow="Generation Tasks" title="任务监控" description="查看生成任务、模型线路、进度、消耗和错误；运行中任务可取消，已结束记录可删除。">
       <template #actions>
           <n-button secondary :loading="loading" @click="loadTasks">
             <template #icon><RefreshCcw :size="16" /></template>
@@ -153,17 +209,19 @@ onMounted(loadTasks);
       </template>
     </AdminPageHeader>
 
-    <AdminFeedback :error-message="errorMessage" />
+    <AdminFeedback :error-message="errorMessage" :success-message="successMessage" />
+
+      <n-alert v-if="summary.dataScope" type="info" :bordered="false">{{ summary.dataScope }}</n-alert>
 
       <AdminStatGrid :stats="statCards" label="任务统计" />
 
       <section class="admin-source-panel admin-tasks-panel">
         <div class="admin-panel-head">
           <div>
-            <p class="eyebrow">Read Only Monitor</p>
+            <p class="eyebrow">Task Operations</p>
             <h2>生成任务列表</h2>
           </div>
-          <n-tag type="info" :bordered="false">{{ summary.queueMode || 'local' }}</n-tag>
+          <n-tag type="info" :bordered="false">{{ queueModeLabel }}</n-tag>
         </div>
 
         <AdminToolbar class="admin-tasks-toolbar">
@@ -192,19 +250,26 @@ onMounted(loadTasks);
             </div>
             <div class="admin-task-meta">
               <n-tag :type="statusType(task.status)" size="small">{{ statusLabel(task.status) }}</n-tag>
-              <strong>{{ task.routeDisplayName || task.routeName || task.lineKey || '默认线路' }}</strong>
+              <strong>{{ task.routeDisplayName || task.routeName || task.lineKey || '线路未记录' }}</strong>
               <span>{{ task.chargeStatus || '未计费' }} · {{ formatNumber(task.cost ?? task.costPoints) }}</span>
             </div>
             <div class="admin-task-progress">
               <span>{{ formatNumber(task.progress) }}%</span>
               <n-progress type="line" :percentage="Number(task.progress || 0)" :height="8" :show-indicator="false" />
-              <small>{{ task.resolvedSize || task.size || '-' }} · {{ task.imageCount || 1 }} 张</small>
+              <small>{{ task.resolvedSize || task.size || '规格未记录' }} · {{ task.imageCount || 0 }} 张</small>
             </div>
             <div class="admin-task-time">
               <span>创建</span>
               <strong>{{ formatDate(task.createdAt) }}</strong>
               <span>完成</span>
               <strong>{{ formatDate(task.finishedAt || task.updatedAt) }}</strong>
+            </div>
+            <div class="admin-card-actions admin-task-actions">
+              <n-button v-if="isCancellable(task)" size="small" secondary type="warning" :loading="actionLoadingId === `cancel:${task.taskId || task.id}`" @click="cancelTask(task)">取消任务</n-button>
+              <n-button v-if="isDeletable(task)" size="small" tertiary type="error" :loading="actionLoadingId === `delete:${task.taskId || task.id}`" @click="removeTask(task)">
+                <template #icon><Trash2 :size="14" /></template>删除记录
+              </n-button>
+              <span v-if="!isCancellable(task) && !isDeletable(task)" class="admin-action-muted">暂无操作</span>
             </div>
             <p v-if="task.errorMessage" class="admin-task-error">{{ task.errorMessage }}</p>
           </article>

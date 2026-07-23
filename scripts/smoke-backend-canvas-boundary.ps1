@@ -86,6 +86,9 @@ try {
   node (Join-Path $repoRoot "scripts\check-packy-gpt-image-size.js") | Write-Host
   node (Join-Path $repoRoot "scripts\check-packy-gpt-image-adapter-coverage.js") | Write-Host
   node (Join-Path $repoRoot "scripts\check-provider-text-extraction.js") | Write-Host
+  node (Join-Path $repoRoot "scripts\test-reverse-prompt-provider-route.js") | Write-Host
+  node (Join-Path $repoRoot "scripts\test-canvas-reverse-prompt-copy.js") | Write-Host
+  node (Join-Path $repoRoot "scripts\test-image-generation-queue-guard.js") | Write-Host
 
   $env:PORT = "$port"
   $env:DATA_DIR = $dataDir
@@ -131,35 +134,39 @@ try {
   }
 
   $canvasHtml = Invoke-BoundaryRequest -Method "GET" -Path "/canvas?backend-canvas-boundary-smoke=1"
-  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-performance-mode.js?v=20260629perf5"
-  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-image-node-polish.js?v=20260703mask1"
-  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-chat-prompt-flow.js?v=20260701suite20"
-  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "admin-api-source-route-bridge.js?v=20260629sourceapi1"
-  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "index-DglIsp_g.js?v=20260703freegen1"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-performance-mode.js?v=20260704canvasleave1"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-image-node-polish.js?v=20260708loadguard1"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-prompt-enhancer.js?v=20260721enhance1"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-prompt-enhancer.css?v=20260721enhance1"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-chat-prompt-flow.js?v=20260704canvasleave1"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "index-DglIsp_g.js?v=20260717reversecopy1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-node-radius-fix.css?v=20260701title1"
 
   $assetPaths = @(
-    "/assets/canvas-performance-mode.js?v=20260629perf5",
-    "/assets/canvas-performance-mode.css?v=20260629perf5",
-    "/assets/canvas-image-node-polish.js?v=20260703mask1",
-    "/assets/canvas-image-node-polish.css?v=20260703mask1",
+    "/assets/canvas-performance-mode.js?v=20260704canvasleave1",
+    "/assets/canvas-performance-mode.css?v=20260704usercenter1",
+    "/assets/canvas-image-node-polish.js?v=20260708loadguard1",
+    "/assets/canvas-image-node-polish.css?v=20260721promptread1",
+    "/assets/canvas-prompt-enhancer.js?v=20260721enhance1",
+    "/assets/canvas-prompt-enhancer.css?v=20260721enhance1",
     "/assets/canvas-node-radius-fix.css?v=20260701title1",
-    "/assets/canvas-chat-prompt-flow.js?v=20260701suite20",
+    "/assets/canvas-chat-prompt-flow.js?v=20260704canvasleave1",
     "/assets/canvas-chat-prompt-flow.css?v=20260701suite20",
     "/assets/ecommerce-suite-skills/gloria-avatar.svg",
     "/assets/ecommerce-suite-skills/paload-avatar.svg",
     "/assets/ecommerce-suite-skills/lumi-avatar.svg",
     "/assets/ecommerce-suite-skills/kira-avatar.svg",
     "/assets/ecommerce-suite-skills/rayyu-avatar.svg",
-    "/assets/admin-api-source-route-bridge.js?v=20260629sourceapi1",
-    "/assets/index-DglIsp_g.js?v=20260703freegen1",
-    "/assets/Canvas-B8bY9_QL.js?v=20260703freegen1",
-    "/assets/Canvas-yGc8b2gf.js?v=20260703freegen1"
+    "/assets/index-DglIsp_g.js?v=20260717reversecopy1",
+    "/assets/Canvas-B8bY9_QL.js?v=20260717reversecopy1",
+    "/assets/canvas-image-preview-runtime.js?v=20260714opperf4"
   )
 
   foreach ($assetPath in $assetPaths) {
     Invoke-BoundaryRequest -Method "GET" -Path $assetPath | Out-Null
   }
+
+  Invoke-BoundaryRequest -Method "GET" -Path "/assets/Canvas-yGc8b2gf.js?v=20260707taskresume7" -ExpectedStatus 410 | Out-Null
 
   $canvasStorage = Invoke-RestMethod "http://127.0.0.1:$port/api/settings/canvas-storage"
   if (-not $canvasStorage.enabled -or $canvasStorage.maxSize -le 0) {
@@ -174,6 +181,7 @@ try {
   Invoke-BoundaryRequest -Method "POST" -Path "/api/image-tools/inpaint" -ExpectedStatus 401 -Body @{ prompt = "boundary smoke" } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/image-tools/erase" -ExpectedStatus 401 -Body @{ prompt = "boundary smoke" } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/generate-prompt" -ExpectedStatus 401 -Body @{ requirement = "boundary smoke"; imageCount = 2 } | Out-Null
+  Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/enhance-prompt" -ExpectedStatus 401 -Body @{ currentPrompt = "boundary smoke" } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/dialog-agent-generate" -ExpectedStatus 401 -Body @{ requirement = "boundary smoke"; imageCount = 1 } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/ecommerce-suite/prompts" -ExpectedStatus 401 -Body @{ requirement = "boundary smoke" } | Out-Null
   Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/ecommerce-suite/generate" -ExpectedStatus 401 -Body @{ promptPlans = @(@{ prompt = "boundary smoke" }) } | Out-Null
@@ -188,6 +196,9 @@ try {
     throw "Admin login did not return token"
   }
   $headers = @{ Authorization = "Bearer $($adminLogin.token)" }
+
+  $profileBeforeContent = Invoke-BoundaryRequest -Method "GET" -Path "/api/user/profile" -Headers $headers
+  $profileBefore = $profileBeforeContent | ConvertFrom-Json
 
   $settingsContent = Invoke-BoundaryRequest -Method "GET" -Path "/api/image-tools/settings" -Headers $headers
   $settings = $settingsContent | ConvertFrom-Json
@@ -204,6 +215,20 @@ try {
   if (-not $promptResult.success -or -not $promptResult.prompt -or $promptResult.imageCount -ne 2) {
     throw "Canvas prompt flow did not return an editable prompt draft"
   }
+
+  $enhanceContent = Invoke-BoundaryRequest -Method "POST" -Path "/api/canvas/enhance-prompt" -Headers $headers -Body @{
+    currentPrompt = "白底产品图，主体居中"
+  }
+  $enhanceResult = $enhanceContent | ConvertFrom-Json
+  if (-not $enhanceResult.success -or -not $enhanceResult.prompt -or -not $enhanceResult.free -or $enhanceResult.costPoints -ne 0) {
+    throw "Canvas prompt enhancer did not return a free editable prompt"
+  }
+  $profileAfterContent = Invoke-BoundaryRequest -Method "GET" -Path "/api/user/profile" -Headers $headers
+  $profileAfter = $profileAfterContent | ConvertFrom-Json
+  if ([double]$profileBefore.user.balance -ne [double]$profileAfter.user.balance) {
+    throw "Canvas prompt enhancer changed user balance"
+  }
+  Write-Host "OK POST /api/canvas/enhance-prompt free mock response"
 
   $agentBody = @{
     requirement = "analyze the product and create a clean ecommerce render"

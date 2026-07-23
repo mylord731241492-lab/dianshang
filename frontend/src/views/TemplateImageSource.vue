@@ -1,7 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { NButton, NInput, NSelect, useMessage } from 'naive-ui';
-import { ArrowLeft, Images, Loader2, Sparkles, Wand2 } from 'lucide-vue-next';
+import { computed, onMounted, reactive, ref, watch, type Component } from 'vue';
+import { NButton, NConfigProvider, NInput, NSelect, useMessage } from 'naive-ui';
+import {
+  ArrowLeft,
+  BookImage,
+  Check,
+  ExternalLink,
+  Focus,
+  Image,
+  Images,
+  LayoutTemplate,
+  Loader2,
+  Megaphone,
+  Mountain,
+  Package,
+  PanelsTopLeft,
+  ScanSearch,
+  SlidersHorizontal,
+  Sparkles,
+  UserRound,
+  Wand2
+} from 'lucide-vue-next';
 import {
   generateTemplateImage,
   getModelRoutes,
@@ -40,6 +59,19 @@ const selectedPromptIds = ref<string[]>([]);
 const generatedImages = ref<GeneratedImage[]>([]);
 const errorMessage = ref('');
 
+const templateIcons: Record<string, Component> = {
+  'main-image': ScanSearch,
+  baiditu: Focus,
+  'sub-image-replica': Images,
+  'detail-page': PanelsTopLeft,
+  scene: Mountain,
+  model: UserRound,
+  packaging: Package,
+  poster: Megaphone,
+  xiaohongshu: BookImage,
+  custom: SlidersHorizontal
+};
+
 const form = reactive({
   platform: '京东',
   ratio: '1:1',
@@ -63,6 +95,10 @@ const templateCategories = computed(() => {
 const selectedPrompts = computed(() => promptSuggestions.value.filter((item) => selectedPromptIds.value.includes(item.id)));
 
 const primaryPrompt = computed(() => selectedPrompts.value[0] || promptSuggestions.value[0]);
+
+function templateIcon(templateKey: string) {
+  return templateIcons[templateKey] || LayoutTemplate;
+}
 
 const imageRouteOptions = computed(() => {
   return imageRoutes.value.map((route) => ({
@@ -250,164 +286,182 @@ onMounted(loadPage);
 </script>
 
 <template>
-  <main class="template-source-shell">
-    <header class="template-topbar">
-      <RouterLink to="/" class="template-back"><ArrowLeft :size="16" />返回首页</RouterLink>
-      <div>
-        <p class="eyebrow">Template Image</p>
-        <h1>模板生图工作台</h1>
-      </div>
-      <a class="legacy-link" :href="legacyUrl('/template-image')">旧版页面</a>
-    </header>
-
-    <section v-if="loading" class="template-loading">
-      <Loader2 :size="22" />
-      <span>正在加载模板配置</span>
-    </section>
-
-    <section v-else class="template-workbench">
-      <aside class="template-library">
-        <div class="panel-title">
-          <strong>模板库</strong>
-          <small>{{ templates.length }} 个模板</small>
-        </div>
-        <div v-for="category in templateCategories" :key="category.name" class="template-category">
-          <h2>{{ category.name }}</h2>
-          <button
-            v-for="template in category.items"
-            :key="template.key"
-            type="button"
-            :class="{ active: activeTemplateKey === template.key }"
-            @click="activeTemplateKey = template.key"
-          >
-            <span>{{ template.name || template.templateName }}</span>
-            <small>{{ template.desc || '模板配置' }}</small>
-          </button>
-        </div>
-      </aside>
-
-      <section class="template-editor">
-        <div class="template-hero-panel">
+  <n-config-provider :theme="null">
+    <main class="template-source-shell">
+      <header class="template-topbar">
+        <RouterLink to="/" class="template-back" aria-label="返回首页" title="返回首页"><ArrowLeft :size="17" /><span>返回</span></RouterLink>
+        <div class="template-page-title">
+          <span class="template-title-icon"><LayoutTemplate :size="19" /></span>
           <div>
-            <p class="eyebrow">{{ activeTemplate?.categoryName || '模板' }}</p>
-            <h2>{{ activeTemplate?.name }}</h2>
-            <p>{{ activeTemplate?.desc || '选择素材、补充需求，先生成提示词，再生成图片。' }}</p>
-          </div>
-          <div class="template-tags">
-            <span v-for="tag in activeTemplate?.tags || []" :key="tag">{{ tag }}</span>
+            <p class="eyebrow">电商视觉生产</p>
+            <h1>模板生图</h1>
           </div>
         </div>
+        <a class="legacy-link" :href="legacyUrl('/template-image')" aria-label="打开旧版模板页" title="打开旧版模板页"><ExternalLink :size="16" /><span>旧版</span></a>
+      </header>
 
-        <div v-if="errorMessage" class="template-error">{{ errorMessage }}</div>
-
-        <section class="source-section">
-          <h3>素材槽</h3>
-          <div class="slot-grid">
-            <article v-for="slot in activeTemplate?.imageSlots || []" :key="slot.key" class="slot-card">
-              <div class="slot-head">
-                <strong>{{ slot.label }}</strong>
-                <small>{{ slot.required ? '必填' : '可选' }}</small>
-              </div>
-              <p>{{ slot.description || '上传用于模板生成的图片素材。' }}</p>
-              <label class="upload-zone">
-                <Images :size="18" />
-                <span>选择图片</span>
-                <input type="file" :accept="slot.accept || 'image/*'" :multiple="slot.multiple !== false" @change="(event) => addFiles(slot.key, (event.target as HTMLInputElement).files)" />
-              </label>
-              <div class="file-grid">
-                <button v-for="file in slotFiles[slot.key] || []" :key="file.id" type="button" @click="removeFile(slot.key, file.id)">
-                  <img :src="file.preview" alt="" />
-                  <small>{{ file.uploading ? '上传中' : file.error || file.name }}</small>
-                </button>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <section class="source-section form-grid">
-          <label v-for="field in activeTemplate?.fields || []" :key="field.key">
-            {{ field.label }}
-            <n-input
-              v-if="field.type !== 'select'"
-              v-model:value="fieldValues[field.key]"
-              type="textarea"
-              :autosize="{ minRows: 4, maxRows: 8 }"
-              :placeholder="field.placeholder || '输入补充要求'"
-            />
-            <n-select
-              v-else
-              v-model:value="fieldValues[field.key]"
-              :options="(field.options || []).map((value) => ({ label: value, value }))"
-            />
-          </label>
-          <label>
-            目标平台
-            <n-input v-model:value="form.platform" />
-          </label>
-          <label>
-            图片比例
-            <n-select v-model:value="form.ratio" :options="ratioOptions" />
-          </label>
-          <label>
-            清晰度
-            <n-select v-model:value="form.quality" :options="qualityOptions" />
-          </label>
-          <label>
-            张数
-            <n-select v-model:value="form.imageCount" :options="[1, 2, 3, 4].map((value) => ({ label: `${value} 张`, value }))" />
-          </label>
-          <label>
-            图片线路
-            <n-select v-model:value="form.imageRouteId" :options="imageRouteOptions" />
-          </label>
-          <label>
-            图片模型
-            <n-select v-model:value="form.imageModelKey" :options="modelOptions" />
-          </label>
-        </section>
-
-        <section class="source-actions">
-          <n-button size="large" secondary :loading="reverseLoading" @click="reversePrompt">
-            <template #icon><Wand2 :size="16" /></template>
-            生成提示词
-          </n-button>
-          <n-button size="large" type="primary" :loading="generateLoading" :disabled="!selectedPrompts.length" @click="generateImage">
-            <template #icon><Sparkles :size="16" /></template>
-            生成图片
-          </n-button>
-        </section>
+      <section v-if="loading" class="template-loading">
+        <Loader2 :size="22" />
+        <span>正在加载模板配置</span>
       </section>
 
-      <aside class="template-results">
-        <div class="panel-title">
-          <strong>提示词方案</strong>
-          <small>{{ promptSuggestions.length }} 条</small>
-        </div>
-        <div class="prompt-list">
-          <button
-            v-for="prompt in promptSuggestions"
-            :key="prompt.id"
-            type="button"
-            :class="{ active: selectedPromptIds.includes(prompt.id) }"
-            @click="togglePrompt(prompt.id)"
-          >
-            <strong>{{ prompt.label || prompt.title }}</strong>
-            <span>{{ promptSummary(prompt) }}</span>
-          </button>
-          <p v-if="!promptSuggestions.length">点击生成提示词后，这里会显示 4 个可选方案。</p>
-        </div>
+      <section v-else class="template-workbench">
+        <aside class="template-library">
+          <div class="panel-title">
+            <strong>模板库</strong>
+            <small>{{ templates.length }} 个</small>
+          </div>
+          <div class="template-library-list">
+            <div v-for="category in templateCategories" :key="category.name" class="template-category">
+              <h2>{{ category.name }}</h2>
+              <div class="template-category-items">
+                <button
+                  v-for="template in category.items"
+                  :key="template.key"
+                  type="button"
+                  :class="{ active: activeTemplateKey === template.key }"
+                  :aria-pressed="activeTemplateKey === template.key"
+                  @click="activeTemplateKey = template.key"
+                >
+                  <span class="template-option-icon"><component :is="templateIcon(template.key)" :size="17" /></span>
+                  <span class="template-option-copy">
+                    <strong>{{ template.name || template.templateName }}</strong>
+                    <small>{{ template.desc || '模板配置' }}</small>
+                  </span>
+                  <Check v-if="activeTemplateKey === template.key" class="template-option-check" :size="15" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </aside>
 
-        <div class="panel-title result-title">
-          <strong>生成结果</strong>
-          <small>{{ generatedImages.length }} 张</small>
-        </div>
-        <div class="result-grid">
-          <a v-for="image in generatedImages" :key="image.id || image.url || image.imageUrl" :href="image.url || image.imageUrl || image.preview" target="_blank">
-            <img :src="image.url || image.imageUrl || image.preview" alt="" />
-          </a>
-          <p v-if="!generatedImages.length">生成完成后会在这里展示图片。</p>
-        </div>
-      </aside>
-    </section>
-  </main>
+        <section class="template-editor">
+          <div class="template-hero-panel">
+            <div>
+              <p class="eyebrow">{{ activeTemplate?.categoryName || '模板' }}</p>
+              <h2>{{ activeTemplate?.name }}</h2>
+              <p>{{ activeTemplate?.desc || '选择素材、补充需求，先生成提示词，再生成图片。' }}</p>
+            </div>
+            <div class="template-tags">
+              <span v-for="tag in activeTemplate?.tags || []" :key="tag">{{ tag }}</span>
+            </div>
+          </div>
+
+          <div v-if="errorMessage" class="template-error">{{ errorMessage }}</div>
+
+          <section class="source-section">
+            <div class="section-heading">
+              <div><span>01</span><h3>商品素材</h3></div>
+              <small>支持 JPG、PNG、WebP</small>
+            </div>
+            <div class="slot-grid">
+              <article v-for="slot in activeTemplate?.imageSlots || []" :key="slot.key" class="slot-card">
+                <div class="slot-head">
+                  <strong>{{ slot.label }}</strong>
+                  <small :class="{ required: slot.required }">{{ slot.required ? '必填' : '可选' }}</small>
+                </div>
+                <p>{{ slot.description || '上传用于模板生成的图片素材。' }}</p>
+                <label class="upload-zone">
+                  <Images :size="18" />
+                  <span>选择图片</span>
+                  <input type="file" :accept="slot.accept || 'image/*'" :multiple="slot.multiple !== false" @change="(event) => addFiles(slot.key, (event.target as HTMLInputElement).files)" />
+                </label>
+                <div class="file-grid">
+                  <button v-for="file in slotFiles[slot.key] || []" :key="file.id" type="button" @click="removeFile(slot.key, file.id)">
+                    <img :src="file.preview" alt="" />
+                    <small>{{ file.uploading ? '上传中' : file.error || file.name }}</small>
+                  </button>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <section class="source-section generation-settings">
+            <div class="section-heading">
+              <div><span>02</span><h3>生成设置</h3></div>
+              <small>按当前模板自动预设</small>
+            </div>
+            <div class="form-grid">
+              <label v-for="field in activeTemplate?.fields || []" :key="field.key">
+                {{ field.label }}
+                <n-input
+                  v-if="field.type !== 'select'"
+                  v-model:value="fieldValues[field.key]"
+                  type="textarea"
+                  :autosize="{ minRows: 4, maxRows: 8 }"
+                  :placeholder="field.placeholder || '输入补充要求'"
+                />
+                <n-select
+                  v-else
+                  v-model:value="fieldValues[field.key]"
+                  :options="(field.options || []).map((value) => ({ label: value, value }))"
+                />
+              </label>
+              <label>目标平台<n-input v-model:value="form.platform" /></label>
+              <label>图片比例<n-select v-model:value="form.ratio" :options="ratioOptions" /></label>
+              <label>清晰度<n-select v-model:value="form.quality" :options="qualityOptions" /></label>
+              <label>张数<n-select v-model:value="form.imageCount" :options="[1, 2, 3, 4].map((value) => ({ label: `${value} 张`, value }))" /></label>
+              <label>图片线路<n-select v-model:value="form.imageRouteId" :options="imageRouteOptions" /></label>
+              <label>图片模型<n-select v-model:value="form.imageModelKey" :options="modelOptions" /></label>
+            </div>
+          </section>
+
+          <section class="source-actions">
+            <span class="action-hint">已选择 {{ selectedPrompts.length }} 个提示词方案</span>
+            <n-button size="large" secondary :loading="reverseLoading" @click="reversePrompt">
+              <template #icon><Wand2 :size="16" /></template>
+              生成提示词
+            </n-button>
+            <n-button size="large" type="primary" :loading="generateLoading" :disabled="!selectedPrompts.length" @click="generateImage">
+              <template #icon><Sparkles :size="16" /></template>
+              生成图片
+            </n-button>
+          </section>
+        </section>
+
+        <aside class="template-results">
+          <section class="results-section">
+            <div class="panel-title">
+              <strong>提示词方案</strong>
+              <small>{{ promptSuggestions.length }} 条</small>
+            </div>
+            <div class="prompt-list">
+              <button
+                v-for="prompt in promptSuggestions"
+                :key="prompt.id"
+                type="button"
+                :class="{ active: selectedPromptIds.includes(prompt.id) }"
+                @click="togglePrompt(prompt.id)"
+              >
+                <strong>{{ prompt.label || prompt.title }}</strong>
+                <span>{{ promptSummary(prompt) }}</span>
+              </button>
+              <div v-if="!promptSuggestions.length" class="result-empty">
+                <Wand2 :size="20" />
+                <strong>暂无提示词</strong>
+                <span>生成后可在这里选择方案</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="results-section result-section-images">
+            <div class="panel-title">
+              <strong>生成结果</strong>
+              <small>{{ generatedImages.length }} 张</small>
+            </div>
+            <div class="result-grid">
+              <a v-for="image in generatedImages" :key="image.id || image.url || image.imageUrl" :href="image.url || image.imageUrl || image.preview" target="_blank">
+                <img :src="image.url || image.imageUrl || image.preview" alt="" />
+              </a>
+              <div v-if="!generatedImages.length" class="result-empty">
+                <Image :size="20" />
+                <strong>暂无图片</strong>
+                <span>生成结果会保留在这里</span>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </section>
+    </main>
+  </n-config-provider>
 </template>

@@ -1,5 +1,13 @@
+param(
+  [switch]$ConfirmMaintenanceWindow
+)
+
 $ErrorActionPreference = "Stop"
 $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+
+if (-not $ConfirmMaintenanceWindow) {
+  throw "This backup requires a short app maintenance window. Re-run with -ConfirmMaintenanceWindow after approval."
+}
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $dockerDir = Join-Path $repoRoot "docker"
@@ -26,6 +34,42 @@ function Invoke-Docker {
   }
 }
 
+function Get-DockerOutput {
+  param(
+    [Parameter(Mandatory=$true)][string[]]$Arguments,
+    [Parameter(Mandatory=$true)][string]$Step
+  )
+  $output = & docker @Arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "docker $Step failed with exit code $LASTEXITCODE"
+  }
+  return @($output)
+}
+
+function Wait-ContainerHealthy {
+  param(
+    [Parameter(Mandatory=$true)][string]$ContainerName,
+    [int]$TimeoutSeconds = 120
+  )
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  do {
+    $status = (Get-DockerOutput -Step "inspect-health" -Arguments @(
+      "inspect",
+      "--format",
+      "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}",
+      $ContainerName
+    ) | Select-Object -Last 1).Trim()
+    if ($status -eq "healthy" -or $status -eq "running") {
+      return $status
+    }
+    if ($status -eq "unhealthy" -or $status -eq "exited" -or $status -eq "dead") {
+      throw "Container $ContainerName entered terminal state: $status"
+    }
+    Start-Sleep -Seconds 2
+  } while ((Get-Date) -lt $deadline)
+  throw "Container $ContainerName did not become healthy within $TimeoutSeconds seconds"
+}
+
 function Compress-DirectoryContents {
   param(
     [Parameter(Mandatory=$true)][string]$SourcePath,
@@ -46,62 +90,103 @@ function Compress-DirectoryContents {
     return
   }
 
-  $emptyMarker = Join-Path $backupDir "$([System.IO.Path]::GetFileName($SourcePath))-empty.txt"
+  $emptyMarker = Join-Path $backupDir "__dianshang_empty__"
   [System.IO.File]::WriteAllText($emptyMarker, "empty $SourcePath directory`n", [System.Text.UTF8Encoding]::new($false))
   Compress-Archive -LiteralPath $emptyMarker -DestinationPath $DestinationPath -Force
   Remove-Item -LiteralPath $emptyMarker -Force
 }
 
-$containerBackupDir = "/app/data/backups/internal-prod-$timestamp"
-$containerDbBackup = "$containerBackupDir/data.db"
-$backupScript = @"
-const fs = require('fs');
-const Database = require('better-sqlite3');
-async function main() {
-  fs.mkdirSync('$containerBackupDir', { recursive: true });
-  const db = new Database('/app/data/data.db', { readonly: true });
-  try {
-    await db.backup('$containerDbBackup');
-  } finally {
-    db.close();
+$sourceDatabase = Join-Path $dockerDir "data\data.db"
+$databaseBackup = Join-Path $databaseDir "data.db"
+if (-not (Test-Path -LiteralPath $sourceDatabase)) {
+  throw "Production SQLite database was not found: $sourceDatabase"
+}
+
+$runningState = (Get-DockerOutput -Step "inspect-running" -Arguments @(
+  "inspect",
+  "--format",
+  "{{.State.Running}}",
+  $containerName
+) | Select-Object -Last 1).Trim()
+$wasRunning = $runningState -eq "true"
+$maintenanceStartedAt = $null
+$maintenanceEndedAt = $null
+$restoredContainerStatus = if ($wasRunning) { "pending" } else { "not-running-before-backup" }
+$verification = $null
+
+$oldBackupSourceDb = $env:BACKUP_SOURCE_DB
+$oldBackupDestinationDb = $env:BACKUP_DESTINATION_DB
+try {
+  if ($wasRunning) {
+    $maintenanceStartedAt = (Get-Date).ToString("o")
+    Invoke-Docker -Step "stop-for-consistent-backup" -Arguments @("stop", "--timeout", "20", $containerName)
   }
-}
-main().catch((error) => {
-  console.error(error && error.stack ? error.stack : error);
-  process.exit(1);
-});
-"@
 
-Invoke-Docker -Step "sqlite-backup" -Arguments @("exec", $containerName, "node", "-e", $backupScript)
+  $env:BACKUP_SOURCE_DB = $sourceDatabase
+  $env:BACKUP_DESTINATION_DB = $databaseBackup
+  $verificationJson = & node (Join-Path $PSScriptRoot "backup-sqlite.js")
+  if ($LASTEXITCODE -ne 0) {
+    throw "SQLite maintenance backup failed with exit code $LASTEXITCODE"
+  }
+  $verification = ($verificationJson | Select-Object -Last 1) | ConvertFrom-Json
 
-$hostDbBackup = Join-Path $dockerDir "data\backups\internal-prod-$timestamp\data.db"
-if (-not (Test-Path $hostDbBackup)) {
-  throw "SQLite backup file was not created: $hostDbBackup"
-}
-Copy-Item -LiteralPath $hostDbBackup -Destination (Join-Path $databaseDir "data.db") -Force
+  if (-not (Test-Path -LiteralPath $databaseBackup)) {
+    throw "SQLite backup file was not created: $databaseBackup"
+  }
 
-$itemsToArchive = @(
-  @{ Name = "data"; Path = Join-Path $dockerDir "data"; ExcludeNames = @("data.db", "data.db-shm", "data.db-wal", "backups") },
-  @{ Name = "uploads"; Path = Join-Path $dockerDir "uploads"; ExcludeNames = @() },
-  @{ Name = "logs"; Path = Join-Path $dockerDir "logs"; ExcludeNames = @() }
-)
+  $itemsToArchive = @(
+    @{ Name = "data"; Path = Join-Path $dockerDir "data"; ExcludeNames = @("data.db", "data.db-shm", "data.db-wal", "backups") },
+    @{ Name = "uploads"; Path = Join-Path $dockerDir "uploads"; ExcludeNames = @() },
+    @{ Name = "logs"; Path = Join-Path $dockerDir "logs"; ExcludeNames = @() }
+  )
 
-foreach ($item in $itemsToArchive) {
-  if (Test-Path $item.Path) {
+  foreach ($item in $itemsToArchive) {
+    if (-not (Test-Path -LiteralPath $item.Path)) {
+      New-Item -ItemType Directory -Force -Path $item.Path | Out-Null
+    }
     $zipPath = Join-Path $archiveDir "$($item.Name).zip"
     Compress-DirectoryContents -SourcePath $item.Path -DestinationPath $zipPath -ExcludeNames $item.ExcludeNames
   }
+} finally {
+  if ($null -eq $oldBackupSourceDb) { Remove-Item Env:\BACKUP_SOURCE_DB -ErrorAction SilentlyContinue } else { $env:BACKUP_SOURCE_DB = $oldBackupSourceDb }
+  if ($null -eq $oldBackupDestinationDb) { Remove-Item Env:\BACKUP_DESTINATION_DB -ErrorAction SilentlyContinue } else { $env:BACKUP_DESTINATION_DB = $oldBackupDestinationDb }
+  if ($wasRunning) {
+    Invoke-Docker -Step "restart-after-backup" -Arguments @("start", $containerName)
+    $restoredContainerStatus = Wait-ContainerHealthy -ContainerName $containerName
+    $maintenanceEndedAt = (Get-Date).ToString("o")
+  }
 }
 
-$manifest = [ordered]@{
+$metadata = [ordered]@{
   createdAt = (Get-Date).ToString("o")
   container = $containerName
-  backupDir = $backupDir
-  databaseBackup = (Join-Path $databaseDir "data.db")
-  archives = Get-ChildItem -Path $archiveDir -Filter "*.zip" | Select-Object -ExpandProperty FullName
-  note = "SQLite database was copied using better-sqlite3 backup inside the running container."
+  databaseVerification = $verification
+  sourceLayout = [ordered]@{
+    database = "docker/data/data.db"
+    uploads = "docker/uploads"
+    workflows = "docker/data/workflows"
+    logs = "docker/logs"
+  }
+  maintenanceWindow = [ordered]@{
+    required = $true
+    containerWasRunning = $wasRunning
+    startedAt = $maintenanceStartedAt
+    endedAt = $maintenanceEndedAt
+    restoredContainerStatus = $restoredContainerStatus
+  }
+  note = "Portable Windows Docker data package. Copy the source tree and the exact docker/.env separately; restore only into empty persistent directories."
 }
-$manifestJson = $manifest | ConvertTo-Json -Depth 5
-[System.IO.File]::WriteAllText((Join-Path $backupDir "manifest.json"), $manifestJson + "`n", [System.Text.UTF8Encoding]::new($false))
+$metadataPath = Join-Path $backupDir ".manifest-metadata.json"
+$metadataJson = $metadata | ConvertTo-Json -Depth 6
+[System.IO.File]::WriteAllText($metadataPath, $metadataJson + "`n", [System.Text.UTF8Encoding]::new($false))
+try {
+  $manifestOutput = & node (Join-Path $PSScriptRoot "portable-migration-manifest.js") "create" $backupDir $metadataPath (Join-Path $dockerDir ".env")
+  if ($LASTEXITCODE -ne 0) {
+    throw "Portable migration manifest creation failed with exit code $LASTEXITCODE"
+  }
+  $manifestOutput | Select-Object -Last 1 | ConvertFrom-Json | Out-Null
+} finally {
+  Remove-Item -LiteralPath $metadataPath -Force -ErrorAction SilentlyContinue
+}
 
-Write-Host "Internal production backup completed: $backupDir"
+Write-Host "Internal production portable backup completed: $backupDir"

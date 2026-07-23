@@ -5,9 +5,14 @@ const repoRoot = path.resolve(__dirname, '..');
 const serverPath = path.join(repoRoot, 'server.js');
 const source = fs.readFileSync(serverPath, 'utf8');
 const helperStart = source.indexOf('function providerImageSizeTier');
-const helperEnd = source.indexOf('const ECOMMERCE_IMAGE_SYSTEM_PROMPT');
+const helperEnd = source.indexOf('function resolveTextRoute');
+const persistStart = source.indexOf('async function persistProviderImageResults');
+const persistEnd = source.indexOf('function normalizeTaskImage');
 
-if (helperStart < 0 || helperEnd < 0 || helperEnd <= helperStart) {
+if (
+  helperStart < 0 || helperEnd < 0 || helperEnd <= helperStart ||
+  persistStart < 0 || persistEnd < 0 || persistEnd <= persistStart
+) {
   throw new Error('Cannot locate Packy image size helpers in server.js');
 }
 
@@ -121,9 +126,22 @@ for (const tier of tiers) {
     const actual = providerImageSize(ratio, tier);
     assertPackySize(actual, ratio, tier);
     assert(actual === expected[key], `${key}: expected ${expected[key]}, got ${actual}`);
+    const prompt = buildImageGenerateNodePrompt('生成商品场景图', {
+      body: { ratio, clarity: tier, referenceImages: ['fixture-reference.png'] },
+      hasReferenceImages: true
+    });
+    assert(prompt === '生成商品场景图', `${key}: Image node prompt must not append hidden canvas constraints`);
     rows.push(`${tier.toUpperCase()} ${ratio} -> ${actual}`);
   }
 }
+
+const autoPrompt = buildImageGenerateNodePrompt('生成商品场景图', {
+  body: { ratio: 'auto', clarity: '1k', referenceImages: ['fixture-reference.png'] },
+  hasReferenceImages: true
+});
+assert(autoPrompt === '生成商品场景图', 'Auto ratio must not append hidden composition instructions');
+assert(buildImageGenerateNodePrompt('', { hasReferenceImages: true }) === '根据参考图生成图片', 'Reference-only image nodes must keep the shortest visible fallback');
+assert(buildImageGenerateNodePrompt('', { hasReferenceImages: false }) === '生成图片', 'Empty image nodes must keep the shortest visible fallback');
 
 assert(providerImageQuality('1k') === 'low', '1K clarity must map to Packy low quality');
 assert(providerImageQuality('2k') === 'medium', '2K clarity must map to Packy medium quality');
@@ -133,6 +151,61 @@ assert(providerImageQuality('standard', '2k') === 'medium', 'UI standard + 2K cl
 assert(providerImageQuality('standard', '4k') === 'high', 'UI standard + 4K clarity must map to high quality');
 assert(providerImageQuality('high') === 'high', 'Explicit high quality must be preserved');
 assert(providerImageSize('1024x1024', '1k') === '1024x1024', 'Explicit 1024x1024 must stay an explicit size');
+assert(normalizeImageRatio('1x1') === '1:1', 'Legacy 1x1 ratio must normalize to 1:1');
+assert(normalizeImageRatio('1X1') === '1:1', 'Uppercase legacy 1X1 ratio must normalize to 1:1');
+assert(normalizeImageRatio('1×1') === '1:1', 'Multiplication-sign legacy ratio must normalize to 1:1');
+assert(providerImageRequestSize({ ratio: '1:1', size: '1536x1024' }, '1k') === '1024x1024', 'Canonical ratio must take precedence over a conflicting size field');
+assert(providerImageRequestSize({ size: '1x1' }, '1k') === '1024x1024', 'Legacy size-as-ratio clients must remain compatible');
+assert(providerImageRequestSize({ size: '1024x1024' }, '1k') === '1024x1024', 'Explicit provider pixel size must remain compatible');
 
-console.log(`Packy GPT Image 2 size mapping passed: ${rows.length} cases`);
-console.log(rows.join('\n'));
+const oneByOnePng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nH0AAAAASUVORK5CYII=', 'base64');
+const decodedSquare = { buffer: oneByOnePng, ext: 'png' };
+assert(JSON.stringify(providerImageDimensions(oneByOnePng, 'png')) === JSON.stringify({ width: 1, height: 1 }), 'PNG dimensions must be read from IHDR');
+assert(providerImageAspectValidation(decodedSquare, { size: '1024x1024' }).valid, 'A square result must pass a square request');
+const mismatchValidation = providerImageAspectValidation(decodedSquare, { size: '1072x624' });
+assert(!mismatchValidation.valid, 'A square result must fail a landscape request');
+assert(mismatchValidation.code === 'PROVIDER_IMAGE_ASPECT_RATIO_MISMATCH', 'Aspect mismatch must use the stable error code');
+const mismatchWarning = providerImageAspectWarning(mismatchValidation);
+assert(mismatchWarning?.code === 'PROVIDER_IMAGE_ASPECT_RATIO_MISMATCH', 'Aspect mismatch must become a stable warning');
+assert(mismatchWarning?.expectedSize === '1072x624', 'Aspect warning must preserve the requested size');
+assert(mismatchWarning?.actualSize === '1x1', 'Aspect warning must preserve the actual size');
+
+const persistedPayloads = [];
+function firstString(...values) {
+  return values.find(value => typeof value === 'string' && value.trim())?.trim() || '';
+}
+async function loadRemoteProviderImagePayload() {
+  throw new Error('Remote provider image loading is not expected in this fixture');
+}
+function providerImageBuffer(value = '') {
+  const buffer = Buffer.from(String(value || ''), 'base64');
+  return buffer.length ? { buffer, ext: 'png' } : null;
+}
+function persistProviderImagePayload(decoded) {
+  persistedPayloads.push(decoded);
+  return '/uploads/generated/aspect-mismatch-fixture.png';
+}
+function imageProxyError(status, code, message) {
+  const error = new Error(message);
+  error.status = status;
+  error.code = code;
+  return error;
+}
+
+eval(source.slice(persistStart, persistEnd));
+
+(async () => {
+  const persistedMismatch = await persistProviderImageResults([
+    { b64_json: oneByOnePng.toString('base64') }
+  ], { size: '1072x624' });
+  assert(persistedPayloads.length === 1, 'A readable mismatched image must still be persisted');
+  assert(persistedMismatch[0]?.url === '/uploads/generated/aspect-mismatch-fixture.png', 'A mismatched image must return its persisted URL');
+  assert(persistedMismatch[0]?.aspectRatioWarning?.code === 'PROVIDER_IMAGE_ASPECT_RATIO_MISMATCH', 'Persisted mismatch must carry warning metadata');
+  assert(persistedMismatch[0]?.width === 1 && persistedMismatch[0]?.height === 1, 'Persisted mismatch must expose actual dimensions');
+
+  console.log(`Packy GPT Image 2 size mapping passed: ${rows.length} cases`);
+  console.log(rows.join('\n'));
+})().catch(error => {
+  console.error(error && error.stack ? error.stack : error);
+  process.exitCode = 1;
+});

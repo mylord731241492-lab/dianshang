@@ -49,7 +49,7 @@ git -C "F:\dianshang" diff --check
 - 兑换码：`/user/redeem`
 - 后台登录：`/admin/login`
 - 后台只读页：`/admin/dashboard`、`/admin/users`、`/admin/recycle-bin`、`/admin/orders`、`/admin/logs`、`/admin/generate-tasks`、`/admin/redeem-codes`、`/admin/model-prices`、`/admin/template-workflows`
-- 后台写入试点页：`/admin/api-providers`、`/admin/settings`
+- 后台写入试点页：`/admin/api-providers`、`/admin/chat-settings`、`/admin/settings`
 
 ## 可直接跑通的功能
 
@@ -63,6 +63,8 @@ git -C "F:\dianshang" diff --check
 - 后台 Dashboard、用户、订单、日志、任务、兑换码、模型价格、模板工作流和回收站都能只读搜索和刷新。
 - API 线路页已进入写入试点：可查看官方双线路、编辑旧后台字段、保存回显和 API Key 掩码；真实测试连接、拉模型、写入真实 Key 或删除正式线路前必须确认。
 - 系统设置页已进入保存试点：可编辑基础设置和图片工具线路、模型、提示词模板；人工测试保存前必须记录原值，保存后再改回原值。
+- Chat 设置页可查看部署与安全边界，编辑访问、文本、MCP 生图、允许模型和维护提示，并运行不产生模型费用的内部连接测试。
+- Chat 设置页的“实际 API 中转测试”必须经过二次确认；结果显示模型、协议、耗时、Tokens 和响应内容。上游可能附加数千 Tokens，该操作只在明确确认后执行。
 - 390px 移动端关键页无横向溢出。
 
 ## 暂不自动执行的功能
@@ -86,6 +88,6 @@ git -C "F:\dianshang" diff --check
 ## 下一阶段验收顺序
 
 1. 先跑完整源码前端 smoke，确认页面层没有退化。
-2. 人工验收系统设置和 API 线路两个写入试点，按原值记录、保存、刷新回显、恢复原值的顺序执行。
+2. 人工验收系统设置、API 线路和 Chat 设置三个写入试点，按原值记录、保存、刷新回显、恢复原值的顺序执行。
 3. 写入试点通过后，再评估模型价格和模板工作流这两类复杂写入。
 4. 最后在确认额度后接入真实 New-API 生图、模板反推、画布节点生成和图库回写。

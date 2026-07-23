@@ -6,22 +6,41 @@ import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
 import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { NButton, NInput, NPagination, NSelect, NTag } from 'naive-ui';
+import { NButton, NInput, NInputNumber, NPagination, NSelect, NTag } from 'naive-ui';
 import {
   Activity,
   CheckCircle2,
   Coins,
+  Edit3,
   Image,
   PackageCheck,
+  Plus,
+  Power,
   RefreshCcw,
-  Search } from 'lucide-vue-next';
+  Save,
+  Search,
+  Trash2,
+  XCircle
+} from 'lucide-vue-next';
 import { clearAdminAuthSession } from '../api/adminAuth';
-import { getAdminModelPrices, type AdminModelPriceModel, type AdminModelPriceRoute } from '../api/adminModelPrices';
+import {
+  createAdminRouteModel,
+  deleteAdminRouteModel,
+  getAdminModelPrices,
+  setAdminRouteModelEnabled,
+  updateAdminRouteModel,
+  type AdminModelPriceModel,
+  type AdminModelPricePayload,
+  type AdminModelPriceRoute
+} from '../api/adminModelPrices';
 import { getApiErrorMessage } from '../api/http';
 
 const router = useRouter();
 const loading = ref(true);
 const errorMessage = ref('');
+const successMessage = ref('');
+const saving = ref(false);
+const actionLoadingId = ref('');
 const routes = ref<AdminModelPriceRoute[]>([]);
 const models = ref<AdminModelPriceModel[]>([]);
 const total = ref(0);
@@ -30,6 +49,16 @@ const page = ref(1);
 const pageSize = ref(10);
 const keyword = ref('');
 const typeFilter = ref('all');
+const formOpen = ref(false);
+const editingId = ref('');
+const form = ref({
+  routeId: '',
+  modelKey: '',
+  displayName: '',
+  pricePoints: null as number | null,
+  baseCredits: null as number | null,
+  qualities: ''
+});
 
 const typeOptions = [
   { label: '全部类型', value: 'all' },
@@ -64,6 +93,11 @@ const visibleModels = computed(() => {
   });
 });
 
+const routeOptions = computed(() => routes.value.map((route) => ({
+  label: route.routeDisplayName || route.displayName || route.routeName || route.name || route.routeKey || route.id,
+  value: route.routeId || route.id
+})));
+
 const statCards = computed(() => {
   const enabled = models.value.filter(enabledOf).length;
   const imageCount = models.value.filter((model) => modelTypeOf(model) === 'image').length;
@@ -89,6 +123,10 @@ function modelTypeOf(model: AdminModelPriceModel) {
 
 function enabledOf(model: AdminModelPriceModel) {
   return model.enabled !== false && model.status !== 'disabled';
+}
+
+function modelIdOf(model: AdminModelPriceModel) {
+  return model.id || `${model.routeId}:${model.modelKey}`;
 }
 
 function formatNumber(value?: number) {
@@ -141,6 +179,126 @@ async function loadPrices() {
   }
 }
 
+function resetForm() {
+  editingId.value = '';
+  form.value = {
+    routeId: routeOptions.value[0]?.value || '',
+    modelKey: '',
+    displayName: '',
+    pricePoints: null,
+    baseCredits: null,
+    qualities: ''
+  };
+}
+
+function startCreate() {
+  if (!routeOptions.value.length) {
+    errorMessage.value = '请先在 API 线路管理中创建可用线路。';
+    return;
+  }
+  resetForm();
+  formOpen.value = true;
+}
+
+function startEdit(model: AdminModelPriceModel) {
+  editingId.value = modelIdOf(model);
+  form.value = {
+    routeId: model.routeId || routeOptions.value[0]?.value || '',
+    modelKey: model.modelKey || model.realName || '',
+    displayName: model.displayName || model.modelKey || model.realName || '',
+    pricePoints: priceOf(model),
+    baseCredits: Number(model.baseCredits ?? priceOf(model)),
+    qualities: (model.qualities || []).join(', ')
+  };
+  formOpen.value = true;
+}
+
+function cancelForm() {
+  formOpen.value = false;
+  resetForm();
+}
+
+function buildPayload(): AdminModelPricePayload {
+  return {
+    modelKey: form.value.modelKey.trim(),
+    realName: form.value.modelKey.trim(),
+    displayName: form.value.displayName.trim(),
+    price: Number(form.value.pricePoints),
+    pricePoints: Number(form.value.pricePoints),
+    baseCredits: Number(form.value.baseCredits ?? form.value.pricePoints),
+    qualities: form.value.qualities.split(/[,，/]/).map((item) => item.trim()).filter(Boolean)
+  };
+}
+
+async function saveModel() {
+  if (!form.value.routeId) {
+    errorMessage.value = '请选择模型所属线路。';
+    return;
+  }
+  if (!form.value.modelKey.trim() || !form.value.displayName.trim()) {
+    errorMessage.value = '请填写模型标识和展示名称。';
+    return;
+  }
+  const price = Number(form.value.pricePoints);
+  if (!Number.isFinite(price) || price < 0) {
+    errorMessage.value = '模型价格必须是大于或等于 0 的数字。';
+    return;
+  }
+  saving.value = true;
+  errorMessage.value = '';
+  successMessage.value = '';
+  try {
+    const payload = buildPayload();
+    if (editingId.value) {
+      await updateAdminRouteModel(editingId.value, payload);
+    } else {
+      await createAdminRouteModel(form.value.routeId, payload);
+    }
+    const message = editingId.value ? '模型价格已更新。' : '模型已新增。';
+    cancelForm();
+    await loadPrices();
+    successMessage.value = message;
+  } catch (error) {
+    errorMessage.value = getApiErrorMessage(error, '模型价格保存失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function toggleModel(model: AdminModelPriceModel) {
+  const id = modelIdOf(model);
+  const enabled = !enabledOf(model);
+  actionLoadingId.value = `toggle:${id}`;
+  errorMessage.value = '';
+  successMessage.value = '';
+  try {
+    await setAdminRouteModelEnabled(id, enabled);
+    await loadPrices();
+    successMessage.value = enabled ? '模型已启用。' : '模型已禁用，前台线路将不再返回该模型。';
+  } catch (error) {
+    errorMessage.value = getApiErrorMessage(error, '模型状态更新失败');
+  } finally {
+    actionLoadingId.value = '';
+  }
+}
+
+async function removeModel(model: AdminModelPriceModel) {
+  const id = modelIdOf(model);
+  if (!window.confirm(`确认删除模型「${model.displayName || model.modelKey || id}」吗？删除后前台线路将不再返回该模型。`)) return;
+  actionLoadingId.value = `delete:${id}`;
+  errorMessage.value = '';
+  successMessage.value = '';
+  try {
+    await deleteAdminRouteModel(id);
+    await loadPrices();
+    successMessage.value = '模型已删除。';
+  } catch (error) {
+    errorMessage.value = getApiErrorMessage(error, '模型删除失败');
+  } finally {
+    actionLoadingId.value = '';
+  }
+}
+
 async function applyFilters() {
   page.value = 1;
   await loadPrices();
@@ -156,8 +314,12 @@ onMounted(loadPrices);
 
 <template>
   <AdminPageShell>
-    <AdminPageHeader eyebrow="Model Prices" title="模型价格" description="只读迁移版：查看线路模型、价格点数、清晰度和启用状态，不保存、不新增、不删除。">
+    <AdminPageHeader eyebrow="Model Prices" title="模型价格" description="维护线路模型、价格点数、清晰度和启用状态；变更会直接影响前台可用模型。">
       <template #actions>
+          <n-button type="primary" data-testid="open-model-price-form" @click="startCreate">
+            <template #icon><Plus :size="16" /></template>
+            新增模型
+          </n-button>
           <n-button secondary :loading="loading" @click="loadPrices">
             <template #icon><RefreshCcw :size="16" /></template>
             刷新
@@ -166,7 +328,51 @@ onMounted(loadPrices);
       </template>
     </AdminPageHeader>
 
-    <AdminFeedback :error-message="errorMessage" />
+    <AdminFeedback :error-message="errorMessage" :success-message="successMessage" />
+
+      <section v-if="formOpen" class="admin-source-panel admin-inline-action-panel admin-model-price-form-panel" data-testid="model-price-form">
+        <div class="admin-panel-head">
+          <div>
+            <p class="eyebrow">Model Configuration</p>
+            <h2>{{ editingId ? '编辑模型价格' : '新增线路模型' }}</h2>
+          </div>
+          <n-button secondary @click="cancelForm">
+            <template #icon><XCircle :size="16" /></template>取消
+          </n-button>
+        </div>
+        <form class="form-grid admin-model-price-form" @submit.prevent="saveModel">
+          <label>
+            所属线路 *
+            <n-select v-model:value="form.routeId" :options="routeOptions" :disabled="Boolean(editingId)" />
+          </label>
+          <label>
+            模型标识 *
+            <n-input v-model:value="form.modelKey" :disabled="Boolean(editingId)" placeholder="例如 gpt-image-2" />
+          </label>
+          <label>
+            展示名称 *
+            <n-input v-model:value="form.displayName" placeholder="后台和前台显示名称" />
+          </label>
+          <label>
+            价格点数 *
+            <n-input-number v-model:value="form.pricePoints" :min="0" :show-button="false" placeholder="0 或正数" />
+          </label>
+          <label>
+            基础点数
+            <n-input-number v-model:value="form.baseCredits" :min="0" :show-button="false" placeholder="默认等于价格点数" />
+          </label>
+          <label>
+            清晰度
+            <n-input v-model:value="form.qualities" placeholder="例如 1k, 2k, 4k" />
+          </label>
+          <div class="source-actions admin-inline-action-submit">
+            <n-button secondary @click="cancelForm">取消</n-button>
+            <n-button type="primary" attr-type="submit" :loading="saving">
+              <template #icon><Save :size="16" /></template>保存模型
+            </n-button>
+          </div>
+        </form>
+      </section>
 
       <section class="admin-stat-grid" aria-label="模型价格统计">
         <article v-for="stat in statCards" :key="stat.label">
@@ -179,10 +385,10 @@ onMounted(loadPrices);
       <section class="admin-source-panel admin-model-prices-panel">
         <div class="admin-panel-head">
           <div>
-            <p class="eyebrow">Read Only Pricing</p>
+            <p class="eyebrow">Writable Pricing</p>
             <h2>模型价格列表</h2>
           </div>
-          <n-tag type="info" :bordered="false">只读</n-tag>
+          <n-tag type="success" :bordered="false">实时配置</n-tag>
         </div>
 
         <AdminToolbar class="admin-model-prices-toolbar">
@@ -216,6 +422,17 @@ onMounted(loadPrices);
               <span>清晰度</span>
               <strong>{{ (model.qualities || []).join(' / ') || '-' }}</strong>
               <span>ID: {{ model.id }}</span>
+            </div>
+            <div class="admin-card-actions admin-model-price-actions">
+              <n-button size="small" secondary @click="startEdit(model)">
+                <template #icon><Edit3 :size="14" /></template>编辑
+              </n-button>
+              <n-button size="small" secondary :loading="actionLoadingId === `toggle:${modelIdOf(model)}`" @click="toggleModel(model)">
+                <template #icon><Power :size="14" /></template>{{ enabledOf(model) ? '禁用' : '启用' }}
+              </n-button>
+              <n-button size="small" tertiary type="error" :loading="actionLoadingId === `delete:${modelIdOf(model)}`" @click="removeModel(model)">
+                <template #icon><Trash2 :size="14" /></template>删除
+              </n-button>
             </div>
           </article>
           <AdminEmptyState v-if="!visibleModels.length && !loading" message="暂无匹配模型价格" />

@@ -11,6 +11,10 @@ export interface AdminDashboardSummary {
   activeUsers?: number;
   routeCount?: number;
   modelCount?: number;
+  todayNewUsers?: number;
+  todayGenerations?: number;
+  todayOrderAmount?: number;
+  apiFailures?: number;
 }
 
 export interface AdminUsageItem {
@@ -67,12 +71,19 @@ export interface AdminDashboardResponse {
     list?: AdminUsageItem[];
   };
   routeUsage?: {
+    available?: boolean;
+    reason?: string;
     totalCredits?: number;
     totalCount?: number;
     list?: AdminRouteUsageItem[];
   };
   ranking?: {
     list?: AdminRankingUser[];
+  };
+  dataQuality?: {
+    ordersAvailable?: boolean;
+    routeUsageAvailable?: boolean;
+    message?: string;
   };
 }
 

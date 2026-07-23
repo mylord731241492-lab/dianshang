@@ -1,0 +1,76 @@
+version: 1.3.11
+cache: true
+
+interface:
+  customWelcome: '欢迎使用哈吉米 AI 对话。'
+  endpointsMenu: true
+  modelSelect: true
+  parameters: true
+  presets: true
+  prompts: true
+  bookmarks: true
+  multiConvo: true
+  agents: false
+  skills:
+    use: true
+    create: true
+    defaultActiveOnShare: true
+  mcpServers:
+    use: true
+    create: false
+    share: false
+    public: false
+
+registration:
+  socialLogins: []
+
+endpoints:
+  custom:
+    - name: 'hajimi'
+      apiKey: '${LIBRECHAT_BRIDGE_SECRET}'
+      baseURL: 'http://app:3456/api/integrations/librechat/v1'
+      models:
+        default: ['gpt-5.6-terra']
+        fetch: false
+      titleConvo: false
+      summarize: false
+      modelDisplayLabel: '哈吉米 AI'
+      headers:
+        X-Chat-User-Id: '{{LIBRECHAT_USER_OPENIDID}}'
+        X-Chat-User-Email: '{{LIBRECHAT_USER_EMAIL}}'
+        X-Chat-Message-ID: '{{LIBRECHAT_BODY_MESSAGEID}}'
+        X-Chat-Conversation-ID: '{{LIBRECHAT_BODY_CONVERSATIONID}}'
+        X-Chat-Reference-Images: '{{LIBRECHAT_BODY_REFERENCEIMAGES}}'
+        X-Chat-Agent-ID: '{{LIBRECHAT_BODY_HJMMANAGEDAGENTID}}'
+  agents:
+    capabilities:
+      - 'actions'
+      - 'context'
+      - 'skills'
+      - 'tools'
+
+mcpSettings:
+  allowedAddresses:
+    - 'app:3456'
+
+mcpServers:
+  hajimi-website:
+    type: streamable-http
+    url: 'http://app:3456/api/integrations/librechat/mcp'
+    headers:
+      X-Chat-User-Id: '{{LIBRECHAT_USER_OPENIDID}}'
+      X-Chat-User-Email: '{{LIBRECHAT_USER_EMAIL}}'
+      X-Chat-Message-ID: '{{LIBRECHAT_BODY_MESSAGEID}}'
+      X-Chat-Conversation-ID: '{{LIBRECHAT_BODY_CONVERSATIONID}}'
+      X-Chat-Reference-Images: '{{LIBRECHAT_BODY_REFERENCEIMAGES}}'
+      X-Chat-Agent-ID: '{{LIBRECHAT_BODY_HJMMANAGEDAGENTID}}'
+      Authorization: 'Bearer ${LIBRECHAT_BRIDGE_SECRET}'
+    timeout: 240000
+    initTimeout: 15000
+    chatMenu: false
+    serverInstructions: |
+      按当前智能体的系统指令使用图片工具。需要两阶段电商主图方案时，先调用 prepare_ecommerce_image_plan，
+      用户确认编辑内容后再调用 confirm_ecommerce_image_plan；其他图片任务可调用 prepare_image_generation 直接报价。
+      等待用户在下一条消息明确确认报价后，再调用 execute_image_generation。
+      工具结果已经是面向普通用户的中文内容；回复时不要展示工具名、MCP 服务器名、
+      quoteId、modelKey、工具参数或原始 JSON。

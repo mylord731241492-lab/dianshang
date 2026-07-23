@@ -190,7 +190,7 @@ class ImageRequestScheduler {
       .then((result) => {
         if (result && result.success === false && this.isTransient(result)) {
           this.recordTransientFailure(job.failureDomain);
-        } else if (!result || result.success !== false) {
+        } else {
           this.recordSuccess(job.failureDomain);
         }
         job.resolve(result);
@@ -198,6 +198,8 @@ class ImageRequestScheduler {
       .catch((error) => {
         if (error?.name !== 'AbortError' && this.isTransient(error)) {
           this.recordTransientFailure(job.failureDomain);
+        } else if (error?.name !== 'AbortError') {
+          this.recordSuccess(job.failureDomain);
         }
         job.reject(error);
       })

@@ -80,7 +80,7 @@ class GenerationTaskService {
     }).finally(() => {
       this.enqueued.delete(taskId);
       const current = this.repository.getTask(taskId);
-      if (current?.status === 'pending') {
+      if (current?.status === 'pending' && !this.retryTimers.has(taskId)) {
         queueMicrotask(() => this.enqueue(taskId));
       } else if (current && ['success', 'failed', 'cancelled'].includes(current.status)) {
         this.onTerminal(current);
@@ -155,8 +155,10 @@ class GenerationTaskService {
       const cancelled = current?.status === 'cancelled' || error?.name === 'AbortError' || error?.code === 'TASK_CANCELLED';
       this.repository.recordAttemptFinish(attempt.id, {
         status: cancelled ? 'cancelled' : 'failed',
-        errorCode: cancelled ? 'TASK_CANCELLED' : (error?.code || 'GENERATION_WORKER_ERROR'),
-        errorMessage: error?.message || '生图任务执行失败'
+        errorCode: cancelled ? (current?.errorCode || 'TASK_CANCELLED') : (error?.code || 'GENERATION_WORKER_ERROR'),
+        errorMessage: cancelled
+          ? (current?.errorMessage || error?.message || '任务已取消')
+          : (error?.message || '生图任务执行失败')
       });
       if (!cancelled) {
         const failed = this.repository.failTask(taskId, {

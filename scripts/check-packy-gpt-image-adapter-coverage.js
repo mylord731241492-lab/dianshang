@@ -154,7 +154,7 @@ assertIncludes('Provider image targeted proxy transport', providerImageTransport
   'function providerImageAgentForUrl',
   'function providerImageTransportForUrl',
   "'https-proxy'",
-  "'https-default-direct'"
+  "'https-ipv4-pool'"
 ]);
 assertIncludes('Provider image proxy dependency', source, [
   "const { HttpsProxyAgent } = require('https-proxy-agent');"

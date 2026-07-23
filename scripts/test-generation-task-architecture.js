@@ -131,13 +131,25 @@ function testCancellationAndRecovery() {
   const cancelled = repository.cancelTask('task_1', { reason: '测试取消' });
   assert.equal(cancelled.status, 'cancelled');
   assert.equal(cancelled.billingStatus, 'refunded');
+  assert.equal(cancelled.errorCode, 'TASK_CANCELLED');
+  assert.equal(cancelled.request.upstreamBillingAmbiguous, false);
   assert.equal(db.prepare("SELECT balance FROM users WHERE id='user_1'").get().balance, 50);
 
   repository.createReservedTask(taskInput({ id: 'task_2', idempotencyKey: 'idem_2' }));
   repository.claimNextItem('task_2');
+  const runningCancelled = repository.cancelTask('task_2', { reason: '测试运行中取消' });
+  assert.equal(runningCancelled.status, 'cancelled');
+  assert.equal(runningCancelled.billingStatus, 'refunded');
+  assert.equal(runningCancelled.errorCode, 'TASK_CANCELLED_UPSTREAM_UNKNOWN');
+  assert.equal(runningCancelled.request.upstreamBillingAmbiguous, true);
+  assert.match(runningCancelled.errorMessage, /上游可能已计费/);
+  assert.equal(db.prepare("SELECT balance FROM users WHERE id='user_1'").get().balance, 50);
+
+  repository.createReservedTask(taskInput({ id: 'task_3', idempotencyKey: 'idem_3' }));
+  repository.claimNextItem('task_3');
   const recovered = repository.recoverInterruptedTasks();
   assert.equal(recovered.length, 1);
-  assert.equal(repository.getTask('task_2').errorCode, 'WORKER_INTERRUPTED_UNKNOWN');
+  assert.equal(repository.getTask('task_3').errorCode, 'WORKER_INTERRUPTED_UNKNOWN');
   assert.equal(db.prepare("SELECT balance FROM users WHERE id='user_1'").get().balance, 50);
   db.close();
 }
@@ -252,8 +264,7 @@ async function testSchedulerCapacityAndCircuitRecovery() {
     now: () => currentTime
   });
   const transientCases = [
-    Object.assign(new Error('simulated timeout'), { code: 'ETIMEDOUT' }),
-    Object.assign(new Error('simulated disconnect'), { code: 'ECONNRESET' })
+    Object.assign(new Error('simulated timeout'), { code: 'ETIMEDOUT' })
   ];
   for (const error of transientCases) {
     await assert.rejects(circuitScheduler.schedule(
@@ -261,6 +272,24 @@ async function testSchedulerCapacityAndCircuitRecovery() {
       { userId: 'user_1', failureDomain: 'provider-a' }
     ));
   }
+  await circuitScheduler.schedule(
+    async () => ({ success: false, upstreamStatus: 400, code: 'PROVIDER_4XX' }),
+    { userId: 'user_1', failureDomain: 'provider-a' }
+  );
+  assert.equal(
+    circuitScheduler.snapshot().circuits['provider-a'].consecutiveFailures,
+    0,
+    '非瞬态失败必须打断连续网络失败计数'
+  );
+  await assert.rejects(circuitScheduler.schedule(
+    async () => { throw Object.assign(new Error('simulated disconnect'), { code: 'ECONNRESET' }); },
+    { userId: 'user_1', failureDomain: 'provider-a' }
+  ));
+  await circuitScheduler.schedule(
+    async () => ({ success: false, upstreamStatus: 503, code: 'PROVIDER_5XX' }),
+    { userId: 'user_1', failureDomain: 'provider-a' }
+  );
+  assert.equal(circuitScheduler.snapshot().circuits['provider-a'].open, false);
   await circuitScheduler.schedule(
     async () => ({ success: false, upstreamStatus: 503, code: 'PROVIDER_5XX' }),
     { userId: 'user_1', failureDomain: 'provider-a' }
@@ -281,6 +310,42 @@ async function testSchedulerCapacityAndCircuitRecovery() {
   await recovered;
   assert.equal(recoveredStarted, true);
   assert.equal(circuitScheduler.snapshot().circuits['provider-a'].open, false);
+}
+
+async function testQueueFullRetryBackoff() {
+  let calls = 0;
+  let status = 'pending';
+  const repository = {
+    getTask() {
+      return { id: 'task_retry', userId: 'user_1', failureDomain: 'provider-a', status };
+    },
+    updateQueueState() {},
+    failTask() {
+      status = 'failed';
+      return this.getTask();
+    }
+  };
+  const scheduler = {
+    schedule() {
+      calls += 1;
+      if (calls === 1) {
+        return Promise.reject(Object.assign(new Error('queue full'), { code: 'GENERATION_QUEUE_FULL' }));
+      }
+      status = 'failed';
+      return Promise.resolve({ success: false });
+    }
+  };
+  const service = new GenerationTaskService({
+    repository,
+    scheduler,
+    retryDelayMs: 100,
+    executeItem: async () => ({ success: true })
+  });
+  service.enqueue('task_retry');
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(calls, 1, '队列满后不得通过微任务立即忙循环重试');
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  assert.equal(calls, 2, '队列满后应按退避定时器重试一次');
 }
 
 async function testPersistenceFailureRefund() {
@@ -313,6 +378,7 @@ async function main() {
   testPersistentQueueLimit();
   await testFairBoundedScheduler();
   await testSchedulerCapacityAndCircuitRecovery();
+  await testQueueFullRetryBackoff();
   await testPersistenceFailureRefund();
   console.log('Generation task repository and fair scheduler regression passed.');
 }

@@ -31,6 +31,7 @@ export interface AdminGenerateTask {
   failureDomain?: string;
   canCancel?: boolean;
   partial?: boolean;
+  warnings?: string[];
   startedAt?: string;
   elapsedMs?: number;
   imageCount?: number;
@@ -43,6 +44,10 @@ export interface AdminGenerateTask {
   updatedAt?: string;
   finishedAt?: string;
   errorMessage?: string;
+  request?: {
+    upstreamBillingAmbiguous?: boolean;
+    [key: string]: unknown;
+  };
 }
 
 export interface AdminGenerateTaskSummary {
@@ -63,6 +68,13 @@ export interface AdminGenerateTaskSummary {
       consecutiveFailures?: number;
       retryAfterMs?: number;
     }>;
+  };
+  processMemory?: {
+    rss?: number;
+    heapTotal?: number;
+    heapUsed?: number;
+    external?: number;
+    arrayBuffers?: number;
   };
   dataScope?: string;
 }

@@ -86,8 +86,18 @@ const queueModeLabel = computed(() => {
   return String(summary.value.queueMode || '本地记录');
 });
 
+const openCircuits = computed(() => Object.entries(summary.value.queue?.circuits || {})
+  .filter(([, state]) => state.open)
+  .map(([domain, state]) => `${domain}（${Math.ceil(Number(state.retryAfterMs || 0) / 1000)} 秒后重试）`));
+
 function formatNumber(value?: number) {
   return Number(value || 0).toLocaleString('zh-CN');
+}
+
+function formatDuration(value?: number) {
+  const milliseconds = Math.max(0, Number(value || 0));
+  if (milliseconds < 1000) return `${Math.round(milliseconds)}ms`;
+  return `${(milliseconds / 1000).toFixed(milliseconds < 10000 ? 1 : 0)}s`;
 }
 
 function formatDate(raw?: string) {
@@ -216,6 +226,9 @@ onMounted(loadTasks);
     <AdminFeedback :error-message="errorMessage" :success-message="successMessage" />
 
       <n-alert v-if="summary.dataScope" type="info" :bordered="false">{{ summary.dataScope }}</n-alert>
+      <n-alert v-if="openCircuits.length" type="warning" :bordered="false">
+        线路熔断中：{{ openCircuits.join('、') }}
+      </n-alert>
 
       <AdminStatGrid :stats="statCards" label="任务统计" />
 
@@ -264,6 +277,7 @@ onMounted(loadTasks);
               <small>
                 {{ task.resolvedSize || task.size || '规格未记录' }} · {{ task.imageCount || 0 }} 张
                 <template v-if="task.queuePosition"> · 队列第 {{ task.queuePosition }} 位</template>
+                <template v-if="task.elapsedMs !== undefined"> · 已耗时 {{ formatDuration(task.elapsedMs) }}</template>
               </small>
             </div>
             <div class="admin-task-time">
@@ -279,7 +293,10 @@ onMounted(loadTasks);
               </n-button>
               <span v-if="!isCancellable(task) && !isDeletable(task)" class="admin-action-muted">暂无操作</span>
             </div>
-            <p v-if="task.errorMessage" class="admin-task-error">{{ task.errorMessage }}</p>
+            <p v-if="task.errorMessage" class="admin-task-error">
+              {{ task.errorMessage }}
+              <template v-if="task.request?.upstreamBillingAmbiguous">（需核对上游账单）</template>
+            </p>
           </article>
           <AdminEmptyState v-if="!visibleTasks.length && !loading" message="暂无匹配任务" />
         </div>

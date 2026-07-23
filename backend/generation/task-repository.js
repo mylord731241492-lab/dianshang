@@ -445,6 +445,10 @@ function createGenerationTaskRepository(options = {}) {
     const status = options.forceStatus || (successfulItems.length ? 'success' : 'failed');
     const requestMeta = safeParse(taskRow.request_meta_json, {});
     const partial = successfulItems.length > 0 && successfulItems.length < items.length;
+    const warnings = Array.isArray(requestMeta.warnings) ? [...requestMeta.warnings] : [];
+    if (partial) {
+      warnings.push(options.errorMessage || taskRow.error_message || '部分图片生成失败，已按实际成功数量结算');
+    }
     db.prepare(`
       UPDATE generation_tasks
       SET status=?,stage=?,settled_cost=?,billing_status=?,result_json=?,
@@ -457,7 +461,13 @@ function createGenerationTaskRepository(options = {}) {
       settledCost,
       refundResult.billingStatus,
       json(results, []),
-      json({ ...requestMeta, partial, successfulItems: successfulItems.length, requestedItems: items.length }, {}),
+      json({
+        ...requestMeta,
+        partial,
+        warnings: [...new Set(warnings.filter(Boolean))],
+        successfulItems: successfulItems.length,
+        requestedItems: items.length
+      }, {}),
       options.errorCode || taskRow.error_code || '',
       options.errorMessage || taskRow.error_message || '',
       timestamp,
@@ -553,21 +563,33 @@ function createGenerationTaskRepository(options = {}) {
     }
     const timestamp = now();
     const reason = input.reason || '用户取消';
+    const upstreamBillingAmbiguous = task.status === 'running';
+    const errorCode = upstreamBillingAmbiguous ? 'TASK_CANCELLED_UPSTREAM_UNKNOWN' : 'TASK_CANCELLED';
+    const errorMessage = upstreamBillingAmbiguous
+      ? `${reason}；本地请求已中止，上游可能已计费`
+      : reason;
+    const requestMeta = {
+      ...safeParse(task.request_meta_json, {}),
+      upstreamBillingAmbiguous,
+      cancelledWhileRunning: upstreamBillingAmbiguous
+    };
     db.prepare(`
       UPDATE generation_task_items
-      SET status='cancelled',error_code='TASK_CANCELLED',error_message=?,finished_at=?,updated_at=?
+      SET status='cancelled',
+          error_code=CASE WHEN status='running' THEN ? ELSE 'TASK_CANCELLED' END,
+          error_message=?,finished_at=?,updated_at=?
       WHERE task_id=? AND status IN ('pending','running')
-    `).run(reason, timestamp, timestamp, taskId);
+    `).run(errorCode, errorMessage, timestamp, timestamp, taskId);
     db.prepare(`
       UPDATE generation_tasks
-      SET cancellation_reason=?,cancel_requested_at=?,error_code='TASK_CANCELLED',
-          error_message=?,updated_at=?
+      SET cancellation_reason=?,cancel_requested_at=?,error_code=?,
+          error_message=?,request_meta_json=?,updated_at=?
       WHERE id=?
-    `).run(reason, timestamp, reason, timestamp, taskId);
+    `).run(reason, timestamp, errorCode, errorMessage, json(requestMeta, {}), timestamp, taskId);
     return finalizeTask(taskId, {
       forceStatus: 'cancelled',
-      errorCode: 'TASK_CANCELLED',
-      errorMessage: reason,
+      errorCode,
+      errorMessage,
       reason
     });
   });

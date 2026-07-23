@@ -105,10 +105,17 @@ const GENERATION_GLOBAL_CONCURRENCY = Math.max(1, Math.min(Number(process.env.GE
 const GENERATION_DOMAIN_CONCURRENCY = Math.max(1, Math.min(Number(process.env.GENERATION_DOMAIN_CONCURRENCY || 1) || 1, 10));
 const GENERATION_MAX_QUEUED = Math.max(1, Math.min(Number(process.env.GENERATION_MAX_QUEUED || 30) || 30, 1000));
 const GENERATION_MAX_USER_NONTERMINAL = Math.max(1, Math.min(Number(process.env.GENERATION_MAX_USER_NONTERMINAL || 3) || 3, 20));
+const GENERATION_CIRCUIT_THRESHOLD = Math.max(1, Math.min(Number(process.env.GENERATION_CIRCUIT_THRESHOLD || 3) || 3, 20));
+const GENERATION_CIRCUIT_WINDOW_MS = Math.max(1000, Number(process.env.GENERATION_CIRCUIT_WINDOW_MS || 5 * 60 * 1000) || 5 * 60 * 1000);
+const GENERATION_CIRCUIT_OPEN_MS = Math.max(1000, Number(process.env.GENERATION_CIRCUIT_OPEN_MS || 60 * 1000) || 60 * 1000);
 const GENERATION_MAX_REFERENCE_COUNT = 4;
 const GENERATION_MAX_REFERENCE_BYTES = 5 * 1024 * 1024;
 const GENERATION_MAX_REFERENCE_TOTAL_BYTES = 16 * 1024 * 1024;
 const GENERATION_INPUT_RETENTION_MS = 24 * 60 * 60 * 1000;
+const GENERATION_INPUT_CLEANUP_INTERVAL_MS = Math.max(
+  100,
+  Number(process.env.GENERATION_INPUT_CLEANUP_INTERVAL_MS || 60 * 60 * 1000) || 60 * 60 * 1000
+);
 const ENABLE_REAL_AI = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_AI || '').toLowerCase());
 const ENABLE_REAL_EMAIL = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_EMAIL || '').toLowerCase());
 const ENABLE_REAL_PAYMENT = ['1','true','yes','on'].includes(String(process.env.ENABLE_REAL_PAYMENT || '').toLowerCase());
@@ -359,7 +366,10 @@ const rcode = () => String(Math.floor(100000 + Math.random() * 900000));
 const imageRequestScheduler = new ImageRequestScheduler({
   globalConcurrency: GENERATION_GLOBAL_CONCURRENCY,
   perDomainConcurrency: GENERATION_DOMAIN_CONCURRENCY,
-  maxQueued: GENERATION_MAX_QUEUED
+  maxQueued: GENERATION_MAX_QUEUED,
+  circuitThreshold: GENERATION_CIRCUIT_THRESHOLD,
+  circuitWindowMs: GENERATION_CIRCUIT_WINDOW_MS,
+  circuitOpenMs: GENERATION_CIRCUIT_OPEN_MS
 });
 const generationTaskRepository = createGenerationTaskRepository({
   db,
@@ -1189,6 +1199,8 @@ function routeProviderStatus(route = {}, kind = 'text') {
   return {
     ...status,
     baseUrl,
+    timeoutMs: positiveNumber(route.timeoutMs, status.timeoutMs),
+    imageTimeoutMs: positiveNumber(route.imageTimeoutMs || route.timeoutMs, status.imageTimeoutMs),
     enabled,
     mode: enabled ? 'real-provider-ready' : 'mock',
     textKeyConfigured: kind === 'text' ? keyConfigured : status.textKeyConfigured,
@@ -2370,7 +2382,10 @@ async function cleanupExpiredGenerationTaskInputs() {
   await Promise.all(entries.filter((entry) => entry.isDirectory()).map(async (entry) => {
     const target = generationTaskInputDirectory(entry.name);
     const stat = await fs.promises.stat(target);
-    if (stat.mtimeMs < cutoff) await fs.promises.rm(target, { recursive: true, force: true });
+    if (stat.mtimeMs >= cutoff) return;
+    const task = generationTaskRepository.getTask(entry.name);
+    if (task && ['pending', 'running'].includes(task.status)) return;
+    await fs.promises.rm(target, { recursive: true, force: true });
   }));
 }
 
@@ -4816,6 +4831,12 @@ const providerHttpsAgent = new https.Agent({
   maxSockets: 32,
   maxFreeSockets: 8
 });
+const providerImageHttpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 32,
+  maxFreeSockets: 8,
+  family: 4
+});
 function normalizeLingsuanImageProxyUrl(value = '') {
   const raw = String(value || '').trim();
   if (!raw) return '';
@@ -4847,14 +4868,14 @@ function providerImageAgentForUrl(url = '') {
   let protocol = '';
   try { protocol = new URL(String(url)).protocol; } catch {}
   if (protocol !== 'https:') return undefined;
-  return isLingsuanImageProxyTarget(url) ? providerImageProxyAgent : undefined;
+  return isLingsuanImageProxyTarget(url) ? providerImageProxyAgent : providerImageHttpsAgent;
 }
 
 function providerImageTransportForUrl(url = '') {
   let protocol = '';
   try { protocol = new URL(String(url)).protocol; } catch {}
   if (protocol !== 'https:') return 'http-direct';
-  return isLingsuanImageProxyTarget(url) ? 'https-proxy' : 'https-default-direct';
+  return isLingsuanImageProxyTarget(url) ? 'https-proxy' : 'https-ipv4-pool';
 }
 
 function isProviderPreTlsReset(error) {
@@ -6518,6 +6539,7 @@ function makePersistentTaskResponse(task) {
     : 0;
   const now = Date.now();
   const elapsedMs = Math.max(0, (task.finishedAtMs || now) - task.createdAtMs);
+  const warnings = Array.isArray(task.request?.warnings) ? task.request.warnings : [];
   return {
     id: task.id,
     taskId: task.id,
@@ -6536,6 +6558,7 @@ function makePersistentTaskResponse(task) {
     settledCost: task.settledCost,
     billingStatus: task.billingStatus,
     partial: !!task.request?.partial,
+    warnings,
     request: {
       ...(task.request || {}),
       queueMode: 'persistent-bounded-fair',
@@ -6636,7 +6659,7 @@ const generationInputCleanupTimer = setInterval(() => {
   cleanupExpiredGenerationTaskInputs().catch((error) => {
     console.warn(`[GENERATION_INPUT_CLEANUP] ${error.message}`);
   });
-}, 60 * 60 * 1000);
+}, GENERATION_INPUT_CLEANUP_INTERVAL_MS);
 if (typeof generationInputCleanupTimer.unref === 'function') generationInputCleanupTimer.unref();
 
 async function submitPersistentGenerationTask(req, body = req.body || {}, options = {}) {
@@ -8090,6 +8113,8 @@ app.post('/api/admin/api-providers', auth, admin, (req, res) => {
     status: req.body.status || 'active',
     baseUrl: req.body.baseUrl || req.body.apiBase || '',
     apiKey: normalizeSecretInput(req.body.apiKey),
+    timeoutMs: positiveNumber(req.body.timeoutMs, PROVIDER_TIMEOUT_MS),
+    imageTimeoutMs: positiveNumber(req.body.imageTimeoutMs || req.body.timeoutMs, IMAGE_PROVIDER_TIMEOUT_MS),
     requestFormat: req.body.requestFormat || req.body.apiFormat || '',
     endpoint: req.body.endpoint || req.body.requestPath || '',
     requestPath: req.body.requestPath || req.body.endpoint || '',
@@ -8150,6 +8175,11 @@ app.put('/api/admin/api-providers', auth, admin, (req, res) => {
       status: route.status || 'active',
       baseUrl: route.baseUrl || route.apiBase || '',
       apiKey: normalizeSecretInput(route.apiKey, previous.apiKey || ''),
+      timeoutMs: positiveNumber(route.timeoutMs, previous.timeoutMs || PROVIDER_TIMEOUT_MS),
+      imageTimeoutMs: positiveNumber(
+        route.imageTimeoutMs || route.timeoutMs,
+        previous.imageTimeoutMs || IMAGE_PROVIDER_TIMEOUT_MS
+      ),
       chatEndpoint: route.chatEndpoint || '',
       imageEndpoint: route.imageEndpoint || '',
       imageEditEndpoint: route.imageEditEndpoint || '',
@@ -8192,6 +8222,11 @@ app.put('/api/admin/api-providers/:id', auth, admin, (req, res) => {
       g: req.body.category || req.body.type || req.body.group || route.g,
       baseUrl: req.body.baseUrl ?? req.body.apiBase ?? route.baseUrl,
       apiKey: normalizeSecretInput(req.body.apiKey, route.apiKey || ''),
+      timeoutMs: positiveNumber(req.body.timeoutMs, route.timeoutMs || PROVIDER_TIMEOUT_MS),
+      imageTimeoutMs: positiveNumber(
+        req.body.imageTimeoutMs || req.body.timeoutMs,
+        route.imageTimeoutMs || IMAGE_PROVIDER_TIMEOUT_MS
+      ),
       chatEndpoint: req.body.chatEndpoint ?? route.chatEndpoint ?? '',
       imageEndpoint: req.body.imageEndpoint ?? route.imageEndpoint ?? '',
       imageEditEndpoint: req.body.imageEditEndpoint ?? route.imageEditEndpoint ?? '',
@@ -8411,6 +8446,9 @@ app.get('/api/admin/generate-tasks', auth, admin, (req, res) => {
     cancelled: filtered.filter(t => t.status === 'cancelled').length,
     queueMode: 'persistent-bounded-fair',
     queue: schedulerSummary,
+    processMemory: Object.fromEntries(
+      Object.entries(process.memoryUsage()).map(([key, value]) => [key, Number(value || 0)])
+    ),
     dataScope: 'SQLite 持久任务、兼容期运行时任务与旧生成历史；Provider 失败域和账务状态均来自真实任务记录'
   };
   const payload = pageList(filtered, req);

@@ -24,7 +24,8 @@ import {
   cancelAdminGenerateTask,
   deleteAdminGenerateTask,
   getAdminGenerateTasks,
-  type AdminGenerateTask
+  type AdminGenerateTask,
+  type AdminGenerateTaskSummary
 } from '../api/adminGenerateTasks';
 import { getApiErrorMessage } from '../api/http';
 
@@ -39,7 +40,7 @@ const page = ref(1);
 const pageSize = ref(10);
 const keyword = ref('');
 const statusFilter = ref('all');
-const summary = ref<Record<string, number | string>>({});
+const summary = ref<AdminGenerateTaskSummary>({});
 
 const statusOptions = [
   { label: '全部状态', value: 'all' },
@@ -78,6 +79,9 @@ const statCards = computed(() => [
 ]);
 
 const queueModeLabel = computed(() => {
+  if (summary.value.queueMode === 'persistent-bounded-fair') {
+    return `持久公平队列 · 运行 ${summary.value.queue?.active ?? 0} / 等待 ${summary.value.queue?.queued ?? 0}`;
+  }
   if (summary.value.queueMode === 'runtime-memory+history') return '运行时 + 历史';
   return String(summary.value.queueMode || '本地记录');
 });
@@ -142,7 +146,7 @@ async function loadTasks() {
     total.value = data.total;
     page.value = data.page;
     pageSize.value = data.pageSize;
-    summary.value = data.summary as Record<string, number | string>;
+    summary.value = data.summary;
   } catch (error) {
     errorMessage.value = friendlyError(error);
   } finally {
@@ -247,6 +251,7 @@ onMounted(loadTasks);
               <strong>{{ task.promptPreview || task.prompt || '暂无提示词' }}</strong>
               <span>{{ task.username || 'unknown' }} · {{ task.modelDisplayName || task.modelKey || task.model || 'unknown' }}</span>
               <small>ID: {{ task.taskId || task.id }}</small>
+              <small v-if="task.failureDomain">{{ task.stage || 'queued' }} · {{ task.failureDomain }}</small>
             </div>
             <div class="admin-task-meta">
               <n-tag :type="statusType(task.status)" size="small">{{ statusLabel(task.status) }}</n-tag>
@@ -256,7 +261,10 @@ onMounted(loadTasks);
             <div class="admin-task-progress">
               <span>{{ formatNumber(task.progress) }}%</span>
               <n-progress type="line" :percentage="Number(task.progress || 0)" :height="8" :show-indicator="false" />
-              <small>{{ task.resolvedSize || task.size || '规格未记录' }} · {{ task.imageCount || 0 }} 张</small>
+              <small>
+                {{ task.resolvedSize || task.size || '规格未记录' }} · {{ task.imageCount || 0 }} 张
+                <template v-if="task.queuePosition"> · 队列第 {{ task.queuePosition }} 位</template>
+              </small>
             </div>
             <div class="admin-task-time">
               <span>创建</span>

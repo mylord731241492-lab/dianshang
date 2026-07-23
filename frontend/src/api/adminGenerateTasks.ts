@@ -18,10 +18,21 @@ export interface AdminGenerateTask {
   resultUrl?: string;
   imageUrl?: string;
   status?: string;
+  stage?: string;
   progress?: number;
   cost?: number;
   costPoints?: number;
   chargeStatus?: string;
+  billingStatus?: 'reserved' | 'settled' | 'partially_settled' | 'refunded';
+  reservedCost?: number;
+  settledCost?: number;
+  queuePosition?: number;
+  retryAfterMs?: number;
+  failureDomain?: string;
+  canCancel?: boolean;
+  partial?: boolean;
+  startedAt?: string;
+  elapsedMs?: number;
   imageCount?: number;
   size?: string;
   resolvedSize?: string;
@@ -40,7 +51,19 @@ export interface AdminGenerateTaskSummary {
   running?: number;
   success?: number;
   failed?: number;
+  cancelled?: number;
   queueMode?: string;
+  queue?: {
+    active?: number;
+    queued?: number;
+    globalConcurrency?: number;
+    perDomainConcurrency?: number;
+    circuits?: Record<string, {
+      open?: boolean;
+      consecutiveFailures?: number;
+      retryAfterMs?: number;
+    }>;
+  };
   dataScope?: string;
 }
 

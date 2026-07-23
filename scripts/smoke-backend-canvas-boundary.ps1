@@ -139,7 +139,7 @@ try {
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-prompt-enhancer.js?v=20260721enhance1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-prompt-enhancer.css?v=20260721enhance1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-chat-prompt-flow.js?v=20260704canvasleave1"
-  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "index-DglIsp_g.js?v=20260717reversecopy1"
+  Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "index-DglIsp_g.js?v=20260723stablequeue1"
   Assert-Includes -Label "canvas html" -Text $canvasHtml -Needle "canvas-node-radius-fix.css?v=20260701title1"
 
   $assetPaths = @(
@@ -157,8 +157,8 @@ try {
     "/assets/ecommerce-suite-skills/lumi-avatar.svg",
     "/assets/ecommerce-suite-skills/kira-avatar.svg",
     "/assets/ecommerce-suite-skills/rayyu-avatar.svg",
-    "/assets/index-DglIsp_g.js?v=20260717reversecopy1",
-    "/assets/Canvas-B8bY9_QL.js?v=20260717reversecopy1",
+    "/assets/index-DglIsp_g.js?v=20260723stablequeue1",
+    "/assets/Canvas-B8bY9_QL.js?v=20260723stablequeue1",
     "/assets/canvas-image-preview-runtime.js?v=20260714opperf4"
   )
 

@@ -15,8 +15,8 @@ async function main() {
   const entry = read('assets/index-DglIsp_g.js');
   const html = read('index.html');
 
-  assert(html.includes('index-DglIsp_g.js?v=20260717reversecopy1'), '首页入口未命中图片预览性能版本');
-  assert(entry.includes('Canvas-B8bY9_QL.js?v=20260717reversecopy1'), '入口未命中图片预览性能版本');
+  assert(html.includes('index-DglIsp_g.js?v=20260723stablequeue1'), '首页入口未命中图片预览性能版本');
+  assert(entry.includes('Canvas-B8bY9_QL.js?v=20260723stablequeue1'), '入口未命中图片预览性能版本');
   assert(canvas.includes('projects-BtxGnToV.js?v=20260715serverstore1'), 'Canvas 未命中项目图片预览版本');
   assert(canvas.includes('canvas-image-preview-runtime.js?v=20260714opperf4'), 'Canvas 未加载图片运行时预览模块');
 

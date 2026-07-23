@@ -75,7 +75,7 @@ assertIncludes('index.html', html, 'canvas-prompt-enhancer.css?v=20260721enhance
 assertIncludes('index.html', html, 'canvas-node-radius-fix.css?v=20260701title1');
 assertIncludes('index.html', html, 'canvas-chat-prompt-flow.js?v=20260704canvasleave1');
 assertIncludes('index.html', html, 'canvas-chat-prompt-flow.css?v=20260701suite20');
-assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260717reversecopy1');
+assertIncludes('index.html', html, 'index-DglIsp_g.js?v=20260723stablequeue1');
 assertNotIncludes('index.html', html, 'canvas-ecommerce-suite-agent.js');
 assertNotIncludes('index.html', html, 'canvas-ecommerce-suite-agent.css');
 assertNotIncludes('index.html', html, 'index-DglIsp_g.js?v=20260629perf5');
@@ -104,12 +104,16 @@ assertIncludes('production smoke', productionSmoke, 'canvas-prompt-enhancer.css?
 assertIncludes('production smoke', productionSmoke, '$productionPromptEnhancerJs');
 assertIncludes('production smoke', productionSmoke, 'function teardown\\(\\)');
 assertIncludes('production smoke', productionSmoke, '/api/canvas/enhance-prompt');
-assertIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260717reversecopy1');
+assertIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260723stablequeue1');
 assertNotIncludes('entryA', entryA, 'Canvas-B8bY9_QL.js?v=20260721refcompress2');
 assertNotIncludes('canvas multi submit', canvasBundles[0][1], 'generationSubmitLocked');
 assertNotIncludes('canvas multi submit', canvasBundles[0][1], '已有生图任务正在处理中，请等待完成后再试');
 assertIncludes('canvas multi submit', canvasBundles[0][1], 'disabled:!Ce.value,onClick:fe');
-assertIncludes('canvas queue state', canvasBundles[0][1], 'taskStatus==="pending"?"排队中":"等待返回结果"');
+assertIncludes('canvas queue state', canvasBundles[0][1], 'taskStatus==="pending"?"排队中":"上游生成中"');
+assertIncludes('canvas queue position', canvasBundles[0][1], 'M.queuePosition?`排队中（前方 ${Math.max(0,M.queuePosition-1)} 个）`:"排队中"');
+assertIncludes('canvas provider connecting state', canvasBundles[0][1], 'M.stage==="connecting"?"正在连接上游"');
+assertIncludes('canvas result persistence state', canvasBundles[0][1], 'M.stage==="persisting"?"正在保存结果"');
+assertIncludes('entry task idempotency', entryA, '"Idempotency-Key":t');
 assertIncludes('canvas reverse prompt copy fallback', canvasBundles[0][1], 'typeof navigator!="undefined"&&navigator.clipboard&&window.isSecureContext');
 assertIncludes('canvas reverse prompt copy fallback', canvasBundles[0][1], 'd.setSelectionRange(0,d.value.length)');
 assertIncludes('canvas reverse prompt copy failure', canvasBundles[0][1], 'if(!u)throw new Error("浏览器拒绝写入剪贴板")');
@@ -155,10 +159,10 @@ assertNotIncludes('server.js', server, '用户提到拼多多/PDD');
 assertNotIncludes('server.js', server, '视觉执行要求：成图必须能一眼看出已经执行用户需求');
 assertNotIncludes('server.js', server, '如果只是把参考图产品原样放大或轻微调色，视为失败');
 assertIncludes('server.js', server, 'const IMAGE_PROVIDER_REQUEST_DELAY_MS');
-assertIncludes('server.js', server, 'let providerImageRequestQueue = Promise.resolve()');
+assertIncludes('server.js', server, 'const imageRequestScheduler = new ImageRequestScheduler');
 assertIncludes('server.js', server, 'async function runQueuedProviderImageBatch');
 assertIncludes('server.js', server, 'await runQueuedProviderImageBatch(count, async');
-assertIncludes('server.js', server, "queueMode: 'serial-delayed'");
+assertIncludes('server.js', server, "queueMode: options.bypassProviderQueue ? 'persistent-task-worker' : 'bounded-fair'");
 assertNotIncludes('server.js', server, 'await Promise.all(Array.from({ length: count }, async');
 
 assertIncludes('performance script', perfJs, 'function isActive()');
@@ -385,6 +389,6 @@ for (const [name, bundle] of canvasBundles) {
 console.log(JSON.stringify({
   ok: true,
   checked: Object.keys(files),
-  version: '20260704canvasleave1+20260708loadguard1+20260715serverstore1+20260717reversecopy1+20260701title1+suite20',
+  version: '20260704canvasleave1+20260708loadguard1+20260715serverstore1+20260723stablequeue1+20260701title1+suite20',
   saveDeferral: true
 }, null, 2));

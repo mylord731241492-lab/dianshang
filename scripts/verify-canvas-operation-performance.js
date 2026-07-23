@@ -10,8 +10,8 @@ const entry = read('assets/index-DglIsp_g.js');
 const canvas = read('assets/Canvas-B8bY9_QL.js');
 const projects = read('assets/projects-BtxGnToV.js');
 
-assert(html.includes('index-DglIsp_g.js?v=20260717reversecopy1'), '首页入口未命中新画布性能版本');
-assert(entry.includes('Canvas-B8bY9_QL.js?v=20260717reversecopy1'), '入口未命中新画布性能版本');
+assert(html.includes('index-DglIsp_g.js?v=20260723stablequeue1'), '首页入口未命中新画布性能版本');
+assert(entry.includes('Canvas-B8bY9_QL.js?v=20260723stablequeue1'), '入口未命中新画布性能版本');
 assert(canvas.includes('projects-BtxGnToV.js?v=20260715serverstore1'), '画布未命中新项目存储版本');
 
 assert(!canvas.includes('JSON.parse(JSON.stringify(Ge.value))'), '节点历史仍在序列化整份画布');

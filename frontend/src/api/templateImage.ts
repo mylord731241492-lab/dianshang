@@ -112,13 +112,38 @@ export async function reverseTemplatePrompt(payload: Record<string, unknown>) {
 }
 
 export async function generateTemplateImage(payload: Record<string, unknown>) {
+  const idempotencyKey =
+    String(payload.clientRequestId || '') ||
+    globalThis.crypto?.randomUUID?.() ||
+    `template-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const response = await http.post<{
     images?: GeneratedImage[];
     resultImages?: GeneratedImage[];
     results?: GeneratedImage[];
     taskId?: string;
+    status?: 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
+    errorMessage?: string;
     totalCost?: number;
     remainingBalance?: number;
-  }>('/api/template/generate-image', payload);
-  return response.data;
+  }>('/api/template/generate-image', { ...payload, clientRequestId: idempotencyKey }, {
+    headers: { 'Idempotency-Key': idempotencyKey }
+  });
+  let data = response.data;
+  if (!data.taskId || !['pending', 'running'].includes(String(data.status || ''))) return data;
+  const taskId = data.taskId;
+
+  for (let attempt = 0; attempt < 1800; attempt += 1) {
+    await new Promise((resolve) => window.setTimeout(resolve, 2000));
+    const taskResponse = await http.get<typeof data & {
+      stage?: string;
+      progress?: number;
+      queuePosition?: number;
+    }>(`/api/generate/tasks/${encodeURIComponent(taskId)}`);
+    data = { ...data, ...taskResponse.data };
+    if (['success', 'failed', 'cancelled'].includes(String(data.status || ''))) break;
+  }
+  if (data.status === 'failed' || data.status === 'cancelled') {
+    throw new Error(data.errorMessage || '图片生成失败');
+  }
+  return data;
 }

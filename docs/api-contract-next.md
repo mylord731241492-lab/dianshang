@@ -61,8 +61,9 @@
 | --- | --- | --- | --- |
 | `POST` | `/api/generation/estimate-cost` | optional | 估算消耗，未登录返回 mock 可用额度。 |
 | `POST` | `/api/generate/tasks` | user | 持久生图任务入口。支持 `Idempotency-Key` 或 `clientRequestId`，任务与余额预占在同一事务中写入；返回 HTTP 202 和 `taskId/status/queuePosition/reservedCost/replayed`。每用户最多 3 个非终态任务，全站最多 30 个，超限返回 429 与 `Retry-After`。 |
-| `GET` | `/api/generate/tasks/:id` | user | 从 SQLite 查询当前用户任务。状态为 `pending/running/success/failed/cancelled`，并返回 `stage/queuePosition/startedAt/finishedAt/elapsedMs/canCancel/retryAfterMs`。部分成功使用 `success + partial=true + warnings`。 |
+| `GET` | `/api/generate/tasks/:id` | user | 从 SQLite 查询当前用户任务。状态为 `pending/running/success/failed/cancelled`，并返回 `stage/queuePosition/startedAt/finishedAt/elapsedMs/canCancel/retryAfterMs`。线路冷却时 `stage=provider_degraded`；失败任务的 `request` 可包含脱敏的 `responseDiagnostics/providerBillingStatus/upstreamBillingAmbiguous/billingAuditRequired`。部分成功使用 `success + partial=true + warnings`。 |
 | `POST` | `/api/generate/tasks/:id/cancel` | user | 取消本人 `pending/running` 任务。等待任务立即出队退款；运行任务中止本地请求并记录“上游可能已计费”的歧义，不自动重放。 |
+| `POST` | `/api/generate/tasks/:id/retry` | user | 人工重试本人 `failed/cancelled` 任务并创建全新任务，原任务保持不变。上一单存在上游计费歧义时必须提交 `confirmUpstreamBillingRisk=true`；接口不自动切换线路、不复用旧幂等键。参考图仅在原任务文件仍处于 24 小时保留期时可重试，文件已清理返回 `410 GENERATION_RETRY_INPUT_EXPIRED`。 |
 | `POST` | `/api/chat/completions` | user | 旧文本兼容转发；新后端接管时迁移到 OpenAI Responses 形态。`Legacy`。 |
 | `GET` | `/api/chat/status` | 无 | Chat 入口公开状态，只返回 `enabled/accessEnabled/accessReady/chatPath/message`；不得返回 Provider、LibreChat 或 MongoDB 敏感配置。 |
 | `GET` | `/api/proxy-image` | 签名 URL | 远程图片同源代理。新地址必须携带服务端 HMAC `sig`；只兼容数据库真实生成记录中已有的旧无签名目标。每次请求及重定向均拒绝内网/特殊用途地址和非 80/443 端口，只允许常见光栅图片，响应体最多 20 MiB（可通过 `IMAGE_PROXY_MAX_BYTES` 下调，硬上限 30 MiB）。 |

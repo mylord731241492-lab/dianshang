@@ -87,8 +87,14 @@ const queueModeLabel = computed(() => {
 });
 
 const openCircuits = computed(() => Object.entries(summary.value.queue?.circuits || {})
-  .filter(([, state]) => state.open)
-  .map(([domain, state]) => `${domain}（${Math.ceil(Number(state.retryAfterMs || 0) / 1000)} 秒后重试）`));
+  .filter(([, state]) => state.open || state.coolingDown)
+  .map(([domain, state]) => {
+    const failures = state.recentAttempts
+      ? `，最近 ${state.recentAttempts} 次失败 ${state.recentTransientFailures || 0} 次`
+      : '';
+    const reason = state.reason ? `，原因 ${state.reason}` : '';
+    return `${domain}（${Math.ceil(Number(state.retryAfterMs || 0) / 1000)} 秒后重试${failures}${reason}）`;
+  }));
 
 function formatNumber(value?: number) {
   return Number(value || 0).toLocaleString('zh-CN');
@@ -126,6 +132,20 @@ function statusLabel(status?: string) {
     cancelled: '已取消'
   };
   return labels[status || ''] || status || '未知';
+}
+
+function stageLabel(stage?: string) {
+  const labels: Record<string, string> = {
+    queued: '排队中',
+    provider_degraded: '线路冷却中',
+    preparing: '准备请求',
+    connecting: '连接中转站',
+    upstream_generating: '上游生成中',
+    awaiting_provider: '等待上游',
+    persisting: '保存结果',
+    done: '已完成'
+  };
+  return labels[stage || ''] || stage || '排队中';
 }
 
 function isCancellable(task: AdminGenerateTask) {
@@ -227,7 +247,7 @@ onMounted(loadTasks);
 
       <n-alert v-if="summary.dataScope" type="info" :bordered="false">{{ summary.dataScope }}</n-alert>
       <n-alert v-if="openCircuits.length" type="warning" :bordered="false">
-        线路熔断中：{{ openCircuits.join('、') }}
+        线路降级 / 冷却中：{{ openCircuits.join('、') }}
       </n-alert>
 
       <AdminStatGrid :stats="statCards" label="任务统计" />
@@ -264,7 +284,7 @@ onMounted(loadTasks);
               <strong>{{ task.promptPreview || task.prompt || '暂无提示词' }}</strong>
               <span>{{ task.username || 'unknown' }} · {{ task.modelDisplayName || task.modelKey || task.model || 'unknown' }}</span>
               <small>ID: {{ task.taskId || task.id }}</small>
-              <small v-if="task.failureDomain">{{ task.stage || 'queued' }} · {{ task.failureDomain }}</small>
+              <small v-if="task.failureDomain">{{ stageLabel(task.stage) }} · {{ task.failureDomain }}</small>
             </div>
             <div class="admin-task-meta">
               <n-tag :type="statusType(task.status)" size="small">{{ statusLabel(task.status) }}</n-tag>
@@ -296,6 +316,15 @@ onMounted(loadTasks);
             <p v-if="task.errorMessage" class="admin-task-error">
               {{ task.errorMessage }}
               <template v-if="task.request?.upstreamBillingAmbiguous">（需核对上游账单）</template>
+              <template v-if="task.request?.providerBillingStatus">
+                · 上游计费 {{ task.request.providerBillingStatus === 'unknown' ? '未知' : (task.request.providerBillingStatus === 'not_charged' ? '预计未扣费' : '预计已扣费') }}
+              </template>
+              <template v-if="task.request?.responseDiagnostics?.cfRay">
+                · CF-Ray {{ task.request.responseDiagnostics.cfRay }}
+              </template>
+              <template v-if="task.request?.responseDiagnostics?.requestId">
+                · 请求号 {{ task.request.responseDiagnostics.requestId }}
+              </template>
             </p>
           </article>
           <AdminEmptyState v-if="!visibleTasks.length && !loading" message="暂无匹配任务" />

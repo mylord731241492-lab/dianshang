@@ -72,6 +72,26 @@ async function main() {
         return;
       }
       providerCalls += 1;
+      const bodyText = Buffer.concat(chunks).toString('utf8');
+      if (bodyText.includes('[SKIPPED-200]')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ skipped_mainline: true }));
+        return;
+      }
+      if (bodyText.includes('[EMPTY-200]')) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ data: [{ revised_prompt: 'no image returned' }], usage: { total_tokens: 1 } }));
+        return;
+      }
+      if (bodyText.includes('[FAIL-524]')) {
+        res.writeHead(524, {
+          'Content-Type': 'application/json',
+          'CF-Ray': 'fake-524-ray-SIN',
+          'X-Request-Id': 'fake-provider-request-524'
+        });
+        res.end(JSON.stringify({ error: { message: 'upstream origin timeout' } }));
+        return;
+      }
       setTimeout(() => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ data: [{ b64_json: generatedPngBase64 }] }));
@@ -101,6 +121,7 @@ async function main() {
       AI_IMAGE_KEY: 'sk-fake-image-multi-submit',
       AI_TEXT_KEY: 'sk-fake-text-multi-submit',
       IMAGE_PROVIDER_REQUEST_DELAY_MS: '0',
+      GENERATION_DOMAIN_START_INTERVAL_MS: '0',
     },
     stdio: ['ignore', 'ignore', 'pipe'],
     windowsHide: true,
@@ -139,6 +160,22 @@ async function main() {
     assert.equal(routeResponse.status, 200, `Disposable image route creation failed: ${JSON.stringify(route)}`);
     const routeId = route.item?.id || route.id;
     assert(routeId, 'Disposable image route did not return an id');
+    const faultRouteResponse = await fetch(`${baseUrl}/api/admin/api-providers`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        routeKey: 'multi-submit-fault-domain',
+        displayName: 'Multi Submit Fault Domain',
+        category: 'image',
+        apiFormat: 'new-api',
+        baseUrl: `http://127.0.0.1:${providerPort}/v1`,
+        defaultImageModel: 'gpt-image-2',
+      }),
+    });
+    const faultRoute = await readJson(faultRouteResponse);
+    assert.equal(faultRouteResponse.status, 200, `Disposable fault route creation failed: ${JSON.stringify(faultRoute)}`);
+    const faultRouteId = faultRoute.item?.id || faultRoute.id;
+    assert(faultRouteId, 'Disposable fault route did not return an id');
 
     const preferenceResponse = await fetch(`${baseUrl}/api/user/preferences/api-route`, {
       method: 'POST',
@@ -219,6 +256,118 @@ async function main() {
     assert.equal(referenceResult.request?.transportMode, 'http-direct');
     assert.equal(referenceResult.request?.preTlsRetryCount, 0);
     assert.equal(providerCalls, 3, 'Normal reference task must reach the Provider once');
+
+    const emptyResponse = await fetch(`${baseUrl}/api/generate/tasks`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ...payload, prompt: '[EMPTY-200] verify billed empty response metadata' }),
+    });
+    const emptyTask = await readJson(emptyResponse);
+    assert.equal(emptyResponse.status, 202, `Empty response task was not accepted: ${JSON.stringify(emptyTask)}`);
+    let emptyResult = emptyTask;
+    for (let attempt = 0; attempt < 120 && !['success', 'failed'].includes(emptyResult.status); attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const pollResponse = await fetch(`${baseUrl}/api/generate/tasks/${emptyTask.taskId}`, {
+        headers: { Authorization: `Bearer ${login.token}` },
+      });
+      emptyResult = await readJson(pollResponse);
+    }
+    assert.equal(emptyResult.status, 'failed');
+    assert.equal(emptyResult.errorCode, 'PROVIDER_IMAGE_EMPTY_BILLED_RESPONSE');
+    assert.equal(emptyResult.billingStatus, 'refunded');
+    assert.equal(emptyResult.request?.providerBillingStatus, 'unknown');
+    assert.equal(emptyResult.request?.upstreamBillingAmbiguous, true);
+    assert.equal(emptyResult.request?.billingAuditRequired, true);
+    assert.equal(providerCalls, 4, 'Empty HTTP 200 response must not trigger automatic replay');
+
+    const skippedResponse = await fetch(`${baseUrl}/api/generate/tasks`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ...payload, prompt: '[SKIPPED-200] verify special cooldown classification' }),
+    });
+    const skippedTask = await readJson(skippedResponse);
+    assert.equal(skippedResponse.status, 202, `Skipped-mainline task was not accepted: ${JSON.stringify(skippedTask)}`);
+    let skippedResult = skippedTask;
+    for (let attempt = 0; attempt < 120 && !['success', 'failed'].includes(skippedResult.status); attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const pollResponse = await fetch(`${baseUrl}/api/generate/tasks/${skippedTask.taskId}`, {
+        headers: { Authorization: `Bearer ${login.token}` },
+      });
+      skippedResult = await readJson(pollResponse);
+    }
+    assert.equal(skippedResult.status, 'failed');
+    assert.equal(skippedResult.errorCode, 'LINGSUAN_SKIPPED_MAINLINE');
+    assert.equal(skippedResult.request?.retryAfterMs, 60000);
+    assert.equal(skippedResult.request?.upstreamBillingAmbiguous, true);
+    assert.equal(providerCalls, 5, 'HTTP 200 skipped_mainline must fail once without replay');
+
+    const failedResponse = await fetch(`${baseUrl}/api/generate/tasks`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        ...payload,
+        prompt: '[FAIL-524] verify diagnostics and manual retry guard',
+        routeId: faultRouteId,
+        referenceImages: [`data:image/png;base64,${generatedPngBase64}`],
+      }),
+    });
+    const failedTask = await readJson(failedResponse);
+    assert.equal(failedResponse.status, 202, `Failure diagnostic task was not accepted: ${JSON.stringify(failedTask)}`);
+    let failedResult = failedTask;
+    for (let attempt = 0; attempt < 120 && !['success', 'failed'].includes(failedResult.status); attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const pollResponse = await fetch(`${baseUrl}/api/generate/tasks/${failedTask.taskId}`, {
+        headers: { Authorization: `Bearer ${login.token}` },
+      });
+      failedResult = await readJson(pollResponse);
+    }
+    assert.equal(failedResult.status, 'failed');
+    assert.equal(failedResult.errorCode, 'PROVIDER_ORIGIN_TIMEOUT_524');
+    assert.equal(failedResult.billingStatus, 'refunded');
+    assert.equal(failedResult.request?.providerBillingStatus, 'unknown');
+    assert.equal(failedResult.request?.upstreamBillingAmbiguous, true);
+    assert.equal(failedResult.request?.responseDiagnostics?.cfRay, 'fake-524-ray-SIN');
+    assert.equal(failedResult.request?.responseDiagnostics?.requestId, 'fake-provider-request-524');
+
+    const unconfirmedRetryResponse = await fetch(`${baseUrl}/api/generate/tasks/${failedTask.taskId}/retry`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({}),
+    });
+    const unconfirmedRetry = await readJson(unconfirmedRetryResponse);
+    assert.equal(unconfirmedRetryResponse.status, 409);
+    assert.equal(unconfirmedRetry.code, 'GENERATION_RETRY_BILLING_CONFIRMATION_REQUIRED');
+
+    const confirmedRetryResponse = await fetch(`${baseUrl}/api/generate/tasks/${failedTask.taskId}/retry`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ confirmUpstreamBillingRisk: true }),
+    });
+    const confirmedRetry = await readJson(confirmedRetryResponse);
+    assert.equal(confirmedRetryResponse.status, 202, `Confirmed retry was not accepted: ${JSON.stringify(confirmedRetry)}`);
+    assert.notEqual(confirmedRetry.taskId, failedTask.taskId);
+    assert.equal(confirmedRetry.retryOfTaskId, failedTask.taskId);
+    assert.equal(confirmedRetry.status, 'pending', 'Provider cooldown should keep the manual retry queued');
+    const cancelRetryResponse = await fetch(`${baseUrl}/api/generate/tasks/${confirmedRetry.taskId}/cancel`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ reason: '测试完成，取消冷却中的人工重试任务' }),
+    });
+    assert.equal(cancelRetryResponse.status, 200, `Retry cleanup cancellation failed: ${await cancelRetryResponse.text()}`);
+    assert.equal(providerCalls, 6, 'Manual retry must not bypass the active Provider cooldown');
+
+    const expiredInputDirectory = path.join(dataDir, 'generation-task-inputs', failedTask.taskId);
+    const expiredInputAt = new Date(Date.now() - (25 * 60 * 60 * 1000));
+    fs.utimesSync(expiredInputDirectory, expiredInputAt, expiredInputAt);
+    const expiredRetryResponse = await fetch(`${baseUrl}/api/generate/tasks/${failedTask.taskId}/retry`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ confirmUpstreamBillingRisk: true }),
+    });
+    const expiredRetry = await readJson(expiredRetryResponse);
+    assert.equal(expiredRetryResponse.status, 410);
+    assert.equal(expiredRetry.code, 'GENERATION_RETRY_INPUT_EXPIRED');
+    assert.equal(providerCalls, 6, '过期参考图必须在创建新任务前拒绝，不能触发 Provider');
 
     const finalUser = db.prepare('SELECT balance FROM users WHERE id=?').get(initialUser.id);
     const generationCount = db.prepare('SELECT COUNT(*) AS count FROM generations WHERE user_id=?').get(initialUser.id).count;

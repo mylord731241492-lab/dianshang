@@ -39,4 +39,16 @@ Accepted
 
 - 不在本阶段支持多实例抢占或分布式锁。
 - 不保证上游 Provider 自身可用，只保证本地排队、幂等、限流、取消、恢复和账务一致。
-- 不执行真实 Provider 付费测试，不发布或重建 Docker。
+- 不在未获单独确认时执行真实 Provider 付费测试；不发布或重建 Docker。
+
+## 2026-07-23 补充决策：Provider 自适应降载与人工重试
+
+5 笔真实 Lingsuan 4K 图生图出现 3 成功、1 次 `skipped_mainline=true` 和 1 次 HTTP 524。连接均已建立且没有 TLS 重试，说明只限制“同域并发为 1”仍不足以处理上游处理阶段抖动。
+
+- 同失败域默认至少间隔 5 秒启动请求；该间隔可配置，测试环境可显式设为 0。
+- 除连续 3 次瞬态失败外，增加最近最多 5 次中出现至少 2 次瞬态失败的滑动窗口熔断；不要求先积满 5 个样本。
+- `skipped_mainline` 单次触发至少 60 秒冷却，HTTP 524 单次触发至少 120 秒冷却；冷却只延迟后续任务，不重放当前任务。
+- 只持久化允许列表中的 `CF-Ray`、`Retry-After`、Provider 请求号和 Server 头，不记录 Authorization、Cookie 或完整响应头。
+- 本地失败任务仍按账务状态机退款；HTTP 524、`skipped_mainline`、请求超时等可能已经触达上游的结果额外记录 `providerBillingStatus=unknown`、`upstreamBillingAmbiguous=true` 和 `billingAuditRequired=true`。
+- 运行中取消、进程中断、上游空结果或结果落盘失败同样视为可能已触达上游，必须持久化计费歧义并要求人工重试前确认。
+- 人工重试通过 `POST /api/generate/tasks/:id/retry` 创建新任务。存在上游计费歧义时，调用方必须显式确认风险；不自动切换线路，不复用旧幂等键，原任务保持不可变。

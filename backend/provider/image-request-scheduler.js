@@ -14,6 +14,8 @@ function abortError(message = '请求已取消') {
 }
 
 function defaultTransientClassifier(value) {
+  if (value?.transient === true) return true;
+  if (value?.transient === false) return false;
   const code = String(value?.code || value?.cause?.code || '').toUpperCase();
   const message = String(value?.message || '').toUpperCase();
   const status = Number(value?.upstreamStatus || value?.status || 0);
@@ -22,14 +24,35 @@ function defaultTransientClassifier(value) {
   return /TIMEOUT|ETIMEDOUT|ECONNRESET|EAI_AGAIN|ENOTFOUND|ENETUNREACH|EHOSTUNREACH|ECONNREFUSED|SOCKET HANG UP|NETWORK|FETCH FAILED/.test(`${code} ${message}`);
 }
 
+function providerCooldownMs(value) {
+  const explicit = Number(value?.retryAfterMs || value?.request?.retryAfterMs || 0);
+  if (Number.isFinite(explicit) && explicit > 0) {
+    return Math.max(1, Math.min(Math.trunc(explicit), 10 * 60 * 1000));
+  }
+  const code = String(value?.code || '').toUpperCase();
+  const status = Number(value?.upstreamStatus || value?.status || 0);
+  if (status === 524 || code.includes('ORIGIN_TIMEOUT_524')) return 120 * 1000;
+  if (code.includes('SKIPPED_MAINLINE')) return 60 * 1000;
+  return 0;
+}
+
 class ImageRequestScheduler {
   constructor(options = {}) {
     this.globalConcurrency = numberOption(options.globalConcurrency, 3, 1, 20);
     this.perDomainConcurrency = numberOption(options.perDomainConcurrency, 1, 1, 10);
     this.maxQueued = numberOption(options.maxQueued, 30, 1, 1000);
+    this.domainStartIntervalMs = numberOption(options.domainStartIntervalMs, 0, 0, 60 * 1000);
     this.circuitThreshold = numberOption(options.circuitThreshold, 3, 1, 20);
     this.circuitWindowMs = numberOption(options.circuitWindowMs, 5 * 60 * 1000, 1000);
     this.circuitOpenMs = numberOption(options.circuitOpenMs, 60 * 1000, 1000);
+    this.rollingWindowSize = numberOption(options.rollingWindowSize, 5, 2, 20);
+    this.rollingFailureThreshold = numberOption(options.rollingFailureThreshold, 2, 1, this.rollingWindowSize);
+    this.rollingMinimumSamples = numberOption(
+      options.rollingMinimumSamples,
+      this.rollingFailureThreshold,
+      this.rollingFailureThreshold,
+      this.rollingWindowSize
+    );
     this.isTransient = options.isTransient || defaultTransientClassifier;
     this.now = options.now || (() => Date.now());
     this.queue = [];
@@ -37,6 +60,7 @@ class ImageRequestScheduler {
     this.activeByDomain = new Map();
     this.activeByUser = new Map();
     this.lastStartedByUser = new Map();
+    this.lastStartedByDomain = new Map();
     this.circuits = new Map();
     this.nextId = 1;
     this.wakeTimer = null;
@@ -112,14 +136,19 @@ class ImageRequestScheduler {
     for (const [domain, state] of this.circuits.entries()) {
       circuits[domain] = {
         consecutiveFailures: state.failures.length,
+        recentAttempts: state.outcomes.length,
+        recentTransientFailures: state.outcomes.filter((outcome) => outcome.transientFailure).length,
         open: state.openUntil > now,
-        retryAfterMs: Math.max(0, state.openUntil - now)
+        coolingDown: state.cooldownUntil > now,
+        retryAfterMs: Math.max(0, state.openUntil - now, state.cooldownUntil - now),
+        reason: state.reason || ''
       };
     }
     return {
       mode: 'bounded-fair',
       globalConcurrency: this.globalConcurrency,
       perDomainConcurrency: this.perDomainConcurrency,
+      domainStartIntervalMs: this.domainStartIntervalMs,
       active: this.active.size,
       queued: this.queue.length,
       activeByDomain: Object.fromEntries(this.activeByDomain),
@@ -138,21 +167,36 @@ class ImageRequestScheduler {
 
   circuitState(domain) {
     if (!this.circuits.has(domain)) {
-      this.circuits.set(domain, { failures: [], openUntil: 0 });
+      this.circuits.set(domain, {
+        failures: [],
+        outcomes: [],
+        openUntil: 0,
+        cooldownUntil: 0,
+        reason: ''
+      });
     }
     return this.circuits.get(domain);
   }
 
   circuitRetryAfter(domain) {
     const state = this.circuitState(domain);
-    return Math.max(0, state.openUntil - this.now());
+    return Math.max(0, state.openUntil - this.now(), state.cooldownUntil - this.now());
+  }
+
+  domainStartRetryAfter(domain) {
+    const lastStartedAt = this.lastStartedByDomain.get(domain) || 0;
+    return Math.max(0, lastStartedAt + this.domainStartIntervalMs - this.now());
+  }
+
+  domainRetryAfter(domain) {
+    return Math.max(this.circuitRetryAfter(domain), this.domainStartRetryAfter(domain));
   }
 
   canRun(job) {
     if (this.active.size >= this.globalConcurrency) return false;
     if ((this.activeByDomain.get(job.failureDomain) || 0) >= this.perDomainConcurrency) return false;
     if ((this.activeByUser.get(job.userId) || 0) >= 1) return false;
-    return this.circuitRetryAfter(job.failureDomain) <= 0;
+    return this.domainRetryAfter(job.failureDomain) <= 0;
   }
 
   drain() {
@@ -183,13 +227,14 @@ class ImageRequestScheduler {
     this.activeByDomain.set(job.failureDomain, (this.activeByDomain.get(job.failureDomain) || 0) + 1);
     this.activeByUser.set(job.userId, (this.activeByUser.get(job.userId) || 0) + 1);
     this.lastStartedByUser.set(job.userId, this.now());
+    this.lastStartedByDomain.set(job.failureDomain, this.now());
     this.notify(job, 'running', 0);
 
     Promise.resolve()
       .then(() => job.run(controller.signal))
       .then((result) => {
         if (result && result.success === false && this.isTransient(result)) {
-          this.recordTransientFailure(job.failureDomain);
+          this.recordTransientFailure(job.failureDomain, result);
         } else {
           this.recordSuccess(job.failureDomain);
         }
@@ -197,7 +242,7 @@ class ImageRequestScheduler {
       })
       .catch((error) => {
         if (error?.name !== 'AbortError' && this.isTransient(error)) {
-          this.recordTransientFailure(job.failureDomain);
+          this.recordTransientFailure(job.failureDomain, error);
         } else if (error?.name !== 'AbortError') {
           this.recordSuccess(job.failureDomain);
         }
@@ -212,20 +257,42 @@ class ImageRequestScheduler {
       });
   }
 
-  recordTransientFailure(domain) {
+  recordTransientFailure(domain, value) {
     const now = this.now();
     const state = this.circuitState(domain);
     state.failures = state.failures.filter((timestamp) => now - timestamp <= this.circuitWindowMs);
     state.failures.push(now);
-    if (state.failures.length >= this.circuitThreshold) {
+    this.recordOutcome(state, now, true);
+    const cooldownMs = providerCooldownMs(value);
+    if (cooldownMs > 0) {
+      state.cooldownUntil = Math.max(state.cooldownUntil, now + cooldownMs);
+      state.reason = String(value?.code || value?.upstreamStatus || 'PROVIDER_COOLDOWN');
+    }
+    const rollingFailures = state.outcomes.filter((outcome) => outcome.transientFailure).length;
+    if (
+      state.failures.length >= this.circuitThreshold ||
+      (state.outcomes.length >= this.rollingMinimumSamples && rollingFailures >= this.rollingFailureThreshold)
+    ) {
       state.openUntil = now + this.circuitOpenMs;
+      state.reason = String(value?.code || value?.upstreamStatus || 'TRANSIENT_FAILURE_THRESHOLD');
     }
   }
 
   recordSuccess(domain) {
     const state = this.circuitState(domain);
+    const now = this.now();
+    this.recordOutcome(state, now, false);
     state.failures = [];
-    state.openUntil = 0;
+    if (state.openUntil <= now) state.openUntil = 0;
+    if (state.cooldownUntil <= now) state.cooldownUntil = 0;
+    if (!state.openUntil && !state.cooldownUntil) state.reason = '';
+  }
+
+  recordOutcome(state, at, transientFailure) {
+    state.outcomes = state.outcomes
+      .filter((outcome) => at - outcome.at <= this.circuitWindowMs)
+      .slice(-(this.rollingWindowSize - 1));
+    state.outcomes.push({ at, transientFailure });
   }
 
   decrement(map, key) {
@@ -243,15 +310,19 @@ class ImageRequestScheduler {
 
   notify(job, status, queuePosition) {
     if (!job.onStatus) return;
-    const retryAfterMs = this.circuitRetryAfter(job.failureDomain);
+    const circuitRetryAfterMs = this.circuitRetryAfter(job.failureDomain);
+    const retryAfterMs = this.domainRetryAfter(job.failureDomain);
+    const circuit = this.circuitState(job.failureDomain);
     try {
       job.onStatus({
         status,
+        stage: status === 'pending' && circuitRetryAfterMs > 0 ? 'provider_degraded' : undefined,
         queueMode: 'bounded-fair',
         queuePosition,
         pendingCount: this.queue.length,
         failureDomain: job.failureDomain,
-        retryAfterMs
+        retryAfterMs,
+        degradedReason: circuitRetryAfterMs > 0 ? circuit.reason : ''
       });
     } catch {}
   }
@@ -259,7 +330,7 @@ class ImageRequestScheduler {
   scheduleCircuitWake() {
     if (this.wakeTimer) clearTimeout(this.wakeTimer);
     const waits = this.queue
-      .map((job) => this.circuitRetryAfter(job.failureDomain))
+      .map((job) => this.domainRetryAfter(job.failureDomain))
       .filter((value) => value > 0);
     if (!waits.length) {
       this.wakeTimer = null;
@@ -269,12 +340,12 @@ class ImageRequestScheduler {
       this.wakeTimer = null;
       this.drain();
     }, Math.min(...waits) + 5);
-    if (typeof this.wakeTimer.unref === 'function') this.wakeTimer.unref();
   }
 }
 
 module.exports = {
   ImageRequestScheduler,
   abortError,
-  defaultTransientClassifier
+  defaultTransientClassifier,
+  providerCooldownMs
 };

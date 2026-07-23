@@ -60,7 +60,7 @@ class GenerationTaskService {
         onStatus: (state) => {
           this.repository.updateQueueState(taskId, {
             ...state,
-            stage: state.status === 'running' ? 'preparing' : 'queued'
+            stage: state.status === 'running' ? 'preparing' : (state.stage || 'queued')
           });
         }
       }
@@ -158,12 +158,14 @@ class GenerationTaskService {
         errorCode: cancelled ? (current?.errorCode || 'TASK_CANCELLED') : (error?.code || 'GENERATION_WORKER_ERROR'),
         errorMessage: cancelled
           ? (current?.errorMessage || error?.message || '任务已取消')
-          : (error?.message || '生图任务执行失败')
+          : (error?.message || '生图任务执行失败'),
+        requestMeta: error?.requestMeta || {}
       });
       if (!cancelled) {
         const failed = this.repository.failTask(taskId, {
           errorCode: error?.code || 'GENERATION_WORKER_ERROR',
-          errorMessage: error?.message || '生图任务执行失败'
+          errorMessage: error?.message || '生图任务执行失败',
+          requestMeta: error?.requestMeta || null
         });
         this.onTerminal(failed);
       }

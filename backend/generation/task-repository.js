@@ -309,7 +309,9 @@ function createGenerationTaskRepository(options = {}) {
   function updateQueueState(taskId, state = {}) {
     const timestamp = now();
     const status = state.status === 'running' ? 'running' : 'pending';
-    const stage = status === 'running' ? (state.stage || 'connecting') : 'queued';
+    const stage = status === 'running'
+      ? (state.stage || 'connecting')
+      : (state.stage === 'provider_degraded' ? 'provider_degraded' : 'queued');
     db.prepare(`
       UPDATE generation_tasks
       SET status=?,stage=?,queue_position=?,retry_after_ms=?,updated_at=?,
@@ -571,7 +573,9 @@ function createGenerationTaskRepository(options = {}) {
     const requestMeta = {
       ...safeParse(task.request_meta_json, {}),
       upstreamBillingAmbiguous,
-      cancelledWhileRunning: upstreamBillingAmbiguous
+      cancelledWhileRunning: upstreamBillingAmbiguous,
+      providerBillingStatus: upstreamBillingAmbiguous ? 'unknown' : 'not_charged',
+      billingAuditRequired: upstreamBillingAmbiguous
     };
     db.prepare(`
       UPDATE generation_task_items
@@ -602,7 +606,13 @@ function createGenerationTaskRepository(options = {}) {
     const running = db.prepare("SELECT id FROM generation_tasks WHERE status='running'").all();
     return running.map((row) => failTask(row.id, {
       errorCode: 'WORKER_INTERRUPTED_UNKNOWN',
-      errorMessage: '服务重启时任务仍在调用上游，为避免重复计费已停止且不会自动重放'
+      errorMessage: '服务重启时任务仍在调用上游，为避免重复计费已停止且不会自动重放',
+      requestMeta: {
+        providerBillingStatus: 'unknown',
+        upstreamBillingAmbiguous: true,
+        billingAuditRequired: true,
+        interruptedWhileRunning: true
+      }
     }));
   }
 

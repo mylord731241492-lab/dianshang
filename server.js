@@ -15,6 +15,10 @@ const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
 const { z } = require('zod');
 const { ImageRequestScheduler } = require('./backend/provider/image-request-scheduler');
+const {
+  classifyImageProviderFailure,
+  safeProviderErrorMessage
+} = require('./backend/provider/image-provider-diagnostics');
 const { createGenerationTaskRepository } = require('./backend/generation/task-repository');
 const { GenerationTaskService } = require('./backend/generation/generation-task-service');
 
@@ -105,9 +109,18 @@ const GENERATION_GLOBAL_CONCURRENCY = Math.max(1, Math.min(Number(process.env.GE
 const GENERATION_DOMAIN_CONCURRENCY = Math.max(1, Math.min(Number(process.env.GENERATION_DOMAIN_CONCURRENCY || 1) || 1, 10));
 const GENERATION_MAX_QUEUED = Math.max(1, Math.min(Number(process.env.GENERATION_MAX_QUEUED || 30) || 30, 1000));
 const GENERATION_MAX_USER_NONTERMINAL = Math.max(1, Math.min(Number(process.env.GENERATION_MAX_USER_NONTERMINAL || 3) || 3, 20));
+const GENERATION_DOMAIN_START_INTERVAL_RAW = Number(process.env.GENERATION_DOMAIN_START_INTERVAL_MS ?? 5000);
+const GENERATION_DOMAIN_START_INTERVAL_MS = Number.isFinite(GENERATION_DOMAIN_START_INTERVAL_RAW)
+  ? Math.max(0, Math.min(GENERATION_DOMAIN_START_INTERVAL_RAW, 60 * 1000))
+  : 5000;
 const GENERATION_CIRCUIT_THRESHOLD = Math.max(1, Math.min(Number(process.env.GENERATION_CIRCUIT_THRESHOLD || 3) || 3, 20));
 const GENERATION_CIRCUIT_WINDOW_MS = Math.max(1000, Number(process.env.GENERATION_CIRCUIT_WINDOW_MS || 5 * 60 * 1000) || 5 * 60 * 1000);
 const GENERATION_CIRCUIT_OPEN_MS = Math.max(1000, Number(process.env.GENERATION_CIRCUIT_OPEN_MS || 60 * 1000) || 60 * 1000);
+const GENERATION_ROLLING_WINDOW_SIZE = Math.max(2, Math.min(Number(process.env.GENERATION_ROLLING_WINDOW_SIZE || 5) || 5, 20));
+const GENERATION_ROLLING_FAILURE_THRESHOLD = Math.max(
+  1,
+  Math.min(Number(process.env.GENERATION_ROLLING_FAILURE_THRESHOLD || 2) || 2, GENERATION_ROLLING_WINDOW_SIZE)
+);
 const GENERATION_MAX_REFERENCE_COUNT = 4;
 const GENERATION_MAX_REFERENCE_BYTES = 5 * 1024 * 1024;
 const GENERATION_MAX_REFERENCE_TOTAL_BYTES = 16 * 1024 * 1024;
@@ -367,9 +380,13 @@ const imageRequestScheduler = new ImageRequestScheduler({
   globalConcurrency: GENERATION_GLOBAL_CONCURRENCY,
   perDomainConcurrency: GENERATION_DOMAIN_CONCURRENCY,
   maxQueued: GENERATION_MAX_QUEUED,
+  domainStartIntervalMs: GENERATION_DOMAIN_START_INTERVAL_MS,
   circuitThreshold: GENERATION_CIRCUIT_THRESHOLD,
   circuitWindowMs: GENERATION_CIRCUIT_WINDOW_MS,
-  circuitOpenMs: GENERATION_CIRCUIT_OPEN_MS
+  circuitOpenMs: GENERATION_CIRCUIT_OPEN_MS,
+  rollingWindowSize: GENERATION_ROLLING_WINDOW_SIZE,
+  rollingFailureThreshold: GENERATION_ROLLING_FAILURE_THRESHOLD,
+  rollingMinimumSamples: GENERATION_ROLLING_FAILURE_THRESHOLD
 });
 const generationTaskRepository = createGenerationTaskRepository({
   db,
@@ -3549,6 +3566,8 @@ async function fetchProviderWithPreTlsRetry(createRequest) {
       };
     } catch (error) {
       if (!isProviderPreTlsDisconnect(error) || retryCount >= PROVIDER_PRE_TLS_RETRY_LIMIT) {
+        error.providerPreTlsRetryCount = retryCount;
+        error.providerConnectionPhase = isProviderPreTlsDisconnect(error) ? 'pre_tls' : 'request_unknown';
         throw error;
       }
       retryCount += 1;
@@ -3910,13 +3929,23 @@ async function parseProviderImageResponse(resp) {
   };
 }
 
-function providerImageEmptyResponse(status, upstream) {
+function providerImageEmptyResponse(status, upstream, requestMeta = {}) {
   return {
     success: false,
     code: 'PROVIDER_IMAGE_EMPTY_BILLED_RESPONSE',
     message: '上游返回成功状态，但没有提供最终图片 URL 或 Base64（可能只有 revised_prompt/usage）。本地未保存结果且不会扣除算力；上游可能已经计费，请凭任务记录联系线路处理。',
     provider: status,
-    upstream
+    upstream,
+    transient: false,
+    upstreamBillingAmbiguous: true,
+    providerBillingStatus: 'unknown',
+    billingAuditRequired: true,
+    request: {
+      ...requestMeta,
+      upstreamBillingAmbiguous: true,
+      providerBillingStatus: 'unknown',
+      billingAuditRequired: true
+    }
   };
 }
 
@@ -3935,6 +3964,25 @@ async function callProviderImageGeneration(prompt, options = {}) {
   const lingsuanImages = isLingsuanImagesRoute(options.route);
   const packyImages = isPackyImagesRoute(options.route);
   const strictImages = lingsuanImages || packyImages;
+  const generationRequestMeta = {
+    endpoint: routeImageGenerationEndpoint(options.route),
+    model,
+    size,
+    quality,
+    output_format: outputFormat,
+    ...(strictImages ? {} : {
+      background,
+      moderation,
+      response_format: responseMode.responseFormat,
+      stream: responseMode.stream,
+      partial_images: responseMode.partialImages
+    }),
+    n: 1,
+    requestedCount: count,
+    queueMode: options.bypassProviderQueue ? 'persistent-task-worker' : 'bounded-fair',
+    queueDelayMs: providerImageRequestDelay(options),
+    timeoutMs
+  };
   if (!status.enabled) {
     return {
       success: true,
@@ -3995,25 +4043,63 @@ async function callProviderImageGeneration(prompt, options = {}) {
           transportMode: providerImageTransportForUrl(requestUrl),
           preTlsRetryCount
         };
-        if (!resp.ok) {
+        const failure = classifyImageProviderFailure({
+          status: resp.status,
+          data: parsed.data,
+          message: parsed.message,
+          headers: resp.headers,
+          fallbackCode: 'PROVIDER_IMAGE_FAILED'
+        });
+        const skippedMainline = failure.code === 'LINGSUAN_SKIPPED_MAINLINE' && parsed.images.length === 0;
+        if (!resp.ok || skippedMainline) {
+          upstreamItem.diagnostics = failure.diagnostics;
           return {
+            ...failure,
             success: false,
-            code: 'PROVIDER_IMAGE_FAILED',
-            message: parsed.message || `Provider returned ${resp.status}`,
             provider: status,
             upstreamStatus: resp.status,
             upstream: parsed.data,
-            upstreamItem
+            upstreamItem,
+            request: {
+              ...generationRequestMeta,
+              transportMode: providerImageTransportForUrl(requestUrl),
+              preTlsRetryCount,
+              transient: failure.transient,
+              retryAfterMs: failure.retryAfterMs,
+              upstreamBillingAmbiguous: failure.upstreamBillingAmbiguous,
+              providerBillingStatus: failure.providerBillingStatus,
+              billingAuditRequired: failure.billingAuditRequired,
+              responseDiagnostics: failure.diagnostics
+            }
           };
         }
         return { success: true, images: parsed.images, upstreamItem };
       } catch (err) {
         const cancelled = !!schedulerSignal?.aborted;
+        const preTlsFailure = isProviderPreTlsDisconnect(err);
+        const upstreamBillingAmbiguous = !cancelled && !preTlsFailure;
         return {
           success: false,
           code: cancelled ? 'TASK_CANCELLED' : (err.name === 'AbortError' ? 'PROVIDER_IMAGE_TIMEOUT' : 'PROVIDER_IMAGE_ERROR'),
-          message: cancelled ? '任务已取消' : (err.name === 'AbortError' ? 'Provider 图片生成超时' : (err.message || 'Provider 图片生成失败')),
-          provider: status
+          message: cancelled
+            ? '任务已取消'
+            : (err.name === 'AbortError'
+                ? 'Provider 图片生成超时'
+                : safeProviderErrorMessage(err.message, 'Provider 图片生成失败')),
+          provider: status,
+          transient: !cancelled,
+          upstreamBillingAmbiguous,
+          providerBillingStatus: upstreamBillingAmbiguous ? 'unknown' : 'not_charged',
+          billingAuditRequired: upstreamBillingAmbiguous,
+          request: {
+            ...generationRequestMeta,
+            preTlsRetryCount: Number(err?.providerPreTlsRetryCount || 0),
+            connectionPhase: err?.providerConnectionPhase || (err.name === 'AbortError' ? 'request_timeout' : 'request_unknown'),
+            transient: !cancelled,
+            upstreamBillingAmbiguous,
+            providerBillingStatus: upstreamBillingAmbiguous ? 'unknown' : 'not_charged',
+            billingAuditRequired: upstreamBillingAmbiguous
+          }
         };
       } finally {
         clearTimeout(timer);
@@ -4028,33 +4114,21 @@ async function callProviderImageGeneration(prompt, options = {}) {
       result.images.forEach((item) => images.push({ ...item, index: images.length }));
     });
     if (!images.length) {
-      return providerImageEmptyResponse(status, upstream);
+      return providerImageEmptyResponse(status, upstream, generationRequestMeta);
     }
     const request = {
-      endpoint: routeImageGenerationEndpoint(options.route),
-      model,
-      size,
-      quality,
-      output_format: outputFormat,
-      ...(strictImages ? {} : {
-        background,
-        moderation,
-        response_format: responseMode.responseFormat,
-        stream: responseMode.stream,
-        partial_images: responseMode.partialImages
-      }),
-      n: 1,
-      requestedCount: count,
-      queueMode: options.bypassProviderQueue ? 'persistent-task-worker' : 'bounded-fair',
-      queueDelayMs: providerImageRequestDelay(options),
-      timeoutMs
+      ...generationRequestMeta,
+      providerBillingStatus: 'charged_assumed',
+      upstreamBillingAmbiguous: false
     };
     return { success: true, mock: false, provider: status, images, upstream, request };
   } catch (err) {
     return {
       success: false,
       code: err.name === 'AbortError' ? 'PROVIDER_IMAGE_TIMEOUT' : 'PROVIDER_IMAGE_ERROR',
-      message: err.name === 'AbortError' ? 'Provider 图片生成超时' : (err.message || 'Provider 图片生成失败'),
+      message: err.name === 'AbortError'
+        ? 'Provider 图片生成超时'
+        : safeProviderErrorMessage(err.message, 'Provider 图片生成失败'),
       provider: status
     };
   }
@@ -4205,29 +4279,59 @@ async function callProviderImageEdit(prompt, options = {}) {
           transportMode: providerImageTransportForUrl(requestUrl),
           preTlsRetryCount
         };
-        if (!resp.ok) {
+        const failure = classifyImageProviderFailure({
+          status: resp.status,
+          data: parsed.data,
+          message: parsed.message,
+          headers: resp.headers,
+          fallbackCode: 'PROVIDER_IMAGE_EDIT_FAILED'
+        });
+        const skippedMainline = failure.code === 'LINGSUAN_SKIPPED_MAINLINE' && parsed.images.length === 0;
+        if (!resp.ok || skippedMainline) {
+          upstreamItem.diagnostics = failure.diagnostics;
           return {
+            ...failure,
             success: false,
-            code: 'PROVIDER_IMAGE_EDIT_FAILED',
-            message: parsed.message || `Provider returned ${resp.status}`,
             provider: status,
             upstreamStatus: resp.status,
             upstream: parsed.data,
             upstreamItem,
-            request: { ...editRequestMeta, preTlsRetryCount }
+            request: {
+              ...editRequestMeta,
+              preTlsRetryCount,
+              transient: failure.transient,
+              retryAfterMs: failure.retryAfterMs,
+              upstreamBillingAmbiguous: failure.upstreamBillingAmbiguous,
+              providerBillingStatus: failure.providerBillingStatus,
+              billingAuditRequired: failure.billingAuditRequired,
+              responseDiagnostics: failure.diagnostics
+            }
           };
         }
         return { success: true, images: parsed.images, upstreamItem };
       } catch (err) {
         const cancelled = !!schedulerSignal?.aborted;
+        const preTlsFailure = isProviderPreTlsDisconnect(err);
+        const upstreamBillingAmbiguous = !cancelled && !preTlsFailure;
         return {
           success: false,
           code: cancelled ? 'TASK_CANCELLED' : (err.name === 'AbortError' ? 'PROVIDER_IMAGE_EDIT_TIMEOUT' : 'PROVIDER_IMAGE_EDIT_ERROR'),
-          message: cancelled ? '任务已取消' : providerImageRequestErrorMessage(err),
+          message: cancelled
+            ? '任务已取消'
+            : safeProviderErrorMessage(providerImageRequestErrorMessage(err), 'Provider 图生图失败'),
           provider: status,
+          transient: !cancelled,
+          upstreamBillingAmbiguous,
+          providerBillingStatus: upstreamBillingAmbiguous ? 'unknown' : 'not_charged',
+          billingAuditRequired: upstreamBillingAmbiguous,
           request: {
             ...editRequestMeta,
-            preTlsRetryCount: Number(err?.providerPreTlsRetryCount || 0)
+            preTlsRetryCount: Number(err?.providerPreTlsRetryCount || 0),
+            connectionPhase: err?.providerConnectionPhase || (err.name === 'AbortError' ? 'request_timeout' : 'request_unknown'),
+            transient: !cancelled,
+            upstreamBillingAmbiguous,
+            providerBillingStatus: upstreamBillingAmbiguous ? 'unknown' : 'not_charged',
+            billingAuditRequired: upstreamBillingAmbiguous
           }
         };
       } finally {
@@ -4243,7 +4347,7 @@ async function callProviderImageEdit(prompt, options = {}) {
       result.images.forEach((item) => images.push({ ...item, index: images.length }));
     });
     if (!images.length) {
-      return providerImageEmptyResponse(status, upstream);
+      return providerImageEmptyResponse(status, upstream, editRequestMeta);
     }
     return {
       success: true,
@@ -4254,14 +4358,16 @@ async function callProviderImageEdit(prompt, options = {}) {
       upstream,
       request: {
         ...editRequestMeta,
-        preTlsRetryCount: Math.max(0, ...upstream.map((item) => Number(item.preTlsRetryCount || 0)))
+        preTlsRetryCount: Math.max(0, ...upstream.map((item) => Number(item.preTlsRetryCount || 0))),
+        providerBillingStatus: 'charged_assumed',
+        upstreamBillingAmbiguous: false
       }
     };
   } catch (err) {
     return {
       success: false,
       code: err.name === 'AbortError' ? 'PROVIDER_IMAGE_EDIT_TIMEOUT' : 'PROVIDER_IMAGE_EDIT_ERROR',
-      message: providerImageRequestErrorMessage(err),
+      message: safeProviderErrorMessage(providerImageRequestErrorMessage(err), 'Provider 图生图失败'),
       provider: status
     };
   }
@@ -6541,6 +6647,7 @@ function persistentTaskProgress(task) {
   if (['success', 'failed', 'cancelled'].includes(task.status)) return 100;
   const progressByStage = {
     queued: 10,
+    provider_degraded: 12,
     preparing: 20,
     connecting: 35,
     awaiting_provider: 55,
@@ -6554,6 +6661,7 @@ function makePersistentTaskResponse(task) {
   const queuePosition = task.status === 'pending'
     ? (task.queuePosition || generationTaskRepository.queuePosition(task.id))
     : 0;
+  const retryAfterMs = Math.max(0, Number(task.retryAfterMs || task.request?.retryAfterMs || 0));
   const now = Date.now();
   const elapsedMs = Math.max(0, (task.finishedAtMs || now) - task.createdAtMs);
   const warnings = Array.isArray(task.request?.warnings) ? task.request.warnings : [];
@@ -6581,7 +6689,7 @@ function makePersistentTaskResponse(task) {
       queueMode: 'persistent-bounded-fair',
       queuePosition,
       failureDomain: task.failureDomain,
-      retryAfterMs: task.retryAfterMs || 0
+      retryAfterMs
     },
     providerRequest: task.request || null,
     errorCode: task.errorCode || '',
@@ -6592,7 +6700,7 @@ function makePersistentTaskResponse(task) {
     lineKey: task.routeKey || '',
     routeDisplayName: task.routeDisplayName || '',
     queuePosition,
-    retryAfterMs: task.retryAfterMs || 0,
+    retryAfterMs,
     canCancel: ['pending', 'running'].includes(task.status),
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
@@ -6633,7 +6741,19 @@ async function executePersistentGenerationItem(task, item, signal) {
     ...(providerResult.request || {}),
     mock: !!providerResult.mock
   };
-  const persistedResults = await persistProviderImageResults(providerResult.images, providerRequestMeta);
+  let persistedResults;
+  try {
+    persistedResults = await persistProviderImageResults(providerResult.images, providerRequestMeta);
+  } catch (error) {
+    error.requestMeta = {
+      ...providerRequestMeta,
+      providerBillingStatus: providerRequestMeta.providerBillingStatus || 'charged_assumed',
+      upstreamBillingAmbiguous: true,
+      billingAuditRequired: true,
+      localPersistenceFailed: true
+    };
+    throw error;
+  }
   const normalizedImages = persistedResults.map((image, index) => normalizeTaskImage({
     ...image,
     prompt: providerPrompt,
@@ -6686,7 +6806,7 @@ async function submitPersistentGenerationTask(req, body = req.body || {}, option
     throw generationInputError(400, 'IMAGE_PROMPT_REQUIRED', '请输入提示词或上传参考图');
   }
   const rawIdempotencyKey = String(
-    req.get?.('Idempotency-Key') || body.clientRequestId || body.idempotencyKey || ''
+    options.idempotencyKey || req.get?.('Idempotency-Key') || body.clientRequestId || body.idempotencyKey || ''
   ).trim();
   if (rawIdempotencyKey.length > 128) {
     throw generationInputError(400, 'IDEMPOTENCY_KEY_INVALID', '幂等键长度不能超过 128 个字符');
@@ -6739,7 +6859,8 @@ async function submitPersistentGenerationTask(req, body = req.body || {}, option
         ...staged.requestMeta,
         size: providerImageRequestSize(body, body.sizeTier || body.resolution || body.clarity || body.quality),
         quality: body.quality || body.imageQuality || '',
-        pending: true
+        pending: true,
+        ...(options.requestMeta || {})
       }
     });
     if (result.replayed) await removeGenerationTaskInputs(taskId);
@@ -6793,6 +6914,86 @@ app.post('/api/generate/tasks/:id/cancel', auth, (req, res) => {
       success: false,
       code: error.code || 'TASK_CANCEL_FAILED',
       message: error.message || '取消任务失败'
+    });
+  }
+});
+app.post('/api/generate/tasks/:id/retry', auth, async (req, res) => {
+  try {
+    const original = generationTaskService.getTask(req.params.id);
+    if (!original || original.userId !== req.user.userId) {
+      return res.status(404).json({ success: false, code: 'TASK_NOT_FOUND', message: '任务不存在' });
+    }
+    if (!['failed', 'cancelled'].includes(original.status)) {
+      throw generationInputError(409, 'GENERATION_TASK_NOT_RETRYABLE', '只有失败或已取消的任务可以人工重试');
+    }
+    const hasBillingRisk = original.request?.upstreamBillingAmbiguous === true
+      || original.request?.providerBillingStatus === 'unknown'
+      || original.request?.billingAuditRequired === true;
+    if (hasBillingRisk && req.body?.confirmUpstreamBillingRisk !== true) {
+      throw generationInputError(
+        409,
+        'GENERATION_RETRY_BILLING_CONFIRMATION_REQUIRED',
+        '上一单的上游计费状态未知；请确认可能重复计费的风险后再人工重试'
+      );
+    }
+    const retryBody = JSON.parse(JSON.stringify(original.requestPayload?.body || {}));
+    delete retryBody.clientRequestId;
+    delete retryBody.idempotencyKey;
+    const localInputs = [
+      ...imageReferenceCandidates(retryBody),
+      ...(retryBody.mask && typeof retryBody.mask === 'object' ? [retryBody.mask] : [])
+    ].filter((input) => input.localPath);
+    const retryInputDirectory = generationTaskInputDirectory(original.id);
+    let inputDirectoryExpired = false;
+    if (localInputs.length > 0) {
+      try {
+        inputDirectoryExpired = Date.now() - fs.statSync(retryInputDirectory).mtimeMs >= GENERATION_INPUT_RETENTION_MS;
+      } catch {
+        inputDirectoryExpired = true;
+      }
+    }
+    if (
+      inputDirectoryExpired
+      || localInputs.some((input) => !fs.existsSync(path.resolve(input.localPath)))
+    ) {
+      throw generationInputError(
+        410,
+        'GENERATION_RETRY_INPUT_EXPIRED',
+        '原任务参考图已超过保留期或已被清理，请重新上传后再试'
+      );
+    }
+    const retryIdempotencyKey = uid('retry_');
+    const result = await submitPersistentGenerationTask(req, retryBody, {
+      idempotencyKey: retryIdempotencyKey,
+      providerPrompt: original.requestPayload?.providerPrompt || original.prompt,
+      source: 'manual-retry',
+      requestMeta: {
+        retryOfTaskId: original.id,
+        retryConfirmedBillingRisk: hasBillingRisk,
+        retryCreatedAt: new Date().toISOString()
+      }
+    });
+    const task = generationTaskService.getTask(result.task.id) || result.task;
+    res.status(202).json({
+      success: true,
+      accepted: true,
+      pending: ['pending', 'running'].includes(task.status),
+      replayed: false,
+      retryOfTaskId: original.id,
+      remainingBalance: result.remainingBalance,
+      ...makePersistentTaskResponse(task)
+    });
+  } catch (error) {
+    if (error?.code === 'GENERATION_REFERENCE_FILE_MISSING' || error?.code === 'ENOENT') {
+      error.status = 410;
+      error.code = 'GENERATION_RETRY_INPUT_EXPIRED';
+      error.message = '原任务参考图已超过保留期或已被清理，请重新上传后再试';
+    }
+    if (error.retryAfter) res.set('Retry-After', String(error.retryAfter));
+    res.status(error.status || 500).json({
+      success: false,
+      code: error.code || 'GENERATION_TASK_RETRY_FAILED',
+      message: error.message || '人工重试任务失败'
     });
   }
 });

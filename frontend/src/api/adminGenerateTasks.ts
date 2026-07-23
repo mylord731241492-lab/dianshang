@@ -46,6 +46,14 @@ export interface AdminGenerateTask {
   errorMessage?: string;
   request?: {
     upstreamBillingAmbiguous?: boolean;
+    providerBillingStatus?: 'unknown' | 'not_charged' | 'charged_assumed';
+    billingAuditRequired?: boolean;
+    responseDiagnostics?: {
+      cfRay?: string;
+      retryAfter?: string;
+      requestId?: string;
+      server?: string;
+    };
     [key: string]: unknown;
   };
 }
@@ -65,8 +73,12 @@ export interface AdminGenerateTaskSummary {
     perDomainConcurrency?: number;
     circuits?: Record<string, {
       open?: boolean;
+      coolingDown?: boolean;
       consecutiveFailures?: number;
+      recentAttempts?: number;
+      recentTransientFailures?: number;
       retryAfterMs?: number;
+      reason?: string;
     }>;
   };
   processMemory?: {

@@ -9028,7 +9028,7 @@ app.use((err, req, res, next) => {
 });
 
 // ===================== SPA FALLBACK =====================
-const sourceFrontendRoutePattern = /^\/(?:admin(?:\/.*)?|gallery\/?)$/;
+const sourceFrontendRoutePattern = /^\/(?:admin(?:\/.*)?|gallery\/?|login\/?)$/;
 const chatFallbackRoutePattern = /^\/chat(?:\/.*)?$/;
 
 app.get(/^\/(?:chat|CHAT)\/?$/, (req, res, next) => {

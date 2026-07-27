@@ -10,6 +10,13 @@ const legacyIndexHtml = fs.readFileSync(path.join(repoRoot, 'index.html'), 'utf8
 const candidateIndexPath = path.join(repoRoot, 'integrations', 'infinite-canvas', 'web', 'dist', 'index.html');
 const candidateIndexHtml = fs.readFileSync(candidateIndexPath, 'utf8');
 
+// /login 属于源码前端路由白名单，应返回 frontend/dist/index.html。
+// 工作树通常不含 frontend/dist 构建产物，测试写入临时 marker 文件以便区分两个 index.html，结束后清理。
+const sourceFrontendDistDir = path.join(repoRoot, 'frontend', 'dist');
+const sourceFrontendIndexPath = path.join(sourceFrontendDistDir, 'index.html');
+const sourceFrontendIndexExisted = fs.existsSync(sourceFrontendIndexPath);
+const sourceFrontendMarkerHtml = '<!doctype html><html><head><meta charset="utf-8"><title>source-frontend-marker</title></head><body>source frontend marker</body></html>';
+
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
@@ -121,6 +128,12 @@ async function stopServer(instance) {
 }
 
 async function main() {
+  if (!sourceFrontendIndexExisted) {
+    fs.mkdirSync(sourceFrontendDistDir, { recursive: true });
+    fs.writeFileSync(sourceFrontendIndexPath, sourceFrontendMarkerHtml);
+  }
+  const sourceFrontendIndexHtml = fs.readFileSync(sourceFrontendIndexPath, 'utf8');
+  try {
   const assetMatch = candidateIndexHtml.match(/\/canvas-app\/assets\/[^"'\s]+\.js/);
   assert(assetMatch, '候选 index.html 必须引用 /canvas-app/assets/ 下的入口脚本（需以 VITE_BASE=/canvas-app/ 构建）');
   const candidateAssetPath = assetMatch[0];
@@ -160,6 +173,16 @@ async function main() {
     const candidateAsset = await requestText(`${infinite.baseUrl}${candidateAssetPath}`);
     assert(candidateAsset.status === 200, `infinite 模式候选静态资源 ${candidateAssetPath} 应返回 200，实际 ${candidateAsset.status}`);
 
+    const loginPage = await requestText(`${infinite.baseUrl}/login`);
+    assert(loginPage.status === 200, `infinite 模式 /login 应返回 200，实际 ${loginPage.status}`);
+    assert(loginPage.text === sourceFrontendIndexHtml, 'infinite 模式 /login 必须返回源码前端 frontend/dist/index.html');
+    assert(loginPage.text !== legacyIndexHtml, 'infinite 模式 /login 不得落入旧 SPA 根 index.html');
+    assert(loginPage.text !== candidateIndexHtml, 'infinite 模式 /login 不得返回候选画布 index.html');
+
+    const loginSlashPage = await requestText(`${infinite.baseUrl}/login/`);
+    assert(loginSlashPage.status === 200, `infinite 模式 /login/ 应返回 200，实际 ${loginSlashPage.status}`);
+    assert(loginSlashPage.text === sourceFrontendIndexHtml, 'infinite 模式 /login/ 必须返回源码前端 frontend/dist/index.html');
+
     const unknownApi = await requestText(`${infinite.baseUrl}/api/definitely-not-exists`);
     assert(unknownApi.status === 404, `未知 /api/* 应返回 404，实际 ${unknownApi.status}`);
     assert(unknownApi.body && unknownApi.body.success === false, '未知 /api/* 必须返回 API 404 JSON，不得落入候选 HTML');
@@ -182,10 +205,17 @@ async function main() {
     legacyCanvas: 'root-index.html',
     infiniteCanvas: 'candidate-index.html',
     infiniteProjectRoute: 'candidate-index.html',
+    infiniteLoginRoute: 'source-frontend-index.html',
     candidateAssets: candidateAssetPath,
     unknownApi: '404-json',
     invalidRuntime: 'startup-blocked'
   }, null, 2));
+  } finally {
+    if (!sourceFrontendIndexExisted) {
+      fs.rmSync(sourceFrontendIndexPath, { force: true });
+      try { fs.rmdirSync(sourceFrontendDistDir); } catch {}
+    }
+  }
 }
 
 main().catch(error => {

@@ -9,7 +9,7 @@ import { setImageBlob } from "@/services/image-storage";
 import { CanvasDeleteProjectsDialog } from "@/components/canvas/canvas-delete-projects-dialog";
 import { CanvasProjectCard } from "@/components/canvas/canvas-project-card";
 import type { CanvasExportFile } from "@/types/canvas-export";
-import { useCanvasStore } from "@/stores/canvas/use-canvas-store";
+import { useCanvasStore, type CanvasProject } from "@/stores/canvas/use-canvas-store";
 import { useCanvasUiStore } from "@/stores/canvas/use-canvas-ui-store";
 import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
 
@@ -21,6 +21,8 @@ export default function CanvasPage() {
     const autoOpenRef = useRef(false);
     const hydrated = useCanvasStore((state) => state.hydrated);
     const projects = useCanvasStore((state) => state.projects);
+    const loadProjects = useCanvasStore((state) => state.loadProjects);
+    const fetchProject = useCanvasStore((state) => state.fetchProject);
     const createProject = useCanvasStore((state) => state.createProject);
     const importProject = useCanvasStore((state) => state.importProject);
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
@@ -32,7 +34,26 @@ export default function CanvasPage() {
     const enterProject = (id: string) => {
         navigate(`/canvas/${id}${agentQuery}`);
     };
-    const createAndEnter = () => enterProject(createProject(`无限画布 ${projects.length + 1}`));
+    const createAndEnter = async () => {
+        try {
+            enterProject(await createProject(`无限画布 ${projects.length + 1}`));
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "创建画布失败，请重试");
+        }
+    };
+    const exportSelected = async () => {
+        const targets = projects.filter((project) => selectedIds.includes(project.id));
+        const full: CanvasProject[] = [];
+        for (const target of targets) {
+            const result = await fetchProject(target.id);
+            if (result.kind === "legacy") {
+                message.info(`「${result.title}」是旧版项目，暂不支持导出`);
+                continue;
+            }
+            full.push(result.project);
+        }
+        if (full.length) await exportCanvasProjects(full, `无限画布-${full.length}个项目`);
+    };
     const importCanvas = async (file?: File) => {
         if (!file) return;
         try {
@@ -50,7 +71,7 @@ export default function CanvasPage() {
                     }),
                 ),
             );
-            data.projects.forEach((item) => importProject(item.project));
+            for (const item of data.projects) await importProject(item.project);
             message.success(`已导入 ${data.projects.length} 个画布`);
         } catch {
             message.error("导入失败，请选择有效的画布压缩包");
@@ -60,9 +81,20 @@ export default function CanvasPage() {
     };
 
     useEffect(() => {
+        void loadProjects().catch(() => message.error("加载画布列表失败，请刷新重试"));
+    }, [loadProjects, message]);
+
+    useEffect(() => {
         if (!hydrated || autoOpenRef.current || (mode !== "new" && mode !== "recent")) return;
         autoOpenRef.current = true;
-        enterProject(mode === "new" ? createProject(`无限画布 ${projects.length + 1}`) : projects[0]?.id || createProject(`无限画布 ${projects.length + 1}`));
+        if (mode === "recent" && projects[0]) {
+            enterProject(projects[0].id);
+            return;
+        }
+        void createProject(`无限画布 ${projects.length + 1}`)
+            .then(enterProject)
+            .catch(() => message.error("创建画布失败，请重试"));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [createProject, hydrated, mode, projects]);
 
     if (hydrated && (mode === "new" || mode === "recent")) return <main className="flex h-full items-center justify-center bg-background text-sm text-stone-500">正在打开画布...</main>;
@@ -78,7 +110,7 @@ export default function CanvasPage() {
                     <div className="flex items-center gap-2">
                         {selectedIds.length ? (
                             <>
-                                <Button disabled={!hydrated} icon={<Download className="size-4" />} onClick={() => void exportCanvasProjects(projects.filter((project) => selectedIds.includes(project.id)), `无限画布-${selectedIds.length}个项目`)}>
+                                <Button disabled={!hydrated} icon={<Download className="size-4" />} onClick={() => void exportSelected()}>
                                     导出选中
                                 </Button>
                                 <Button disabled={!hydrated} onClick={() => setDeleteIds(selectedIds)}>
@@ -94,7 +126,7 @@ export default function CanvasPage() {
                         <Button disabled={!hydrated} icon={<FileUp className="size-4" />} onClick={() => inputRef.current?.click()}>
                             导入画布
                         </Button>
-                        <Button disabled={!hydrated} type="primary" icon={<Plus className="size-4" />} onClick={createAndEnter}>
+                        <Button disabled={!hydrated} type="primary" icon={<Plus className="size-4" />} onClick={() => void createAndEnter()}>
                             新建画布
                         </Button>
                     </div>
@@ -112,7 +144,7 @@ export default function CanvasPage() {
                     <section className="flex min-h-[360px] flex-col items-center justify-center border-y border-stone-200 text-center dark:border-stone-800">
                         <h2 className="text-xl font-medium">还没有画布</h2>
                         <p className="mt-3 text-sm text-stone-500">新建一个画布后，就可以独立保存节点、连线和画布外观。</p>
-                        <Button type="primary" className="mt-6" icon={<Plus className="size-4" />} onClick={createAndEnter}>
+                        <Button type="primary" className="mt-6" icon={<Plus className="size-4" />} onClick={() => void createAndEnter()}>
                             新建画布
                         </Button>
                     </section>

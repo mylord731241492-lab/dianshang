@@ -1,15 +1,17 @@
 import { Check, Download, Pencil, Trash2, X } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Button, Input } from "antd";
+import { App, Button, Input } from "antd";
 
 import { useCanvasStore, type CanvasProject } from "@/stores/canvas/use-canvas-store";
 import { useCanvasUiStore } from "@/stores/canvas/use-canvas-ui-store";
 import { exportCanvasProjects } from "@/lib/canvas/canvas-export";
 
 export function CanvasProjectCard({ project }: { project: CanvasProject }) {
+    const { message } = App.useApp();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const renameProject = useCanvasStore((state) => state.renameProject);
+    const fetchProject = useCanvasStore((state) => state.fetchProject);
     const selectedIds = useCanvasUiStore((state) => state.selectedProjectIds);
     const editingId = useCanvasUiStore((state) => state.editingProjectId);
     const editingTitle = useCanvasUiStore((state) => state.editingProjectTitle);
@@ -22,8 +24,22 @@ export function CanvasProjectCard({ project }: { project: CanvasProject }) {
     const selected = selectedIds.includes(project.id);
     const open = () => navigate(`/canvas/${project.id}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`);
     const saveTitle = () => {
-        renameProject(project.id, editingTitle);
-        stopEditing();
+        void renameProject(project.id, editingTitle)
+            .catch((error) => message.error(error instanceof Error ? error.message : "重命名失败，请重试"))
+            .finally(() => stopEditing());
+    };
+    const exportProject = async () => {
+        try {
+            // 列表项只有元数据，导出前先向服务器取完整内容。
+            const result = await fetchProject(project.id);
+            if (result.kind === "legacy") {
+                message.info("旧版项目暂不支持导出");
+                return;
+            }
+            await exportCanvasProjects([result.project], result.project.title || "无限画布");
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "导出失败，请重试");
+        }
     };
 
     return (
@@ -49,9 +65,7 @@ export function CanvasProjectCard({ project }: { project: CanvasProject }) {
                         }}
                     >
                         <h2 className="truncate text-xl font-semibold">{project.title}</h2>
-                        <p className="mt-3 text-sm leading-6 text-stone-600 dark:text-stone-400">
-                            {project.nodes.length} 个节点 · {project.connections.length} 条连线
-                        </p>
+                        <p className="mt-3 text-sm leading-6 text-stone-600 dark:text-stone-400">创建于 {project.createdAt ? new Date(project.createdAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit" }) : "-"}</p>
                     </button>
                 )}
             </div>
@@ -65,7 +79,7 @@ export function CanvasProjectCard({ project }: { project: CanvasProject }) {
                         </>
                     ) : (
                         <>
-                            <Button type="text" size="small" shape="circle" icon={<Download className="size-4" />} onClick={() => void exportCanvasProjects([project], project.title || "无限画布")} aria-label="导出" />
+                            <Button type="text" size="small" shape="circle" icon={<Download className="size-4" />} onClick={() => void exportProject()} aria-label="导出" />
                             <Button type="text" size="small" shape="circle" icon={<Pencil className="size-4" />} onClick={() => startEditing(project.id, project.title)} aria-label="重命名" />
                             <Button type="text" size="small" shape="circle" icon={<Trash2 className="size-4" />} onClick={() => setDeleteIds([project.id])} aria-label="删除" />
                         </>

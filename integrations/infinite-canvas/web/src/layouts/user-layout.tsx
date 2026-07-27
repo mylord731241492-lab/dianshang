@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 
 import { AgentPanel } from "@/components/agent/agent-panel";
 import { bootstrapAuth, logout, type CanvasUser } from "@/integrations/hajimi/auth";
+import { clearUserDrafts } from "@/integrations/hajimi/project-draft-cache";
 import { useUserStore } from "@/stores/use-user-store";
 
 const browserStorage = {
@@ -43,6 +44,8 @@ export default function UserLayout({ children }: { children: ReactNode }) {
     }, [runBootstrap]);
 
     const handleLogout = () => {
+        // 退出登录清空当前用户的恢复草稿，避免下一个账号看到上一用户数据。
+        if (user?.id) clearUserDrafts(user.id);
         logout({ storage: browserStorage, navigate: navigateToMainSite, clearUser: clearSession });
     };
 

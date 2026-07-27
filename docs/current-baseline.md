@@ -1,6 +1,6 @@
 # 当前项目基线与防混淆地图
 
-> 最后更新：2026-07-23，北京时间。
+> 最后更新：2026-07-27，北京时间。
 > 当前开发分支：`codex/generation-stability-10-users`；改造前安全检查点为 `fe5372d chore: checkpoint pre-generation-architecture state`。
 
 本文件是后续修改前的第一入口。`docs/progress-report.md` 和 `docs/review-log.md` 是时间线流水账，不是当前状态的唯一准绳。
@@ -35,7 +35,7 @@
 | 区域 | 当前角色 | 修改规则 |
 | --- | --- | --- |
 | `index.html` | 旧打包 SPA 的入口 interface，负责挂载当前有效静态资源 query。 | 改入口必须同步评估首页、用户中心、后台和画布，并更新生产 smoke。 |
-| `assets/` | 当前打包运行时和过渡 adapter，包含画布、桥接脚本和页面 chunk。 | 画布开发统一在当前画布链路中进行；禁止另起第二套画布。 |
+| `assets/` | 当前打包运行时和过渡 adapter，包含画布、桥接脚本和页面 chunk。 | 画布开发统一在当前画布链路中进行；禁止在生产另起第二套画布，ADR-0005 隔离候选改造除外（见 `docs/adr/0005-infinite-canvas-atomic-replacement.md`）。 |
 | `frontend/` | Vue 3 源码壳和部分源码化页面，包含源码后台 `/admin/*`。 | 新源码改动必须走 TypeScript/build 验证；后台 UI 优先复用 `frontend/src/components/admin/` 和 `docs/admin-ui-guidelines.md`；不在这里另起第二套画布。 |
 | `server.js` | Express + SQLite 单体 implementation，承载 `/api/*`、Provider、后台、项目和生图逻辑。 | 未确认模块边界前不拆文件；改后必须 `node --check` 和相关 smoke。 |
 | `scripts/` | 验证 adapter 集合，包含当前 smoke 和历史专项脚本。 | 先确认脚本断言是否匹配当前入口 query；旧脚本失败不一定代表业务失败。 |
@@ -168,7 +168,7 @@
 - 真实 `docker/.env` 不写入数据包，只记录 SHA-256；迁移时必须通过单独安全渠道复制同一份配置。源代码目录也与数据包分开复制。
 - 新增 `scripts/restore-internal-prod-windows.ps1`：默认只恢复到空的 `data/uploads/logs`，拒绝覆盖、包篡改、ZIP 越界路径、`.env` 指纹不一致和损坏 SQLite；默认不启动 Docker，显式 `-StartApp` 才构建并等待健康。
 - `scripts/test-windows-server-migration.ps1` 已在系统临时目录完整通过，覆盖数据库 3 行数据、工作流 JSON、图片 SHA-256、日志内容、`.env` 指纹不匹配写入前拒绝、重复恢复拒绝和篡改包拒绝；没有停止或修改当前 3456 生产容器，也没有调用 Provider。
-- 当前所谓“云端图片”仍是服务器本地文件 `docker/uploads`，其 URL/生成元数据位于 SQLite，迁移和备份必须两者成对处理。用户已确认内部数据量较小，备份只保留在本机 `docker/backup`，不配置云盘、NAS、S3/MinIO 或自动异地同步；迁移服务器时再人工复制选定数据包。
+- 当前所谓“云端图片”仍是服务器本地文件 `docker/uploads`，其 URL/生成元数据位于 SQLite，迁移和备份必须两者成对处理。用户已确认内部数据量较小，备份只保留在本机 `docker/backup`，不配置云盘、NAS、S3/MinIO 或自动异地同步；迁移服务器时再人工复制选定数据包。2026-07-27 ADR-0005 已重新打开“不启用 S3/MinIO”的决定，但只在云存储方案经用户确认并记录于 ADR-0006 后才可实施；此前不得安装或启用 S3/MinIO SDK。
 - 可选 Chat profile 的 MongoDB 和 LibreChat 命名卷不属于当前主站迁移包；正式启用并产生需保留数据后必须另做卷级迁移。
 - 该决策记录在 `docs/adr/0003-windows-docker-portable-data-migration.md`，服务器步骤见 `docs/internal-production-runbook.md`。本轮仅修改脚本和文档，未重建当前生产 Docker。
 
@@ -624,3 +624,11 @@
 - 无费门禁全部通过：架构单测、Provider 适配器、图片队列全链路、10 用户故障注入、API smoke 和 Vue 类型检查/构建均通过。额外 3 轮 soak 完成 90 个假任务，同域并发 1、三失败域并发 3、提交 P95 53.8ms；堆内存在中途回落，RSS 采样 154.5–190.8MiB，未超过现有门槛。
 - 用户授权最多两次真实测试后，3458 提交两笔 4K 图生图，24ms/50ms 受理。两笔均在约 2 秒内由 Provider 明确返回“API Key 无效”，诊断头和请求号已落库，本地各预占 10 点后完整退款、余额回到原值。该结果只验证鉴权失败分类与账务闭环，未验证修复后的真实 4K 成功率；达到两次上限后没有补单。
 - 3458 已恢复 Mock 且健康；Docker、3456、生产数据库和生产容器均未停止、重启、重建或写入。当前仍是候选源码，生产切换需另行确认。
+
+## 2026-07-27 Infinite Canvas 隔离候选改造授权（ADR-0005）
+
+- 用户已于 2026-07-27 批准 `docs/adr/0005-infinite-canvas-atomic-replacement.md`（状态 Accepted），允许在隔离环境把 Infinite Canvas v0.10.0 改造为候选画布；执行依据为 `docs/plans/2026-07-27-infinite-canvas-staged-replacement.md`。
+- 新护栏：禁止在生产长期并列两套画布，生产始终只有一个 `/canvas` 用户入口；候选未过人工验收门禁前，当前 `/canvas` 仍是唯一生产事实，正式 3456 不受影响。
+- 候选改造只在独立工作树 `F:\dianshang-worktrees\infinite-canvas-candidate`（分支 `codex/infinite-canvas-candidate`）、独立端口 3466 和隔离数据中进行；主工作区 `F:\dianshang` 在 `codex/generation-stability-10-users` 上的 17 个未提交在途改动不得被覆盖、暂存或提交。
+- 旧基线“不启用 S3/MinIO”的决定已被 ADR-0005 重新打开，但只在云存储方案经用户确认并记录于 ADR-0006 后才可实施；此前不得安装或启用 S3/MinIO SDK。
+- `docs/plans/2026-06-26-source-stack-canvas-rebuild-plan.md` 继续仅作历史记录、不恢复；已废止的 Vue Flow 独立重建方案不恢复。

@@ -94,8 +94,8 @@
 
 ## 禁止改动
 
-- 另起第二套画布实现或继续推进 Infinite-Canvas 迁移。
-- 新增第二套画布拖拽、连线、缩放、小地图和视口系统。
+- 在生产另起第二套画布实现并列运行；Infinite Canvas 候选改造只允许按 ADR-0005（`docs/adr/0005-infinite-canvas-atomic-replacement.md`）在隔离候选工作树 `F:\dianshang-worktrees\infinite-canvas-candidate`、独立端口 3466 和隔离数据中进行，执行依据为 `docs/plans/2026-07-27-infinite-canvas-staged-replacement.md`。
+- 除上述 ADR-0005 隔离候选外，继续推进 Infinite-Canvas 迁移，或在生产新增第二套画布拖拽、连线、缩放、小地图和视口系统。
 - 在桥接层重造快速模式已有参数控件。
 - 新增独立的 `canvas-ecommerce-suite-agent.js/css` 或独立套图工作台。
 - 绕过 `callProviderImageGeneration` / `callProviderImageEdit` 直连 GPT Image 2。

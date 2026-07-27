@@ -5,7 +5,7 @@
 
 ## 源码化与画布规则
 
-当前分支 `codex/source-stack-canvas-rebuild` 曾用于启动全新源码技术栈和一套独立画布重建方案。2026-06-26 用户已明确要求该独立重建方案废止；2026-07-07 用户进一步明确项目只有一个画布。后续画布开发、修复和验收统一在当前 `/canvas` 画布运行链路中进行，禁止再用两套画布的并列叫法，也禁止另起第二套画布实现或继续推进 Infinite-Canvas 节点迁移。
+当前分支 `codex/source-stack-canvas-rebuild` 曾用于启动全新源码技术栈和一套独立画布重建方案。2026-06-26 用户已明确要求该独立重建方案废止；2026-07-07 用户进一步明确项目只有一个画布。后续画布开发、修复和验收统一在当前 `/canvas` 画布运行链路中进行，禁止在生产长期并列两套画布，生产始终只有一个 `/canvas` 用户入口。唯一例外是 ADR-0005（`docs/adr/0005-infinite-canvas-atomic-replacement.md`，2026-07-27 用户批准）定义的隔离候选改造：只允许在独立工作树 `F:\dianshang-worktrees\infinite-canvas-candidate`、独立端口 3466 和隔离数据中改造 Infinite Canvas v0.10.0 候选，执行依据为 `docs/plans/2026-07-27-infinite-canvas-staged-replacement.md`；候选未过人工验收门禁前，当前 `/canvas` 仍是唯一生产事实，正式 3456 不受影响。
 
 ### 主工作目录
 
@@ -54,7 +54,7 @@
 
 ### 禁止事项
 
-- 禁止另起第二套画布、迁移 Infinite-Canvas 节点体系或引入新的画布引擎。
+- 禁止在生产另起第二套画布并列运行或引入新的画布引擎；Infinite Canvas 候选改造只允许按 ADR-0005 在隔离候选工作树 `F:\dianshang-worktrees\infinite-canvas-candidate` 进行（见上文"源码化与画布规则"）。
 - 禁止自研画布拖拽、连线、缩放、小地图和视口系统。
 - 禁止自研 UI 组件库、状态库、HTTP Client、模型网关、Token 分发和账号池。
 - 禁止继续把大功能写进旧 `assets/*.js`；只有阻塞级 bug 可短期修旧资产。
@@ -71,7 +71,7 @@
 - 旧后端改动后运行 `node --check "F:\dianshang\server.js"` 和 `powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang\scripts\smoke-api-disposable.ps1"`。
 - 每轮更新 `docs/progress-report.md`、`docs/review-log.md` 和必要时的 `docs/feature-completion-checklist.md`。
 - 架构边界以 `docs/adr/0002-source-first-technology-stack.md` 为准。
-- 并行任务树 `docs/plans/2026-06-26-source-stack-canvas-rebuild-plan.md` 已因独立画布重建方案废止而失效，只作历史记录；画布最新边界以 `docs/canvas-migration-checklist.md` 为准。
+- 并行任务树 `docs/plans/2026-06-26-source-stack-canvas-rebuild-plan.md` 已因独立画布重建方案废止而失效，继续仅作历史记录、不恢复；画布最新边界以 `docs/canvas-migration-checklist.md` 为准，当前候选改造执行依据为 `docs/plans/2026-07-27-infinite-canvas-staged-replacement.md`。
 
 ### 生产端 main/Docker 同步规则
 

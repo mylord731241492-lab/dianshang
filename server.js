@@ -168,6 +168,14 @@ app.use((req, res, next) => {
   return defaultJsonParser(req, res, next);
 });
 const sourceFrontendDist = path.join(__dirname, 'frontend', 'dist');
+const infiniteCanvasDist = path.join(__dirname, 'integrations', 'infinite-canvas', 'web', 'dist');
+const CANVAS_RUNTIME = String(process.env.CANVAS_RUNTIME || 'legacy').trim();
+if (!['legacy', 'infinite'].includes(CANVAS_RUNTIME)) {
+  failStartup(`无效的 CANVAS_RUNTIME=${CANVAS_RUNTIME}，仅支持 legacy 或 infinite，未设置时默认为 legacy。`);
+}
+if (CANVAS_RUNTIME === 'infinite' && !fs.existsSync(path.join(infiniteCanvasDist, 'index.html'))) {
+  failStartup('CANVAS_RUNTIME=infinite 需要候选画布构建产物 integrations/infinite-canvas/web/dist/index.html，请先执行候选画布构建。');
+}
 const publicDir = path.join(__dirname, 'public');
 const rootAssetsDir = path.join(__dirname, 'assets');
 const videosDir = path.join(__dirname, 'videos');
@@ -8975,6 +8983,7 @@ app.get('/api/health', (req, res) => {
     status: database === 'ok' ? 'ok' : 'degraded',
     service: 'hjm-mb-clone',
     mode: provider.mode,
+    canvasRuntime: CANVAS_RUNTIME,
     database,
     paths: {
       database: DB_PATH,
@@ -9062,6 +9071,12 @@ app.get(sourceFrontendRoutePattern, (req, res) => {
   const sourceIndex = path.join(sourceFrontendDist, 'index.html');
   res.sendFile(fs.existsSync(sourceIndex) ? sourceIndex : path.join(__dirname, 'index.html'));
 });
+if (CANVAS_RUNTIME === 'infinite') {
+  app.use('/canvas-app', express.static(infiniteCanvasDist, { index: false }));
+  app.get(['/canvas', '/canvas/:projectId'], (req, res) => {
+    res.sendFile(path.join(infiniteCanvasDist, 'index.html'));
+  });
+}
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 // ===================== START =====================

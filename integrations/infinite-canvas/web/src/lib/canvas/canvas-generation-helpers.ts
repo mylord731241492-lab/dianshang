@@ -42,12 +42,22 @@ export async function resolveMetadataReferences(metadata: CanvasNodeMetadata) {
 }
 
 export async function hydrateCanvasImages(nodes: CanvasNodeData[]) {
+    const resolvedImages = new Map<string, Promise<string>>();
+    const resolveStoredImage = (storageKey: string, fallback?: string) => {
+        const pending = resolvedImages.get(storageKey);
+        if (pending) return pending;
+        const resolving = resolveImageUrl(storageKey, fallback);
+        resolvedImages.set(storageKey, resolving);
+        return resolving;
+    };
+
     return Promise.all(
         nodes.map(async (node) => {
             const content = node.metadata?.content;
             if ((node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio) && node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveMediaUrl(node.metadata.storageKey, content) } };
-            if (node.type !== CanvasNodeType.Image || !content) return node;
-            if (node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveImageUrl(node.metadata.storageKey, content) } };
+            if (node.type !== CanvasNodeType.Image) return node;
+            if (node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveStoredImage(node.metadata.storageKey, content) } };
+            if (!content) return node;
             if (!content.startsWith("data:image/")) return node;
             return { ...node, metadata: { ...node.metadata, ...imageMetadata(await uploadImage(content)) } };
         }),

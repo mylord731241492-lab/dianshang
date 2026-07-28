@@ -68,6 +68,7 @@ function CloudAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) 
     const [kindFilter, setKindFilter] = useState<"" | CloudAssetKind>("");
     const [renaming, setRenaming] = useState<CloudAsset | null>(null);
     const [renameValue, setRenameValue] = useState("");
+    const [renameTags, setRenameTags] = useState("");
 
     // 搜索与类型筛选变化时重新从服务端取第一页（防抖避免每个字符一次请求）。
     useEffect(() => {
@@ -102,9 +103,9 @@ function CloudAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) 
             return;
         }
         try {
-            await renameCloudAsset(renaming.id, { name });
+            await renameCloudAsset(renaming.id, { name, tags: renameTags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean) });
             setRenaming(null);
-            message.success("资产已改名");
+            message.success("资产信息已更新");
         } catch (error) {
             message.error(error instanceof Error ? error.message : "改名失败");
         }
@@ -158,6 +159,7 @@ function CloudAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) 
                                             onClick={() => {
                                                 setRenaming(asset);
                                                 setRenameValue(asset.name);
+                                                setRenameTags(asset.tags.join(", "));
                                             }}
                                         >
                                             <Pencil className="size-3" />
@@ -190,7 +192,15 @@ function CloudAssetsTab({ onInsert }: { onInsert: (payload: InsertAssetPayload) 
             </div>
 
             <Modal title="资产改名" open={Boolean(renaming)} onOk={() => void handleRename()} onCancel={() => setRenaming(null)} okText="保存" cancelText="取消" width={420}>
-                <Input value={renameValue} maxLength={200} onChange={(e) => setRenameValue(e.target.value)} onPressEnter={() => void handleRename()} placeholder="资产名称" />
+                <div className="space-y-3">
+                    <Input value={renameValue} maxLength={200} onChange={(e) => setRenameValue(e.target.value)} onPressEnter={() => void handleRename()} placeholder="资产名称" />
+                    <Input
+                        value={renameTags}
+                        onChange={(event) => setRenameTags(event.target.value)}
+                        onPressEnter={() => void handleRename()}
+                        placeholder="标签（可选，逗号分隔）"
+                    />
+                </div>
             </Modal>
         </div>
     );

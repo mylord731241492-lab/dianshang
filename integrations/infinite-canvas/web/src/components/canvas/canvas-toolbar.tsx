@@ -1,7 +1,7 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Button, Segmented, Switch } from "antd";
-import { CircleDot, Eraser, Grid2x2, Group, Hand, Image as ImageIcon, Info, Moon, Music2, Palette, Puzzle, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
+import { CircleDot, Eraser, FolderOpen, Grid2x2, Group, Hand, Image as ImageIcon, Info, Moon, Music2, Palette, Puzzle, Redo2, Settings2, Square, Sun, Trash2, Type, Undo2, Upload, Video } from "lucide-react";
 
 import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
 import { getNodePluginId, listNodeDefinitions, useNodeRegistryVersion } from "@/lib/canvas/node-registry";
@@ -24,6 +24,7 @@ export function CanvasToolbar({
     onUndo,
     onRedo,
     onUpload,
+    onOpenAssetLibrary,
     onDelete,
     onClear,
     onDeselect,
@@ -45,6 +46,7 @@ export function CanvasToolbar({
     onUndo: () => void;
     onRedo: () => void;
     onUpload: () => void;
+    onOpenAssetLibrary: () => void;
     onDelete: () => void;
     onClear: () => void;
     onDeselect: () => void;
@@ -137,6 +139,9 @@ export function CanvasToolbar({
                 ) : null}
                 <ToolbarButton id="tool-upload" label="上传资产" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUpload}>
                     <Upload className="size-4.5" />
+                </ToolbarButton>
+                <ToolbarButton id="tool-asset-library" label="云端资产库" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenAssetLibrary}>
+                    <FolderOpen className="size-4.5" />
                 </ToolbarButton>
                 <Divider theme={theme} />
                 <ToolbarButton
@@ -357,6 +362,7 @@ function toolLabel(id: string) {
     if (id === "tool-group") return "组";
     if (id === "tool-extensions") return "扩展节点";
     if (id === "tool-upload") return "上传资产";
+    if (id === "tool-asset-library") return "云端资产库";
     if (id === "tool-style") return "画布外观";
     if (id === "tool-delete") return "删除选中";
     if (id === "tool-clear") return "清空画布";

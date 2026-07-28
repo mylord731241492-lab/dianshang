@@ -5,11 +5,13 @@ import { clearUserDrafts } from "./project-draft-cache";
 import { ApiError, AUTH_TOKEN_KEY, clearSessionAndRedirect, createHttpClient } from "./http";
 import { createProjectsApi, type ProjectsApi } from "./projects-api";
 import { createAssetsApi, type AssetsApi } from "./assets-api";
+import { createPromptsApi, type PromptsApi } from "./prompts-api";
 import { useUserStore } from "@/stores/use-user-store";
 
 let cachedClient: ReturnType<typeof createHttpClient> | null = null;
 let cachedProjectsApi: ProjectsApi | null = null;
 let cachedAssetsApi: AssetsApi | null = null;
+let cachedPromptsApi: PromptsApi | null = null;
 
 const browserStorage = {
     getItem: (key: string) => window.localStorage.getItem(key),
@@ -31,6 +33,8 @@ function handleSessionCleared() {
     useUserStore.getState().clearSession();
     if (userId) clearUserDrafts(userId);
     clearCloudAssetSessionState();
+    // 提示词库 UI 状态（选择/查询）随会话立即清空；「我的提示词」数据本就只按用户经 API 拉取。
+    void import("@/stores/use-prompt-source-store").then((module) => module.usePromptSourceStore.getState().reset());
 }
 
 const sessionConfig = {
@@ -84,4 +88,10 @@ export function getAssetsApi(): AssetsApi {
     if (cachedAssetsApi) return cachedAssetsApi;
     cachedAssetsApi = createAssetsApi(getHttpClient(), uploadAssetTransport);
     return cachedAssetsApi;
+}
+
+export function getPromptsApi(): PromptsApi {
+    if (cachedPromptsApi) return cachedPromptsApi;
+    cachedPromptsApi = createPromptsApi(getHttpClient());
+    return cachedPromptsApi;
 }

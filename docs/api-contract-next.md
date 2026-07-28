@@ -58,6 +58,20 @@
 | `GET` | `/api/user/assets/:id/access-url` | user | 签发 15 分钟同源签名读取 URL `/api/asset-content/:assetId?expires=&sig=`；浏览器不接触任何对象存储密钥。 |
 | `GET` | `/api/asset-content/:assetId` | 签名 URL | 签名内容读取；过期返回 `403 ASSET_URL_EXPIRED`，篡改返回 `403 ASSET_URL_INVALID`，已软删除返回 404。真实存储未接入时写接口返回 `503 ASSET_STORAGE_UNAVAILABLE`，不回退本地 uploads。 |
 
+## Prompts（系统提示词 + 我的提示词双层云端提示词库）
+
+| 方法 | 路径 | 认证 | 字段与说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/prompts/system` | user | 普通用户只读已发布系统提示词，按 `sortOrder` 升序；支持 `q/category/tag/cursor/limit`，返回 `items/nextCursor`。 |
+| `GET` | `/api/user/prompts` | user | 当前账号私有提示词列表；支持 `q/category/tag/favorite/cursor/limit`，`favorite=1` 只看收藏。 |
+| `POST` | `/api/user/prompts` | user | 创建私有提示词；标题/内容 trim 后必填，标题 ≤120 字、内容 ≤20000 字、分类 ≤50 字、标签 ≤10 个且单项 ≤30 字。 |
+| `POST` | `/api/user/prompts/copy-system` | user | 把已发布系统提示词复制为当前账号私有副本；草稿/停用返回 404，缺少 `systemPromptId` 返回 `400 PROMPT_SYSTEM_ID_REQUIRED`。 |
+| `GET`/`PUT`/`DELETE` | `/api/user/prompts/:id` | user | 详情、部分字段编辑、软删除；跨用户一律 404，不泄漏存在性。 |
+| `GET`/`POST` | `/api/admin/system-prompts` | admin | 系统提示词后台列表（`q/status/category/cursor/limit`）与创建。 |
+| `GET`/`PUT`/`DELETE` | `/api/admin/system-prompts/:id` | admin | 详情、编辑、软删除；标题/内容/分类/标签变化时 `version` 自增，仅改状态/排序不自增。 |
+
+响应 `item` 结构：`{id,scope,title,content,category,tags,isFavorite,createdAt,updatedAt}`，系统提示词额外 `{version,status,sortOrder}`。HTML/脚本内容按纯文本原样存取，不作为 HTML 执行。系统提示词修改、停用或删除不追溯修改已保存项目中的 `contentSnapshot`；画布项目信封 `references.prompts[]` 保存 `scope + promptId + version + contentSnapshot`。系统提示词与用户提示词允许同名不互覆；普通用户不得修改系统提示词，只能 `copy-system` 后编辑自己的副本；管理员接口刻意不实现读取所有用户提示词正文的能力。
+
 ## Template
 
 | 方法 | 路径 | 认证 | 字段与说明 |

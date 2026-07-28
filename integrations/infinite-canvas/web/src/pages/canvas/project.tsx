@@ -2758,9 +2758,64 @@ function InfiniteCanvasPage() {
         [screenToCanvas, size.height, size.width],
     );
 
+    // 提示词库插入（Task 7）：写入当前选中文本/配置节点、新建生成配置节点或 Assistant 输入框；
+    // 进入画布的节点携带 scope + promptId + version + contentSnapshot（保存项目时汇入信封 references.prompts）。
+    const handlePromptInsert = useCallback(
+        (payload: Extract<InsertAssetPayload, { kind: "prompt" }>) => {
+            const reference = payload.reference;
+            if (payload.target === "assistant") {
+                const agent = useAgentStore.getState();
+                const merged = agent.prompt.trim() ? `${agent.prompt.trimEnd()}\n${payload.content}` : payload.content;
+                agent.setAgentState({ prompt: merged });
+                agent.openPanel();
+                return;
+            }
+            const center = screenToCanvas((containerRef.current?.getBoundingClientRect().left || 0) + size.width / 2, (containerRef.current?.getBoundingClientRect().top || 0) + size.height / 2);
+            if (payload.target === "config-node") {
+                const node = {
+                    ...createCanvasNode(CanvasNodeType.Config, center, { composerContent: payload.content, promptReference: reference }),
+                    title: payload.title || "生成配置",
+                };
+                setNodes((prev) => [...prev, node]);
+                setSelectedNodeIds(new Set([node.id]));
+                setSelectedConnectionId(null);
+                return;
+            }
+            const selectedId = Array.from(selectedNodeIds)[0];
+            const selectedNode = selectedId ? nodesRef.current.find((node) => node.id === selectedId) : null;
+            if (selectedNode && (selectedNode.type === CanvasNodeType.Text || selectedNode.type === CanvasNodeType.Config)) {
+                setNodes((prev) =>
+                    prev.map((node) => {
+                        if (node.id !== selectedNode.id) return node;
+                        const metadata = { ...(node.metadata || {}) };
+                        if (node.type === CanvasNodeType.Config) {
+                            metadata.composerContent = metadata.composerContent?.trim() ? `${metadata.composerContent.trimEnd()}\n${payload.content}` : payload.content;
+                        } else {
+                            metadata.content = metadata.content?.trim() ? `${metadata.content.trimEnd()}\n${payload.content}` : payload.content;
+                            metadata.status = NODE_STATUS_SUCCESS;
+                        }
+                        metadata.promptReference = reference;
+                        return { ...node, metadata };
+                    }),
+                );
+                return;
+            }
+            const node = {
+                ...createCanvasNode(CanvasNodeType.Text, center, { content: payload.content, status: NODE_STATUS_SUCCESS, promptReference: reference }),
+                title: payload.title || payload.content.slice(0, 32) || "提示词",
+            };
+            setNodes((prev) => [...prev, node]);
+            setSelectedNodeIds(new Set([node.id]));
+            setSelectedConnectionId(null);
+        },
+        [screenToCanvas, selectedNodeIds, size.height, size.width],
+    );
+
     const handleAssetInsert = useCallback(
         (payload: InsertAssetPayload) => {
-            if (payload.kind === "text") {
+            if (payload.kind === "prompt") {
+                handlePromptInsert(payload);
+            } else if (payload.kind === "text") {
                 insertAssistantText(payload.content, payload.title);
             } else if (payload.kind === "video") {
                 const spec = NODE_DEFAULT_SIZE[CanvasNodeType.Video];
@@ -2785,7 +2840,7 @@ function InfiniteCanvasPage() {
             }
             setAssetPickerOpen(false);
         },
-        [insertAssistantImage, insertAssistantText, screenToCanvas, size.height, size.width],
+        [handlePromptInsert, insertAssistantImage, insertAssistantText, screenToCanvas, size.height, size.width],
     );
 
     // --- 传给 CanvasNode 的回调/渲染函数统一 memo 化 ---

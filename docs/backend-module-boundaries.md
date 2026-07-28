@@ -78,6 +78,14 @@ NestJS API Server
 - 数据：`user_assets`；文件字节经统一 `ObjectStorage` 接口（Fake/将来 S3 兼容），绝不回退本地 uploads。
 - 迁移风险：真实存储驱动未实施，`ENABLE_REAL_STORAGE=true` 必须 503 `ASSET_STORAGE_UNAVAILABLE`；所有查询强制 `user_id` 隔离；删除只软删除，物理回收由后续独立任务决定。
 
+## prompts
+
+- 负责：系统提示词 + 我的提示词双层云端提示词库——系统提示词 admin 维护（草稿/发布/停用/排序/软删除，内容修改 version 自增），普通用户只读已发布；我的提示词为账号私有 CRUD（搜索/分类/标签/收藏/分页）；`copy-system` 把已发布系统提示词复制为当前账号私有副本。
+- 当前模块：`backend/prompts/`（`prompt-service.js`、`prompt-repository.js`、`routes.js`、`index.js`）；`server.js` 只做 `createPromptService` + `registerPromptRoutes` 挂载；建表在模块幂等迁移内完成。
+- 当前路由：`/api/prompts/system`（普通用户只读已发布）、`/api/user/prompts*`（含 `copy-system`）、`/api/admin/system-prompts*`（admin 守卫）。
+- 数据：`system_prompts`、`user_prompts`；`user_prompts` 所有 SQL 强制 `user_id`，跨用户一律 404 不泄漏存在性。
+- 迁移风险：普通用户读取只返回 `status='published' AND deleted_at IS NULL`；删除只软删除；系统提示词修改/停用/删除不追溯修改已保存项目中的 `contentSnapshot`；管理员接口刻意不提供读取所有用户提示词正文的能力。
+
 ## provider
 
 - 负责：Provider 状态、模型线路、New-API 调用、OpenAI-compatible 请求适配、错误标准化、连接池、有界公平调度、失败域并发与熔断。

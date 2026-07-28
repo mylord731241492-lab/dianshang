@@ -22,6 +22,7 @@ export const router = createRouter({
     { path: '/admin/model-prices', name: 'admin-model-prices', component: () => import('../views/AdminModelPricesSource.vue') },
     { path: '/admin/api-providers', name: 'admin-api-providers', component: () => import('../views/AdminApiProvidersSource.vue') },
     { path: '/admin/template-workflows', name: 'admin-template-workflows', component: () => import('../views/AdminTemplateWorkflowsSource.vue') },
+    { path: '/admin/system-prompts', name: 'admin-system-prompts', component: () => import('../views/AdminSystemPromptsSource.vue') },
     { path: '/admin/chat-settings', name: 'admin-chat-settings', component: () => import('../views/AdminChatSettingsSource.vue') },
     { path: '/admin/settings', name: 'admin-settings', component: () => import('../views/AdminSettingsSource.vue') },
     { path: '/user/center', name: 'user-center', component: () => import('../views/UserCenterSource.vue') },

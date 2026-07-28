@@ -1,65 +1,51 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
-import { DEFAULT_PROMPT_SOURCES, createPromptSource, type PromptSource } from "@/services/api/prompt-source-presets";
+// 提示词库 UI 状态 Store（Task 7）：只保留 UI 查询状态与当前选择。
+// 提示词数据一律由后端 /api/prompts/system 与 /api/user/prompts 经 React Query 获取；
+// 本 Store 不使用 persist，localStorage/IndexedDB 不保存任何提示词权威副本；
+// 账号切换/401 时由 browser-client 调用 reset() 立即清空选择与查询状态。
 
-export type PromptSourceSchedule = {
-    intervalMinutes: number;
-    lastFetchedAt: string;
-};
+export type PromptLibraryTab = "system" | "user";
 
-const PROMPT_SOURCE_STORE_KEY = "infinite-canvas:prompt_source_store_v2";
-
-const defaultSchedule: PromptSourceSchedule = {
-    intervalMinutes: 30,
-    lastFetchedAt: "",
-};
-
-export const PROMPT_SOURCE_INTERVAL_OPTIONS = [
-    { label: "关闭定时", value: 0 },
-    { label: "每 30 分钟", value: 30 },
-    { label: "每 1 小时", value: 60 },
-    { label: "每 6 小时", value: 360 },
-    { label: "每 24 小时", value: 1440 },
-];
+export type PromptLibrarySelection = {
+    scope: "system" | "user";
+    promptId: string;
+    version?: number;
+    title: string;
+} | null;
 
 type PromptSourceStore = {
-    sources: PromptSource[];
-    schedule: PromptSourceSchedule;
-    addSource: () => PromptSource;
-    saveSource: (source: PromptSource) => void;
-    removeSource: (id: string) => void;
-    toggleSource: (id: string, enabled: boolean) => void;
-    updateSchedule: <K extends keyof PromptSourceSchedule>(key: K, value: PromptSourceSchedule[K]) => void;
+    activeTab: PromptLibraryTab;
+    keyword: string;
+    category: string;
+    tag: string;
+    favoriteOnly: boolean;
+    selected: PromptLibrarySelection;
+    setActiveTab: (tab: PromptLibraryTab) => void;
+    setKeyword: (keyword: string) => void;
+    setCategory: (category: string) => void;
+    setTag: (tag: string) => void;
+    setFavoriteOnly: (favoriteOnly: boolean) => void;
+    select: (selection: PromptLibrarySelection) => void;
+    reset: () => void;
 };
 
-export const usePromptSourceStore = create<PromptSourceStore>()(
-    persist(
-        (set) => ({
-            sources: DEFAULT_PROMPT_SOURCES,
-            schedule: defaultSchedule,
-            addSource: () => createPromptSource(),
-            saveSource: (source) =>
-                set((state) => ({
-                    sources: state.sources.some((item) => item.id === source.id)
-                        ? state.sources.map((item) => (item.id === source.id && !item.builtIn ? createPromptSource(source) : item))
-                        : [...state.sources, createPromptSource(source)],
-                })),
-            removeSource: (id) => set((state) => ({ sources: state.sources.filter((item) => item.id !== id || item.builtIn) })),
-            toggleSource: (id, enabled) => set((state) => ({ sources: state.sources.map((item) => (item.id === id ? { ...item, enabled } : item)) })),
-            updateSchedule: (key, value) => set((state) => ({ schedule: { ...state.schedule, [key]: value } })),
-        }),
-        {
-            name: PROMPT_SOURCE_STORE_KEY,
-            partialize: (state) => ({ sources: state.sources, schedule: state.schedule }),
-            merge: (persisted, current) => {
-                const persistedState = (persisted || {}) as Partial<PromptSourceStore>;
-                const savedSources = Array.isArray(persistedState.sources) ? persistedState.sources : [];
-                const enabledById = new Map(savedSources.map((source) => [source.id, source.enabled]));
-                const builtIn = DEFAULT_PROMPT_SOURCES.map((source) => ({ ...source, enabled: enabledById.get(source.id) ?? source.enabled }));
-                const custom = savedSources.filter((source) => !source.builtIn).map((source) => createPromptSource(source));
-                return { ...current, sources: [...builtIn, ...custom], schedule: { ...defaultSchedule, ...(persistedState.schedule || {}) } };
-            },
-        },
-    ),
-);
+const initialState = {
+    activeTab: "system" as PromptLibraryTab,
+    keyword: "",
+    category: "",
+    tag: "",
+    favoriteOnly: false,
+    selected: null as PromptLibrarySelection,
+};
+
+export const usePromptSourceStore = create<PromptSourceStore>()((set) => ({
+    ...initialState,
+    setActiveTab: (activeTab) => set({ activeTab }),
+    setKeyword: (keyword) => set({ keyword }),
+    setCategory: (category) => set({ category }),
+    setTag: (tag) => set({ tag }),
+    setFavoriteOnly: (favoriteOnly) => set({ favoriteOnly }),
+    select: (selected) => set({ selected }),
+    reset: () => set({ ...initialState }),
+}));

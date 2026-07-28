@@ -1,4 +1,6 @@
-import { nanoid } from "nanoid";
+// 上游公开提示词来源（GitHub 提示词合集）常量。
+// 仅服务于未路由的上游展示页（见 services/api/prompts.ts）；
+// 账号提示词库（系统/我的提示词）不在此处定义，一律走后端（Task 7）。
 
 export type PromptSource = {
     id: string;
@@ -9,19 +11,7 @@ export type PromptSource = {
     builtIn: boolean;
 };
 
-export const PROMPT_REGISTRY_HOMEPAGE = "https://github.com/yukkcat/image-prompts";
 const PROMPT_REGISTRY_SOURCE_BASE = "https://raw.githubusercontent.com/yukkcat/image-prompts/main/dist/sources";
-
-export function createPromptSource(source?: Partial<PromptSource>): PromptSource {
-    return {
-        id: source?.id?.trim() || nanoid(),
-        name: source?.name?.trim() || "新来源",
-        url: source?.url?.trim() || "",
-        homepage: source?.homepage?.trim() || "",
-        enabled: source?.enabled ?? true,
-        builtIn: source?.builtIn ?? false,
-    };
-}
 
 export const DEFAULT_PROMPT_SOURCES: PromptSource[] = [
     registrySource("banana-prompt-quicker", "Banana Prompt Quicker", "https://glidea.github.io/banana-prompt-quicker/"),

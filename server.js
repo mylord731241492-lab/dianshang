@@ -22,6 +22,7 @@ const {
 const { createGenerationTaskRepository } = require('./backend/generation/task-repository');
 const { GenerationTaskService } = require('./backend/generation/generation-task-service');
 const { createAssetService, registerAssetRoutes } = require('./backend/assets');
+const { createPromptService, registerPromptRoutes } = require('./backend/prompts');
 
 const envPath = path.join(__dirname, '.env');
 if (fs.existsSync(envPath)) {
@@ -418,6 +419,10 @@ const assetService = createAssetService({
   signingSecret: ASSET_URL_SIGNING_SECRET,
   uploadDir
 });
+
+// 系统提示词 + 我的提示词双层云端提示词库（backend/prompts，Task 7）：
+// system_prompts/user_prompts 建表在模块幂等迁移内完成；user_prompts 全部查询强制 user_id 隔离。
+const promptService = createPromptService({ db, idFactory: uid });
 
 // Auth middleware
 function auth(req, res, next) {
@@ -4956,6 +4961,9 @@ app.use('/uploads', express.static(uploadDir));
 
 // 账号隔离云端资产库（backend/assets，ADR-0006）
 registerAssetRoutes(app, { auth, assetService });
+
+// 双层云端提示词库（backend/prompts，Task 7）
+registerPromptRoutes(app, { auth, admin, promptService });
 
 // ===================== AI GENERATION =====================
 const fetch = (...args) => import('node-fetch').then(({default:f})=>f(...args));

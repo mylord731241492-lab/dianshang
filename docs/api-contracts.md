@@ -56,6 +56,19 @@
 | GET | `/api/asset-content/:assetId` | 签名 URL | HMAC 签名 + 过期时间即能力凭证；过期/篡改返回 403（`ASSET_URL_EXPIRED`/`ASSET_URL_INVALID`），已软删除返回 404 |
 | — | 存储开关 | object-storage | 真实云存储暂缓（无 SDK）；`ENABLE_REAL_STORAGE=true` 且无真实驱动时写接口返回 `503 ASSET_STORAGE_UNAVAILABLE`，不回退本地 uploads |
 
+## Prompts（系统提示词 + 我的提示词双层云端提示词库，Task 7）
+
+| Method | Path | 状态 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/prompts/system` | local-db | 普通用户只读已发布系统提示词（`status='published' AND deleted_at IS NULL`），按 `sortOrder` 升序；支持 `q/category/tag/cursor/limit` 分页 |
+| GET/POST | `/api/user/prompts` | local-db | 当前账号私有提示词列表与创建；列表支持 `q/category/tag/favorite/cursor/limit`；创建/编辑校验标题、内容 trim 后必填，标题 ≤120 字、内容 ≤20000 字、分类 ≤50 字、标签 ≤10 个且单项 ≤30 字 |
+| POST | `/api/user/prompts/copy-system` | local-db | 把已发布系统提示词复制为当前账号私有副本（`{systemPromptId}`）；草稿/停用/不存在返回 404，缺少 ID 返回 `400 PROMPT_SYSTEM_ID_REQUIRED` |
+| GET/PUT/DELETE | `/api/user/prompts/:id` | local-db | 详情、部分字段编辑、软删除；跨用户一律 404 不泄漏存在性 |
+| GET/POST | `/api/admin/system-prompts` | local-db | admin 守卫；列表支持 `q/status/category/cursor/limit`；创建系统提示词（draft/published/disabled + sortOrder） |
+| GET/PUT/DELETE | `/api/admin/system-prompts/:id` | local-db | 详情、编辑（标题/内容/分类/标签变化时 `version` 自增，仅改状态/排序不自增）、软删除 |
+
+响应统一为 `{success, item}` 或 `{success, items, nextCursor}`；`item` 含 `id/scope/title/content/category/tags/isFavorite/createdAt/updatedAt`，系统提示词额外 `version/status/sortOrder`。HTML/脚本内容按纯文本原样存取。错误码：`PROMPT_TITLE_REQUIRED/PROMPT_CONTENT_REQUIRED/PROMPT_TITLE_TOO_LONG/PROMPT_CONTENT_TOO_LONG/PROMPT_CATEGORY_TOO_LONG/PROMPT_TAGS_INVALID/PROMPT_STATUS_INVALID/PROMPT_CURSOR_INVALID/PROMPT_NOT_FOUND/PROMPT_SYSTEM_ID_REQUIRED`。系统提示词与用户提示词允许同名不互覆；管理员接口不提供读取所有用户提示词正文的能力。
+
 ## Generation / Template
 
 | Method | Path | 状态 | 说明 |

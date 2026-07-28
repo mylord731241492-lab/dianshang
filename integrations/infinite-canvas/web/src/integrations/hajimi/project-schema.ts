@@ -18,6 +18,13 @@ export type HjmProjectContent = {
     viewport: { x: number; y: number; k: number };
 };
 
+export type HjmPromptReference = {
+    scope: "system" | "user";
+    promptId: string;
+    version?: number;
+    contentSnapshot: string;
+};
+
 export type HjmInfiniteCanvasProjectEnvelope = {
     schema: typeof PROJECT_SCHEMA;
     schemaVersion: typeof PROJECT_SCHEMA_VERSION;
@@ -26,12 +33,7 @@ export type HjmInfiniteCanvasProjectEnvelope = {
     project: HjmProjectContent;
     references?: {
         assetIds?: string[];
-        prompts?: Array<{
-            scope: "system" | "user";
-            promptId: string;
-            version?: number;
-            contentSnapshot: string;
-        }>;
+        prompts?: HjmPromptReference[];
     };
 };
 
@@ -73,6 +75,7 @@ function sanitizeForServer(value: unknown, path: string): unknown {
 
 export function serializeProjectEnvelope(content: HjmProjectContent): HjmInfiniteCanvasProjectEnvelope {
     const safeContent = sanitizeForServer(content, "") as HjmProjectContent;
+    const promptReferences = collectPromptReferences(safeContent.nodes);
     return {
         schema: PROJECT_SCHEMA,
         schemaVersion: PROJECT_SCHEMA_VERSION,
@@ -91,7 +94,37 @@ export function serializeProjectEnvelope(content: HjmProjectContent): HjmInfinit
                 k: Number(safeContent.viewport?.k ?? 1) || 1,
             },
         },
+        ...(promptReferences.length ? { references: { prompts: promptReferences } } : {}),
     };
+}
+
+// 从节点 metadata.promptReference 收集提示词引用（scope + promptId + version + contentSnapshot），
+// 按 scope+promptId+version 去重。插入提示词的节点携带引用，保存项目时汇入信封 references.prompts。
+export function collectPromptReferences(nodes: unknown): HjmPromptReference[] {
+    if (!Array.isArray(nodes)) return [];
+    const seen = new Set<string>();
+    const references: HjmPromptReference[] = [];
+    for (const node of nodes) {
+        const metadata = node && typeof node === "object" ? (node as Record<string, unknown>).metadata : null;
+        const reference = metadata && typeof metadata === "object" ? (metadata as Record<string, unknown>).promptReference : null;
+        if (!reference || typeof reference !== "object") continue;
+        const record = reference as Record<string, unknown>;
+        const scope = record.scope === "system" ? "system" : record.scope === "user" ? "user" : null;
+        const promptId = typeof record.promptId === "string" ? record.promptId : "";
+        const contentSnapshot = typeof record.contentSnapshot === "string" ? record.contentSnapshot : "";
+        if (!scope || !promptId || !contentSnapshot) continue;
+        const version = Number(record.version);
+        const key = `${scope}:${promptId}:${Number.isFinite(version) && version > 0 ? version : ""}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        references.push({
+            scope,
+            promptId,
+            ...(Number.isFinite(version) && version > 0 ? { version } : {}),
+            contentSnapshot,
+        });
+    }
+    return references;
 }
 
 export function isProjectEnvelope(data: unknown): data is HjmInfiniteCanvasProjectEnvelope {

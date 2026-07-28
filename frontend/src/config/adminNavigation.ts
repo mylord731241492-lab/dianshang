@@ -10,6 +10,7 @@ import {
   ListChecks,
   ReceiptText,
   Recycle,
+  ScrollText,
   Settings,
   ShieldCheck,
   Users
@@ -33,6 +34,7 @@ export const adminNavigationItems: AdminNavigationItem[] = [
   { label: 'API 线路', path: '/admin/api-providers', group: 'system', icon: KeyRound },
   { label: '模型价格', path: '/admin/model-prices', group: 'system', icon: BarChart3 },
   { label: '模板工作流', path: '/admin/template-workflows', group: 'system', icon: ListChecks },
+  { label: '系统提示词', path: '/admin/system-prompts', group: 'system', icon: ScrollText },
   { label: 'Chat 设置', path: '/admin/chat-settings', group: 'system', icon: Bot },
   { label: '系统设置', path: '/admin/settings', group: 'system', icon: Settings }
 ];

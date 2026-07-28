@@ -1,3 +1,5 @@
+import type { HjmPromptReference } from "@/integrations/hajimi/project-schema";
+
 export type Position = {
     x: number;
     y: number;
@@ -62,6 +64,7 @@ export type CanvasNodeMetadata = {
     bytes?: number;
     durationMs?: number;
     groupId?: string;
+    promptReference?: HjmPromptReference; // 插入提示词时保存 scope + promptId + version + contentSnapshot（Task 7）
     interactive?: boolean; // 插件节点「交互 ⇄ 移动」开关状态(见 CanvasNodeDefinition.interactionToggle)
 };
 

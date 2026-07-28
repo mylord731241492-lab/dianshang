@@ -5,8 +5,16 @@ import { FileAudio, Pencil, Search, Trash2, Video } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { assetStorageKey, type CloudAsset, type CloudAssetKind } from "@/integrations/hajimi/assets-api";
+import type { PromptInsertReference } from "@/integrations/hajimi/prompts-api";
 
-export type InsertAssetPayload = { kind: "text"; content: string; title: string } | { kind: "image"; dataUrl: string; title: string; storageKey?: string } | { kind: "video"; url: string; title: string; storageKey?: string; width?: number; height?: number };
+// 提示词插入目标：当前选中文本/配置节点、新建生成配置节点、Assistant 输入框。
+export type PromptInsertTarget = "selected-node" | "config-node" | "assistant";
+
+export type InsertAssetPayload =
+    | { kind: "text"; content: string; title: string }
+    | { kind: "image"; dataUrl: string; title: string; storageKey?: string }
+    | { kind: "video"; url: string; title: string; storageKey?: string; width?: number; height?: number }
+    | { kind: "prompt"; content: string; title: string; target: PromptInsertTarget; reference: PromptInsertReference };
 
 type Props = {
     open: boolean;

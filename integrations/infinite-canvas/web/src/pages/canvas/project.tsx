@@ -42,6 +42,7 @@ import { getGenerationApi, getImageToolsApi, refreshSessionUser } from "@/integr
 import { createClientRequestId, type GenerationTask, type GenerationTaskImage } from "@/integrations/hajimi/generation-api";
 import type { OutpaintAnchor } from "@/integrations/hajimi/image-tools-api";
 import { generationFailureHint } from "@/components/image-generation-pending";
+import { LegacyProjectImportDialog } from "@/components/hajimi/legacy-project-import-dialog";
 import { loadProjectDraft, removeProjectDraft, saveProjectDraft } from "@/integrations/hajimi/project-draft-cache";
 import type { HjmProjectContent } from "@/integrations/hajimi/project-schema";
 import { useUserStore } from "@/stores/use-user-store";
@@ -278,6 +279,7 @@ function InfiniteCanvasPage() {
     const [assetPickerOpen, setAssetPickerOpen] = useState(false);
     const [projectLoaded, setProjectLoaded] = useState(false);
     const [projectLoadError, setProjectLoadError] = useState<"not-found" | "legacy" | "error" | null>(null);
+    const [legacyImportOpen, setLegacyImportOpen] = useState(false);
     const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "error">("saved");
     const [toolbarNodeId, setToolbarNodeId] = useState<string | null>(null);
     const [nodeImageSettingsOpen, setNodeImageSettingsOpen] = useState(false);
@@ -3078,10 +3080,16 @@ function InfiniteCanvasPage() {
                 {projectLoadError === "error" ? <p>项目加载失败，请检查网络后重试</p> : null}
                 <div className="flex items-center gap-2">
                     {projectLoadError === "error" ? <Button onClick={() => window.location.reload()}>重试</Button> : null}
-                    <Button type="primary" onClick={() => navigate("/canvas")}>
+                    {projectLoadError === "legacy" ? (
+                        <Button type="primary" onClick={() => setLegacyImportOpen(true)}>
+                            导入为新版副本
+                        </Button>
+                    ) : null}
+                    <Button type={projectLoadError === "legacy" ? "default" : "primary"} onClick={() => navigate("/canvas")}>
                         返回画布库
                     </Button>
                 </div>
+                {projectLoadError === "legacy" ? <LegacyProjectImportDialog open={legacyImportOpen} projectId={projectId} onClose={() => setLegacyImportOpen(false)} /> : null}
             </main>
         );
     }

@@ -1,0 +1,29 @@
+{
+  "canvasData": {
+    "nodes": [
+      {
+        "id": "node_0",
+        "type": "text",
+        "position": { "x": 120, "y": 160 },
+        "data": {
+          "content": "占位文本：一只合成示例小狗在草地上奔跑。",
+          "label": "文本输入"
+        }
+      },
+      {
+        "id": "node_1",
+        "type": "image",
+        "position": { "x": 520, "y": 160 },
+        "data": {
+          "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGM4oaFxQkODAUIBACEuBGGeECA5AAAAAElFTkSuQmCC",
+          "label": "上传图片",
+          "loading": false,
+          "progress": 100
+        }
+      }
+    ],
+    "edges": [],
+    "viewport": { "x": -40, "y": 12, "zoom": 0.8 },
+    "chatSessions": []
+  }
+}

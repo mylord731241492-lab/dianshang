@@ -1,0 +1,41 @@
+{
+  "nodes": [
+    {
+      "id": "node_0",
+      "type": "text",
+      "position": { "x": 80, "y": 80 },
+      "data": { "content": "占位文本：带旧 Chat 状态的合成项目。", "label": "文本输入" }
+    }
+  ],
+  "edges": [],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "storage": { "mode": "folder", "folderName": "synthetic-local-folder" },
+  "chatSessions": [
+    {
+      "id": "chat_synthetic_1",
+      "source": "workflow",
+      "mode": "quick",
+      "projectId": "proj_synthetic_legacy",
+      "createdAt": 1753000000000,
+      "referenceImages": [],
+      "messages": [
+        {
+          "id": "msg_1",
+          "role": "user",
+          "text": "占位消息：生成一张合成示例图。",
+          "createdAt": 1753000001000
+        },
+        {
+          "id": "msg_2",
+          "role": "assistant",
+          "text": "占位响应：已提交合成生成任务。",
+          "status": "success",
+          "cost": 0,
+          "taskId": "task_synthetic_0002",
+          "images": [{ "id": "img_1", "url": "/uploads/synthetic-chat-0001.png" }],
+          "createdAt": 1753000005000
+        }
+      ]
+    }
+  ]
+}

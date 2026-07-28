@@ -1,0 +1,26 @@
+{
+  "nodes": [
+    {
+      "id": "node_text",
+      "type": "text",
+      "position": { "x": 0, "y": 0 },
+      "data": { "content": "占位文本：性能样本的公共提示词。", "label": "文本输入" }
+    },
+    { "id": "node_img_1", "type": "image", "position": { "x": 400, "y": 0 }, "data": { "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGM4oaFxQkODAUIBACEuBGGeECA5AAAAAElFTkSuQmCC", "label": "参考图 1", "loading": false, "progress": 100 } },
+    { "id": "node_img_2", "type": "image", "position": { "x": 400, "y": 220 }, "data": { "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGPQWGCjscCGAUIBABwuBBHvXJsrAAAAAElFTkSuQmCC", "label": "参考图 2", "loading": false, "progress": 100 } },
+    { "id": "node_img_3", "type": "image", "position": { "x": 400, "y": 440 }, "data": { "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGPQCDihEXCCAUIBACCOBQEyq3EUAAAAAElFTkSuQmCC", "label": "参考图 3", "loading": false, "progress": 100 } },
+    { "id": "node_img_4", "type": "image", "position": { "x": 760, "y": 0 }, "data": { "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGM4oaFxQkODAUIBACEuBGGeECA5AAAAAElFTkSuQmCC", "label": "参考图 4", "loading": false, "progress": 100 } },
+    { "id": "node_img_5", "type": "image", "position": { "x": 760, "y": 220 }, "data": { "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGPQWGCjscCGAUIBABwuBBHvXJsrAAAAAElFTkSuQmCC", "label": "参考图 5", "loading": false, "progress": 100 } },
+    { "id": "node_img_6", "type": "image", "position": { "x": 760, "y": 440 }, "data": { "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGPQCDihEXCCAUIBACCOBQEyq3EUAAAAAElFTkSuQmCC", "label": "参考图 6", "loading": false, "progress": 100 } },
+    { "id": "node_img_7", "type": "image", "position": { "x": 1120, "y": 0 }, "data": { "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGM4oaFxQkODAUIBACEuBGGeECA5AAAAAElFTkSuQmCC", "label": "参考图 7", "loading": false, "progress": 100 } },
+    { "id": "node_img_8", "type": "image", "position": { "x": 1120, "y": 220 }, "data": { "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGPQWGCjscCGAUIBABwuBBHvXJsrAAAAAElFTkSuQmCC", "label": "参考图 8", "loading": false, "progress": 100 } },
+    { "id": "node_img_9", "type": "image", "position": { "x": 1120, "y": 440 }, "data": { "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGPQCDihEXCCAUIBACCOBQEyq3EUAAAAAElFTkSuQmCC", "label": "参考图 9", "loading": false, "progress": 100 } }
+  ],
+  "edges": [
+    { "id": "edge_1", "source": "node_text", "target": "node_img_1", "sourceHandle": "right", "targetHandle": "left" },
+    { "id": "edge_2", "source": "node_text", "target": "node_img_2", "sourceHandle": "right", "targetHandle": "left" },
+    { "id": "edge_3", "source": "node_text", "target": "node_img_3", "sourceHandle": "right", "targetHandle": "left" }
+  ],
+  "viewport": { "x": -200, "y": -100, "zoom": 0.6 },
+  "chatSessions": []
+}

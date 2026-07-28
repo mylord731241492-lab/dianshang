@@ -1,0 +1,27 @@
+{
+  "nodes": [
+    {
+      "id": "node_0",
+      "type": "text",
+      "position": { "x": 100, "y": 100 },
+      "data": { "content": "占位文本：合成示例提示。", "label": "文本输入" }
+    },
+    {
+      "id": "node_1",
+      "type": "imageConfig",
+      "position": { "x": 480, "y": 100 },
+      "data": { "model": "synthetic-image-model-v0", "size": "1024x1024", "label": "文生图" }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_node_0_node_1",
+      "source": "node_0",
+      "target": "node_1",
+      "sourceHandle": "right",
+      "targetHandle": "left"
+    }
+  ],
+  "viewport": { "x": 10, "y": -20, "zoom": 1.25 },
+  "chatSessions": []
+}

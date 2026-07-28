@@ -1,0 +1,33 @@
+{
+  "nodes": [
+    {
+      "id": "node_0",
+      "type": "imageConfig",
+      "position": { "x": 100, "y": 200 },
+      "data": {
+        "prompt": "占位提示词：合成示例场景",
+        "model": "synthetic-image-model-v0",
+        "size": "1024x1024",
+        "quality": "1K",
+        "label": "文生图"
+      }
+    },
+    {
+      "id": "node_1",
+      "type": "image",
+      "position": { "x": 560, "y": 200 },
+      "data": {
+        "url": "/uploads/synthetic-sample-0001.png",
+        "taskId": "task_synthetic_0001",
+        "label": "文生图",
+        "model": "synthetic-image-model-v0",
+        "loading": false,
+        "progress": 100,
+        "progressLabel": "生成完成"
+      }
+    }
+  ],
+  "edges": [],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "chatSessions": []
+}

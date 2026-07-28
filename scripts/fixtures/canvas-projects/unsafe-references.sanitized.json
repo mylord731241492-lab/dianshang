@@ -1,0 +1,25 @@
+{
+  "nodes": [
+    {
+      "id": "node_blob",
+      "type": "image",
+      "position": { "x": 0, "y": 0 },
+      "data": { "url": "blob:https://canvas.invalid/00000000-0000-4000-8000-000000000000", "label": "会话内预览图", "loading": false }
+    },
+    {
+      "id": "node_abspath",
+      "type": "image",
+      "position": { "x": 400, "y": 0 },
+      "data": { "url": "C:\\synthetic\\placeholder\\image.png", "label": "本机路径图", "loading": false }
+    },
+    {
+      "id": "node_inline",
+      "type": "image",
+      "position": { "x": 800, "y": 0 },
+      "data": { "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEklEQVR4nGPQWGCjscCGAUIBABwuBBHvXJsrAAAAAElFTkSuQmCC", "label": "内联图", "loading": false }
+    }
+  ],
+  "edges": [],
+  "viewport": { "x": 0, "y": 0, "zoom": 1 },
+  "chatSessions": []
+}

@@ -28,7 +28,6 @@ export function CanvasTopBar({
     onUndo,
     onRedo,
     agentOpen,
-    compactAgentStatus,
     onToggleAgent,
 }: {
     title: string;
@@ -50,7 +49,6 @@ export function CanvasTopBar({
     onUndo: () => void;
     onRedo: () => void;
     agentOpen: boolean;
-    compactAgentStatus: { connected: boolean; enabled: boolean; activity: string };
     onToggleAgent: () => void;
 }) {
     const colorTheme = useThemeStore((state) => state.theme);
@@ -133,7 +131,6 @@ export function CanvasTopBar({
                             </button>
                         )}
                     </div>
-                    <CompactAgentStatus status={compactAgentStatus} onClick={onToggleAgent} />
                 </div>
 
                 <div className="pointer-events-auto flex items-center gap-1.5">
@@ -146,7 +143,7 @@ export function CanvasTopBar({
                         icon={<Bot className="size-4" />}
                         onClick={onToggleAgent}
                     >
-                        Agent
+                        AI 助手
                     </Button>
                 </div>
             </div>
@@ -177,19 +174,6 @@ function MenuLabel({ text, shortcut }: { text: string; shortcut: string }) {
             <span>{text}</span>
             <span className="text-xs opacity-45">{shortcut}</span>
         </span>
-    );
-}
-
-function CompactAgentStatus({ status, onClick }: { status: { connected: boolean; enabled: boolean; activity: string }; onClick: () => void }) {
-    const colorTheme = useThemeStore((state) => state.theme);
-    const theme = canvasThemes[colorTheme];
-    const label = status.connected ? "Codex 已连接" : status.enabled ? `Codex ${status.activity || "连接中"}` : "Codex 未连接";
-    const dotColor = status.connected ? "#22c55e" : status.enabled ? "#f59e0b" : theme.node.muted;
-    return (
-        <button type="button" className="flex h-8 items-center gap-1.5 text-xs transition hover:opacity-75" style={{ color: status.connected ? "#16a34a" : status.enabled ? "#d97706" : theme.node.muted }} onClick={onClick} title="打开本地 Codex 面板">
-            <span className="size-2 rounded-full" style={{ background: dotColor }} />
-            <span className="max-w-[140px] truncate">{label}</span>
-        </button>
     );
 }
 

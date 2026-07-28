@@ -1,11 +1,11 @@
 import { useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Bot, PanelRightClose } from "lucide-react";
-import { Button, Switch, Tooltip } from "antd";
+import { Button, Tooltip } from "antd";
 import { motion } from "motion/react";
 
-import { CanvasLocalAgentPanel } from "@/components/canvas/canvas-local-agent-panel";
+import { HjmCanvasAssistantPanel } from "@/components/hajimi/hjm-canvas-assistant-panel";
 import { canvasThemes } from "@/lib/canvas-theme";
-import { CANVAS_AGENT_PANEL_MOTION_MS, useAgentStore } from "@/stores/use-agent-store";
+import { CANVAS_AGENT_PANEL_MOTION_MS, PANEL_WIDTH_STORAGE_KEY, useAgentStore } from "@/stores/use-agent-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 
 const PANEL_MOTION_SECONDS = CANVAS_AGENT_PANEL_MOTION_MS / 1000;
@@ -17,7 +17,6 @@ export function AgentPanel() {
     const panelMounted = useAgentStore((state) => state.panelMounted);
     const panelOpen = useAgentStore((state) => state.panelOpen);
     const panelClosing = useAgentStore((state) => state.panelClosing);
-    const confirmTools = useAgentStore((state) => state.confirmTools);
     const setAgentState = useAgentStore((state) => state.setAgentState);
     const closePanel = useAgentStore((state) => state.closePanel);
 
@@ -32,7 +31,7 @@ export function AgentPanel() {
             setAgentState({ width: nextWidth });
         };
         const onUp = () => {
-            localStorage.setItem("canvas-agent-panel-width", String(nextWidth));
+            localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(nextWidth));
             window.removeEventListener("pointermove", onMove);
             window.removeEventListener("pointerup", onUp);
             setResizing(false);
@@ -66,21 +65,19 @@ export function AgentPanel() {
                             <Bot className="size-4" />
                         </span>
                         <div className="min-w-0">
-                            <div className="text-base font-semibold leading-5">Agent</div>
-                            <div className="truncate text-xs" style={{ color: theme.node.muted }}>全站助手</div>
+                            <div className="text-base font-semibold leading-5">哈吉米助手</div>
+                            <div className="truncate text-xs" style={{ color: theme.node.muted }}>对话 · 快速生图 · 电商套图</div>
                         </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-xs" style={{ color: theme.node.muted }}>
-                            <Switch size="small" checked={confirmTools} onChange={(confirmTools) => setAgentState({ confirmTools })} />
-                            工具确认
-                        </label>
-                        <Tooltip title="收起对话">
+                        <Tooltip title="收起面板">
                             <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.muted }} icon={<PanelRightClose className="size-4" />} onClick={closePanel} />
                         </Tooltip>
                     </div>
                 </header>
-                <CanvasLocalAgentPanel embedded />
+                <div className="min-h-0 flex-1">
+                    <HjmCanvasAssistantPanel theme={theme} />
+                </div>
             </motion.aside>
         </motion.div>
     );

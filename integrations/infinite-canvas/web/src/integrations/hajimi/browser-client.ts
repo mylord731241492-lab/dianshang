@@ -7,6 +7,7 @@ import { createProjectsApi, type ProjectsApi } from "./projects-api";
 import { createAssetsApi, type AssetsApi } from "./assets-api";
 import { createPromptsApi, type PromptsApi } from "./prompts-api";
 import { createGenerationApi, type GenerationApi } from "./generation-api";
+import { createCanvasAssistantStore, type CanvasAssistantStore } from "./canvas-assistant-api";
 import { createImageToolsApi, type ImageToolsApi } from "./image-tools-api";
 import { createModelsApi, type ModelsApi } from "./models-api";
 import { mapProfileToUser } from "./auth";
@@ -17,6 +18,7 @@ let cachedProjectsApi: ProjectsApi | null = null;
 let cachedAssetsApi: AssetsApi | null = null;
 let cachedPromptsApi: PromptsApi | null = null;
 let cachedGenerationApi: GenerationApi | null = null;
+let cachedCanvasAssistantStore: CanvasAssistantStore | null = null;
 let cachedImageToolsApi: ImageToolsApi | null = null;
 let cachedModelsApi: ModelsApi | null = null;
 
@@ -107,6 +109,13 @@ export function getGenerationApi(): GenerationApi {
     if (cachedGenerationApi) return cachedGenerationApi;
     cachedGenerationApi = createGenerationApi(getHttpClient());
     return cachedGenerationApi;
+}
+
+// 画布三模式助手（对话 / 快速 / 电商套图）：状态容器按模式隔离，全部走同源 /api/*。
+export function getCanvasAssistantStore(): CanvasAssistantStore {
+    if (cachedCanvasAssistantStore) return cachedCanvasAssistantStore;
+    cachedCanvasAssistantStore = createCanvasAssistantStore({ client: getHttpClient() });
+    return cachedCanvasAssistantStore;
 }
 
 export function getModelsApi(): ModelsApi {

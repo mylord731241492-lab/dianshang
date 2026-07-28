@@ -217,9 +217,6 @@ function InfiniteCanvasPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const projectId = params.id || "";
-    const localAgentConnected = useAgentStore((state) => state.connected);
-    const localAgentActivity = useAgentStore((state) => state.activity);
-    const localAgentEnabled = useAgentStore((state) => state.enabled);
     const agentPanelOpen = useAgentStore((state) => state.panelOpen);
     const toggleAgentPanel = useAgentStore((state) => state.togglePanel);
     const openAgentPanel = useAgentStore((state) => state.openPanel);
@@ -707,7 +704,7 @@ function InfiniteCanvasPage() {
 
     useEffect(() => {
         if (!projectLoaded || !["new", "recent", "choose"].includes(searchParams.get("mode") || "")) return;
-        if (!searchParams.has("agentUrl")) openAgentPanel();
+        openAgentPanel();
     }, [openAgentPanel, projectLoaded, searchParams]);
 
     useEffect(() => {
@@ -3342,7 +3339,6 @@ function InfiniteCanvasPage() {
                     onUndo={undoCanvas}
                     onRedo={redoCanvas}
                     agentOpen={agentPanelOpen}
-                    compactAgentStatus={{ connected: localAgentConnected, enabled: localAgentEnabled, activity: localAgentActivity }}
                     onToggleAgent={toggleAgentPanel}
                 />
 

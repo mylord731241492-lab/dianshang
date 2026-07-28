@@ -1,19 +1,28 @@
 # 当前项目基线与防混淆地图
 
-> 最后更新：2026-07-27，北京时间。
-> 当前开发分支：`codex/generation-stability-10-users`；改造前安全检查点为 `fe5372d chore: checkpoint pre-generation-architecture state`。
+> 最后更新：2026-07-28，北京时间。
+> 当前工作树：`F:\dianshang-worktrees\infinite-canvas-candidate`；开发分支：`codex/infinite-canvas-candidate`；Task 12 基线为 `5ae193f feat: add non-destructive legacy canvas import`，Task 13 自动化验收已完成。
 
 本文件是后续修改前的第一入口。`docs/progress-report.md` 和 `docs/review-log.md` 是时间线流水账，不是当前状态的唯一准绳。
 
 ## 当前准绳
 
 - Git 安全检查点：`fe5372d`，已推送到 `origin/codex/generation-stability-10-users`。
-- 当前分支：`codex/generation-stability-10-users`；本轮持久任务与公平队列改造只在源码和一次性测试环境验收。
+- 当前候选分支：`codex/infinite-canvas-candidate`；Task 13 只在独立 `127.0.0.1:3466` 候选环境验收，Task 14 人工门禁通过前不得替换正式 `/canvas`。
 - `.scratch/`、`output/`、`outputs/`、数据库备份、运行时 `workflows/`、浏览器缓存和个人文件不属于提交基线。
 - 回滚前现场备份分支：`codex/backup-before-rollback-20260707-130326`。
 - 回滚前未提交改动：`stash@{0}`，消息为 `pre-rollback-to-51d4dab-20260707`。
 - 当前 Git 基线不自动代表 `http://192.168.0.39:3456/` 已同步。生产端是否命中本基线仍必须通过 Docker 重建、容器健康检查和内网 URL 验证确认，不能从 Git 状态推断。
-- 本轮用户明确要求 Docker 和 `127.0.0.1:3456` 保持不动；开发验收端口为 `127.0.0.1:3458`，使用独立临时 `DATA_DIR/DB_PATH/WORKFLOW_DIR` 和假 Provider。未单独确认前禁止重建或切换 3456。
+- 正式 3456 Docker 保持不动；本候选开发验收端口为 `127.0.0.1:3466`，使用 `.scratch/infinite-canvas-candidate/` 下独立 `DATA_DIR/DB_PATH/WORKFLOW_DIR/ASSET_FAKE_STORAGE_ROOT` 和假 Provider。未单独确认前禁止重建或切换 3456。
+
+## Infinite Canvas 隔离候选状态
+
+- Task 1–12 已落在候选分支，Task 12 提交为 `5ae193f`；Task 13 的隔离 Compose、API/UI 验收套件和验收文档已完成。
+- 候选入口为 `http://127.0.0.1:3466/canvas`，容器为 `dianshang-canvas-candidate`，只绑定回环地址。
+- 候选环境固定关闭真实 AI、对象存储、邮件和支付；本轮没有调用 Lingsuan/零算或其他真实 Provider。
+- 自动化已经覆盖桌面 1440×900、移动端 390×844、10 节点/9 图片性能样本、项目/素材/提示词跨用户隔离和正式容器指纹不变。
+- Task 13 自动化通过不等于正式切换授权。下一阶段是 Task 14 用户人工验收；未经明确确认，不进入正式 3456 构建或迁移。
+- 详细命令、范围与人工清单见 `docs/infinite-canvas-candidate-acceptance.md`。
 
 ## 阅读顺序
 

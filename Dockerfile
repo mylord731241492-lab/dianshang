@@ -38,7 +38,8 @@ COPY . .
 COPY --from=frontend-build /build/frontend/dist /app/frontend/dist
 COPY --from=canvas-build /build/infinite-canvas/web/dist /app/integrations/infinite-canvas/web/dist
 
-RUN node scripts/patch-canvas-server-image-storage.js
+ARG PATCH_LEGACY_CANVAS_ASSETS=true
+RUN if [ "$PATCH_LEGACY_CANVAS_ASSETS" = "true" ]; then node scripts/patch-canvas-server-image-storage.js; else echo "Skipping legacy canvas bundle patch for isolated Infinite Canvas candidate"; fi
 
 RUN mkdir -p /app/data /app/uploads /app/logs
 

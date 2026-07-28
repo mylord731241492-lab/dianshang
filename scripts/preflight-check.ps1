@@ -142,6 +142,23 @@ if ($env:SMOKE_UI -eq "true") {
   Write-Host "Skipped. Set SMOKE_UI=true to run Playwright source frontend, home/canvas, canvas performance, mobile, admin, admin save echo, template, gallery, canvas, and user center checks."
 }
 
+if ($env:SMOKE_INFINITE_CANVAS_CANDIDATE -eq "true") {
+  Invoke-Step -Name "isolated Infinite Canvas candidate acceptance" -Script {
+    Invoke-NativeCommand -FilePath "powershell" -Arguments @(
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      "scripts\smoke-infinite-canvas-candidate.ps1",
+      "-Port",
+      "3466"
+    )
+  }
+} else {
+  Write-Host "== isolated Infinite Canvas candidate acceptance =="
+  Write-Host "Skipped. Set SMOKE_INFINITE_CANVAS_CANDIDATE=true to build and verify the isolated 127.0.0.1:3466 candidate without touching formal 3456."
+}
+
 Invoke-Step -Name "health check" -Script {
   $baseUrl = $env:SMOKE_BASE_URL
   if (-not $baseUrl) {

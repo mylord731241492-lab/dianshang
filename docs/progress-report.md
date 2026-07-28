@@ -3582,3 +3582,12 @@
 - 架构单测、队列全链路、10 用户故障注入、API smoke、适配器覆盖和 Vue 构建全部通过。额外 90 个假任务 soak 的提交 P95 为 53.8ms，同域并发 1、三域并发 3，RSS 154.5–190.8MiB。
 - 经用户授权最多两次真实调用后，两笔 4K 任务均被当前 Provider Key 以“API Key 无效”拒绝；两笔均保存诊断标识并完整退款，没有第三笔。3458 随后恢复 Mock，3456/Docker 未动。
 - 提交前双轴复核继续补齐并发和账务边界：HTTP 200 内嵌 `skipped_mainline` 会触发专用失败与冷却；并行成功不会提前清除其他请求的冷却；进程中断、运行中取消和结果落盘失败均持久化上游计费歧义；参考图在检查与复制之间被清理时稳定返回 410。
+
+## 2026-07-28 Infinite Canvas 候选 Task 13
+
+- 接手 Kimi Code 在 Task 12（`5ae193f`）后的工作，停止遗留 Kimi 进程，确认正式 `dianshang-internal-app` 指纹后只操作 `F:\dianshang-worktrees\infinite-canvas-candidate`。
+- 新增只绑定 `127.0.0.1:3466` 的候选 Compose、完整 API smoke、Playwright 桌面/移动端验收和 `docs/infinite-canvas-candidate-acceptance.md`；所有真实 AI、存储、邮件和支付开关保持关闭。
+- 浏览器验收复现并修复三个阻断问题：云端素材库无可见入口、素材标签没有 UI、空 `content` 的云端图片无法恢复；同时修复同一素材并发恢复时 Blob URL 相互撤销。
+- 1440×900 桌面阻断项、390×844 移动端、10 节点/9 图片性能样本、自动保存、素材/提示词/遮罩、跨用户隔离、控制台和意外 HTTP 错误检查均通过。
+- 候选容器健康；正式 3456 容器 ID、镜像、启动时间和健康状态在验收前后完全一致。本轮没有调用 Lingsuan/零算或其他真实 Provider，不产生真实费用。
+- 当前停在 Task 14 人工门禁前；自动化通过不代表允许替换正式 `/canvas`。

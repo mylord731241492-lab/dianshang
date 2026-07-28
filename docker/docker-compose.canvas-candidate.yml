@@ -1,0 +1,61 @@
+name: dianshang-canvas-candidate
+
+# 无限画布候选隔离环境（Task 13）。
+# 边界：
+# - 只绑定 127.0.0.1:3466，不占用正式 3456/3457/3464。
+# - 数据全部落在候选工作树 ../.scratch/infinite-canvas-candidate/，不挂载正式 docker/data、docker/uploads。
+# - 全部 ENABLE_REAL_*=false：Fake Provider / Fake Storage，零真实 Provider 调用与费用。
+# - 不启动、不重建正式 gateway、app、LibreChat、MongoDB；本文件只含候选 app 一个服务。
+
+services:
+  app:
+    init: true
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:20-bookworm}
+        PATCH_LEGACY_CANVAS_ASSETS: "false"
+    container_name: dianshang-canvas-candidate
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3466
+      JWT_SECRET: c4nv4s-c4nd1d4t3-7f3a9e1d5b2846c0a9f7e2d1b8c365
+      ADMIN_BOOTSTRAP_USERNAME: admin
+      ADMIN_BOOTSTRAP_PASSWORD: CanvasCandidate!2026!Strong
+      CORS_ORIGINS: ""
+      CANVAS_RUNTIME: infinite
+      DATA_DIR: /app/data
+      DB_PATH: /app/data/data.db
+      WORKFLOW_DIR: /app/workflows
+      UPLOAD_DIR: /app/uploads
+      LOG_DIR: /app/logs
+      ENABLE_REAL_AI: "false"
+      ENABLE_REAL_EMAIL: "false"
+      ENABLE_REAL_PAYMENT: "false"
+      ENABLE_REAL_STORAGE: "false"
+      ENABLE_LIBRECHAT: "false"
+      ASSET_URL_SIGNING_SECRET: a55et-c4nd1d4t3-9d2f47b1e6a3c805d1f9b264
+      ASSET_FAKE_STORAGE_ROOT: /app/object-storage
+    ports:
+      - "127.0.0.1:3466:3466"
+    volumes:
+      - ../.scratch/infinite-canvas-candidate/data:/app/data
+      - ../.scratch/infinite-canvas-candidate/uploads:/app/uploads
+      - ../.scratch/infinite-canvas-candidate/workflows:/app/workflows
+      - ../.scratch/infinite-canvas-candidate/logs:/app/logs
+      - ../.scratch/infinite-canvas-candidate/object-storage:/app/object-storage
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'node -e "fetch(''http://127.0.0.1:3466/api/health'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"'
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

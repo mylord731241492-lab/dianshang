@@ -36,6 +36,10 @@ function friendlyError(error: unknown, fallback: string) {
   return getApiErrorMessage(error, fallback);
 }
 
+function requiresServerCanvasNavigation(target: string) {
+  return target === '/canvas' || target.startsWith('/canvas/') || target.startsWith('/canvas?');
+}
+
 async function submit() {
   if (loading.value) return;
   errorMessage.value = '';
@@ -60,7 +64,12 @@ async function submit() {
         });
     saveAuthSession(data);
     message.success(isLogin.value ? '登录成功' : '注册成功');
-    await router.replace(targetAfterAuth.value);
+    const target = targetAfterAuth.value;
+    if (requiresServerCanvasNavigation(target)) {
+      window.location.assign(target);
+      return;
+    }
+    await router.replace(target);
   } catch (error) {
     errorMessage.value = friendlyError(error, isLogin.value ? '登录失败' : '注册失败');
     message.error(errorMessage.value);

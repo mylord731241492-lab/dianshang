@@ -93,6 +93,16 @@ async page => {
     }, { token: session.token, user: session.user });
   }
 
+  async function loginThroughSourcePage(session) {
+    await page.goto(`${baseUrl}/login?redirect=${encodeURIComponent('/canvas')}`);
+    await page.getByPlaceholder('请输入用户名').fill(session.username);
+    await page.getByPlaceholder('请输入密码').fill(session.password);
+    await page.getByRole('button', { name: '登录', exact: true }).click();
+    await page.waitForURL(`${baseUrl}/canvas`, { timeout: 15000 });
+    ensure(page.url() === `${baseUrl}/canvas`, `candidate login escaped to ${page.url()}`);
+    await page.waitForSelector('text=无限画布', { timeout: 15000 });
+  }
+
   async function waitCanvasReady(expectedNodes) {
     await page.waitForLoadState('domcontentloaded');
     await page.waitForSelector('main', { timeout: 15000 });
@@ -169,7 +179,8 @@ async page => {
     await uploadAsset(userA.token, `ui-page-${stamp}-${String(index).padStart(2, '0')}.png`);
   }
 
-  await setSession(userA);
+  currentStep = 'source-login-to-candidate';
+  await loginThroughSourcePage(userA);
   await page.setViewportSize({ width: 1440, height: 900 });
 
   currentStep = 'project-list-create';

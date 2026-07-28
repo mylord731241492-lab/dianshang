@@ -1,5 +1,4 @@
 import { imageReferenceLabel } from "@/lib/image-reference-prompt";
-import { seedanceReferenceLabel } from "@/lib/seedance-video";
 import { getNodeDefinition } from "@/lib/canvas/node-registry";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "@/types/canvas";
 
@@ -74,9 +73,13 @@ function labelResourceNodes(nodes: CanvasNodeData[], active: boolean) {
 
 function labelForKind(kind: CanvasResourceKind, index: number) {
     if (kind === "image") return imageReferenceLabel(index);
-    if (kind === "video") return seedanceReferenceLabel("video", index);
-    if (kind === "audio") return seedanceReferenceLabel("audio", index);
+    if (kind === "video" || kind === "audio") return mediaReferenceLabel(kind, index);
     return `文本${index + 1}`;
+}
+
+// 视频/音频参考资产编号标签（原 seedance-video 助手的站内保留部分）。
+export function mediaReferenceLabel(kind: "video" | "audio", index: number) {
+    return kind === "video" ? `视频${index + 1}` : `音频${index + 1}`;
 }
 
 function isResourceNode(node: CanvasNodeData) {

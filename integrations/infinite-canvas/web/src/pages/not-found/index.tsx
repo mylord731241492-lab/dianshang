@@ -1,5 +1,4 @@
 import { Home } from "lucide-react";
-import { Link } from "react-router-dom";
 
 export default function NotFound() {
     return (
@@ -10,10 +9,11 @@ export default function NotFound() {
                     <h1 className="text-3xl font-semibold tracking-normal">页面不存在</h1>
                     <p className="mt-3 text-sm leading-6 text-stone-500 dark:text-stone-400">这个地址没有对应的页面，可能已经移动或被合并到其他入口。</p>
                     <div className="mt-8 flex flex-wrap justify-center gap-3">
-                        <Link to="/" className="inline-flex h-10 items-center gap-2 rounded-lg bg-stone-950 px-4 text-sm font-medium text-white transition hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-950 dark:hover:bg-stone-200">
+                        {/* 整页跳转回主站首页，避免在候选 SPA 内空转 */}
+                        <a href="/" className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-medium text-white transition hover:bg-emerald-700">
                             <Home className="size-4" />
                             返回首页
-                        </Link>
+                        </a>
                     </div>
                 </section>
             </main>

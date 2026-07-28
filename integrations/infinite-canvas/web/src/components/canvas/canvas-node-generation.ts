@@ -1,6 +1,5 @@
-import type { AiTextMessage } from "@/services/api/image";
 import { imageReferenceLabel } from "@/lib/image-reference-prompt";
-import { seedanceReferenceLabel } from "@/lib/seedance-video";
+import { mediaReferenceLabel } from "@/lib/canvas/canvas-resource-references";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 import { CanvasNodeType, type CanvasConnection, type CanvasGenerationTaskState, type CanvasNodeData } from "@/types/canvas";
@@ -128,19 +127,6 @@ export function buildNodeGenerationInputs(nodeId: string, nodes: CanvasNodeData[
     });
 }
 
-export function buildNodeResponseMessages(context: NodeGenerationContext): AiTextMessage[] {
-    if (!context.referenceImages.length) {
-        return [{ role: "user", content: context.prompt }];
-    }
-
-    return [
-        {
-            role: "user",
-            content: [{ type: "text" as const, text: context.prompt }, ...context.referenceImages.map((image) => ({ type: "image_url" as const, image_url: { url: image.dataUrl } }))],
-        },
-    ];
-}
-
 export async function hydrateNodeGenerationContext(context: NodeGenerationContext) {
     const { imageToDataUrl } = await import("@/services/image-storage");
     return { ...context, referenceImages: await Promise.all(context.referenceImages.map(async (image) => ({ ...image, dataUrl: await imageToDataUrl(image) }))) };
@@ -212,8 +198,7 @@ function readNodeTextInput(node: CanvasNodeData) {
 
 function generationLabel(type: NodeGenerationInput["type"], index: number) {
     if (type === "image") return imageReferenceLabel(index);
-    if (type === "video") return seedanceReferenceLabel("video", index);
-    if (type === "audio") return seedanceReferenceLabel("audio", index);
+    if (type === "video" || type === "audio") return mediaReferenceLabel(type, index);
     return `文本${index + 1}`;
 }
 

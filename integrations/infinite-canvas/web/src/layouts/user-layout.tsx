@@ -79,13 +79,14 @@ export default function UserLayout({ children }: { children: ReactNode }) {
             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
                 {!hideHeader ? (
                     <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between border-b border-stone-200 bg-background/90 px-6 backdrop-blur-xl dark:border-stone-800">
-                        <a
-                            href="/"
-                            className="flex shrink-0 items-center gap-2 text-base font-medium leading-none tracking-tight text-stone-950 transition hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300"
-                        >
+                        <a href="/" className="flex shrink-0 items-center gap-2 text-base font-medium leading-none tracking-tight text-stone-950 transition hover:text-emerald-700 dark:text-stone-100 dark:hover:text-emerald-400">
+                            <img src="/canvas-app/logo.svg" alt="" className="size-6 rounded-md" />
                             哈吉米 AI
                         </a>
                         <div className="flex min-w-0 items-center gap-4">
+                            <a href="/user/records" className="shrink-0 text-sm text-stone-600 transition hover:text-emerald-700 dark:text-stone-300 dark:hover:text-emerald-400">
+                                生成记录
+                            </a>
                             <span className="shrink-0 text-sm text-stone-600 dark:text-stone-300">余额 {user?.balance ?? 0}</span>
                             <a
                                 href="/user/center"

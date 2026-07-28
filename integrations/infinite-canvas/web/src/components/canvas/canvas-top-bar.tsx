@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, Bot, Download, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Trash2, Undo2, Upload } from "lucide-react";
+import { Bot, Download, History, Home, Images, Menu, PanelLeftClose, PanelLeftOpen, Plus, Redo2, Trash2, Undo2, Upload, UserRound } from "lucide-react";
 import { Button, Dropdown, Modal, Tooltip } from "antd";
 
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useCanvasSidePanelStore } from "@/stores/use-canvas-side-panel-store";
 import { useThemeStore } from "@/stores/use-theme-store";
-import { DOCS_URL } from "@/constant/env";
 
 export function CanvasTopBar({
     title,
@@ -18,13 +17,11 @@ export function CanvasTopBar({
     onCancelTitleEditing,
     canUndo,
     canRedo,
-    onHome,
     onProjects,
     onCreateProject,
     onDeleteProject,
     onExportProject,
     onImportImage,
-    onOpenPlugins,
     onUndo,
     onRedo,
     agentOpen,
@@ -39,13 +36,11 @@ export function CanvasTopBar({
     onCancelTitleEditing: () => void;
     canUndo: boolean;
     canRedo: boolean;
-    onHome: () => void;
     onProjects: () => void;
     onCreateProject: () => void;
     onDeleteProject: () => void;
     onExportProject: () => void;
     onImportImage: () => void;
-    onOpenPlugins: () => void;
     onUndo: () => void;
     onRedo: () => void;
     agentOpen: boolean;
@@ -57,6 +52,8 @@ export function CanvasTopBar({
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const sidePanelOpen = useCanvasSidePanelStore((state) => state.panelOpen);
     const toggleSidePanel = useCanvasSidePanelStore((state) => state.togglePanel);
+    // 主站入口：整页跳转，离开候选 bundle。
+    const goMainSite = (url: string) => window.location.assign(url);
 
     useEffect(() => {
         if (!isTitleEditing) return;
@@ -86,9 +83,10 @@ export function CanvasTopBar({
                         trigger={["click"]}
                         menu={{
                             items: [
-                                { key: "home", icon: <Home className="size-4" />, label: "主页", onClick: onHome },
-                                { key: "docs", icon: <BookOpen className="size-4" />, label: "文档", onClick: () => window.open(DOCS_URL, "_blank", "noopener,noreferrer") },
+                                { key: "home", icon: <Home className="size-4" />, label: "返回首页", onClick: () => goMainSite("/") },
                                 { key: "projects", icon: <Images className="size-4" />, label: "我的画布", onClick: onProjects },
+                                { key: "user-center", icon: <UserRound className="size-4" />, label: "用户中心", onClick: () => goMainSite("/user/center") },
+                                { key: "records", icon: <History className="size-4" />, label: "生成记录", onClick: () => goMainSite("/user/records") },
                                 { type: "divider" },
                                 { key: "new", icon: <Plus className="size-4" />, label: "新建画布", onClick: onCreateProject },
                                 { key: "delete", danger: true, icon: <Trash2 className="size-4" />, label: "删除当前画布", onClick: onDeleteProject },
@@ -134,7 +132,7 @@ export function CanvasTopBar({
                 </div>
 
                 <div className="pointer-events-auto flex items-center gap-1.5">
-                    <UserStatusActions variant="canvas" onOpenShortcuts={() => setShortcutsOpen(true)} onOpenPlugins={onOpenPlugins} />
+                    <UserStatusActions variant="canvas" onOpenShortcuts={() => setShortcutsOpen(true)} />
                     <span className="h-6 w-px" style={{ background: theme.toolbar.border }} />
                     <Button
                         type="text"

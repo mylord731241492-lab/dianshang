@@ -1,15 +1,12 @@
 import type { CSSProperties } from "react";
 import { Image as ImageIcon, LoaderCircle, MessageSquare, Music2, Play, Settings2, Square, Video } from "lucide-react";
-import { Button, Segmented } from "antd";
+import { Button, Segmented, Tooltip } from "antd";
 
-import { ModelPicker } from "@/components/model-picker";
-import { defaultConfig, modelMatchesCapability, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
+import { defaultConfig, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasBackendModelPicker } from "./canvas-backend-model-picker";
 import { CanvasImageSettingsPopover } from "./canvas-image-settings-popover";
-import { CanvasAudioSettingsPopover, type CanvasAudioSettingKey } from "./canvas-audio-settings-popover";
-import { CanvasVideoSettingsPopover } from "./canvas-video-settings-popover";
 import type { CanvasGenerationMode, CanvasNodeData, CanvasNodeMetadata } from "@/types/canvas";
 
 type CanvasConfigNodePanelProps = {
@@ -22,16 +19,18 @@ type CanvasConfigNodePanelProps = {
     onComposerToggle: () => void;
 };
 
+// Task 11：第一轮只开放生图模式（后端线路/模型/估费）；文本/视频/音频模式暂未开放。
+const DISABLED_MODE_HINT = "暂未开放";
+
 export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigChange, onGenerate, onStop, onComposerToggle }: CanvasConfigNodePanelProps) {
     const globalConfig = useEffectiveConfig();
-    const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const mode = node.metadata?.generationMode || "image";
-    const config = buildNodeConfig(globalConfig, node, mode);
+    const config = buildNodeConfig(globalConfig, node);
     const chipStyle = { background: theme.node.fill, borderColor: theme.node.stroke, color: theme.node.text };
     const hasAnyInput = Boolean(inputSummary.textCount || inputSummary.imageCount || inputSummary.videoCount || inputSummary.audioCount);
     const hasComposerContent = Boolean((node.metadata?.composerContent ?? node.metadata?.prompt ?? "").trim());
-    const canGenerate = hasComposerContent || (mode === "audio" ? inputSummary.textCount > 0 : hasAnyInput);
+    const canGenerate = mode === "image" && (hasComposerContent || hasAnyInput);
 
     return (
         <div className="flex h-full w-full cursor-move flex-col px-3 pb-3 pt-7 text-sm" style={{ color: theme.node.text }} onWheel={(event) => event.stopPropagation()}>
@@ -55,29 +54,38 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
                             },
                             {
                                 value: "text",
+                                disabled: true,
                                 label: (
-                                    <span className="inline-flex items-center gap-1">
-                                        <MessageSquare className="size-3.5" />
-                                        文本
-                                    </span>
+                                    <Tooltip title={DISABLED_MODE_HINT}>
+                                        <span className="inline-flex items-center gap-1">
+                                            <MessageSquare className="size-3.5" />
+                                            文本
+                                        </span>
+                                    </Tooltip>
                                 ),
                             },
                             {
                                 value: "video",
+                                disabled: true,
                                 label: (
-                                    <span className="inline-flex items-center gap-1">
-                                        <Video className="size-3.5" />
-                                        视频
-                                    </span>
+                                    <Tooltip title={DISABLED_MODE_HINT}>
+                                        <span className="inline-flex items-center gap-1">
+                                            <Video className="size-3.5" />
+                                            视频
+                                        </span>
+                                    </Tooltip>
                                 ),
                             },
                             {
                                 value: "audio",
+                                disabled: true,
                                 label: (
-                                    <span className="inline-flex items-center gap-1">
-                                        <Music2 className="size-3.5" />
-                                        音频
-                                    </span>
+                                    <Tooltip title={DISABLED_MODE_HINT}>
+                                        <span className="inline-flex items-center gap-1">
+                                            <Music2 className="size-3.5" />
+                                            音频
+                                        </span>
+                                    </Tooltip>
                                 ),
                             },
                         ]}
@@ -96,19 +104,15 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
                 </button>
             </div>
 
-            <div className={`mb-2 grid min-w-0 cursor-default items-start gap-2 ${mode === "image" || mode === "video" || mode === "audio" ? "grid-cols-[minmax(0,1fr)_148px]" : "grid-cols-1"}`} onMouseDown={(event) => event.stopPropagation()}>
+            <div className="mb-2 grid min-w-0 cursor-default items-start gap-2" style={{ gridTemplateColumns: mode === "image" ? "minmax(0,1fr) 148px" : "minmax(0,1fr)" }} onMouseDown={(event) => event.stopPropagation()}>
                 {mode === "image" ? (
                     // 生图模式的线路/模型/估费只从后端读取（Task 8），不走本地 Provider 渠道配置。
                     <CanvasBackendModelPicker node={node} imageCount={Number(config.count) || 1} onConfigChange={onConfigChange} />
                 ) : (
-                    <ModelPicker className="canvas-compact-control h-10" config={config} value={config.model} onChange={(model) => onConfigChange(node.id, { model })} capability={mode} onMissingConfig={() => openConfigDialog(true)} fullWidth />
+                    <div className="flex h-10 items-center px-1 text-xs opacity-60">该生成模式暂未开放，当前仅支持生图</div>
                 )}
-                {mode === "video" ? (
-                    <CanvasVideoSettingsPopover config={config} placement="topRight" buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" onConfigChange={(key, value) => onConfigChange(node.id, videoConfigPatch(key, value))} />
-                ) : mode === "image" ? (
+                {mode === "image" ? (
                     <CanvasImageSettingsPopover config={config} placement="topRight" autoAdjustOverflow={false} buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" onConfigChange={(key, value) => onConfigChange(node.id, key === "count" ? { count: Number(value) || 1 } : { [key]: value })} />
-                ) : mode === "audio" ? (
-                    <CanvasAudioSettingsPopover config={config} placement="topRight" buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2" onConfigChange={(key, value) => onConfigChange(node.id, audioConfigPatch(key, value))} />
                 ) : null}
             </div>
 
@@ -148,43 +152,13 @@ function InputChip({ label, value, style }: { label: string; value: string; styl
     );
 }
 
-function buildNodeConfig(globalConfig: AiConfig, node: CanvasNodeData, mode: CanvasGenerationMode): AiConfig {
-    const defaultModel = mode === "image" ? globalConfig.imageModel : mode === "video" ? globalConfig.videoModel : mode === "audio" ? globalConfig.audioModel : globalConfig.textModel;
-    const fallbackModel = mode === "image" ? defaultConfig.imageModel : mode === "video" ? defaultConfig.videoModel : mode === "audio" ? defaultConfig.audioModel : defaultConfig.textModel;
-    const currentModel = node.metadata?.model;
-    const model = currentModel && modelMatchesCapability(globalConfig, currentModel, mode)
-        ? currentModel
-        : defaultModel && modelMatchesCapability(globalConfig, defaultModel, mode)
-            ? defaultModel
-            : fallbackModel;
+function buildNodeConfig(globalConfig: AiConfig, node: CanvasNodeData): AiConfig {
     return {
         ...globalConfig,
-        model,
+        model: node.metadata?.model || globalConfig.imageModel,
         quality: node.metadata?.quality || globalConfig.quality || defaultConfig.quality,
         size: node.metadata?.size || globalConfig.size || defaultConfig.size,
         background: node.metadata?.background ?? globalConfig.background ?? defaultConfig.background,
-        videoSeconds: node.metadata?.seconds || globalConfig.videoSeconds || defaultConfig.videoSeconds,
-        vquality: node.metadata?.vquality || globalConfig.vquality || defaultConfig.vquality,
-        videoGenerateAudio: node.metadata?.generateAudio || globalConfig.videoGenerateAudio || defaultConfig.videoGenerateAudio,
-        videoWatermark: node.metadata?.watermark || globalConfig.videoWatermark || defaultConfig.videoWatermark,
-        audioVoice: node.metadata?.audioVoice || globalConfig.audioVoice || defaultConfig.audioVoice,
-        audioFormat: node.metadata?.audioFormat || globalConfig.audioFormat || defaultConfig.audioFormat,
-        audioSpeed: node.metadata?.audioSpeed || globalConfig.audioSpeed || defaultConfig.audioSpeed,
-        audioInstructions: node.metadata?.audioInstructions || globalConfig.audioInstructions || defaultConfig.audioInstructions,
-        count: String(node.metadata?.count || (mode === "image" ? globalConfig.canvasImageCount || globalConfig.count : globalConfig.count) || defaultConfig.count),
+        count: String(node.metadata?.count || globalConfig.canvasImageCount || globalConfig.count || defaultConfig.count),
     };
-}
-
-function videoConfigPatch(key: keyof AiConfig, value: string) {
-    if (key === "videoSeconds") return { seconds: value };
-    if (key === "videoGenerateAudio") return { generateAudio: value };
-    if (key === "videoWatermark") return { watermark: value };
-    return { [key]: value };
-}
-
-function audioConfigPatch(key: CanvasAudioSettingKey, value: string) {
-    if (key === "audioVoice") return { audioVoice: value };
-    if (key === "audioFormat") return { audioFormat: value };
-    if (key === "audioSpeed") return { audioSpeed: value };
-    return { audioInstructions: value };
 }

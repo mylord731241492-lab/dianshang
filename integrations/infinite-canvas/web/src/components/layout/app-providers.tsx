@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App, ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN";
 
-import { ClientRootInit } from "@/components/layout/client-root-init";
 import { getAntThemeConfig } from "@/lib/app-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 
@@ -32,9 +31,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
         <ConfigProvider locale={zhCN} theme={getAntThemeConfig(dark)}>
             <ProConfigProvider dark={dark}>
                 <App>
-                    <QueryClientProvider client={queryClient}>
-                        <ClientRootInit>{children}</ClientRootInit>
-                    </QueryClientProvider>
+                    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
                 </App>
             </ProConfigProvider>
         </ConfigProvider>

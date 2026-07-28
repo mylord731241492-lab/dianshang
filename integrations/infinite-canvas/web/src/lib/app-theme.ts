@@ -1,30 +1,31 @@
 import type { ThemeConfig } from "antd";
 import { theme as antdTheme } from "antd";
 
+// 主站品牌绿（与 frontend/src/styles/app.css 的 #059669 / #10b981 一致）。
 const neutral = {
     light: {
-        primary: "#171717",
-        primaryHover: "#000000",
+        primary: "#059669",
+        primaryHover: "#047857",
         primaryText: "#ffffff",
         menuBg: "#f5f5f5",
         menuText: "#171717",
         selectActiveBg: "#f5f5f5",
-        selectSelectedBg: "#f0f0f0",
-        selectText: "#171717",
-        tableSelectedBg: "rgba(17, 17, 17, 0.05)",
-        tableSelectedHoverBg: "rgba(17, 17, 17, 0.08)",
+        selectSelectedBg: "#d1fae5",
+        selectText: "#065f46",
+        tableSelectedBg: "rgba(5, 150, 105, 0.06)",
+        tableSelectedHoverBg: "rgba(5, 150, 105, 0.1)",
     },
     dark: {
-        primary: "#fafafa",
-        primaryHover: "#ffffff",
-        primaryText: "#171717",
+        primary: "#10b981",
+        primaryHover: "#34d399",
+        primaryText: "#052014",
         menuBg: "#262626",
         menuText: "#fafafa",
         selectActiveBg: "#262626",
-        selectSelectedBg: "#333333",
-        selectText: "#fafafa",
-        tableSelectedBg: "rgba(255, 255, 255, 0.08)",
-        tableSelectedHoverBg: "rgba(255, 255, 255, 0.12)",
+        selectSelectedBg: "#064e3b",
+        selectText: "#a7f3d0",
+        tableSelectedBg: "rgba(16, 185, 129, 0.12)",
+        tableSelectedHoverBg: "rgba(16, 185, 129, 0.18)",
     },
 };
 

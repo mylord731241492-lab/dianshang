@@ -44,6 +44,18 @@
 | POST/PUT | `/api/user/avatar...` | local-db | 头像上传/设置 |
 | POST | `/api/user/redeem` | local-db | 兑换码 |
 
+## Assets（账号隔离云端资产库，ADR-0006）
+
+| Method | Path | 状态 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/user/assets` | local-db | 当前账号资产列表，支持 `q/kind/cursor/limit` 分页；列表项附带 15 分钟短时效 `accessUrl` |
+| POST | `/api/user/assets/upload` | local-db + object-storage | multipart（字段 `file`）上传；后端 magic bytes 校验，仅 PNG/JPEG/WebP（≤20MB）与 MP4/WebM/MP3/WAV/M4A（≤50MB），拒绝 SVG 与伪造 MIME；超限返回 `413 ASSET_FILE_TOO_LARGE` |
+| POST | `/api/user/assets/import-generation` | local-db + object-storage | 将本人 `/uploads/` 下的生成记录复制进资产库（source=`generation`），原文件保留 |
+| GET/PUT/DELETE | `/api/user/assets/:id` | local-db | 详情、改名/标签、软删除；跨用户一律 404 不泄漏存在性 |
+| GET | `/api/user/assets/:id/access-url` | local-db | 签发 15 分钟同源签名读取 URL `/api/asset-content/:assetId?expires=&sig=` |
+| GET | `/api/asset-content/:assetId` | 签名 URL | HMAC 签名 + 过期时间即能力凭证；过期/篡改返回 403（`ASSET_URL_EXPIRED`/`ASSET_URL_INVALID`），已软删除返回 404 |
+| — | 存储开关 | object-storage | 真实云存储暂缓（无 SDK）；`ENABLE_REAL_STORAGE=true` 且无真实驱动时写接口返回 `503 ASSET_STORAGE_UNAVAILABLE`，不回退本地 uploads |
+
 ## Generation / Template
 
 | Method | Path | 状态 | 说明 |

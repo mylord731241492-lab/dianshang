@@ -189,7 +189,9 @@ Remove-Item Env:\SMOKE_PERSISTENCE -ErrorAction SilentlyContinue
 | `ENABLE_REAL_AI` | `false` | 是否启用真实 AI 调用 |
 | `ENABLE_REAL_EMAIL` | `false` | 是否启用真实邮件 |
 | `ENABLE_REAL_PAYMENT` | `false` | 是否启用真实支付 |
-| `ENABLE_REAL_STORAGE` | `false` | 是否启用真实云存储 |
+| `ENABLE_REAL_STORAGE` | `false` | 是否启用真实云存储。真实对象存储驱动尚未实施（ADR-0006，未批准 SDK）：设为 `true` 时资产写接口一律返回 `503 ASSET_STORAGE_UNAVAILABLE`，不会回退服务器本地 `uploads`；保持 `false` 使用候选 Fake Storage（仅测试/本地开发） |
+| `ASSET_URL_SIGNING_SECRET` | 由 `JWT_SECRET` 派生 | 资产 15 分钟签名读取 URL 的 HMAC 密钥；生产建议单独配置长随机值，不出现在任何响应中 |
+| `ASSET_FAKE_STORAGE_ROOT` | `<DATA_DIR>/object-storage` | Fake Storage 根目录，仅 Fake 模式使用 |
 | `AI_PROVIDER_GATEWAY` | `new-api` | Provider Adapter 网关类型，正式部署默认 New-API |
 | `NEW_API_BASE` | New-API 占位地址 | New-API OpenAI-compatible 入口 |
 | `NEW_API_KEY` | 占位值 | New-API 分配给本平台服务端的 token |

@@ -47,6 +47,17 @@
 | `POST` | `/api/image-tools/reverse-prompt` | user | 画布图片节点反推提示词；请求至少包含 `imageUrl`。后端读取原图并以多模态 `input_image` 调用当前文本线路，返回 `prompt/text/rawPrompt/rawText`；不得把图片线路用于文本反推。 |
 | `POST` | `/api/canvas/enhance-prompt` | user | 图片生成节点 AI 扩写；接收 `prompt/currentPrompt` 与最多 4 张真实 `referenceImages`，通过当前 GPT‑5.6 Terra 文本线路生成可编辑的 `prompt/text`，不自动生图。该接口对用户免费且不读写余额，同一用户只允许一个并发请求；Provider 失败不得覆盖原提示词。 |
 
+## Assets（账号隔离云端资产库，ADR-0006）
+
+| 方法 | 路径 | 认证 | 字段与说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/user/assets` | user | 当前账号资产列表；支持 `q/kind/cursor/limit` 分页，返回 `items/nextCursor`，列表项附带 15 分钟短时效 `accessUrl`。 |
+| `POST` | `/api/user/assets/upload` | user | multipart（字段 `file`）上传；后端按 magic bytes 识别真实类型，仅允许 PNG/JPEG/WebP（≤20MB）与 MP4/WebM/MP3/WAV/M4A（≤50MB），拒绝 SVG 与伪造 MIME。 |
+| `POST` | `/api/user/assets/import-generation` | user | 显式将本人 `/uploads/` 下生成记录复制为资产（source=`generation`），不自动归档。 |
+| `GET`/`PUT`/`DELETE` | `/api/user/assets/:id` | user | 详情、改名/标签、软删除（不物理删除云对象）；跨用户一律 404，不泄漏存在性。 |
+| `GET` | `/api/user/assets/:id/access-url` | user | 签发 15 分钟同源签名读取 URL `/api/asset-content/:assetId?expires=&sig=`；浏览器不接触任何对象存储密钥。 |
+| `GET` | `/api/asset-content/:assetId` | 签名 URL | 签名内容读取；过期返回 `403 ASSET_URL_EXPIRED`，篡改返回 `403 ASSET_URL_INVALID`，已软删除返回 404。真实存储未接入时写接口返回 `503 ASSET_STORAGE_UNAVAILABLE`，不回退本地 uploads。 |
+
 ## Template
 
 | 方法 | 路径 | 认证 | 字段与说明 |

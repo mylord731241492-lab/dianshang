@@ -21,6 +21,7 @@ const {
 } = require('./backend/provider/image-provider-diagnostics');
 const { createGenerationTaskRepository } = require('./backend/generation/task-repository');
 const { GenerationTaskService } = require('./backend/generation/generation-task-service');
+const { createAssetService, registerAssetRoutes } = require('./backend/assets');
 
 const envPath = path.join(__dirname, '.env');
 if (fs.existsSync(envPath)) {
@@ -401,6 +402,21 @@ const generationTaskRepository = createGenerationTaskRepository({
   idFactory: uid,
   maxUserNonterminal: GENERATION_MAX_USER_NONTERMINAL,
   maxQueued: GENERATION_MAX_QUEUED
+});
+
+// 账号隔离云端资产库（ADR-0006）：Fake Storage 与将来真实对象存储同一接口；
+// ENABLE_REAL_STORAGE=true 且真实驱动未实施时资产写接口返回 503 ASSET_STORAGE_UNAVAILABLE，不回退本地 uploads。
+const ASSET_URL_SIGNING_SECRET = String(process.env.ASSET_URL_SIGNING_SECRET || '').trim() || `${JWT_SECRET}:asset-content`;
+const ASSET_FAKE_STORAGE_ROOT = process.env.ASSET_FAKE_STORAGE_ROOT
+  ? path.resolve(process.env.ASSET_FAKE_STORAGE_ROOT)
+  : path.join(DATA_DIR, 'object-storage');
+const assetService = createAssetService({
+  db,
+  idFactory: uid,
+  enableRealStorage: ENABLE_REAL_STORAGE,
+  fakeStorageRoot: ASSET_FAKE_STORAGE_ROOT,
+  signingSecret: ASSET_URL_SIGNING_SECRET,
+  uploadDir
 });
 
 // Auth middleware
@@ -4937,6 +4953,9 @@ app.post('/api/upload/image', auth, upload.single('image'), (req, res) => {
   res.json({ url, imageUrl: url, originalUrl: url, success: true });
 });
 app.use('/uploads', express.static(uploadDir));
+
+// 账号隔离云端资产库（backend/assets，ADR-0006）
+registerAssetRoutes(app, { auth, assetService });
 
 // ===================== AI GENERATION =====================
 const fetch = (...args) => import('node-fetch').then(({default:f})=>f(...args));

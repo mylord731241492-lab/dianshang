@@ -70,6 +70,14 @@ NestJS API Server
 - 数据：`generation_tasks`、`generation_task_items`、`generation_task_attempts`、`generations`、`balance_logs`；旧 `tasks` 内存 Map 仅保留兼容入口。
 - 迁移风险：SQLite 是当前单实例任务事实源。后续迁 BullMQ 时必须保留幂等键、状态、部分成功、重启中断不重放和响应字段。
 
+## assets
+
+- 负责：账号隔离云端资产库——上传（magic bytes 校验）、列表/详情/改名/标签、15 分钟签名读取 URL、generations 导入、软删除。
+- 当前模块：`backend/assets/`（`asset-service.js`、`asset-repository.js`、`object-storage.js`、`magic-bytes.js`、`routes.js`）；`server.js` 只做 `createAssetService` + `registerAssetRoutes` 挂载。
+- 当前路由：`/api/user/assets*`、`/api/asset-content/:assetId`（签名内容读取，见 ADR-0006）。
+- 数据：`user_assets`；文件字节经统一 `ObjectStorage` 接口（Fake/将来 S3 兼容），绝不回退本地 uploads。
+- 迁移风险：真实存储驱动未实施，`ENABLE_REAL_STORAGE=true` 必须 503 `ASSET_STORAGE_UNAVAILABLE`；所有查询强制 `user_id` 隔离；删除只软删除，物理回收由后续独立任务决定。
+
 ## provider
 
 - 负责：Provider 状态、模型线路、New-API 调用、OpenAI-compatible 请求适配、错误标准化、连接池、有界公平调度、失败域并发与熔断。

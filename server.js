@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const https = require('https');
 const Database = require('better-sqlite3');
 const multer = require('multer');
@@ -5476,6 +5477,106 @@ async function persistProviderImageResults(items = [], providerRequest = {}) {
     };
   });
 }
+// ---- Task 8：生成结果写入账号云端资产库（ADR-0006）----
+// mock 占位图为服务端动态 SVG，资产库只接受 PNG/JPEG/WebP（magic bytes），
+// 因此 mock 结果物化为确定性 PNG；真实 Provider 结果直接读取 /uploads/generated/ 已校验文件。
+const PNG_CRC_TABLE = (() => {
+  const table = new Int32Array(256);
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c;
+  }
+  return table;
+})();
+function pngCrc32(buffer) {
+  let crc = -1;
+  for (let index = 0; index < buffer.length; index += 1) {
+    crc = PNG_CRC_TABLE[(crc ^ buffer[index]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ -1) >>> 0;
+}
+function pngChunk(type, data) {
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length, 0);
+  const typed = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(pngCrc32(typed), 0);
+  return Buffer.concat([length, typed, crc]);
+}
+function mockGeneratedImagePngBytes(seed = '') {
+  const width = 64;
+  const height = 64;
+  const hue = parseInt(crypto.createHash('md5').update(String(seed || 'HJM AI')).digest('hex').slice(0, 2), 16);
+  const red = (hue * 3 + 40) % 256;
+  const green = (hue * 5 + 90) % 256;
+  const blue = (hue * 7 + 140) % 256;
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // truecolor RGB
+  const stride = width * 3 + 1;
+  const raw = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y += 1) {
+    const row = y * stride;
+    for (let x = 0; x < width; x += 1) {
+      raw[row + 1 + x * 3] = (red + x) % 256;
+      raw[row + 2 + x * 3] = (green + y) % 256;
+      raw[row + 3 + x * 3] = blue;
+    }
+  }
+  return Buffer.concat([
+    Buffer.from('89504e470d0a1a0a', 'hex'),
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', zlib.deflateSync(raw)),
+    pngChunk('IEND', Buffer.alloc(0))
+  ]);
+}
+// 从任务结果图解析可用于资产库的字节：/uploads/ 本地文件直接读；mock 占位图物化 PNG；其他形态返回 null。
+function generatedResultImageBytes(image = {}) {
+  const url = firstString(image.url, image.imageUrl, image.image_url);
+  if (/^\/uploads\/[^/?#]+/i.test(url)) {
+    const relative = url.replace(/^\/uploads\//i, '').split(/[?#]/)[0];
+    const filePath = path.resolve(uploadDir, relative);
+    if (filePath !== uploadDir && !filePath.startsWith(uploadDir + path.sep)) return null;
+    try {
+      return { buffer: fs.readFileSync(filePath), name: path.basename(filePath) };
+    } catch {
+      return null;
+    }
+  }
+  const mockMatch = String(url).match(/^\/api\/mock-image\/([a-z0-9]+)\.svg/i);
+  if (mockMatch) {
+    let text = '';
+    try {
+      text = new URL(String(url), 'http://127.0.0.1').searchParams.get('text') || '';
+    } catch {}
+    return { buffer: mockGeneratedImagePngBytes(text || mockMatch[1]), name: `generated-${mockMatch[1]}.png` };
+  }
+  return null;
+}
+// 落图成功后：每张结果写入 ObjectStorage + user_assets(source='generated')，assetId 随结果进入 generations.asset_id。
+// 任何云存储失败直接抛出，由调用方按“结果保存失败”规则退款并记录上游计费歧义（ADR-0004），不重放 Provider。
+async function attachGeneratedResultAssets(userId, images = [], context = {}) {
+  const list = Array.isArray(images) ? images : [];
+  const results = [];
+  for (const item of list) {
+    const raw = item && typeof item === 'object' ? item : { url: item };
+    const payload = generatedResultImageBytes(raw);
+    if (!payload) {
+      results.push(raw);
+      continue;
+    }
+    const asset = await assetService.storeGeneratedAsset({
+      userId,
+      buffer: payload.buffer,
+      name: payload.name || `生成图片 ${context.taskId || ''}`.trim()
+    });
+    results.push({ ...raw, assetId: asset.id });
+  }
+  return results;
+}
 function normalizeTaskImage(item, idx, taskId) {
   const raw = item && typeof item === 'object' ? item : { url: item };
   const { b64_json, b64Json, base64, dataUrl, data_url, ...safeRaw } = raw;
@@ -6700,6 +6801,17 @@ function makePersistentTaskResponse(task) {
   const now = Date.now();
   const elapsedMs = Math.max(0, (task.finishedAtMs || now) - task.createdAtMs);
   const warnings = Array.isArray(task.request?.warnings) ? task.request.warnings : [];
+  // 已落云端资产库的结果附带 assetId 与 15 分钟短时展示 URL（签名失败不阻断任务响应）。
+  const imagesWithAssets = (Array.isArray(task.images) ? task.images : []).map((image) => {
+    if (!image || typeof image !== 'object' || !image.assetId) return image;
+    try {
+      const access = assetService.signAccessUrl(image.assetId);
+      return { ...image, accessUrl: access.url, accessUrlExpiresAt: access.expiresAt };
+    } catch {
+      return image;
+    }
+  });
+  const firstAssetImage = imagesWithAssets.find((image) => image && typeof image === 'object' && image.assetId) || null;
   return {
     id: task.id,
     taskId: task.id,
@@ -6709,8 +6821,10 @@ function makePersistentTaskResponse(task) {
     prompt: task.prompt,
     modelKey: task.modelKey,
     model: task.modelKey,
-    resultImages: task.images || [],
-    images: task.images || [],
+    resultImages: imagesWithAssets,
+    images: imagesWithAssets,
+    assetId: firstAssetImage ? firstAssetImage.assetId : undefined,
+    accessUrl: firstAssetImage && firstAssetImage.accessUrl ? firstAssetImage.accessUrl : undefined,
     costPoints: task.settledCost || task.reservedCost,
     cost: task.settledCost || task.reservedCost,
     totalCost: task.settledCost || task.reservedCost,
@@ -6779,7 +6893,13 @@ async function executePersistentGenerationItem(task, item, signal) {
   let persistedResults;
   try {
     persistedResults = await persistProviderImageResults(providerResult.images, providerRequestMeta);
+    persistedResults = await attachGeneratedResultAssets(task.userId, persistedResults, { taskId: task.id });
   } catch (error) {
+    if (!error.code) {
+      error.code = 'GENERATION_ASSET_PERSIST_FAILED';
+      error.status = 500;
+      error.message = error.message || '生成图片写入云端资产库失败';
+    }
     error.requestMeta = {
       ...providerRequestMeta,
       providerBillingStatus: providerRequestMeta.providerBillingStatus || 'charged_assumed',

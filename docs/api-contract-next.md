@@ -58,6 +58,8 @@
 | `GET` | `/api/user/assets/:id/access-url` | user | 签发 15 分钟同源签名读取 URL `/api/asset-content/:assetId?expires=&sig=`；浏览器不接触任何对象存储密钥。 |
 | `GET` | `/api/asset-content/:assetId` | 签名 URL | 签名内容读取；过期返回 `403 ASSET_URL_EXPIRED`，篡改返回 `403 ASSET_URL_INVALID`，已软删除返回 404。真实存储未接入时写接口返回 `503 ASSET_STORAGE_UNAVAILABLE`，不回退本地 uploads。 |
 
+生图任务（`/api/generate/tasks`）成功结果由后端自动写入对象存储并创建 `user_assets(source='generated')`，同时回写 `generations.asset_id`；旧生成记录保持 `asset_id=NULL`，只做显式导入，不启动时批量复制。云存储落盘失败不重放 Provider，按结果保存失败规则退款并记录上游计费歧义（错误码 `GENERATION_ASSET_PERSIST_FAILED`）。
+
 ## Prompts（系统提示词 + 我的提示词双层云端提示词库）
 
 | 方法 | 路径 | 认证 | 字段与说明 |
@@ -84,11 +86,11 @@
 
 | 方法 | 路径 | 认证 | 字段与说明 |
 | --- | --- | --- | --- |
-| `POST` | `/api/generation/estimate-cost` | optional | 估算消耗，未登录返回 mock 可用额度。 |
-| `POST` | `/api/generate/tasks` | user | 持久生图任务入口。支持 `Idempotency-Key` 或 `clientRequestId`，任务与余额预占在同一事务中写入；返回 HTTP 202 和 `taskId/status/queuePosition/reservedCost/replayed`。每用户最多 3 个非终态任务，全站最多 30 个，超限返回 429 与 `Retry-After`。 |
-| `GET` | `/api/generate/tasks/:id` | user | 从 SQLite 查询当前用户任务。状态为 `pending/running/success/failed/cancelled`，并返回 `stage/queuePosition/startedAt/finishedAt/elapsedMs/canCancel/retryAfterMs`。线路冷却时 `stage=provider_degraded`；失败任务的 `request` 可包含脱敏的 `responseDiagnostics/providerBillingStatus/upstreamBillingAmbiguous/billingAuditRequired`。部分成功使用 `success + partial=true + warnings`。 |
-| `POST` | `/api/generate/tasks/:id/cancel` | user | 取消本人 `pending/running` 任务。等待任务立即出队退款；运行任务中止本地请求并记录“上游可能已计费”的歧义，不自动重放。 |
-| `POST` | `/api/generate/tasks/:id/retry` | user | 人工重试本人 `failed/cancelled` 任务并创建全新任务，原任务保持不变。上一单存在上游计费歧义时必须提交 `confirmUpstreamBillingRisk=true`；接口不自动切换线路、不复用旧幂等键。参考图仅在原任务文件仍处于 24 小时保留期时可重试，文件已清理返回 `410 GENERATION_RETRY_INPUT_EXPIRED`。 |
+| `POST` | `/api/generation/estimate-cost` | optional | 估算消耗，未登录返回 mock 可用额度。**POST**（不是 GET）：JSON 请求体 `modelKey/routeId/imageCount`，返回 `estimatedCost/totalCost/available`。 |
+| `POST` | `/api/generate/tasks` | user | 持久生图任务入口。请求体：`prompt`、图生图 `referenceImages[]`（`{name,type,dataUrl}`）、`ratio`（冒号比例）、`quality/sizeTier`（清晰度）、`imageCount`（1–4）、`modelKey`、`routeId`。支持 `Idempotency-Key` 请求头或请求体 `clientRequestId`，任务与余额预占在同一事务中写入；返回 HTTP 202 和 `taskId/status/queuePosition/reservedCost/replayed`。同一用户相同键 + 相同请求返回原任务且 `replayed=true`，相同键不同请求返回 `409 IDEMPOTENCY_KEY_REUSED`。每用户最多 3 个非终态任务，全站最多 30 个，超限返回 429 与 `Retry-After`。 |
+| `GET` | `/api/generate/tasks/:id` | user | 从 SQLite 查询当前用户任务。状态为 `pending/running/success/failed/cancelled`，并返回 `stage/queuePosition/startedAt/finishedAt/elapsedMs/canCancel/retryAfterMs`。`stage` 取值 `queued/provider_degraded/preparing/connecting/awaiting_provider/persisting/done`。线路冷却时 `stage=provider_degraded`；失败任务的 `request` 可包含脱敏的 `responseDiagnostics/providerBillingStatus/upstreamBillingAmbiguous/billingAuditRequired`。部分成功使用 `success + partial=true + warnings`。`billingStatus`：`reserved/settled/partially_settled/refunded`；本地已退款（`refunded`/`partially_settled`）与上游计费未知（`providerBillingStatus='unknown'`）必须区分展示。成功结果图在 `images[]` 中带 `assetId` 与 15 分钟短时效同源 `accessUrl`，顶层另有首张资产结果的 `assetId/accessUrl`。 |
+| `POST` | `/api/generate/tasks/:id/cancel` | user | 取消本人 `pending/running` 任务。等待任务立即出队退款；运行任务中止本地请求并记录“上游可能已计费”的歧义（`providerBillingStatus='unknown'`），不自动重放。终态返回 `409 TASK_NOT_CANCELLABLE`。 |
+| `POST` | `/api/generate/tasks/:id/retry` | user | 人工重试本人 `failed/cancelled` 任务并创建全新任务（服务端签发新幂等键），原任务保持不变。上一单存在上游计费歧义时必须提交 `confirmUpstreamBillingRisk=true`；接口不自动切换线路、不复用旧幂等键。参考图仅在原任务文件仍处于 24 小时保留期时可重试，文件已清理返回 `410 GENERATION_RETRY_INPUT_EXPIRED`。 |
 | `POST` | `/api/chat/completions` | user | 旧文本兼容转发；新后端接管时迁移到 OpenAI Responses 形态。`Legacy`。 |
 | `GET` | `/api/chat/status` | 无 | Chat 入口公开状态，只返回 `enabled/accessEnabled/accessReady/chatPath/message`；不得返回 Provider、LibreChat 或 MongoDB 敏感配置。 |
 | `GET` | `/api/proxy-image` | 签名 URL | 远程图片同源代理。新地址必须携带服务端 HMAC `sig`；只兼容数据库真实生成记录中已有的旧无签名目标。每次请求及重定向均拒绝内网/特殊用途地址和非 80/443 端口，只允许常见光栅图片，响应体最多 20 MiB（可通过 `IMAGE_PROXY_MAX_BYTES` 下调，硬上限 30 MiB）。 |

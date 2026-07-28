@@ -4,11 +4,11 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Group, Video } from "lucide-react";
 import { saveAs } from "file-saver";
 
-import { requestEdit, requestGeneration, requestImageQuestion } from "@/services/api/image";
+import { requestEdit, requestImageQuestion } from "@/services/api/image";
 import { requestAudioGeneration, storeGeneratedAudio } from "@/services/api/audio";
 import { requestVideoGeneration, storeGeneratedVideo } from "@/services/api/video";
 import { defaultConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
-import { uploadImage } from "@/services/image-storage";
+import { adoptCloudAssetImage, uploadImage, type UploadedImage } from "@/services/image-storage";
 import { uploadMediaFile } from "@/services/file-storage";
 import { nanoid } from "nanoid";
 import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
@@ -28,7 +28,7 @@ import { CanvasNodeCropDialog, type CanvasImageCropRect } from "@/components/can
 import { CanvasNodeMaskEditDialog, type CanvasImageMaskEditPayload } from "@/components/canvas/canvas-node-mask-edit-dialog";
 import { CanvasNodeSplitDialog, type CanvasImageSplitParams } from "@/components/canvas/canvas-node-split-dialog";
 import { CanvasNodeUpscaleDialog, type CanvasImageUpscaleParams } from "@/components/canvas/canvas-node-upscale-dialog";
-import { buildNodeGenerationContext, buildNodeGenerationInputs, buildNodeResponseMessages, hydrateNodeGenerationContext, type NodeGenerationInput } from "@/components/canvas/canvas-node-generation";
+import { buildNodeGenerationContext, buildNodeGenerationInputs, buildNodeResponseMessages, hydrateNodeGenerationContext, normalizeNodeModelKey, submitNodeImageGeneration, taskStateFromGenerationTask, waitNodeImageGeneration, type NodeGenerationInput } from "@/components/canvas/canvas-node-generation";
 import { CanvasNodeHoverToolbar, CanvasNodeInfoModal } from "@/components/canvas/canvas-node-hover-toolbar";
 import { InfiniteCanvas } from "@/components/canvas/infinite-canvas";
 import { Minimap } from "@/components/canvas/canvas-mini-map";
@@ -41,6 +41,9 @@ import { CanvasZoomControls } from "@/components/canvas/canvas-zoom-controls";
 import { useAgentStore } from "@/stores/use-agent-store";
 import { useCanvasStore, type FetchProjectResult } from "@/stores/canvas/use-canvas-store";
 import { ApiError } from "@/integrations/hajimi/http";
+import { getGenerationApi, refreshSessionUser } from "@/integrations/hajimi/browser-client";
+import { createClientRequestId, type GenerationTask, type GenerationTaskImage } from "@/integrations/hajimi/generation-api";
+import { generationFailureHint } from "@/components/image-generation-pending";
 import { loadProjectDraft, removeProjectDraft, saveProjectDraft } from "@/integrations/hajimi/project-draft-cache";
 import type { HjmProjectContent } from "@/integrations/hajimi/project-schema";
 import { useUserStore } from "@/stores/use-user-store";
@@ -79,6 +82,7 @@ import {
     type CanvasAssistantImage,
     type CanvasAssistantSession,
     type CanvasConnection,
+    type CanvasGenerationTaskState,
     type CanvasNodeData,
     type CanvasNodeMetadata,
     type CanvasNodeTypeId,
@@ -93,6 +97,25 @@ import type { ReferenceAudio } from "@/types/media";
 
 // 内置节点注册到统一注册表(模块加载时执行一次)
 registerBuiltinNodes();
+
+// 任务结果图已在服务端写入账号云端资产库（source='generated'）：优先经 assetId 纳入瞬态缓存，
+// 拿不到资产时才回退重新上传展示 URL，保证节点保存 storageKey = "asset:<assetId>"。
+async function resolveGenerationTaskImage(image: GenerationTaskImage): Promise<UploadedImage> {
+    if (image.assetId) {
+        const adopted = await adoptCloudAssetImage(image.assetId, image.accessUrl);
+        if (adopted) return adopted;
+    }
+    return uploadImage(image.url);
+}
+
+function generationTaskFailureDetails(task: GenerationTask): string {
+    const hint = generationFailureHint({
+        billingStatus: task.billingStatus,
+        providerBillingStatus: task.providerBillingStatus,
+        upstreamBillingAmbiguous: task.upstreamBillingAmbiguous,
+    });
+    return [task.errorMessage || (task.status === "cancelled" ? "任务已取消" : "生成失败"), hint].filter(Boolean).join("；");
+}
 
 type CanvasClipboard = {
     nodes: CanvasNodeData[];
@@ -299,6 +322,23 @@ function InfiniteCanvasPage() {
         if (request?.controller === controller) generationRequestsRef.current.delete(targetNodeId);
     }, []);
 
+    // Task 8：任务终态后刷新用户资料（余额）与云端资产库；余额事实源在服务端，前端不自行计算。
+    const refreshAccountAfterGenerationTask = useCallback(() => {
+        void refreshSessionUser().catch(() => {});
+        void useAssetStore.getState().refreshCloudAssets().catch(() => {});
+    }, []);
+
+    // Task 8：轮询/终态时把任务快照写回所有携带该 taskId 的节点（保留各节点的 imageIndex）。
+    const updateGenerationTaskNodes = useCallback((task: GenerationTask) => {
+        setNodes((prev) =>
+            prev.map((node) => {
+                const current = node.metadata?.generationTask;
+                if (!current || current.taskId !== task.taskId) return node;
+                return { ...node, metadata: { ...node.metadata, generationTask: taskStateFromGenerationTask(task, current.imageIndex) } };
+            }),
+        );
+    }, []);
+
     const stopGenerationByRunningId = useCallback((runningId: string) => {
         const affectedNodeIds = new Set<string>();
         generationRequestsRef.current.forEach((request) => {
@@ -310,8 +350,20 @@ function InfiniteCanvasPage() {
         });
         setRunningNodeId((current) => (current === runningId ? null : current));
         if (!affectedNodeIds.size) return;
+        // Task 8：本地中断的同时取消服务端持久任务（取消幂等，只调用一次）。
+        const taskIds = new Set<string>();
+        nodesRef.current.forEach((node) => {
+            const task = node.metadata?.generationTask;
+            if (affectedNodeIds.has(node.id) && task?.taskId && (task.status === "pending" || task.status === "running")) taskIds.add(task.taskId);
+        });
+        taskIds.forEach((taskId) => {
+            void getGenerationApi()
+                .cancel(taskId)
+                .then((task) => updateGenerationTaskNodes(task))
+                .catch(() => {});
+        });
         setNodes((prev) => prev.map((node) => (affectedNodeIds.has(node.id) && node.metadata?.status === NODE_STATUS_LOADING ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_IDLE, errorDetails: undefined } } : node)));
-    }, []);
+    }, [updateGenerationTaskNodes]);
 
     const confirmStopGeneration = useCallback(
         (nodeId: string) => {
@@ -325,6 +377,120 @@ function InfiniteCanvasPage() {
             });
         },
         [modal, stopGenerationByRunningId],
+    );
+
+    // Task 8：节点加载态上的「取消」——优先取消服务端持久任务（展示退款/计费歧义语义），否则退回本地中断。
+    const handleCancelGenerationTask = useCallback(
+        (node: CanvasNodeData) => {
+            const task = node.metadata?.generationTask;
+            if (!task?.taskId || (task.status !== "pending" && task.status !== "running")) {
+                confirmStopGeneration(node.id);
+                return;
+            }
+            modal.confirm({
+                title: "取消生图任务？",
+                content: "未结算的预占算力会退款；若上游已开始生成，计费状态会标记为未知，不会自动重放。",
+                okText: "取消任务",
+                cancelText: "继续生成",
+                okButtonProps: { danger: true },
+                onOk: () => {
+                    void getGenerationApi()
+                        .cancel(task.taskId)
+                        .then((cancelled) => {
+                            updateGenerationTaskNodes(cancelled);
+                            setNodes((prev) =>
+                                prev.map((item) =>
+                                    item.metadata?.generationTask?.taskId === task.taskId
+                                        ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails: cancelled.errorMessage || "任务已取消" } }
+                                        : item,
+                                ),
+                            );
+                            refreshAccountAfterGenerationTask();
+                        })
+                        .catch(() => {});
+                },
+            });
+        },
+        [modal, confirmStopGeneration, updateGenerationTaskNodes, refreshAccountAfterGenerationTask],
+    );
+
+    // Task 8：人工重试失败/已取消任务——服务端创建全新任务并签发新幂等键；上游计费歧义需用户显式确认。
+    const retryNodeGenerationTask = useCallback(
+        async (previousTask: CanvasGenerationTaskState): Promise<GenerationTask> => {
+            const ambiguous = previousTask.providerBillingStatus === "unknown" || previousTask.upstreamBillingAmbiguous === true;
+            if (ambiguous) {
+                const confirmed = await new Promise<boolean>((resolve) => {
+                    modal.confirm({
+                        title: "确认人工重试？",
+                        content: "上一单的上游计费状态未知，重试可能产生重复计费。确认继续？",
+                        okText: "确认重试",
+                        cancelText: "取消",
+                        okButtonProps: { danger: true },
+                        onOk: () => resolve(true),
+                        onCancel: () => resolve(false),
+                    });
+                });
+                if (!confirmed) throw new Error("请求已取消");
+            }
+            return getGenerationApi().retry(previousTask.taskId, { confirmUpstreamBillingRisk: ambiguous });
+        },
+        [modal],
+    );
+
+    // Task 8：刷新项目后对非终态 taskId 继续轮询（不重新提交）；终态后按 imageIndex 把结果写回各节点。
+    const resumeGenerationTasks = useCallback(
+        (restoredNodes: CanvasNodeData[]) => {
+            const taskIds = new Set<string>();
+            restoredNodes.forEach((node) => {
+                const task = node.metadata?.generationTask;
+                if (task?.taskId && (task.status === "pending" || task.status === "running")) taskIds.add(task.taskId);
+            });
+            taskIds.forEach((taskId) => {
+                void (async () => {
+                    try {
+                        const final = await waitNodeImageGeneration(getGenerationApi(), taskId, {
+                            onUpdate: (task) => updateGenerationTaskNodes(task),
+                        });
+                        updateGenerationTaskNodes(final);
+                        const targets = nodesRef.current
+                            .filter((node) => node.metadata?.generationTask?.taskId === taskId)
+                            .sort((a, b) => (a.metadata?.generationTask?.imageIndex ?? 0) - (b.metadata?.generationTask?.imageIndex ?? 0));
+                        if (final.status === "success" && final.images.length) {
+                            await Promise.all(
+                                targets.map(async (target) => {
+                                    const image = final.images[target.metadata?.generationTask?.imageIndex ?? 0];
+                                    if (!image) {
+                                        setNodes((prev) => prev.map((item) => (item.id === target.id ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails: "该张图片生成失败" } } : item)));
+                                        return;
+                                    }
+                                    try {
+                                        const uploaded = await resolveGenerationTaskImage(image);
+                                        setNodes((prev) => prev.map((item) => (item.id === target.id ? { ...item, metadata: { ...item.metadata, ...imageMetadata(uploaded) } } : item)));
+                                    } catch {
+                                        setNodes((prev) => prev.map((item) => (item.id === target.id ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails: "结果图片保存失败" } } : item)));
+                                    }
+                                }),
+                            );
+                        } else {
+                            const errorDetails = generationTaskFailureDetails(final);
+                            setNodes((prev) =>
+                                prev.map((item) => (item.metadata?.generationTask?.taskId === taskId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)),
+                            );
+                        }
+                        refreshAccountAfterGenerationTask();
+                    } catch {
+                        setNodes((prev) =>
+                            prev.map((item) =>
+                                item.metadata?.generationTask?.taskId === taskId && item.metadata?.status === NODE_STATUS_LOADING
+                                    ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails: "任务状态查询失败，请刷新后重试" } }
+                                    : item,
+                            ),
+                        );
+                    }
+                })();
+            });
+        },
+        [updateGenerationTaskNodes, refreshAccountAfterGenerationTask],
     );
 
     // 自动保存：本地节点操作立即更新 UI，服务器保存合并到 1000ms 防抖后只发一次 PUT。
@@ -443,6 +609,8 @@ function InfiniteCanvasPage() {
             const restoredSessions = await hydrateAssistantImages(project.chatSessions || []);
             if (cancelled) return;
             setNodes(restoredNodes);
+            // Task 8：刷新前提交的非终态生图任务继续轮询，不重新提交。
+            resumeGenerationTasks(restoredNodes);
             setConnections(project.connections);
             setChatSessions(restoredSessions);
             setActiveChatId(project.activeChatId || null);
@@ -493,7 +661,7 @@ function InfiniteCanvasPage() {
         return () => {
             cancelled = true;
         };
-    }, [fetchProject, modal, projectId, restoreDraft]);
+    }, [fetchProject, modal, projectId, restoreDraft, resumeGenerationTasks]);
 
     useEffect(() => {
         if (!projectLoaded || !["new", "recent", "choose"].includes(searchParams.get("mode") || "")) return;
@@ -2134,7 +2302,14 @@ function InfiniteCanvasPage() {
         async (nodeId: string, mode: CanvasNodeGenerationMode, prompt: string) => {
             const sourceNode = nodesRef.current.find((node) => node.id === nodeId);
             const generationConfig = buildGenerationConfig(effectiveConfig, sourceNode, mode);
-            if (!isAiConfigReady(generationConfig, generationConfig.model)) {
+            // Task 8：生图模式走同源持久任务，不再依赖本地 Provider 渠道配置（Base URL/API Key）；
+            // 其他模式仍沿用旧直连校验，由后续任务迁移。
+            if (mode === "image") {
+                if (!normalizeNodeModelKey(generationConfig.model)) {
+                    message.warning("请先在生成配置节点选择模型");
+                    return;
+                }
+            } else if (!isAiConfigReady(generationConfig, generationConfig.model)) {
                 openConfigDialog(true);
                 return;
             }
@@ -2160,14 +2335,29 @@ function InfiniteCanvasPage() {
                             ? [{ id: up.id, name: `${up.title || up.id}.png`, type: up.metadata.mimeType || "image/png", dataUrl: up.metadata.content, storageKey: up.metadata.storageKey }]
                             : [],
                     );
-                    const image = refs.length
-                        ? await requestEdit({ ...generationConfig, count: "1" }, fullPrompt, refs, undefined, { signal: controller.signal }).then((items) => items[0])
-                        : await requestGeneration({ ...generationConfig, count: "1" }, fullPrompt, { signal: controller.signal }).then((items) => items[0]);
-                    const uploaded = await uploadImage(image.dataUrl);
+                    const submitted = await submitNodeImageGeneration(getGenerationApi(), {
+                        prompt: fullPrompt,
+                        model: generationConfig.model,
+                        routeId: sourceNode.metadata?.routeId,
+                        size: generationConfig.size,
+                        quality: generationConfig.quality,
+                        imageCount: 1,
+                        referenceImages: refs,
+                        clientRequestId: createClientRequestId(),
+                    });
+                    setNodes((prev) => prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, generationTask: taskStateFromGenerationTask(submitted, 0) } } : node)));
+                    const final = await waitNodeImageGeneration(getGenerationApi(), submitted.taskId, {
+                        signal: controller.signal,
+                        onUpdate: (task) => updateGenerationTaskNodes(task),
+                    });
+                    updateGenerationTaskNodes(final);
+                    if (final.status !== "success" || !final.images[0]) throw new Error(generationTaskFailureDetails(final));
+                    const uploaded = await resolveGenerationTaskImage(final.images[0]);
                     setNodes((prev) =>
-                        prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...imageMetadata(uploaded), prompt: scene, model: generationConfig.model, status: NODE_STATUS_SUCCESS, errorDetails: undefined } } : node)),
+                        prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, ...imageMetadata(uploaded), prompt: scene, model: normalizeNodeModelKey(generationConfig.model), status: NODE_STATUS_SUCCESS, errorDetails: undefined } } : node)),
                     );
                     setDialogNodeId(null);
+                    refreshAccountAfterGenerationTask();
                 } catch (error) {
                     if (!isGenerationCanceled(error)) {
                         const errorDetails = error instanceof Error ? error.message : "生成失败";
@@ -2223,7 +2413,6 @@ function InfiniteCanvasPage() {
                     const rowGap = 36;
                     const rootId = isEmptyImageNode ? nodeId : nanoid();
                     const childIds = count > 1 ? Array.from({ length: count }, () => nanoid()) : [];
-                    const targetIds = count > 1 ? childIds : [rootId];
                     pendingChildIds = isEmptyImageNode ? childIds : [rootId, ...childIds];
                     const rootNode: CanvasNodeData = {
                         id: rootId,
@@ -2300,57 +2489,112 @@ function InfiniteCanvasPage() {
                     setDialogNodeId(nodeId);
 
                     const controller = runController;
-                    targetIds.forEach((targetId) => startGenerationRequest(targetId, nodeId, nodeId, controller));
-                    if (count > 1) startGenerationRequest(rootId, nodeId, nodeId, controller);
-                    let hasSuccess = false;
-                    let hasFailure = false;
-                    await Promise.all(
-                        targetIds.map(async (targetId) => {
-                            try {
-                                const image = referenceImages.length
-                                    ? await requestEdit({ ...generationConfig, count: "1" }, effectivePrompt, referenceImages, undefined, { signal: controller.signal }).then((items) => items[0])
-                                    : await requestGeneration({ ...generationConfig, count: "1" }, effectivePrompt, { signal: controller.signal }).then((items) => items[0]);
-                                const uploaded = await uploadImage(image.dataUrl);
-                                const imageSize = fitNodeSize(uploaded.width, uploaded.height, imageConfig.width, imageConfig.height);
-                                setNodes((prev) => {
-                                    const root = prev.find((node) => node.id === rootId);
-                                    return prev.map((node) => {
-                                        if (node.id !== targetId && node.id !== rootId) return node;
-                                        const center = { x: node.position.x + node.width / 2, y: node.position.y + node.height / 2 };
-                                        if (node.id === rootId && (targetId === rootId || !root?.metadata?.primaryImageId))
-                                            return {
-                                                ...node,
-                                                position: { x: center.x - imageSize.width / 2, y: center.y - imageSize.height / 2 },
-                                                width: imageSize.width,
-                                                height: imageSize.height,
-                                                metadata: { ...node.metadata, ...imageMetadata(uploaded), primaryImageId: targetId },
-                                            };
-                                        if (node.id === targetId)
-                                            return {
-                                                ...node,
-                                                position: { x: center.x - imageSize.width / 2, y: center.y - imageSize.height / 2 },
-                                                width: imageSize.width,
-                                                height: imageSize.height,
-                                                metadata: { ...node.metadata, ...imageMetadata(uploaded) },
-                                            };
-                                        return node;
-                                    });
-                                });
-                                hasSuccess = true;
-                                if (isConfigNode) setNodes((prev) => prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_SUCCESS, errorDetails: undefined } } : node)));
-                                return true;
-                            } catch (error) {
-                                if (isGenerationCanceled(error)) return false;
-                                const errorDetails = error instanceof Error ? error.message : "生成失败";
-                                hasFailure = true;
-                                setNodes((prev) => prev.map((node) => (node.id === targetId ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails } } : node)));
-                            } finally {
-                                finishGenerationRequest(targetId, controller);
-                            }
-                            return false;
+                    // Task 8：整批走一个持久任务（imageCount=count），逐张结算、局部成功 partial；
+                    // 幂等键按本次操作生成一次，网络重试复用同一键，不产生重复 Provider 任务。
+                    let submitted: GenerationTask;
+                    try {
+                        submitted = await submitNodeImageGeneration(getGenerationApi(), {
+                            prompt: effectivePrompt,
+                            model: generationConfig.model,
+                            routeId: sourceNode?.metadata?.routeId,
+                            size: generationConfig.size,
+                            quality: generationConfig.quality,
+                            imageCount: count,
+                            referenceImages,
+                            clientRequestId: createClientRequestId(),
+                        });
+                    } catch (error) {
+                        const errorDetails = error instanceof Error ? error.message : "生图任务提交失败";
+                        message.error(errorDetails);
+                        setNodes((prev) =>
+                            prev.map((node) =>
+                                node.id === nodeId || pendingChildIds.includes(node.id) ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails } } : node,
+                            ),
+                        );
+                        finishGenerationRequest(nodeId, controller);
+                        setRunningNodeId(null);
+                        return;
+                    }
+                    const batchTargetIds = [rootId, ...childIds];
+                    setNodes((prev) =>
+                        prev.map((node) => {
+                            const imageIndex = batchTargetIds.indexOf(node.id);
+                            return imageIndex >= 0 ? { ...node, metadata: { ...node.metadata, generationTask: taskStateFromGenerationTask(submitted, imageIndex) } } : node;
                         }),
                     );
-                    if (count > 1) finishGenerationRequest(rootId, controller);
+                    batchTargetIds.forEach((targetId) => startGenerationRequest(targetId, nodeId, nodeId, controller));
+                    let hasSuccess = false;
+                    let hasFailure = false;
+                    try {
+                        const final = await waitNodeImageGeneration(getGenerationApi(), submitted.taskId, {
+                            signal: controller.signal,
+                            onUpdate: (task) => updateGenerationTaskNodes(task),
+                        });
+                        updateGenerationTaskNodes(final);
+                        if (final.status === "success" && final.images.length) {
+                            await Promise.all(
+                                batchTargetIds.map(async (targetId, imageIndex) => {
+                                    const image = final.images[imageIndex];
+                                    if (!image) {
+                                        hasFailure = true;
+                                        setNodes((prev) => prev.map((node) => (node.id === targetId ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails: "该张图片生成失败，未结算部分已退款" } } : node)));
+                                        return;
+                                    }
+                                    try {
+                                        const uploaded = await resolveGenerationTaskImage(image);
+                                        const imageSize = fitNodeSize(uploaded.width, uploaded.height, imageConfig.width, imageConfig.height);
+                                        setNodes((prev) => {
+                                            const root = prev.find((node) => node.id === rootId);
+                                            return prev.map((node) => {
+                                                if (node.id !== targetId && node.id !== rootId) return node;
+                                                const center = { x: node.position.x + node.width / 2, y: node.position.y + node.height / 2 };
+                                                if (node.id === rootId && (targetId === rootId || !root?.metadata?.primaryImageId))
+                                                    return {
+                                                        ...node,
+                                                        position: { x: center.x - imageSize.width / 2, y: center.y - imageSize.height / 2 },
+                                                        width: imageSize.width,
+                                                        height: imageSize.height,
+                                                        metadata: { ...node.metadata, ...imageMetadata(uploaded), primaryImageId: targetId },
+                                                    };
+                                                if (node.id === targetId)
+                                                    return {
+                                                        ...node,
+                                                        position: { x: center.x - imageSize.width / 2, y: center.y - imageSize.height / 2 },
+                                                        width: imageSize.width,
+                                                        height: imageSize.height,
+                                                        metadata: { ...node.metadata, ...imageMetadata(uploaded) },
+                                                    };
+                                                return node;
+                                            });
+                                        });
+                                        hasSuccess = true;
+                                    } catch {
+                                        hasFailure = true;
+                                        setNodes((prev) => prev.map((node) => (node.id === targetId ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails: "结果图片保存失败" } } : node)));
+                                    }
+                                }),
+                            );
+                            if (isConfigNode && hasSuccess) setNodes((prev) => prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_SUCCESS, errorDetails: undefined } } : node)));
+                            if (final.partial) message.warning(final.warnings[0] || "部分图片生成失败，已按实际成功数量结算");
+                        } else {
+                            hasFailure = true;
+                            const errorDetails = final.status === "success" ? "全部图片生成失败" : generationTaskFailureDetails(final);
+                            setNodes((prev) =>
+                                prev.map((node) => (batchTargetIds.includes(node.id) ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails } } : node)),
+                            );
+                        }
+                    } catch (error) {
+                        // 本地中止（含取消任务）：stopGenerationByRunningId 已复位节点，直接返回。
+                        if (isGenerationCanceled(error)) return;
+                        hasFailure = true;
+                        const errorDetails = error instanceof Error ? error.message : "生成失败";
+                        setNodes((prev) =>
+                            prev.map((node) => (batchTargetIds.includes(node.id) ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails } } : node)),
+                        );
+                    } finally {
+                        batchTargetIds.forEach((targetId) => finishGenerationRequest(targetId, controller));
+                        refreshAccountAfterGenerationTask();
+                    }
                     if (controller.signal.aborted) {
                         setNodes((prev) => prev.map((node) => (node.id === nodeId && isConfigNode && node.metadata?.status === NODE_STATUS_LOADING ? { ...node, metadata: { ...node.metadata, status: NODE_STATUS_IDLE, errorDetails: undefined } } : node)));
                         return;
@@ -2539,7 +2783,7 @@ function InfiniteCanvasPage() {
                 setRunningNodeId(null);
             }
         },
-        [effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, startGenerationRequest],
+        [effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, startGenerationRequest, updateGenerationTaskNodes, refreshAccountAfterGenerationTask],
     );
     useEffect(() => {
         generateNodeRef.current = handleGenerateNode;
@@ -2562,7 +2806,13 @@ function InfiniteCanvasPage() {
                           count: "1",
                       }
                     : { ...buildGenerationConfig(effectiveConfig, sourceNode, node.type === CanvasNodeType.Text ? "text" : node.type === CanvasNodeType.Video ? "video" : node.type === CanvasNodeType.Audio ? "audio" : "image"), count: "1" };
-            if (!isAiConfigReady(generationConfig, generationConfig.model)) {
+            // Task 8：图片节点重试走同源持久任务，不校验本地 Provider 渠道配置。
+            if (node.type === CanvasNodeType.Image) {
+                if (!normalizeNodeModelKey(generationConfig.model)) {
+                    message.warning("找不到可用模型，无法重试");
+                    return;
+                }
+            } else if (!isAiConfigReady(generationConfig, generationConfig.model)) {
                 openConfigDialog(true);
                 return;
             }
@@ -2638,10 +2888,30 @@ function InfiniteCanvasPage() {
                     return;
                 }
 
-                const image = useReferenceImages
-                    ? await requestEdit(generationConfig, prompt, retryImages, undefined, { signal: controller.signal }).then((items) => items[0])
-                    : await requestGeneration(generationConfig, prompt, { signal: controller.signal }).then((items) => items[0]);
-                const uploadedImage = await uploadImage(image.dataUrl);
+                // Task 8：图片重试统一走持久任务；已有失败/取消任务记录时走人工重试（全新任务 + 新幂等键）。
+                const previousTask = node.metadata?.generationTask;
+                const submitted =
+                    previousTask?.taskId && (previousTask.status === "failed" || previousTask.status === "cancelled")
+                        ? await retryNodeGenerationTask(previousTask)
+                        : await submitNodeImageGeneration(getGenerationApi(), {
+                              prompt,
+                              model: generationConfig.model,
+                              routeId: node.metadata?.routeId || sourceNode.metadata?.routeId,
+                              size: generationConfig.size,
+                              quality: generationConfig.quality,
+                              imageCount: 1,
+                              referenceImages: retryImages,
+                              clientRequestId: createClientRequestId(),
+                          });
+                setNodes((prev) => prev.map((item) => (item.id === node.id ? { ...item, metadata: { ...item.metadata, generationTask: taskStateFromGenerationTask(submitted, 0) } } : item)));
+                const final = await waitNodeImageGeneration(getGenerationApi(), submitted.taskId, {
+                    signal: controller.signal,
+                    onUpdate: (task) => updateGenerationTaskNodes(task),
+                });
+                updateGenerationTaskNodes(final);
+                if (final.status !== "success" || !final.images[0]) throw new Error(generationTaskFailureDetails(final));
+                const uploadedImage = await resolveGenerationTaskImage(final.images[0]);
+                refreshAccountAfterGenerationTask();
                 const imageConfig = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
                 const imageSize = fitNodeSize(uploadedImage.width, uploadedImage.height, imageConfig.width, imageConfig.height);
                 const generationMetadata = savedImageMetadata?.generationType
@@ -2678,7 +2948,7 @@ function InfiniteCanvasPage() {
                 setRunningNodeId(null);
             }
         },
-        [effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, startGenerationRequest],
+        [effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, startGenerationRequest, updateGenerationTaskNodes, refreshAccountAfterGenerationTask, retryNodeGenerationTask],
     );
 
     const generateImageFromTextNode = useCallback(
@@ -3056,6 +3326,7 @@ function InfiniteCanvasPage() {
                             onSetBatchPrimary={setBatchPrimary}
                             onRetry={handleNodeRetry}
                             onGenerateImage={generateImageFromTextNode}
+                            onCancelTask={handleCancelGenerationTask}
                             onViewImage={handleNodeViewImage}
                             onContextMenu={handleNodeContextMenu}
                         />

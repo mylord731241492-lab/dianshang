@@ -18,12 +18,15 @@ export type NavigateLike = (url: string) => void;
 export class ApiError extends Error {
     readonly status: number;
     readonly code: string | undefined;
+    /** 429 等限流响应的 Retry-After 秒数；未提供时为 undefined。 */
+    readonly retryAfterSeconds: number | undefined;
 
-    constructor(status: number, message: string, code?: string) {
+    constructor(status: number, message: string, code?: string, retryAfterSeconds?: number) {
         super(message);
         this.name = "ApiError";
         this.status = status;
         this.code = code;
+        this.retryAfterSeconds = retryAfterSeconds;
     }
 }
 
@@ -64,7 +67,9 @@ async function toApiError(response: Response): Promise<ApiError> {
     const message =
         typeof payload?.message === "string" && payload.message ? payload.message : `请求失败（HTTP ${response.status}）`;
     const code = typeof payload?.code === "string" && payload.code ? payload.code : undefined;
-    return new ApiError(response.status, message, code);
+    const retryAfterHeader = response.headers?.get?.("Retry-After");
+    const retryAfterSeconds = retryAfterHeader !== null && retryAfterHeader !== undefined && Number.isFinite(Number(retryAfterHeader)) ? Number(retryAfterHeader) : undefined;
+    return new ApiError(response.status, message, code, retryAfterSeconds);
 }
 
 export function createHttpClient(config: HttpClientConfig) {

@@ -27,6 +27,23 @@ export type CanvasNodeStatus = "idle" | "success" | "loading" | "error";
 export type CanvasGenerationMode = "text" | "image" | "video" | "audio";
 export type CanvasImageGenerationType = "generation" | "edit";
 
+// 持久生图任务在节点上的状态快照（Task 8）：刷新项目后对非终态 taskId 继续轮询，不重新提交。
+export type CanvasGenerationTaskState = {
+    taskId: string;
+    assetId?: string;
+    status: "pending" | "running" | "success" | "failed" | "cancelled";
+    stage?: string;
+    progressText?: string;
+    resultUrls?: string[];
+    billingStatus?: string;
+    errorCode?: string;
+    /** 批次内该节点对应的结果图序号（根节点为 0）。 */
+    imageIndex?: number;
+    /** 上游计费状态；unknown 表示计费歧义（ADR-0004）。 */
+    providerBillingStatus?: string;
+    upstreamBillingAmbiguous?: boolean;
+};
+
 export type CanvasNodeMetadata = {
     content?: string;
     composerContent?: string;
@@ -65,6 +82,8 @@ export type CanvasNodeMetadata = {
     durationMs?: number;
     groupId?: string;
     promptReference?: HjmPromptReference; // 插入提示词时保存 scope + promptId + version + contentSnapshot（Task 7）
+    routeId?: string; // 生成配置节点选择的后端线路（Task 8，来自 /api/user/routes）
+    generationTask?: CanvasGenerationTaskState; // 持久生图任务状态（Task 8）
     interactive?: boolean; // 插件节点「交互 ⇄ 移动」开关状态(见 CanvasNodeDefinition.interactionToggle)
 };
 

@@ -7,6 +7,7 @@ import { formatBytes } from "@/lib/image-utils";
 import { getNodeDefinition } from "@/lib/canvas/node-registry";
 import { buildNodeContext } from "@/lib/canvas/plugin-node-context";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { ImageGenerationPending } from "@/components/image-generation-pending";
 import { CanvasResourceMentionTextarea } from "./canvas-resource-mention-textarea";
 import { CanvasNodeType, type CanvasNodeData, type Position } from "@/types/canvas";
 import type { CanvasNodeContext, CanvasPluginHost } from "@/types/canvas-plugin";
@@ -52,6 +53,7 @@ type CanvasNodeProps = {
     onRetry?: (node: CanvasNodeData) => void;
     onGenerateImage?: (node: CanvasNodeData) => void;
     onViewImage?: (node: CanvasNodeData) => void;
+    onCancelTask?: (node: CanvasNodeData) => void;
     onContextMenu: (event: React.MouseEvent, nodeId: string) => void;
 };
 
@@ -72,6 +74,7 @@ type NodeContentRendererProps = {
     mentionReferences: CanvasResourceReference[];
     onRetry?: (node: CanvasNodeData) => void;
     onGenerateImage?: (node: CanvasNodeData) => void;
+    onCancelTask?: (node: CanvasNodeData) => void;
     onToggleBatch?: () => void;
     onSetBatchPrimary?: () => void;
     groupChildCount: number;
@@ -113,6 +116,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     onRetry,
     onGenerateImage,
     onViewImage,
+    onCancelTask,
     onContextMenu,
 }: CanvasNodeProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -407,6 +411,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                         onStopEditing={() => setIsEditingContent(false)}
                         onRetry={onRetry}
                         onGenerateImage={onGenerateImage}
+                        onCancelTask={onCancelTask}
                         onToggleBatch={() => onToggleBatch?.(data.id)}
                         onSetBatchPrimary={() => onSetBatchPrimary?.(data)}
                         groupChildCount={groupChildCount}
@@ -434,7 +439,7 @@ export const CanvasNode = React.memo(function CanvasNode({
 function NodeContent(props: NodeContentRendererProps) {
     if (props.node.type === CanvasNodeType.Config && props.renderNodeContent) return props.renderNodeContent(props.node);
     if (props.isBatchRoot) return <ImageNodeContent {...props} />;
-    if (props.node.metadata?.status === "loading") return <LoadingContent theme={props.theme} />;
+    if (props.node.metadata?.status === "loading") return <LoadingContent node={props.node} theme={props.theme} onCancelTask={props.onCancelTask} />;
     if (props.node.metadata?.status === "error") return <ErrorContent node={props.node} theme={props.theme} onRetry={props.onRetry} />;
 
     const Renderer = nodeContentRenderers[props.node.type as CanvasNodeType];
@@ -475,7 +480,18 @@ function GroupNodeContent({ node, theme, groupChildCount }: NodeContentRendererP
     );
 }
 
-function LoadingContent({ theme }: Pick<NodeContentRendererProps, "theme">) {
+function LoadingContent({ node, theme, onCancelTask }: Pick<NodeContentRendererProps, "node" | "theme" | "onCancelTask">) {
+    const task = node.metadata?.generationTask;
+    if (task) {
+        return (
+            <ImageGenerationPending
+                compact
+                className="h-full w-full"
+                task={{ status: task.status, stage: task.stage, progressText: task.progressText, billingStatus: task.billingStatus }}
+                onCancel={onCancelTask ? () => onCancelTask(node) : undefined}
+            />
+        );
+    }
     return (
         <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.activeStroke }}>
             <div className="size-10 animate-spin rounded-full border-2" style={{ borderColor: theme.node.stroke, borderTopColor: theme.node.activeStroke }} />
@@ -485,6 +501,23 @@ function LoadingContent({ theme }: Pick<NodeContentRendererProps, "theme">) {
 }
 
 function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "node" | "theme" | "onRetry">) {
+    const task = node.metadata?.generationTask;
+    if (task) {
+        return (
+            <ImageGenerationPending
+                compact
+                className="h-full w-full"
+                failed
+                task={{
+                    errorMessage: node.metadata?.errorDetails || task.progressText,
+                    billingStatus: task.billingStatus,
+                    providerBillingStatus: task.providerBillingStatus,
+                    upstreamBillingAmbiguous: task.upstreamBillingAmbiguous,
+                }}
+                onRetry={onRetry ? () => onRetry(node) : undefined}
+            />
+        );
+    }
     return (
         <div className="flex max-w-[260px] flex-col items-center gap-3 px-5 text-center">
             <div className="text-xs leading-5 text-red-300">{node.metadata?.errorDetails || "生成失败"}</div>
@@ -571,7 +604,7 @@ function ImageNodeContent(props: NodeContentRendererProps) {
     if (!props.node.metadata?.content && props.isBatchRoot) {
         const content =
             props.node.metadata?.status === "loading" ? (
-                <LoadingContent theme={props.theme} />
+                <LoadingContent node={props.node} theme={props.theme} onCancelTask={props.onCancelTask} />
             ) : props.node.metadata?.status === "error" ? (
                 <ErrorContent node={props.node} theme={props.theme} onRetry={props.onRetry} />
             ) : (

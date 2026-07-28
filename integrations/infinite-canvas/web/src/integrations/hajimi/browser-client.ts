@@ -6,12 +6,17 @@ import { ApiError, AUTH_TOKEN_KEY, clearSessionAndRedirect, createHttpClient } f
 import { createProjectsApi, type ProjectsApi } from "./projects-api";
 import { createAssetsApi, type AssetsApi } from "./assets-api";
 import { createPromptsApi, type PromptsApi } from "./prompts-api";
+import { createGenerationApi, type GenerationApi } from "./generation-api";
+import { createModelsApi, type ModelsApi } from "./models-api";
+import { mapProfileToUser } from "./auth";
 import { useUserStore } from "@/stores/use-user-store";
 
 let cachedClient: ReturnType<typeof createHttpClient> | null = null;
 let cachedProjectsApi: ProjectsApi | null = null;
 let cachedAssetsApi: AssetsApi | null = null;
 let cachedPromptsApi: PromptsApi | null = null;
+let cachedGenerationApi: GenerationApi | null = null;
+let cachedModelsApi: ModelsApi | null = null;
 
 const browserStorage = {
     getItem: (key: string) => window.localStorage.getItem(key),
@@ -94,4 +99,22 @@ export function getPromptsApi(): PromptsApi {
     if (cachedPromptsApi) return cachedPromptsApi;
     cachedPromptsApi = createPromptsApi(getHttpClient());
     return cachedPromptsApi;
+}
+
+export function getGenerationApi(): GenerationApi {
+    if (cachedGenerationApi) return cachedGenerationApi;
+    cachedGenerationApi = createGenerationApi(getHttpClient());
+    return cachedGenerationApi;
+}
+
+export function getModelsApi(): ModelsApi {
+    if (cachedModelsApi) return cachedModelsApi;
+    cachedModelsApi = createModelsApi(getHttpClient());
+    return cachedModelsApi;
+}
+
+// 任务终态后重新拉取用户资料（余额事实源在服务端，前端不自行计算余额）。
+export async function refreshSessionUser(): Promise<void> {
+    const payload = await getHttpClient().get("/api/user/profile");
+    useUserStore.getState().setUser(mapProfileToUser(payload as Parameters<typeof mapProfileToUser>[0]));
 }

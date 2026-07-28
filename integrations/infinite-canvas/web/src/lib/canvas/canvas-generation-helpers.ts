@@ -110,7 +110,13 @@ export function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | u
 }
 
 export function resetInterruptedGeneration(nodes: CanvasNodeData[]) {
-    return nodes.map((node) => (node.metadata?.status === "loading" ? { ...node, metadata: { ...node.metadata, status: "error" as const, errorDetails: "页面刷新后生成已中断，请重新生成。" } } : node));
+    return nodes.map((node) => {
+        if (node.metadata?.status !== "loading") return node;
+        // 持久生图任务仍是非终态：刷新后继续轮询（Task 8），不标记中断。
+        const task = node.metadata.generationTask;
+        if (task?.taskId && (task.status === "pending" || task.status === "running")) return node;
+        return { ...node, metadata: { ...node.metadata, status: "error" as const, errorDetails: "页面刷新后生成已中断，请重新生成。" } };
+    });
 }
 
 export function isGenerationCanceled(error: unknown) {

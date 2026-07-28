@@ -119,11 +119,16 @@ function createGenerationTaskRepository(options = {}) {
     `);
     ensureColumn(db, 'generations', 'task_id', "TEXT DEFAULT ''");
     ensureColumn(db, 'generations', 'item_index', 'INTEGER');
+    // Task 8：生成结果关联云端资产库；旧记录保持 asset_id=NULL，不启动时批量复制。
+    ensureColumn(db, 'generations', 'asset_id', 'TEXT');
     ensureColumn(db, 'balance_logs', 'task_id', "TEXT DEFAULT ''");
     db.exec(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_generations_task_item
         ON generations(task_id, item_index)
         WHERE task_id IS NOT NULL AND task_id <> '' AND item_index IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_generations_user_asset
+        ON generations(user_id, asset_id)
+        WHERE asset_id IS NOT NULL;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_balance_logs_task_type
         ON balance_logs(task_id, type)
         WHERE task_id IS NOT NULL AND task_id <> '';
@@ -498,8 +503,8 @@ function createGenerationTaskRepository(options = {}) {
     const generationCost = Number(item.unit_cost || 0) / Math.max(1, images.length);
     const insertGeneration = db.prepare(`
       INSERT OR IGNORE INTO generations (
-        id,user_id,model_key,prompt,result_url,cost,status,task_id,item_index
-      ) VALUES (?,?,?,?,?,?,?,?,?)
+        id,user_id,model_key,prompt,result_url,cost,status,task_id,item_index,asset_id
+      ) VALUES (?,?,?,?,?,?,?,?,?,?)
     `);
     images.forEach((image, offset) => {
       insertGeneration.run(
@@ -511,7 +516,8 @@ function createGenerationTaskRepository(options = {}) {
         generationCost,
         'completed',
         task.id,
-        (Number(input.itemIndex) * 100) + offset
+        (Number(input.itemIndex) * 100) + offset,
+        image.assetId || image.asset_id || null
       );
     });
     if (input.requestMeta) {

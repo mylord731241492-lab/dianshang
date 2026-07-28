@@ -103,6 +103,33 @@ function createAssetService(options = {}) {
     return asset;
   }
 
+  // 生图任务成功结果落云端资产库（Task 8）：字节已由生图管道校验过，仍以 magic bytes 复核；
+  // source='generated' 与手动上传（upload）、历史导入（generation）区分。
+  async function storeGeneratedAsset({ userId, buffer, name }) {
+    if (!Buffer.isBuffer(buffer) || !buffer.length) {
+      throw storageError(400, 'ASSET_FILE_REQUIRED', '缺少生成结果文件');
+    }
+    return storeValidatedBuffer({
+      userId,
+      buffer,
+      declaredMime: '',
+      name: String(name || '').trim() || '生成图片',
+      source: 'generated'
+    });
+  }
+
+  // 同步签发 15 分钟读取 URL：只做 HMAC，不触存储；供任务轮询响应附带 assetId 的短时展示 URL。
+  function signAccessUrl(assetId) {
+    const id = String(assetId || '').trim();
+    if (!id) throw storageError(400, 'ASSET_ID_REQUIRED', '缺少资产 ID');
+    const expires = Math.floor(Date.now() / 1000) + accessUrlTtlSeconds;
+    return {
+      url: `/api/asset-content/${encodeURIComponent(id)}?expires=${expires}&sig=${sign(id, expires)}`,
+      expiresAt: new Date(expires * 1000).toISOString(),
+      expiresInSeconds: accessUrlTtlSeconds
+    };
+  }
+
   async function uploadAsset({ userId, file }) {
     if (!file || !Buffer.isBuffer(file.buffer) || !file.buffer.length) {
       throw storageError(400, 'ASSET_FILE_REQUIRED', '缺少上传文件');
@@ -192,6 +219,8 @@ function createAssetService(options = {}) {
     storage,
     uploadAsset,
     importGeneration,
+    storeGeneratedAsset,
+    signAccessUrl,
     listAssets,
     getAsset,
     updateAsset,

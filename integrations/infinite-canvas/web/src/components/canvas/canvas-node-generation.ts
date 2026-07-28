@@ -3,8 +3,9 @@ import { imageReferenceLabel } from "@/lib/image-reference-prompt";
 import { seedanceReferenceLabel } from "@/lib/seedance-video";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
-import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "@/types/canvas";
+import { CanvasNodeType, type CanvasConnection, type CanvasGenerationTaskState, type CanvasNodeData } from "@/types/canvas";
 import { getGenerationResourceNodes } from "@/lib/canvas/canvas-resource-references";
+import { taskStageLabel, type GenerationApi, type GenerationTask } from "@/integrations/hajimi/generation-api";
 
 export type NodeGenerationContext = {
     prompt: string;
@@ -143,6 +144,65 @@ export function buildNodeResponseMessages(context: NodeGenerationContext): AiTex
 export async function hydrateNodeGenerationContext(context: NodeGenerationContext) {
     const { imageToDataUrl } = await import("@/services/image-storage");
     return { ...context, referenceImages: await Promise.all(context.referenceImages.map(async (image) => ({ ...image, dataUrl: await imageToDataUrl(image) }))) };
+}
+
+// ---- Task 8：画布生图统一走同源持久任务 /api/generate/tasks（禁止 Provider 直连）----
+
+export type NodeImageGenerationSubmit = {
+    prompt: string;
+    /** 模型键（gpt-image-2 等）；兼容旧 "channel::model" 形态，只取模型部分。 */
+    model: string;
+    routeId?: string;
+    /** 比例（1:1 或 auto），来自节点/全局配置的 size 字段。 */
+    size?: string;
+    quality?: string;
+    imageCount: number;
+    referenceImages: ReferenceImage[];
+    clientRequestId: string;
+};
+
+export function normalizeNodeModelKey(model: string): string {
+    const text = String(model || "").trim();
+    return text.includes("::") ? text.split("::").pop()!.trim() : text;
+}
+
+// 节点 metadata.generationTask 快照：只保存计划字段，不保存 accessUrl（短时效，不落项目 JSON）。
+export function taskStateFromGenerationTask(task: GenerationTask, imageIndex?: number): CanvasGenerationTaskState {
+    return {
+        taskId: task.taskId,
+        assetId: task.assetId,
+        status: task.status,
+        stage: task.stage,
+        progressText: task.errorMessage || taskStageLabel(task.stage),
+        resultUrls: task.images.map((image) => image.url),
+        billingStatus: task.billingStatus,
+        errorCode: task.errorCode || undefined,
+        imageIndex,
+        providerBillingStatus: task.providerBillingStatus,
+        upstreamBillingAmbiguous: task.upstreamBillingAmbiguous || undefined,
+    };
+}
+
+// 创建持久生图任务：幂等键由调用方按操作生成并复用；参考图以 dataUrl/url 提交，服务端暂存任务文件。
+export async function submitNodeImageGeneration(api: GenerationApi, input: NodeImageGenerationSubmit): Promise<GenerationTask> {
+    return api.submit({
+        prompt: input.prompt,
+        modelKey: normalizeNodeModelKey(input.model),
+        routeId: input.routeId,
+        ratio: input.size,
+        quality: input.quality,
+        imageCount: input.imageCount,
+        clientRequestId: input.clientRequestId,
+        referenceImages: input.referenceImages.map((image) =>
+            image.dataUrl.startsWith("data:")
+                ? { name: image.name, type: image.type, dataUrl: image.dataUrl }
+                : { name: image.name, type: image.type, url: image.dataUrl },
+        ),
+    });
+}
+
+export async function waitNodeImageGeneration(api: GenerationApi, taskId: string, options: { signal?: AbortSignal; onUpdate?: (task: GenerationTask) => void } = {}): Promise<GenerationTask> {
+    return api.waitForTask(taskId, { signal: options.signal, onUpdate: options.onUpdate });
 }
 
 function readNodeTextInput(node: CanvasNodeData) {

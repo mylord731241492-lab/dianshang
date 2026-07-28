@@ -57,6 +57,29 @@ export async function uploadImage(input: string | Blob): Promise<UploadedImage> 
     return { url, storageKey, width: meta.width, height: meta.height, bytes: blob.size, mimeType: asset.mimeType || blob.type || meta.mimeType };
 }
 
+// 生图任务结果已在服务端落入资产库（source='generated'）：不重复上传，
+// 只把字节经短时 accessUrl 读进瞬态缓存并读取尺寸，节点保存 storageKey = "asset:<assetId>"。
+export async function adoptCloudAssetImage(assetId: string, accessUrl?: string): Promise<UploadedImage | null> {
+    const storageKey = assetStorageKey(assetId);
+    try {
+        let blob = await store.getItem<Blob>(storageKey);
+        if (!blob) {
+            const url = accessUrl || (await getAssetsApi().getAccessUrl(assetId)).url;
+            const response = await fetch(url);
+            if (!response.ok) return null;
+            blob = await response.blob();
+            await store.setItem(storageKey, blob);
+        }
+        const tempUrl = URL.createObjectURL(blob);
+        const meta = await readImageMeta(tempUrl);
+        URL.revokeObjectURL(tempUrl);
+        const url = rememberObjectUrl(storageKey, blob);
+        return { url, storageKey, width: meta.width, height: meta.height, bytes: blob.size, mimeType: blob.type || meta.mimeType };
+    } catch {
+        return null;
+    }
+}
+
 export async function resolveImageUrl(storageKey?: string, fallback = "") {
     if (!storageKey) return fallback;
     const cached = objectUrls.get(storageKey);

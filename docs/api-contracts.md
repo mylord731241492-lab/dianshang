@@ -73,9 +73,9 @@
 
 | Method | Path | 状态 | 说明 |
 | --- | --- | --- | --- |
-| POST | `/api/generation/estimate-cost` | mock | 估算点数 |
+| POST | `/api/generation/estimate-cost` | mock | 估算点数；**POST**（JSON 请求体 `modelKey/routeId/imageCount`），返回 `estimatedCost/totalCost/available` |
 | POST | `/api/generate/tasks` | Provider + local-db + local-files | 创建 SQLite 持久任务并在同一事务中预占余额，返回 HTTP 202。支持 `Idempotency-Key` 请求头或 `clientRequestId`；同一用户相同键和请求返回原 `taskId` 且 `replayed=true`，请求不同返回 `409 IDEMPOTENCY_KEY_REUSED`。响应包含 `taskId/status/queuePosition/reservedCost/replayed`。每用户最多 3 个非终态任务，全站最多 30 个，超限返回 429 与 `Retry-After`。参考图最多 4 张、单张解码后 5 MiB、合计 16 MiB，请求体 24 MiB；任务目录最多保留 24 小时。 |
-| GET | `/api/generate/tasks/:id` | local-db | 仅任务所属用户可查询。状态兼容 `pending/running/success/failed` 并增加 `cancelled`；返回 `stage/queuePosition/startedAt/finishedAt/elapsedMs/canCancel/retryAfterMs/reservedCost/settledCost/billingStatus`。线路冷却时 `stage=provider_degraded`；失败任务的 `request` 可包含脱敏 `responseDiagnostics/providerBillingStatus/upstreamBillingAmbiguous/billingAuditRequired`。部分成功仍返回 `success`，同时设置 `partial=true` 和 `warnings`。 |
+| GET | `/api/generate/tasks/:id` | local-db | 仅任务所属用户可查询。状态兼容 `pending/running/success/failed` 并增加 `cancelled`；返回 `stage/queuePosition/startedAt/finishedAt/elapsedMs/canCancel/retryAfterMs/reservedCost/settledCost/billingStatus`。线路冷却时 `stage=provider_degraded`；失败任务的 `request` 可包含脱敏 `responseDiagnostics/providerBillingStatus/upstreamBillingAmbiguous/billingAuditRequired`。部分成功仍返回 `success`，同时设置 `partial=true` 和 `warnings`。已落云端资产库的结果图在 `images[]` 中带 `assetId` 与 15 分钟短时效同源 `accessUrl`（`/api/asset-content/:assetId?expires=&sig=`），响应顶层同时给出首张带资产结果的 `assetId/accessUrl`。 |
 | POST | `/api/generate/tasks/:id/cancel` | local-db + runtime | 仅任务所属用户可取消。`pending` 立即出队并退款；`running` 使用 `AbortController` 中止本地请求并退款，任务记录保留上游可能已计费的歧义。终态任务返回 `409 TASK_NOT_CANCELLABLE`。 |
 | POST | `/api/generate/tasks/:id/retry` | local-db + local-files + runtime | 仅任务所属用户可人工重试 `failed/cancelled` 任务，创建全新任务且不修改原任务。上一单存在上游计费歧义时必须提交 `confirmUpstreamBillingRisk=true`；不自动切换线路、不复用旧幂等键。参考图任务文件已超过 24 小时保留期或丢失时返回 `410 GENERATION_RETRY_INPUT_EXPIRED`。 |
 | POST | `/api/template/reverse-prompt` | mock | 返回提示词建议；兼容 `rawText/rawPrompt`、`prompts/suggestions/items/list/data` |
@@ -88,6 +88,33 @@
 | GET | `/api/chat/status` | runtime-state | 无需登录，只返回 Chat 部署/访问是否可用、维护提示和 `/chat/` 路径；不返回密钥或内部地址 |
 | GET | `/api/mock-image/:id.svg` | mock | 本地占位图 |
 | GET | `/api/proxy-image` | signed proxy | 新远程图使用 HMAC `sig`；旧无签名地址只允许命中已有生成记录；拒绝私网/特殊地址、非 80/443 端口和重定向绕过，限制图片类型与响应体大小 |
+
+### 生图任务请求契约（Task 8 冻结）
+
+`POST /api/generate/tasks` 请求体（JSON，同源，携带主站 JWT）：
+
+| 字段 | 说明 |
+| --- | --- |
+| `prompt` | 文生图提示词；与参考图至少提供其一 |
+| `referenceImages[]` | 图生图参考图，元素为 `{ name, type, dataUrl }`（data URL 形式）；服务端暂存为任务文件后只保留 `localPath`，最多 4 张、单张解码后 5 MiB、合计 16 MiB |
+| `ratio` | 比例，冒号格式如 `1:1`；`auto` 表示按内容自然选择 |
+| `quality` / `sizeTier` | 清晰度档位（`1K/2K/4K` 或 `low/medium/high`），由后端换算真实像素 `size` 与 Provider `quality` |
+| `imageCount` | 张数，1–4（服务端收敛）；预占算力 = 单价 × 张数，按成功张数结算、剩余退款 |
+| `modelKey` | 图片模型键（来自 `/api/user/models?routeId=`） |
+| `routeId` | 线路 ID（来自 `/api/user/routes`）；缺省由后端按当前默认图片线路解析 |
+| `clientRequestId` | 幂等键（等价于 `Idempotency-Key` 请求头）；同一用户相同键 + 相同请求哈希返回原任务且 `replayed=true`，相同键不同请求返回 `409 IDEMPOTENCY_KEY_REUSED`；人工重试不复用旧键 |
+
+任务生命周期与计费语义：
+
+- 创建返回 HTTP 202 与 `taskId/status/queuePosition/reservedCost/replayed/remainingBalance`；任务与余额预占在同一事务写入。每用户最多 3 个非终态任务、全站最多 30 个，超限返回 429 与 `Retry-After`。
+- 轮询 `GET /api/generate/tasks/:id`；`stage` 取值 `queued/provider_degraded/preparing/connecting/awaiting_provider/persisting/done`，对应排队、线路冷却、准备、连接上游、上游生成、保存结果、完成。
+- `billingStatus`：`reserved`（预占中）→ `settled`（全额结算）/ `partially_settled`（部分结算并退差）/ `refunded`（全额退款）。失败退款与“上游计费未知”是两回事：后者以 `request.providerBillingStatus='unknown'` + `request.upstreamBillingAmbiguous=true` 表达（ADR-0004），前端必须区分展示。
+- `POST /:id/cancel`：`pending` 立即出队退款；`running` 中止本地请求并退款，同时记录 `providerBillingStatus='unknown'` 的上游计费歧义；终态任务返回 `409 TASK_NOT_CANCELLABLE`。
+- `POST /:id/retry`：仅 `failed/cancelled` 可人工重试，创建全新任务（服务端生成新幂等键），原任务不变；存在上游计费歧义时必须提交 `confirmUpstreamBillingRisk=true`；参考图超过 24 小时保留期返回 `410 GENERATION_RETRY_INPUT_EXPIRED`。
+- 成功结果由后端写入账号云端资产库（`user_assets.source='generated'`）并把 `generations.asset_id` 关联到资产；任务响应中每张落库结果图带 `assetId` 与 15 分钟短时 `accessUrl`。旧生成记录保持 `asset_id=NULL`，仅通过显式 `/api/user/assets/import-generation` 导入，不做启动时批量复制。
+- 云存储落盘失败不重放 Provider：任务按结果保存失败处理（错误码 `GENERATION_ASSET_PERSIST_FAILED` 或 `PROVIDER_IMAGE_PERSIST_*`），预占退款并记录 `providerBillingStatus='charged_assumed'/unknown` 的计费歧义。
+
+模型、价格与能力只从后端读取：`GET /api/user/routes`（可用线路，含 `defaultModelKey`）、`GET /api/user/models?routeId=<id>`（线路模型，含 `modelKey/displayName/pricePoints`）、`POST /api/generation/estimate-cost`（估费）。前端不得显示或保存 Base URL、API Key 或 Provider 原始配置。
 
 ## Admin
 

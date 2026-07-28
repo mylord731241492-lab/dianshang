@@ -5558,8 +5558,10 @@ function generatedResultImageBytes(image = {}) {
 }
 // 落图成功后：每张结果写入 ObjectStorage + user_assets(source='generated')，assetId 随结果进入 generations.asset_id。
 // 任何云存储失败直接抛出，由调用方按“结果保存失败”规则退款并记录上游计费歧义（ADR-0004），不重放 Provider。
+// context.source='tool' 用于图片编辑工具结果（Task 9），与生图任务结果区分。
 async function attachGeneratedResultAssets(userId, images = [], context = {}) {
   const list = Array.isArray(images) ? images : [];
+  const assetSource = context.source === 'tool' ? 'tool' : 'generated';
   const results = [];
   for (const item of list) {
     const raw = item && typeof item === 'object' ? item : { url: item };
@@ -5571,11 +5573,26 @@ async function attachGeneratedResultAssets(userId, images = [], context = {}) {
     const asset = await assetService.storeGeneratedAsset({
       userId,
       buffer: payload.buffer,
-      name: payload.name || `生成图片 ${context.taskId || ''}`.trim()
+      name: payload.name || `生成图片 ${context.taskId || ''}`.trim(),
+      source: assetSource
     });
     results.push({ ...raw, assetId: asset.id });
   }
   return results;
+}
+
+// Task 9：图片工具结果附带云端资产访问字段——assetId 由落库挂钩写入图片对象，
+// accessUrl 为 15 分钟短时同源签名路径；签名失败不阻断工具响应（仅省略 accessUrl）。
+function withAssetAccessFields(images = []) {
+  return (Array.isArray(images) ? images : []).map((image) => {
+    if (!image || typeof image !== 'object' || !image.assetId) return image;
+    try {
+      const access = assetService.signAccessUrl(image.assetId);
+      return { ...image, accessUrl: access.url, accessUrlExpiresAt: access.expiresAt };
+    } catch {
+      return image;
+    }
+  });
 }
 function normalizeTaskImage(item, idx, taskId) {
   const raw = item && typeof item === 'object' ? item : { url: item };
@@ -6040,6 +6057,10 @@ function makeImageToolResponse(providerResult = {}, body = {}, type = 'inpaint')
     thumbnailUrl: image.preview,
     width,
     height,
+    // Task 9：结果已写入账号云端资产库时，附带 assetId 与 15 分钟短时同源 accessUrl。
+    assetId: image.assetId,
+    accessUrl: image.accessUrl,
+    accessUrlExpiresAt: image.accessUrlExpiresAt,
     resultImages: [image],
     images: [image],
     operation: type,
@@ -6082,7 +6103,11 @@ async function runImageToolEdit(req, res, type = 'inpaint') {
       });
     }
     const persistedImages = await persistProviderImageResults(providerResult.images, providerResult.request);
-    res.json(makeImageToolResponse({ ...providerResult, images: persistedImages }, req.body, operationType));
+    // Task 9：工具结果写入账号云端资产库（source='tool'）；落库失败抛错走下方 500，不重放 Provider。
+    const assetImages = withAssetAccessFields(
+      await attachGeneratedResultAssets(req.user.userId, persistedImages, { source: 'tool' })
+    );
+    res.json(makeImageToolResponse({ ...providerResult, images: assetImages }, req.body, operationType));
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -6123,20 +6148,30 @@ async function runImageToolOutpaint(req, res) {
     }
 
     const persistedImages = await persistProviderImageResults(providerResult.images, providerResult.request);
+    // Task 9：扩图结果写入账号云端资产库（source='tool'）；落库失败抛错走下方 500，不重放 Provider。
+    const assetImages = await attachGeneratedResultAssets(req.user.userId, persistedImages, { source: 'tool' });
     const task = createCompletedTask(req, {
       prompt,
       modelKey: model,
       imageCount: 1,
-      results: persistedImages,
+      results: assetImages,
       request: providerResult.request
     });
+    const taskResponse = makeTaskResponse(task);
+    const imagesWithAccess = withAssetAccessFields(taskResponse.images);
+    const firstAssetImage = imagesWithAccess.find((image) => image && typeof image === 'object' && image.assetId) || null;
     res.json({
       success: true,
       mock: !!providerResult.mock,
       editMode: !!providerResult.editMode,
       provider: providerResult.provider,
       operation: 'outpaint',
-      ...makeTaskResponse(task)
+      ...taskResponse,
+      resultImages: imagesWithAccess,
+      images: imagesWithAccess,
+      assetId: firstAssetImage ? firstAssetImage.assetId : undefined,
+      accessUrl: firstAssetImage && firstAssetImage.accessUrl ? firstAssetImage.accessUrl : undefined,
+      accessUrlExpiresAt: firstAssetImage && firstAssetImage.accessUrlExpiresAt ? firstAssetImage.accessUrlExpiresAt : undefined
     });
   } catch (error) {
     res.status(500).json({

@@ -104,8 +104,9 @@ function createAssetService(options = {}) {
   }
 
   // 生图任务成功结果落云端资产库（Task 8）：字节已由生图管道校验过，仍以 magic bytes 复核；
-  // source='generated' 与手动上传（upload）、历史导入（generation）区分。
-  async function storeGeneratedAsset({ userId, buffer, name }) {
+  // source='generated' 与手动上传（upload）、历史导入（generation）区分；
+  // 图片编辑工具结果（Task 9）传 source='tool' 与生图任务结果区分。
+  async function storeGeneratedAsset({ userId, buffer, name, source }) {
     if (!Buffer.isBuffer(buffer) || !buffer.length) {
       throw storageError(400, 'ASSET_FILE_REQUIRED', '缺少生成结果文件');
     }
@@ -114,7 +115,7 @@ function createAssetService(options = {}) {
       buffer,
       declaredMime: '',
       name: String(name || '').trim() || '生成图片',
-      source: 'generated'
+      source: source === 'tool' ? 'tool' : 'generated'
     });
   }
 

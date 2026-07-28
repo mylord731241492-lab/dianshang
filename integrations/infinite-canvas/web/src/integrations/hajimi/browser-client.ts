@@ -7,6 +7,7 @@ import { createProjectsApi, type ProjectsApi } from "./projects-api";
 import { createAssetsApi, type AssetsApi } from "./assets-api";
 import { createPromptsApi, type PromptsApi } from "./prompts-api";
 import { createGenerationApi, type GenerationApi } from "./generation-api";
+import { createImageToolsApi, type ImageToolsApi } from "./image-tools-api";
 import { createModelsApi, type ModelsApi } from "./models-api";
 import { mapProfileToUser } from "./auth";
 import { useUserStore } from "@/stores/use-user-store";
@@ -16,6 +17,7 @@ let cachedProjectsApi: ProjectsApi | null = null;
 let cachedAssetsApi: AssetsApi | null = null;
 let cachedPromptsApi: PromptsApi | null = null;
 let cachedGenerationApi: GenerationApi | null = null;
+let cachedImageToolsApi: ImageToolsApi | null = null;
 let cachedModelsApi: ModelsApi | null = null;
 
 const browserStorage = {
@@ -111,6 +113,13 @@ export function getModelsApi(): ModelsApi {
     if (cachedModelsApi) return cachedModelsApi;
     cachedModelsApi = createModelsApi(getHttpClient());
     return cachedModelsApi;
+}
+
+// 图片编辑工具（局部重绘/擦除/扩图/反推/免费扩写）：全部走同源 /api/image-tools/* 与 /api/canvas/enhance-prompt。
+export function getImageToolsApi(): ImageToolsApi {
+    if (cachedImageToolsApi) return cachedImageToolsApi;
+    cachedImageToolsApi = createImageToolsApi(getHttpClient());
+    return cachedImageToolsApi;
 }
 
 // 任务终态后重新拉取用户资料（余额事实源在服务端，前端不自行计算余额）。

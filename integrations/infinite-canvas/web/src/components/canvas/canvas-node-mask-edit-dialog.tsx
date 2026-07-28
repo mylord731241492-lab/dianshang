@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Button, Input, Modal, Slider } from "antd";
+import { Button, Input, Modal, Slider, message } from "antd";
 import { Brush, Eraser, RotateCcw, WandSparkles, X } from "lucide-react";
 
 import { readImageMeta } from "@/lib/image-utils";
+import { getImageToolsApi } from "@/integrations/hajimi/browser-client";
+
+export type CanvasMaskEditOperation = "inpaint" | "erase";
 
 export type CanvasImageMaskEditPayload = {
     prompt: string;
     maskDataUrl: string;
+    operation: CanvasMaskEditOperation;
 };
 
 type DrawMode = "paint" | "erase";
@@ -15,15 +19,17 @@ const defaultBrushSize = 100;
 const maskFillColor = "rgba(37, 99, 235, .38)";
 const maskBorderColor = "rgba(255, 255, 255, .72)";
 
-export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: { dataUrl: string; open: boolean; onClose: () => void; onConfirm: (payload: CanvasImageMaskEditPayload) => void }) {
+export function CanvasNodeMaskEditDialog({ dataUrl, open, operation = "inpaint", onClose, onConfirm }: { dataUrl: string; open: boolean; operation?: CanvasMaskEditOperation; onClose: () => void; onConfirm: (payload: CanvasImageMaskEditPayload) => void }) {
     const maskCanvasRef = useRef<HTMLCanvasElement>(null);
     const previewCanvasRef = useRef<HTMLCanvasElement>(null);
     const drawingRef = useRef<{ active: boolean; last: { x: number; y: number } | null }>({ active: false, last: null });
+    const [messageApi, contextHolder] = message.useMessage();
     const [image, setImage] = useState<{ width: number; height: number } | null>(null);
     const [prompt, setPrompt] = useState("");
     const [brushSize, setBrushSize] = useState(defaultBrushSize);
     const [mode, setMode] = useState<DrawMode>("paint");
     const [error, setError] = useState("");
+    const [enhancing, setEnhancing] = useState(false);
 
     useEffect(() => {
         if (!open) return;
@@ -31,6 +37,7 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
         setBrushSize(defaultBrushSize);
         setMode("paint");
         setError("");
+        setEnhancing(false);
         void readImageMeta(dataUrl).then(setImage);
     }, [dataUrl, open]);
 
@@ -92,14 +99,31 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
     const submit = () => {
         const nextPrompt = prompt.trim();
         const canvas = maskCanvasRef.current;
-        if (!nextPrompt) return setError("请输入修改要求");
+        if (operation === "inpaint" && !nextPrompt) return setError("请输入修改要求");
         if (!canvas) return;
         if (!canvasHasPaint(canvas)) return setError("请先涂抹局部区域");
-        onConfirm({ prompt: nextPrompt, maskDataUrl: buildEditMask(canvas) });
+        onConfirm({ prompt: nextPrompt, maskDataUrl: buildEditMask(canvas), operation });
+    };
+
+    // 免费 AI 扩写：只把扩写文本回填到修改要求输入框，不触发任何生图请求；loading 期间防重复点击。
+    const enhancePrompt = async () => {
+        const current = prompt.trim();
+        if (!current || enhancing) return;
+        setEnhancing(true);
+        try {
+            const result = await getImageToolsApi().enhancePrompt({ prompt: current });
+            setPrompt(result.prompt);
+            setError("");
+        } catch (enhanceError) {
+            messageApi.error(enhanceError instanceof Error ? enhanceError.message : "提示词扩写失败");
+        } finally {
+            setEnhancing(false);
+        }
     };
 
     return (
         <Modal title={null} open={open && Boolean(dataUrl)} onCancel={onClose} footer={null} width={980} centered destroyOnHidden>
+            {contextHolder}
             <div className="grid gap-5 lg:grid-cols-[minmax(360px,1fr)_320px]">
                 <div className="flex min-h-[360px] items-center justify-center rounded-xl border border-black/10 bg-transparent p-0 dark:border-white/10">
                     <div className="relative inline-block max-w-full overflow-hidden rounded-lg bg-transparent select-none">
@@ -124,7 +148,7 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
 
                 <div className="flex min-h-[360px] flex-col gap-5">
                     <div>
-                        <h2 className="text-xl font-semibold">局部遮罩编辑</h2>
+                        <h2 className="text-xl font-semibold">{operation === "erase" ? "智能擦除" : "局部遮罩编辑"}</h2>
                         <div className="mt-2 text-sm opacity-60">{image ? `${image.width} x ${image.height}px` : "读取中"}</div>
                     </div>
 
@@ -146,12 +170,17 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
                     </div>
 
                     <div className="space-y-2">
-                        <div className="text-sm font-medium opacity-75">修改要求</div>
+                        <div className="flex items-center justify-between">
+                            <div className="text-sm font-medium opacity-75">{operation === "erase" ? "擦除要求（可选）" : "修改要求"}</div>
+                            <Button size="small" type="text" loading={enhancing} disabled={!prompt.trim()} onClick={() => void enhancePrompt()}>
+                                AI 扩写
+                            </Button>
+                        </div>
                         <Input.TextArea
                             rows={6}
                             value={prompt}
                             status={error && !prompt.trim() ? "error" : undefined}
-                            placeholder="例如：把选中区域改成金属材质，保持原图光影"
+                            placeholder={operation === "erase" ? "例如：移除涂抹区域内的杂物并自然补全背景（可留空）" : "例如：把选中区域改成金属材质，保持原图光影"}
                             onChange={(event) => {
                                 setPrompt(event.target.value);
                                 setError("");
@@ -169,7 +198,7 @@ export function CanvasNodeMaskEditDialog({ dataUrl, open, onClose, onConfirm }: 
                                 取消
                             </Button>
                             <Button type="primary" icon={<WandSparkles className="size-4" />} onClick={submit}>
-                                AI 修改
+                                {operation === "erase" ? "AI 擦除" : "AI 修改"}
                             </Button>
                         </div>
                     </div>

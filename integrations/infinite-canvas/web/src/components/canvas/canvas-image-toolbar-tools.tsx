@@ -1,15 +1,17 @@
 import type { ReactNode } from "react";
-import { Brush, Camera, Copy, FileText, Grid2x2, Lock, LockOpen, Maximize2, Scissors, Sparkles, Upload, ZoomIn } from "lucide-react";
+import { Brush, Camera, Copy, Expand, FileText, Grid2x2, Lock, LockOpen, Maximize2, Scissors, Sparkles, Eraser, Upload, ZoomIn } from "lucide-react";
 
 import type { CanvasNodeData } from "@/types/canvas";
 
-export type ImageNodeActionToolId = "copyPrompt" | "reversePrompt" | "replace" | "resize" | "maskEdit" | "crop" | "split" | "upscale" | "superResolve" | "angle" | "view";
+export type ImageNodeActionToolId = "copyPrompt" | "reversePrompt" | "replace" | "resize" | "maskEdit" | "smartErase" | "outpaint" | "crop" | "split" | "upscale" | "superResolve" | "angle" | "view";
 export type ImageQuickToolId = "info" | "delete" | "saveAsset" | "download" | "edit" | ImageNodeActionToolId;
 
 export type ImageToolHandlers = {
     onUpload: (node: CanvasNodeData) => void;
     onToggleFreeResize: (node: CanvasNodeData) => void;
     onMaskEdit: (node: CanvasNodeData) => void;
+    onSmartErase: (node: CanvasNodeData) => void;
+    onOutpaint: (node: CanvasNodeData) => void;
     onCrop: (node: CanvasNodeData) => void;
     onSplit: (node: CanvasNodeData) => void;
     onUpscale: (node: CanvasNodeData) => void;
@@ -86,6 +88,24 @@ export const imageToolDefinitions: ImageToolDefinition[] = [
         title: "添加蒙版遮罩后局部修改",
         icon: () => <Brush className="size-4" />,
         run: (node, handlers) => handlers.onMaskEdit(node),
+    },
+    {
+        id: "smartErase",
+        defaultVisible: false,
+        panelLabel: "智能擦除",
+        label: "智能擦除",
+        title: "涂抹后移除区域内对象并补全背景",
+        icon: () => <Eraser className="size-4" />,
+        run: (node, handlers) => handlers.onSmartErase(node),
+    },
+    {
+        id: "outpaint",
+        defaultVisible: false,
+        panelLabel: "扩图",
+        label: "扩图",
+        title: "按目标比例自然扩展画面",
+        icon: () => <Expand className="size-4" />,
+        run: (node, handlers) => handlers.onOutpaint(node),
     },
     {
         id: "crop",

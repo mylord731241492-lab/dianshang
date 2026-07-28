@@ -4,11 +4,11 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Group, Video } from "lucide-react";
 import { saveAs } from "file-saver";
 
-import { requestEdit, requestImageQuestion } from "@/services/api/image";
+import { requestImageQuestion } from "@/services/api/image";
 import { requestAudioGeneration, storeGeneratedAudio } from "@/services/api/audio";
 import { requestVideoGeneration, storeGeneratedVideo } from "@/services/api/video";
 import { defaultConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
-import { adoptCloudAssetImage, uploadImage, type UploadedImage } from "@/services/image-storage";
+import { adoptCloudAssetImage, imageToDataUrl, uploadImage, type UploadedImage } from "@/services/image-storage";
 import { uploadMediaFile } from "@/services/file-storage";
 import { nanoid } from "nanoid";
 import { getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
@@ -17,7 +17,7 @@ import { useAssetStore } from "@/stores/use-asset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { cropDataUrl, splitDataUrl, upscaleDataUrl } from "@/lib/canvas/canvas-image-data";
 import { fitNodeSize, nodeSizeFromRatio } from "@/lib/canvas/canvas-node-size";
-import { App, Button, Modal } from "antd";
+import { App, Button, Input, Modal, Select } from "antd";
 import { NODE_DEFAULT_SIZE, getNodeSpec } from "@/constant/canvas";
 import { ActiveConnectionPath, ConnectionPath } from "@/components/canvas/canvas-connections";
 import { CanvasConfigComposer } from "@/components/canvas/canvas-config-composer";
@@ -41,8 +41,9 @@ import { CanvasZoomControls } from "@/components/canvas/canvas-zoom-controls";
 import { useAgentStore } from "@/stores/use-agent-store";
 import { useCanvasStore, type FetchProjectResult } from "@/stores/canvas/use-canvas-store";
 import { ApiError } from "@/integrations/hajimi/http";
-import { getGenerationApi, refreshSessionUser } from "@/integrations/hajimi/browser-client";
+import { getGenerationApi, getImageToolsApi, refreshSessionUser } from "@/integrations/hajimi/browser-client";
 import { createClientRequestId, type GenerationTask, type GenerationTaskImage } from "@/integrations/hajimi/generation-api";
+import type { OutpaintAnchor } from "@/integrations/hajimi/image-tools-api";
 import { generationFailureHint } from "@/components/image-generation-pending";
 import { loadProjectDraft, removeProjectDraft, saveProjectDraft } from "@/integrations/hajimi/project-draft-cache";
 import type { HjmProjectContent } from "@/integrations/hajimi/project-schema";
@@ -151,12 +152,50 @@ const NODE_STATUS_IDLE = "idle" as const;
 const NODE_STATUS_LOADING = "loading" as const;
 const NODE_STATUS_SUCCESS = "success" as const;
 const NODE_STATUS_ERROR = "error" as const;
-const IMAGE_PROMPT_REVERSE_PRESET = `请根据参考图片反推一段适合用于 AI 生图的提示词。
 
-要求：
-1. 只输出提示词正文，不要解释。
-2. 覆盖主体、构图、风格、光线、色彩、材质、镜头和氛围。
-3. 尽量写成可直接用于生图模型的完整提示词。`;
+const OUTPAINT_RATIOS = ["16:9", "9:16", "4:3", "3:4", "1:1"] as const;
+const OUTPAINT_ANCHORS: { value: OutpaintAnchor; label: string }[] = [
+    { value: "center", label: "原图居中" },
+    { value: "top", label: "原图靠上" },
+    { value: "bottom", label: "原图靠下" },
+    { value: "left", label: "原图靠左" },
+    { value: "right", label: "原图靠右" },
+];
+
+type CanvasOutpaintParams = { ratio: string; anchor: OutpaintAnchor; prompt: string };
+
+// 扩图参数弹窗（Task 9）：目标比例 + 布局锚点 + 可选提示词；confirmLoading 期间防重复提交。
+function CanvasNodeOutpaintDialog({ open, submitting, onClose, onConfirm }: { open: boolean; submitting: boolean; onClose: () => void; onConfirm: (params: CanvasOutpaintParams) => void }) {
+    const [ratio, setRatio] = useState<string>("16:9");
+    const [anchor, setAnchor] = useState<OutpaintAnchor>("center");
+    const [prompt, setPrompt] = useState("");
+
+    useEffect(() => {
+        if (!open) return;
+        setRatio("16:9");
+        setAnchor("center");
+        setPrompt("");
+    }, [open]);
+
+    return (
+        <Modal title="扩图" open={open} onCancel={onClose} onOk={() => onConfirm({ ratio, anchor, prompt: prompt.trim() })} okText="开始扩图" cancelText="取消" confirmLoading={submitting} destroyOnHidden width={420}>
+            <div className="space-y-4">
+                <div className="space-y-2">
+                    <div className="text-sm font-medium opacity-75">目标比例</div>
+                    <Select className="w-full" value={ratio} onChange={setRatio} options={OUTPAINT_RATIOS.map((value) => ({ value, label: value }))} />
+                </div>
+                <div className="space-y-2">
+                    <div className="text-sm font-medium opacity-75">原图位置</div>
+                    <Select className="w-full" value={anchor} onChange={setAnchor} options={OUTPAINT_ANCHORS} />
+                </div>
+                <div className="space-y-2">
+                    <div className="text-sm font-medium opacity-75">扩展要求（可选）</div>
+                    <Input.TextArea rows={3} value={prompt} placeholder="例如：自然延展背景，保持产品与光影一致" onChange={(event) => setPrompt(event.target.value)} />
+                </div>
+            </div>
+        </Modal>
+    );
+}
 
 export default function CanvasPage() {
     const [mounted, setMounted] = useState(false);
@@ -259,6 +298,9 @@ function InfiniteCanvasPage() {
     const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
     const [cropNodeId, setCropNodeId] = useState<string | null>(null);
     const [maskEditNodeId, setMaskEditNodeId] = useState<string | null>(null);
+    const [maskEditOperation, setMaskEditOperation] = useState<"inpaint" | "erase">("inpaint");
+    const [outpaintNodeId, setOutpaintNodeId] = useState<string | null>(null);
+    const [outpaintSubmitting, setOutpaintSubmitting] = useState(false);
     const [splitNodeId, setSplitNodeId] = useState<string | null>(null);
     const [upscaleNodeId, setUpscaleNodeId] = useState<string | null>(null);
     const [superResolveNodeId, setSuperResolveNodeId] = useState<string | null>(null);
@@ -900,6 +942,7 @@ function InfiniteCanvasPage() {
     const infoNode = infoNodeId ? nodeById.get(infoNodeId) || null : null;
     const cropNode = cropNodeId ? nodeById.get(cropNodeId) || null : null;
     const maskEditNode = maskEditNodeId ? nodeById.get(maskEditNodeId) || null : null;
+    const outpaintNode = outpaintNodeId ? nodeById.get(outpaintNodeId) || null : null;
     const splitNode = splitNodeId ? nodeById.get(splitNodeId) || null : null;
     const upscaleNode = upscaleNodeId ? nodeById.get(upscaleNodeId) || null : null;
     const superResolveNode = superResolveNodeId ? nodeById.get(superResolveNodeId) || null : null;
@@ -1924,8 +1967,10 @@ function InfiniteCanvasPage() {
         [addAsset, message],
     );
 
+    // 反推提示词（Task 9）：直接调用同源 /api/image-tools/reverse-prompt，结果写入新文本节点；
+    // 文本节点经 metadata.sourceNodeId/derivedFrom 与连线保持与原图节点的可追溯关系。
     const createImageReversePromptNodes = useCallback(
-        (node: CanvasNodeData) => {
+        async (node: CanvasNodeData) => {
             if (node.type !== CanvasNodeType.Image || !node.metadata?.content) {
                 message.warning("图片节点为空，无法反推提示词");
                 return;
@@ -1933,34 +1978,36 @@ function InfiniteCanvasPage() {
 
             const gap = 96;
             const textSpec = NODE_DEFAULT_SIZE[CanvasNodeType.Text];
-            const configSpec = NODE_DEFAULT_SIZE[CanvasNodeType.Config];
             const centerY = node.position.y + node.height / 2;
             const textNode = {
-                ...createCanvasNode(CanvasNodeType.Text, { x: node.position.x + node.width + gap + textSpec.width / 2, y: centerY }, { content: IMAGE_PROMPT_REVERSE_PRESET, prompt: IMAGE_PROMPT_REVERSE_PRESET, status: NODE_STATUS_SUCCESS, fontSize: 14 }),
+                ...createCanvasNode(
+                    CanvasNodeType.Text,
+                    { x: node.position.x + node.width + gap + textSpec.width / 2, y: centerY },
+                    { content: "", status: NODE_STATUS_LOADING, fontSize: 14, sourceNodeId: node.id, derivedFrom: "reverse-prompt" },
+                ),
                 title: "反推提示词",
             };
-            const configNode = {
-                ...createCanvasNode(
-                    CanvasNodeType.Config,
-                    { x: textNode.position.x + textNode.width + gap + configSpec.width / 2, y: centerY },
-                    {
-                        generationMode: "text",
-                        model: effectiveConfig.textModel || effectiveConfig.model || defaultConfig.textModel,
-                        count: 1,
-                        composerContent: `参考图片：@[node:${node.id}]\n任务说明：@[node:${textNode.id}]`,
-                    },
-                ),
-                title: "反推提示词配置",
-            };
 
-            setNodes((prev) => [...prev, textNode, configNode]);
-            setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: configNode.id }, { id: nanoid(), fromNodeId: textNode.id, toNodeId: configNode.id }]);
-            setSelectedNodeIds(new Set([configNode.id]));
+            setNodes((prev) => [...prev, textNode]);
+            setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: textNode.id }]);
+            setSelectedNodeIds(new Set([textNode.id]));
             setSelectedConnectionId(null);
-            setDialogNodeId(configNode.id);
+            setDialogNodeId(textNode.id);
             setContextMenu(null);
+
+            try {
+                const imageUrl = await imageToDataUrl({ url: node.metadata.content, storageKey: node.metadata.storageKey });
+                const result = await getImageToolsApi().reversePrompt({ imageUrl });
+                setNodes((prev) =>
+                    prev.map((item) => (item.id === textNode.id ? { ...item, metadata: { ...item.metadata, content: result.prompt, prompt: result.prompt, status: NODE_STATUS_SUCCESS } } : item)),
+                );
+            } catch (error) {
+                const errorDetails = error instanceof Error ? error.message : "反推提示词失败";
+                message.error(errorDetails);
+                setNodes((prev) => prev.map((item) => (item.id === textNode.id ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
+            }
         },
-        [effectiveConfig.model, effectiveConfig.textModel, message],
+        [message],
     );
 
     const cropImageNode = useCallback(async (node: CanvasNodeData, crop: CanvasImageCropRect) => {
@@ -2026,19 +2073,16 @@ function InfiniteCanvasPage() {
         [message],
     );
 
+    // 局部重绘/智能擦除（Task 9）：提交层走同源 /api/image-tools/inpaint|erase，不再用上游 requestEdit。
+    // mask 语义：PNG 透明区=重绘区、白色不透明区=保留区（与后端提示词契约一致）。
+    // 结果由后端写入云端资产库：优先按 assetId 纳入瞬态缓存，节点保存 storageKey="asset:<assetId>"，不存永久签名 URL。
     const maskEditImageNode = useCallback(
         async (node: CanvasNodeData, payload: CanvasImageMaskEditPayload) => {
             if (!node.metadata?.content) return;
-            const generationConfig = { ...buildGenerationConfig(effectiveConfig, node, "image"), count: "1", size: node.metadata?.size || "auto" };
-            if (!isAiConfigReady(generationConfig, generationConfig.model)) {
-                openConfigDialog(true);
-                return;
-            }
+            const operation = payload.operation === "erase" ? "erase" : "inpaint";
             const userPrompt = payload.prompt.trim();
-            const prompt = `只修改蒙版透明区域，其他区域保持不变。${userPrompt}`;
+            const prompt = operation === "erase" ? userPrompt || "智能擦除涂抹区域" : `只修改蒙版透明区域，其他区域保持不变。${userPrompt}`;
             const childId = nanoid();
-            const source = { id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey };
-            const generationMetadata = buildImageGenerationMetadata("edit", generationConfig, 1, [source]);
             setMaskEditNodeId(null);
             setRunningNodeId(childId);
             setNodes((prev) => [
@@ -2046,11 +2090,11 @@ function InfiniteCanvasPage() {
                 {
                     id: childId,
                     type: CanvasNodeType.Image,
-                    title: userPrompt.slice(0, 32) || "局部编辑结果",
+                    title: userPrompt.slice(0, 32) || (operation === "erase" ? "智能擦除结果" : "局部编辑结果"),
                     position: { x: node.position.x + node.width + 96, y: node.position.y },
                     width: node.width,
                     height: node.height,
-                    metadata: { prompt, status: NODE_STATUS_LOADING, ...generationMetadata },
+                    metadata: { prompt, status: NODE_STATUS_LOADING, sourceNodeId: node.id, derivedFrom: operation },
                 },
             ]);
             setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: childId }]);
@@ -2059,13 +2103,24 @@ function InfiniteCanvasPage() {
             setDialogNodeId(childId);
             const controller = startGenerationRequest(childId, node.id, childId);
             try {
-                const image = await requestEdit(generationConfig, prompt, [source], { id: `${node.id}-mask`, name: "mask.png", type: "image/png", dataUrl: payload.maskDataUrl }, { signal: controller.signal }).then((items) => items[0]);
-                const uploaded = await uploadImage(image.dataUrl);
+                const imageUrl = await imageToDataUrl({ url: node.metadata.content, storageKey: node.metadata.storageKey });
+                const toolInput = { imageUrl, maskDataUrl: payload.maskDataUrl, width: node.metadata.naturalWidth, height: node.metadata.naturalHeight };
+                const result =
+                    operation === "erase"
+                        ? await getImageToolsApi().erase({ ...toolInput, prompt: userPrompt || undefined })
+                        : await getImageToolsApi().inpaint({ ...toolInput, prompt: userPrompt });
+                const uploaded = (result.assetId ? await adoptCloudAssetImage(result.assetId, result.accessUrl) : null) || (await uploadImage(result.image.url));
                 const size = fitNodeSize(uploaded.width, uploaded.height, node.width, node.height);
-                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));
+                setNodes((prev) =>
+                    prev.map((item) =>
+                        item.id === childId
+                            ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, sourceNodeId: node.id, derivedFrom: operation } }
+                            : item,
+                    ),
+                );
             } catch (error) {
                 if (isGenerationCanceled(error)) return;
-                const errorDetails = error instanceof Error ? error.message : "局部修改失败";
+                const errorDetails = error instanceof Error ? error.message : operation === "erase" ? "智能擦除失败" : "局部修改失败";
                 message.error(errorDetails);
                 setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
             } finally {
@@ -2073,7 +2128,52 @@ function InfiniteCanvasPage() {
                 setRunningNodeId(null);
             }
         },
-        [effectiveConfig, finishGenerationRequest, isAiConfigReady, message, openConfigDialog, startGenerationRequest],
+        [finishGenerationRequest, message, startGenerationRequest],
+    );
+
+    // 扩图（Task 9）：同源 /api/image-tools/outpaint；结果作为新图片节点插入，不覆盖原图。
+    const outpaintImageNode = useCallback(
+        async (node: CanvasNodeData, params: CanvasOutpaintParams) => {
+            if (!node.metadata?.content || outpaintSubmitting) return;
+            setOutpaintSubmitting(true);
+            const childId = nanoid();
+            try {
+                const imageUrl = await imageToDataUrl({ url: node.metadata.content, storageKey: node.metadata.storageKey });
+                const result = await getImageToolsApi().outpaint({
+                    imageUrl,
+                    prompt: params.prompt || undefined,
+                    ratio: params.ratio,
+                    anchor: params.anchor,
+                    width: node.metadata.naturalWidth,
+                    height: node.metadata.naturalHeight,
+                });
+                const uploaded = (result.assetId ? await adoptCloudAssetImage(result.assetId, result.accessUrl) : null) || (await uploadImage(result.image.url));
+                const size = fitNodeSize(uploaded.width, uploaded.height);
+                const prompt = params.prompt || `扩图 ${params.ratio}`;
+                setNodes((prev) => [
+                    ...prev,
+                    {
+                        id: childId,
+                        type: CanvasNodeType.Image,
+                        title: prompt.slice(0, 32),
+                        position: { x: node.position.x + node.width + 96, y: node.position.y },
+                        width: size.width,
+                        height: size.height,
+                        metadata: { ...imageMetadata(uploaded), prompt, sourceNodeId: node.id, derivedFrom: "outpaint" },
+                    },
+                ]);
+                setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: childId }]);
+                setSelectedNodeIds(new Set([childId]));
+                setSelectedConnectionId(null);
+                setDialogNodeId(childId);
+                setOutpaintNodeId(null);
+            } catch (error) {
+                message.error(error instanceof Error ? error.message : "扩图失败");
+            } finally {
+                setOutpaintSubmitting(false);
+            }
+        },
+        [message, outpaintSubmitting],
     );
 
     const upscaleImageNode = useCallback(async (node: CanvasNodeData, params: CanvasImageUpscaleParams) => {
@@ -2101,12 +2201,14 @@ function InfiniteCanvasPage() {
         setDialogNodeId(childId);
     }, []);
 
+    // 多角度（Task 9）：提交层改走 Task 8 同源持久生图任务（参考图图生图），不再用上游 requestEdit；
+    // 结果经 resolveGenerationTaskImage 复用云端资产（storageKey="asset:<assetId>"），与原节点保持可追溯关系。
     const generateAngleNode = useCallback(
         async (node: CanvasNodeData, params: CanvasImageAngleParams) => {
             if (!node.metadata?.content) return;
             const generationConfig = { ...buildGenerationConfig(effectiveConfig, node, "image"), count: "1" };
-            if (!isAiConfigReady(generationConfig, generationConfig.model)) {
-                openConfigDialog(true);
+            if (!normalizeNodeModelKey(generationConfig.model)) {
+                message.warning("请先在生成配置节点选择模型");
                 return;
             }
             const childId = nanoid();
@@ -2127,7 +2229,7 @@ function InfiniteCanvasPage() {
                     position: { x: node.position.x + node.width + 96, y: node.position.y },
                     width: imageConfig.width,
                     height: imageConfig.height,
-                    metadata: { prompt, status: NODE_STATUS_LOADING, ...generationMetadata },
+                    metadata: { prompt, status: NODE_STATUS_LOADING, sourceNodeId: node.id, derivedFrom: "angle", ...generationMetadata },
                 },
             ]);
             setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: childId }]);
@@ -2135,16 +2237,34 @@ function InfiniteCanvasPage() {
             setDialogNodeId(childId);
             const controller = startGenerationRequest(childId, node.id, childId);
             try {
-                const image = await requestEdit(
-                    generationConfig,
+                const referenceDataUrl = await imageToDataUrl({ url: node.metadata.content, storageKey: node.metadata.storageKey });
+                const submitted = await submitNodeImageGeneration(getGenerationApi(), {
                     prompt,
-                    [{ id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey }],
-                    undefined,
-                    { signal: controller.signal },
-                ).then((items) => items[0]);
-                const uploaded = await uploadImage(image.dataUrl);
+                    model: generationConfig.model,
+                    routeId: node.metadata?.routeId,
+                    size: generationConfig.size,
+                    quality: generationConfig.quality,
+                    imageCount: 1,
+                    referenceImages: [{ id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: referenceDataUrl, storageKey: node.metadata.storageKey }],
+                    clientRequestId: createClientRequestId(),
+                });
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, generationTask: taskStateFromGenerationTask(submitted, 0) } } : item)));
+                const final = await waitNodeImageGeneration(getGenerationApi(), submitted.taskId, {
+                    signal: controller.signal,
+                    onUpdate: (task) => updateGenerationTaskNodes(task),
+                });
+                updateGenerationTaskNodes(final);
+                if (final.status !== "success" || !final.images[0]) throw new Error(generationTaskFailureDetails(final));
+                const uploaded = await resolveGenerationTaskImage(final.images[0]);
                 const size = fitNodeSize(uploaded.width, uploaded.height, imageConfig.width, imageConfig.height);
-                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, ...generationMetadata } } : item)));
+                setNodes((prev) =>
+                    prev.map((item) =>
+                        item.id === childId
+                            ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, sourceNodeId: node.id, derivedFrom: "angle", ...generationMetadata } }
+                            : item,
+                    ),
+                );
+                refreshAccountAfterGenerationTask();
             } catch (error) {
                 if (isGenerationCanceled(error)) return;
                 const errorDetails = error instanceof Error ? error.message : "生成失败";
@@ -2154,7 +2274,7 @@ function InfiniteCanvasPage() {
                 setRunningNodeId(null);
             }
         },
-        [effectiveConfig, finishGenerationRequest, openConfigDialog, startGenerationRequest],
+        [effectiveConfig, finishGenerationRequest, message, startGenerationRequest, updateGenerationTaskNodes, refreshAccountAfterGenerationTask],
     );
 
     const handleFontSizeChange = useCallback((nodeId: string, fontSize: number) => {
@@ -3373,7 +3493,15 @@ function InfiniteCanvasPage() {
                     onUpload={(node) => handleUploadRequest(node.id)}
                     onDownload={downloadNodeImage}
                     onSaveAsset={(node) => void saveNodeAsset(node)}
-                    onMaskEdit={(node) => setMaskEditNodeId(node.id)}
+                    onMaskEdit={(node) => {
+                        setMaskEditOperation("inpaint");
+                        setMaskEditNodeId(node.id);
+                    }}
+                    onSmartErase={(node) => {
+                        setMaskEditOperation("erase");
+                        setMaskEditNodeId(node.id);
+                    }}
+                    onOutpaint={(node) => setOutpaintNodeId(node.id)}
                     onCrop={(node) => setCropNodeId(node.id)}
                     onSplit={(node) => setSplitNodeId(node.id)}
                     onUpscale={(node) => setUpscaleNodeId(node.id)}
@@ -3441,7 +3569,17 @@ function InfiniteCanvasPage() {
                 {cropNode?.metadata?.content ? <CanvasNodeCropDialog dataUrl={cropNode.metadata.content} open={Boolean(cropNode)} onClose={() => setCropNodeId(null)} onConfirm={(crop) => void cropImageNode(cropNode!, crop)} /> : null}
 
                 {maskEditNode?.metadata?.content ? (
-                    <CanvasNodeMaskEditDialog dataUrl={maskEditNode.metadata.content} open={Boolean(maskEditNode)} onClose={() => setMaskEditNodeId(null)} onConfirm={(payload) => void maskEditImageNode(maskEditNode!, payload)} />
+                    <CanvasNodeMaskEditDialog
+                        dataUrl={maskEditNode.metadata.content}
+                        open={Boolean(maskEditNode)}
+                        operation={maskEditOperation}
+                        onClose={() => setMaskEditNodeId(null)}
+                        onConfirm={(payload) => void maskEditImageNode(maskEditNode!, payload)}
+                    />
+                ) : null}
+
+                {outpaintNode?.metadata?.content ? (
+                    <CanvasNodeOutpaintDialog open={Boolean(outpaintNode)} submitting={outpaintSubmitting} onClose={() => setOutpaintNodeId(null)} onConfirm={(params) => void outpaintImageNode(outpaintNode!, params)} />
                 ) : null}
 
                 {splitNode?.metadata?.content ? <CanvasNodeSplitDialog dataUrl={splitNode.metadata.content} open={Boolean(splitNode)} onClose={() => setSplitNodeId(null)} onConfirm={(params) => void splitImageNode(splitNode!, params)} /> : null}

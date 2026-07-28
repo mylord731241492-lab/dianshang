@@ -84,6 +84,8 @@ export type CanvasNodeMetadata = {
     promptReference?: HjmPromptReference; // 插入提示词时保存 scope + promptId + version + contentSnapshot（Task 7）
     routeId?: string; // 生成配置节点选择的后端线路（Task 8，来自 /api/user/routes）
     generationTask?: CanvasGenerationTaskState; // 持久生图任务状态（Task 8）
+    sourceNodeId?: string; // 图片工具结果的可追溯来源节点（Task 9：局部重绘/擦除/扩图/反推）
+    derivedFrom?: string; // 派生方式（inpaint/erase/outpaint/reverse-prompt/angle）
     interactive?: boolean; // 插件节点「交互 ⇄ 移动」开关状态(见 CanvasNodeDefinition.interactionToggle)
 };
 

@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 $OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
@@ -87,6 +87,7 @@ try {
   node (Join-Path $repoRoot "scripts\check-packy-gpt-image-adapter-coverage.js") | Write-Host
   node (Join-Path $repoRoot "scripts\check-provider-text-extraction.js") | Write-Host
   node (Join-Path $repoRoot "scripts\test-reverse-prompt-provider-route.js") | Write-Host
+  node (Join-Path $repoRoot "scripts\test-image-tools-provider-payload.js") | Write-Host
   node (Join-Path $repoRoot "scripts\test-canvas-reverse-prompt-copy.js") | Write-Host
   node (Join-Path $repoRoot "scripts\test-image-generation-queue-guard.js") | Write-Host
 

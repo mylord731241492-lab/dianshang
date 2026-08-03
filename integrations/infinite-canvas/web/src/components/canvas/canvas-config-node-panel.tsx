@@ -1,6 +1,6 @@
-import { useRef, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 import { AlertCircle, Image as ImageIcon, LoaderCircle, Play, Settings2, Square } from "lucide-react";
-import { Button } from "antd";
+import { Button, Image } from "antd";
 
 import { defaultConfig, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { canvasThemes } from "@/lib/canvas-theme";
@@ -93,8 +93,11 @@ export function CanvasConfigNodePanel({ node, onSelectImage }: CanvasConfigNodeP
 
 function GeneratedImageTile({ image, index, selected, onSelect }: { image: CanvasGeneratedImage; index: number; selected: boolean; onSelect: () => void }) {
     // 不拦截 mousedown：拖动时让节点整体移动；只在未发生位移的点击时选中结果。
+    // 双击放大查看原图（antd Image preview，与引用图预览同一形态）。
     const downPos = useRef<{ x: number; y: number } | null>(null);
+    const [previewOpen, setPreviewOpen] = useState(false);
     return (
+        <>
         <button
             type="button"
             className={`relative min-h-0 min-w-0 overflow-hidden rounded-xl border-2 bg-black/20 transition ${selected ? "border-cyan-400" : "border-transparent hover:border-white/50"}`}
@@ -108,10 +111,23 @@ function GeneratedImageTile({ image, index, selected, onSelect }: { image: Canva
                 event.stopPropagation();
                 onSelect();
             }}
+            onDoubleClick={(event) => {
+                event.stopPropagation();
+                setPreviewOpen(true);
+            }}
         >
             <img src={image.content} alt={`生成结果 ${index + 1}`} className="h-full w-full object-contain" draggable={false} />
             <span className="absolute left-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-black/70 text-[10px] font-semibold text-white">{index + 1}</span>
         </button>
+        {previewOpen ? (
+            <Image
+                src={image.content}
+                alt={`生成结果 ${index + 1} 原图`}
+                style={{ display: "none" }}
+                preview={{ visible: true, src: image.content, onVisibleChange: (visible) => !visible && setPreviewOpen(false) }}
+            />
+        ) : null}
+        </>
     );
 }
 

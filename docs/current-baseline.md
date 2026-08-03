@@ -1008,3 +1008,9 @@
 - 首页 `HomeWorkbench.vue` 删除「提示词案例」模块：examples-section 模板、promptExamples 数据、PromptExample 接口、ArrowUpRight 导入、相关 CSS（含暗色覆盖）及引用案例的 create-hint 一并移除；diff 逐行核对仅含该模块删除。
 - 生图节点右键菜单新增「复制当前图片」（canvas-context-menu.tsx + project.tsx `copyNodeImageToClipboard`）：取当前选中结果图转 PNG 写系统剪贴板；非安全上下文（http 内网 IP）自动降级为下载并提示。仅节点有生成结果时菜单项出现。
 - CDP 验收：REMOVE-EXAMPLES PASS（案例消失、历史项目 21 张卡正常）、COPY-IMAGE PASS（菜单项出现、点击反馈 toast 正常）。构建/类型检查全绿。
+
+## 2026-08-03 结果图双击放大 + 多图选中供下游生图（链路确认）
+
+- 双击结果图放大原图：GeneratedImageTile 新增 onDoubleClick → antd Image preview（与引用图预览同一形态），单击选中/节点拖拽行为不变。
+- 多图选中→下游继续生图：链路确认无需改码——点击 tile 时 generatedImageSelectionMetadata 已把 metadata.content/storageKey 写为选中图，下游 readReferenceImage 读 metadata.content，连到生图节点即以选中图为参考图。
+- CDP 验收 PREVIEW PASS：单击出现 cyan 选中框、双击打开原图预览、可关闭。typecheck/build 通过。

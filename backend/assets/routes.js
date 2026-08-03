@@ -45,6 +45,7 @@ function registerAssetRoutes(app, options = {}) {
     const { items, nextCursor } = service.listAssets(req.user.userId, {
       q: req.query.q,
       kind: req.query.kind,
+      source: req.query.source,
       cursor: req.query.cursor,
       limit: req.query.limit
     });

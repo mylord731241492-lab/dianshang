@@ -1,4 +1,4 @@
-import { FileText, Group, Image as ImageIcon, Music2, Settings2, Video } from "lucide-react";
+import { FileText, Group, Image as ImageIcon, Music2, Palette, Video } from "lucide-react";
 
 import { NODE_SPECS } from "@/constant/canvas";
 import { registerNodeDefinitions } from "@/lib/canvas/node-registry";
@@ -9,6 +9,7 @@ import type { CanvasNodeDefinition, CanvasNodeResource } from "@/types/canvas-pl
 // 渲染仍由 canvas-node 内部渲染器负责,故不提供 Content。
 function builtinResource(node: CanvasNodeData): CanvasNodeResource | null {
     if (node.type === CanvasNodeType.Image && node.metadata?.content) return { kind: "image", url: node.metadata.content };
+    if (node.type === CanvasNodeType.Config && node.metadata?.content) return { kind: "image", url: node.metadata.content };
     if (node.type === CanvasNodeType.Video && node.metadata?.content) return { kind: "video", url: node.metadata.content };
     if (node.type === CanvasNodeType.Audio && node.metadata?.content) return { kind: "audio", url: node.metadata.content };
     if (node.type === CanvasNodeType.Text && (node.metadata?.content || node.metadata?.prompt)) return { kind: "text", text: node.metadata.content || node.metadata.prompt };
@@ -19,10 +20,10 @@ const iconClass = "size-5";
 
 const BUILTIN_DEFINITIONS: CanvasNodeDefinition[] = [
     { type: CanvasNodeType.Text, title: "文本", icon: <FileText className={iconClass} />, minimapColor: undefined, resource: builtinResource },
-    { type: CanvasNodeType.Image, title: "图片", icon: <ImageIcon className={iconClass} />, minimapColor: "#10b981", keepAspectRatio: (node: CanvasNodeData) => !node.metadata?.freeResize, resource: builtinResource },
+    { type: CanvasNodeType.Image, title: "图片节点", description: "上传图片并作为参考图连接", icon: <ImageIcon className={iconClass} />, minimapColor: "#10b981", hidePanel: true, keepAspectRatio: (node: CanvasNodeData) => !node.metadata?.freeResize, resource: builtinResource },
     { type: CanvasNodeType.Video, title: "视频", icon: <Video className={iconClass} />, minimapColor: "#f97316", keepAspectRatio: () => true, resource: builtinResource },
     { type: CanvasNodeType.Audio, title: "音频", icon: <Music2 className={iconClass} />, minimapColor: "#a855f7", resource: builtinResource },
-    { type: CanvasNodeType.Config, title: "生成配置", icon: <Settings2 className={iconClass} />, minimapColor: "#60a5fa", hasSourceHandle: false },
+    { type: CanvasNodeType.Config, title: "生图节点", description: "输入提示词、设置参数并生成图片", icon: <Palette className={iconClass} />, minimapColor: "#60a5fa" },
     { type: CanvasNodeType.Group, title: "组", icon: <Group className={iconClass} />, minimapColor: "#94a3b8" },
 ].map((def) => {
     const spec = NODE_SPECS[def.type];

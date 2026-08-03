@@ -20,9 +20,11 @@ type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange" | "val
     onSubmit?: () => void;
     containerClassName?: string;
     highlightLabels?: boolean;
+    menuHint?: string;
+    labelPreviews?: Record<string, string>;
 };
 
-export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Props>(function CanvasResourceMentionTextarea({ value, references, onChange, onSubmit, onKeyDown, className, containerClassName, style, highlightLabels = true, ...props }, forwardedRef) {
+export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Props>(function CanvasResourceMentionTextarea({ value, references, onChange, onSubmit, onKeyDown, className, containerClassName, style, highlightLabels = true, menuHint, labelPreviews, ...props }, forwardedRef) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     const overlayRef = useRef<HTMLDivElement | null>(null);
@@ -54,8 +56,8 @@ export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Pro
 
     const syncMention = (nextValue: string, cursor: number) => {
         const prefix = nextValue.slice(0, cursor);
-        const match = /(^|\s)@([^\s@]*)$/.exec(prefix);
-        if (!match || !references.some((item) => item.active)) {
+        const match = /(^|[^@＠])[@＠]([^\s@＠]*)$/.exec(prefix);
+        if (!match) {
             closeMention();
             return;
         }
@@ -93,13 +95,13 @@ export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Pro
         // showOverlay 时高亮 div 覆盖在 textarea 上,若不把 textarea 提到上层,原生插入光标(caret)会被盖住看不见
         ...(showOverlay ? { position: "relative", zIndex: 1, background: "transparent", backgroundColor: "transparent" } : {}),
     } as CSSProperties;
-    const menu = mention && candidates.length && textareaRef.current ? <MentionMenu textarea={textareaRef.current} caretIndex={mention.start} references={candidates} activeIndex={Math.min(activeIndex, candidates.length - 1)} theme={theme} onSelect={insertReference} /> : null;
+    const menu = mention && textareaRef.current ? <MentionMenu textarea={textareaRef.current} caretIndex={mention.start} references={candidates} activeIndex={Math.min(activeIndex, candidates.length - 1)} theme={theme} hint={menuHint} onSelect={insertReference} /> : null;
 
     return (
         <div className={`relative h-full w-full ${containerClassName || ""}`}>
             {showOverlay ? (
                 <div ref={overlayRef} className={`${className || ""} pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words`} style={{ ...style, color: theme.node.text }}>
-                    <MentionHighlightText value={value || props.placeholder?.toString() || ""} labels={activeLabels} placeholder={!value} />
+                    <MentionHighlightText value={value || props.placeholder?.toString() || ""} labels={activeLabels} previews={labelPreviews} placeholder={!value} />
                 </div>
             ) : null}
             <textarea
@@ -194,7 +196,7 @@ export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Pro
     );
 });
 
-function MentionHighlightText({ value, labels, placeholder }: { value: string; labels: string[]; placeholder: boolean }) {
+function MentionHighlightText({ value, labels, previews, placeholder }: { value: string; labels: string[]; previews?: Record<string, string>; placeholder: boolean }) {
     if (placeholder) return <span className="opacity-45">{value}</span>;
     if (!labels.length) return <>{value}</>;
     const pattern = new RegExp(`(${labels.map(escapeRegExp).join("|")})`, "g");
@@ -202,7 +204,7 @@ function MentionHighlightText({ value, labels, placeholder }: { value: string; l
         <>
             {value.split(pattern).map((part, index) =>
                 labels.includes(part) ? (
-                    <span key={`${part}-${index}`} className="rounded-md bg-[#2f80ff]/16 px-1 py-0.5 font-medium text-[#2f80ff] ring-1 ring-[#2f80ff]/24">
+                    <span key={`${part}-${index}`} className="rounded-md bg-[#2f80ff]/16 font-medium text-[#2f80ff]">
                         {part}
                     </span>
                 ) : (
@@ -213,7 +215,7 @@ function MentionHighlightText({ value, labels, placeholder }: { value: string; l
     );
 }
 
-function MentionMenu({ textarea, caretIndex, references, activeIndex, theme, onSelect }: { textarea: HTMLTextAreaElement; caretIndex: number; references: CanvasResourceReference[]; activeIndex: number; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onSelect: (reference: CanvasResourceReference) => void }) {
+function MentionMenu({ textarea, caretIndex, references, activeIndex, theme, hint, onSelect }: { textarea: HTMLTextAreaElement; caretIndex: number; references: CanvasResourceReference[]; activeIndex: number; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; hint?: string; onSelect: (reference: CanvasResourceReference) => void }) {
     const selectedRef = useRef(false);
     const rect = textarea.getBoundingClientRect();
     const boundary = textarea.closest(".ant-modal-content")?.getBoundingClientRect() || { left: 8, top: 8, right: window.innerWidth - 8, bottom: window.innerHeight - 8 };
@@ -250,6 +252,12 @@ function MentionMenu({ textarea, caretIndex, references, activeIndex, theme, onS
             onMouseDown={stopCanvasInteraction}
             onClick={(event) => event.stopPropagation()}
         >
+            {hint ? (
+                <div className="border-b px-3 py-1.5 text-[10px]" style={{ borderColor: theme.toolbar.border, color: theme.node.muted }}>{hint}</div>
+            ) : null}
+            {!references.length ? (
+                <div className="px-3 py-2.5 text-xs" style={{ color: theme.node.muted }}>还没有可引用的图片：先粘贴/拖入图片，或在画布添加节点</div>
+            ) : null}
             {references.map((reference, index) => (
                 <button
                     key={reference.id}

@@ -202,6 +202,16 @@ export function createGenerationApi(client: GenerationApiClient) {
     const cancelSettled = new Map<string, GenerationTask>();
 
     async function submit(input: GenerationSubmitInput): Promise<GenerationTask> {
+        const blobReference = input.referenceImages?.find((image) =>
+            [image.dataUrl, image.url].some((value) => typeof value === "string" && value.startsWith("blob:")),
+        );
+        if (blobReference) {
+            throw new ApiError(
+                400,
+                "参考图片仍是浏览器临时地址，请等待图片上传完成后重试",
+                "GENERATION_REFERENCE_BLOB_URL_UNSUPPORTED",
+            );
+        }
         const body: Record<string, unknown> = {
             prompt: input.prompt,
             modelKey: input.modelKey,

@@ -11,7 +11,8 @@ type CanvasConfigComposerProps = {
     value: string;
     inputs: NodeGenerationInput[];
     onChange: (value: string) => void;
-    onClose: () => void;
+    onClose?: () => void;
+    embedded?: boolean;
 };
 
 type Token =
@@ -24,7 +25,7 @@ type MentionState = {
 
 export const CONFIG_REFERENCE_PATTERN = /@\[node:([^\]]+)\]/g;
 
-export function CanvasConfigComposer({ value, inputs, onChange, onClose }: CanvasConfigComposerProps) {
+export function CanvasConfigComposer({ value, inputs, onChange, onClose, embedded = false }: CanvasConfigComposerProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const editorRef = useRef<HTMLDivElement>(null);
     const composingRef = useRef(false);
@@ -107,26 +108,33 @@ export function CanvasConfigComposer({ value, inputs, onChange, onClose }: Canva
     return (
         <div
             data-canvas-no-zoom
-            className="rounded-2xl border p-3 shadow-2xl backdrop-blur"
-            style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+            className={embedded ? "relative" : "rounded-2xl border p-3 shadow-2xl backdrop-blur"}
+            style={embedded ? { color: theme.node.text } : { background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
             onMouseDown={stopCanvasInteraction}
             onPointerDown={stopCanvasInteraction}
             onWheel={(event) => event.stopPropagation()}
         >
-            <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-baseline gap-2">
-                    <div className="shrink-0 text-xs font-semibold">组装提示词</div>
-                    <div className="truncate text-[11px] opacity-55">@ 引用已连接资产，发送前按当前连接重新编号</div>
+            {!embedded ? (
+                <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-baseline gap-2">
+                        <div className="shrink-0 text-xs font-semibold">组装提示词</div>
+                        <div className="truncate text-[11px] opacity-55">@ 引用已连接资产，发送前按当前连接重新编号</div>
+                    </div>
+                    {onClose ? <Button size="small" type="text" className="!h-7 !w-7 !min-w-7 !p-0" icon={<X className="size-3.5" />} onClick={onClose} /> : null}
                 </div>
-                <Button size="small" type="text" className="!h-7 !w-7 !min-w-7 !p-0" icon={<X className="size-3.5" />} onClick={onClose} />
-            </div>
+            ) : onClose ? (
+                <Button size="small" type="text" className="!absolute !right-0 !top-0 !z-10 !h-8 !w-8 !min-w-8 !p-0" aria-label="关闭生图面板" icon={<X className="size-4" />} onClick={onClose} />
+            ) : null}
             <div className="relative rounded-xl">
-                {!value.trim() ? <div className="pointer-events-none absolute left-3 top-2 text-sm leading-7" style={{ color: theme.node.placeholder }}>输入提示词，按 @ 引用连接的图片或文本</div> : null}
+                {!value.trim() ? <div className={`pointer-events-none absolute text-sm leading-7 ${embedded ? "left-1 top-1 text-lg" : "left-3 top-2"}`} style={{ color: theme.node.placeholder }}>{embedded ? "输入提示词..." : "输入提示词，按 @ 引用连接的图片或文本"}</div> : null}
                 <div
                     ref={editorRef}
                     contentEditable
                     suppressContentEditableWarning
-                    className="thin-scrollbar min-h-28 w-full overflow-y-auto whitespace-pre-wrap break-words px-3 py-2 text-sm leading-7 outline-none"
+                    data-drawing-prompt-editor={embedded ? "" : undefined}
+                    role="textbox"
+                    aria-label={embedded ? "生图提示词" : "提示词"}
+                    className={`thin-scrollbar w-full overflow-y-auto whitespace-pre-wrap break-words text-sm leading-7 outline-none ${embedded ? "min-h-36 px-1 py-1 pr-10" : "min-h-28 px-3 py-2"}`}
                     style={{ color: theme.node.text }}
                     onInput={() => {
                         if (!composingRef.current) syncFromEditor();

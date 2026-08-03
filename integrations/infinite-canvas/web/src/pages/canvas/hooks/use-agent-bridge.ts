@@ -5,7 +5,8 @@ import { applyCanvasAgentOps, type CanvasAgentOp, type CanvasAgentSnapshot } fro
 import type { CanvasNodeGenerationMode } from "@/components/canvas/canvas-node-prompt-panel";
 import type { CanvasConnection, CanvasNodeData, ContextMenuState, ViewportTransform } from "@/types/canvas";
 
-type GenerateNodeRef = MutableRefObject<((nodeId: string, mode: CanvasNodeGenerationMode, prompt: string) => Promise<void>) | null>;
+type GenerateNodeRef = MutableRefObject<((nodeId: string, mode: CanvasNodeGenerationMode, prompt: string, clientRequestId?: string) => Promise<void>) | null>;
+type ReversePromptNodeRef = MutableRefObject<((nodeId: string) => void) | null>;
 
 type AgentBridgeParams = {
     projectId: string;
@@ -19,6 +20,7 @@ type AgentBridgeParams = {
     selectedNodeIdsRef: MutableRefObject<Set<string>>;
     viewportRef: MutableRefObject<ViewportTransform>;
     generateNodeRef: GenerateNodeRef;
+    reversePromptNodeRef: ReversePromptNodeRef;
     setNodes: Dispatch<SetStateAction<CanvasNodeData[]>>;
     setConnections: Dispatch<SetStateAction<CanvasConnection[]>>;
     setSelectedNodeIds: Dispatch<SetStateAction<Set<string>>>;
@@ -32,7 +34,7 @@ type AgentBridgeParams = {
  * 供配置节点插件宿主（applyAgentOps）等站内功能使用。
  */
 export function useAgentBridge(params: AgentBridgeParams) {
-    const { projectId, title, nodes, connections, selectedNodeIds, viewport, nodesRef, connectionsRef, selectedNodeIdsRef, viewportRef, generateNodeRef, setNodes, setConnections, setSelectedNodeIds, setSelectedConnectionId, setViewport, setContextMenu } =
+    const { projectId, title, nodes, connections, selectedNodeIds, viewport, nodesRef, connectionsRef, selectedNodeIdsRef, viewportRef, generateNodeRef, reversePromptNodeRef, setNodes, setConnections, setSelectedNodeIds, setSelectedConnectionId, setViewport, setContextMenu } =
         params;
     const setAgentCanvasContext = useAgentStore((state) => state.setCanvasContext);
     const [agentUndoSnapshot, setAgentUndoSnapshot] = useState<CanvasAgentSnapshot | null>(null);
@@ -44,9 +46,10 @@ export function useAgentBridge(params: AgentBridgeParams) {
             const safeOps = Array.isArray(ops) ? ops.filter((op) => op?.type) : [];
             const before = { projectId, title: projectTitle, nodes: nodesRef.current, connections: connectionsRef.current, selectedNodeIds: Array.from(selectedNodeIdsRef.current), viewport: viewportRef.current };
             const generationOps = safeOps.filter((op): op is Extract<CanvasAgentOp, { type: "run_generation" }> => op.type === "run_generation" && Boolean(op.nodeId));
+            const reverseOps = safeOps.filter((op): op is Extract<CanvasAgentOp, { type: "reverse_prompt" }> => op.type === "reverse_prompt" && Boolean(op.nodeId));
             const next = applyCanvasAgentOps(
                 before,
-                safeOps.filter((op) => op.type !== "run_generation"),
+                safeOps.filter((op) => op.type !== "run_generation" && op.type !== "reverse_prompt"),
             );
             nodesRef.current = next.nodes;
             connectionsRef.current = next.connections;
@@ -59,12 +62,15 @@ export function useAgentBridge(params: AgentBridgeParams) {
             setSelectedConnectionId(null);
             setViewport(next.viewport);
             setContextMenu(null);
+            if (reverseOps.length) {
+                queueMicrotask(() => reverseOps.forEach((op) => reversePromptNodeRef.current?.(op.nodeId)));
+            }
             if (generationOps.length) {
                 queueMicrotask(() =>
                     generationOps.forEach((op) => {
                         const target = nodesRef.current.find((node) => node.id === op.nodeId);
                         const prompt = op.prompt?.trim() ? op.prompt : (target?.metadata?.composerContent ?? target?.metadata?.prompt ?? "");
-                        void generateNodeRef.current?.(op.nodeId, op.mode || target?.metadata?.generationMode || "image", prompt);
+                        void generateNodeRef.current?.(op.nodeId, op.mode || target?.metadata?.generationMode || "image", prompt, op.clientRequestId);
                     }),
                 );
             }

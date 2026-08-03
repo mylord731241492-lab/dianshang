@@ -49,7 +49,7 @@ function getConnectedConfigResourceNodes(nodeId: string, nodes: CanvasNodeData[]
     return getContextResourceNodes(configConnection.toNodeId, nodes, connections).filter((node) => node.id !== nodeId);
 }
 
-function labelResourceNodes(nodes: CanvasNodeData[], active: boolean) {
+export function labelResourceNodes(nodes: CanvasNodeData[], active: boolean) {
     const counts: Record<CanvasResourceKind, number> = { image: 0, video: 0, audio: 0, text: 0 };
     return nodes.flatMap((node): CanvasResourceReference[] => {
         const kind = resourceKind(node);

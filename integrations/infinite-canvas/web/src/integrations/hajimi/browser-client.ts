@@ -8,17 +8,21 @@ import { createAssetsApi, type AssetsApi } from "./assets-api";
 import { createPromptsApi, type PromptsApi } from "./prompts-api";
 import { createGenerationApi, type GenerationApi } from "./generation-api";
 import { createCanvasAssistantStore, type CanvasAssistantStore } from "./canvas-assistant-api";
+import { createCanvasAgentApi, type CanvasAgentApi, type CanvasAgentEvent, type CanvasAgentEventStreamTransport } from "./canvas-agent-api";
 import { createImageToolsApi, type ImageToolsApi } from "./image-tools-api";
 import { createModelsApi, type ModelsApi } from "./models-api";
+import { createUserApi, type UserApi } from "./user-api";
 import { mapProfileToUser } from "./auth";
 import { useUserStore } from "@/stores/use-user-store";
 
 let cachedClient: ReturnType<typeof createHttpClient> | null = null;
+let cachedUserApi: UserApi | null = null;
 let cachedProjectsApi: ProjectsApi | null = null;
 let cachedAssetsApi: AssetsApi | null = null;
 let cachedPromptsApi: PromptsApi | null = null;
 let cachedGenerationApi: GenerationApi | null = null;
 let cachedCanvasAssistantStore: CanvasAssistantStore | null = null;
+let cachedCanvasAgentApi: CanvasAgentApi | null = null;
 let cachedImageToolsApi: ImageToolsApi | null = null;
 let cachedModelsApi: ModelsApi | null = null;
 
@@ -58,6 +62,82 @@ function getHttpClient() {
     cachedClient = createHttpClient(sessionConfig);
     return cachedClient;
 }
+
+const canvasAgentEventStreamTransport: CanvasAgentEventStreamTransport = ({ path, onEvent, onError }) => {
+    if (!path.startsWith("/api/canvas/agent/") || path.startsWith("//")) {
+        onError?.(new Error(`只允许同源 Canvas Agent SSE：${path}`));
+        return () => {};
+    }
+    let stopped = false;
+    let activeController: AbortController | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastEventId = Number(new URL(path, window.location.origin).searchParams.get("after")) || 0;
+
+    const connect = async () => {
+        if (stopped) return;
+        const token = window.localStorage.getItem(AUTH_TOKEN_KEY);
+        activeController = new AbortController();
+        const url = new URL(path, window.location.origin);
+        url.searchParams.set("after", String(lastEventId));
+        try {
+            const response = await fetch(`${url.pathname}${url.search}`, {
+                headers: {
+                    Accept: "text/event-stream",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    ...(lastEventId ? { "Last-Event-ID": String(lastEventId) } : {}),
+                },
+                signal: activeController.signal,
+            });
+            if (response.status === 401) {
+                stopped = true;
+                clearSessionAndRedirect(sessionConfig);
+                throw new ApiError(401, "登录已过期，请重新登录");
+            }
+            if (!response.ok || !response.body) throw new ApiError(response.status, `Agent 事件流连接失败（HTTP ${response.status}）`);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            while (!stopped) {
+                const chunk = await reader.read();
+                if (chunk.done) break;
+                buffer += decoder.decode(chunk.value, { stream: true }).replace(/\r\n/g, "\n");
+                let boundary = buffer.indexOf("\n\n");
+                while (boundary >= 0) {
+                    const block = buffer.slice(0, boundary);
+                    buffer = buffer.slice(boundary + 2);
+                    const data = block
+                        .split("\n")
+                        .filter((line) => line.startsWith("data:"))
+                        .map((line) => line.slice(5).trimStart())
+                        .join("\n");
+                    if (data) {
+                        try {
+                            const event = JSON.parse(data) as CanvasAgentEvent;
+                            if (Number.isFinite(Number(event?.id)) && typeof event?.type === "string") {
+                                lastEventId = Math.max(lastEventId, Number(event.id));
+                                onEvent(event);
+                            }
+                        } catch {
+                            // ping 或畸形单条事件不终止整条 SSE。
+                        }
+                    }
+                    boundary = buffer.indexOf("\n\n");
+                }
+            }
+        } catch (error) {
+            if (!stopped && !(error instanceof DOMException && error.name === "AbortError")) onError?.(error);
+        } finally {
+            activeController = null;
+            if (!stopped) reconnectTimer = setTimeout(() => void connect(), 1000);
+        }
+    };
+    void connect();
+    return () => {
+        stopped = true;
+        activeController?.abort();
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+    };
+};
 
 // multipart 上传通道：FormData POST /api/user/assets/upload；浏览器只持有 JWT，永不接触对象存储密钥。
 async function uploadAssetTransport({ path, file, fileName }: { path: string; file: Blob; fileName: string }) {
@@ -118,6 +198,14 @@ export function getCanvasAssistantStore(): CanvasAssistantStore {
     return cachedCanvasAssistantStore;
 }
 
+// 网页版 Canvas Agent：同源 HTTP + 带 Authorization header 的 fetch SSE。
+// 浏览器不接触 Provider Key，也不使用 Local URL / Connect token。
+export function getCanvasAgentApi(): CanvasAgentApi {
+    if (cachedCanvasAgentApi) return cachedCanvasAgentApi;
+    cachedCanvasAgentApi = createCanvasAgentApi(getHttpClient(), canvasAgentEventStreamTransport);
+    return cachedCanvasAgentApi;
+}
+
 export function getModelsApi(): ModelsApi {
     if (cachedModelsApi) return cachedModelsApi;
     cachedModelsApi = createModelsApi(getHttpClient());
@@ -129,6 +217,13 @@ export function getImageToolsApi(): ImageToolsApi {
     if (cachedImageToolsApi) return cachedImageToolsApi;
     cachedImageToolsApi = createImageToolsApi(getHttpClient());
     return cachedImageToolsApi;
+}
+
+// 用户中心：余额流水、生成记录、兑换码、头像（/api/user/* 与 /api/upload 同源）。
+export function getUserApi(): UserApi {
+    if (cachedUserApi) return cachedUserApi;
+    cachedUserApi = createUserApi(getHttpClient(), uploadAssetTransport);
+    return cachedUserApi;
 }
 
 // 任务终态后重新拉取用户资料（余额事实源在服务端，前端不自行计算余额）。

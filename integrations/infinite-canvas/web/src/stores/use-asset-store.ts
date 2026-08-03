@@ -39,8 +39,8 @@ type AssetStore = {
     cloudNextCursor: string | null;
     cloudLoading: boolean;
     cloudError: string;
-    cloudFilter: { q?: string; kind?: CloudAssetKind };
-    refreshCloudAssets: (filter?: { q?: string; kind?: CloudAssetKind }) => Promise<void>;
+    cloudFilter: { q?: string; kind?: CloudAssetKind; source?: string };
+    refreshCloudAssets: (filter?: { q?: string; kind?: CloudAssetKind; source?: string }) => Promise<void>;
     loadMoreCloudAssets: () => Promise<void>;
     uploadCloudAsset: (file: Blob, name?: string) => Promise<CloudAsset>;
     renameCloudAsset: (id: string, patch: { name?: string; tags?: string[] }) => Promise<void>;
@@ -88,7 +88,7 @@ export const useAssetStore = create<AssetStore>()((set, get) => ({
         const nextFilter = filter ?? get().cloudFilter;
         set({ cloudLoading: true, cloudError: "", cloudFilter: nextFilter });
         try {
-            const page = await getAssetsApi().list({ q: nextFilter.q, kind: nextFilter.kind, limit: CLOUD_PAGE_SIZE });
+            const page = await getAssetsApi().list({ q: nextFilter.q, kind: nextFilter.kind, source: nextFilter.source, limit: CLOUD_PAGE_SIZE });
             set({ cloudAssets: page.items, cloudNextCursor: page.nextCursor, cloudLoading: false });
         } catch (error) {
             set({ cloudLoading: false, cloudError: error instanceof Error ? error.message : "加载云端资产失败" });
@@ -99,7 +99,7 @@ export const useAssetStore = create<AssetStore>()((set, get) => ({
         if (!cloudNextCursor || cloudLoading) return;
         set({ cloudLoading: true, cloudError: "" });
         try {
-            const page = await getAssetsApi().list({ q: cloudFilter.q, kind: cloudFilter.kind, cursor: cloudNextCursor, limit: CLOUD_PAGE_SIZE });
+            const page = await getAssetsApi().list({ q: cloudFilter.q, kind: cloudFilter.kind, source: cloudFilter.source, cursor: cloudNextCursor, limit: CLOUD_PAGE_SIZE });
             const merged = [...cloudAssets];
             page.items.forEach((item) => {
                 if (!merged.some((existing) => existing.id === item.id)) merged.push(item);

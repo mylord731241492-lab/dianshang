@@ -5710,3 +5710,168 @@
 - 移动端 390×844 恢复 10 个节点、主区域可见且无横向溢出；仍需 Task 14 人工检查触控和弹窗操作体验。
 - 人工复测补出原 smoke 的认证盲区：自动化原先直接写 `localStorage`，没有覆盖源码登录页，因此未发现 Vue Router 会进入 `CanvasLegacySource` 并跳到 3456。回归现改为真实填写用户名和密码，强制断言 URL 精确为 3466 `/canvas` 且出现“无限画布”。
 - 未覆盖风险：真实 Lingsuan/零算中转、真实对象存储、真实付费与正式 3456 切换均未执行，必须另获授权。
+
+## 2026-07-29 Agent 功能迁移复核
+
+- 结论：Task 13 的已有通过结论只适用于原计划范围，不能证明原版 Agent 功能迁移完成。Task 14 由 `ready-for-human` 调整为 `blocked`，先执行 Task 13A。
+- 证据：`fee1146` 删除 `canvas-local-agent-panel.tsx`、`canvas-agent-chat-ui.tsx` 和 `agent-site-tools.ts` 共 2148 行，同时新增三模式助手；`use-agent-store.ts` 注释明确 Local URL、Connect token 和 SSE 已整体移除。
+- 已保留基础：`CanvasAgentOp` 支持节点增删改、删除连线、连接、视口、选择和触发生成；画布 bridge 能应用操作；资源引用支持连接或点名的图片、视频、音频和文本；项目 envelope 保存 `chatSessions/activeChatId`。
+- 阻断缺口：写操作确认/拒绝、工具调用生命周期、停止、完整历史管理 UI、脱敏日志，以及项目/任务/提示词/素材等站点工具没有等价迁移；真实 Agent 后端能否稳定返回并执行结构化操作也尚未验证。
+- 处理：新增 `docs/infinite-canvas-agent-feature-migration.md` 和计划 Task 13A。允许内部实现改用同源哈吉米后端，但用户可完成的核心操作必须与原版等价；未通过专项自动化和 3466/3467 A/B 前不得进入正式切换。
+- 架构边界补充：最终产品为多人网页版。原版 `canvas-agent` 的 MCP 工具、schema、canvas session 和确认语义应复用；其 `agents.ts` 中本地 `codex app-server --stdio`、进程级 thread/queue、Local URL/Token 和本机 Origin 模型不得迁入。服务端会话必须按用户、项目、Agent 会话和浏览器连接隔离，Lingsuan Key 只保留在后端。
+## 2026-07-29 Task 13A 实现审查
+
+- 结论：候选实现与自动化通过，可交给用户做人工 A/B；不能据此切换正式 3456。
+- 安全边界：浏览器不保存 Provider Key，不使用 Local URL/Connect token；所有 Agent 接口校验登录用户、项目、浏览器会话和 Agent 会话，日志做敏感字段与完整 data URL 脱敏。
+- 一致性：写操作先持久化提案再确认；重复确认只返回既有执行，拒绝不执行；进程重启不自动重放未完成写操作。
+- 生图：复用现有持久任务、稳定幂等键和账务闭环；本轮只使用 Fake Provider，真实灵算调用留待用户单笔授权。
+- 回归：后端 18 项、前端契约 4 项、typecheck、build、API smoke、Playwright UI smoke 全部通过；正式 3456 指纹未变化。
+- 剩余：3466/3467 同指令人工 A/B、真实灵算 Agent 生图、最终 UI 调整和新增节点类型。Task 14–17 保持阻断。
+## 2026-07-29 Blob 参考图故障审查
+
+- 最终正确假设：浏览器恢复 `asset:` 后把节点内容变为运行期 `blob:`，直接图片节点/插件节点分支没有经过已有上下文水合；重试恢复又只把 `image:` 视为存储键。
+- 修复边界：所有节点生图在统一提交函数转换参考图；前端 API 和后端输入层保留双重防线。服务端不再尝试 fetch 任意 scheme。
+- 回归证据：原 500 重放现为 400/稳定错误码；当前用户失败节点重试成功；自动化 fixture 从 `asset:` 恢复、Fake 生图成功、结果持久化为新 `asset:` 且项目 JSON 无 `blob:`。
+- 无临时调试日志或运行时旁路遗留；正式 3456 未重建，真实 Provider 未调用。
+
+## 2026-07-29 图片节点与生图节点审查
+
+- 结论：实现直接落在现有 Image/Config 节点链路，没有第二套画布、节点注册、上传或 Provider 客户端。
+- 复用边界：上传继续由 `handleImageInputChange/replaceImageNodeFile -> uploadImage` 完成；生成继续由持久任务 API 和现有模型/参数控件完成；现有 `CanvasNode` 负责单击、选中、拖动、连线和面板打开。
+- 写回边界：只有 Config 节点采用同节点多图结果；文本节点、已有图片节点和插件节点原生成流程保持兼容。Config 恢复任务时一次恢复全部结果，选中图仍暴露为普通图片资源。
+- 回归证据：类型检查、生产构建、候选 API smoke 和独立 Playwright 节点用例通过；4 张结果为 2×2、没有创建额外图片节点、选中索引和 4 个存储键均持久化、JSON 无 `blob:`、控制台无错误。
+- 未覆盖风险：未调用真实 Lingsuan/零算，未切换正式 3456；旧全量 UI runner 的重叠节点连线步骤仍需改成固定坐标夹具，不能把本轮专项通过表述为全站人工 A/B 完成。
+
+## 2026-07-29 图片节点面板隔离复核
+
+- 根因：Image 节点定义没有声明 `hidePanel`，因此复用了适用于文本/媒体生成的通用 `CanvasNodePromptPanel`。
+- 修正符合最小复用原则：只在现有内置 Image 定义上启用已有开关；图片上方工具条、上传、选中、拖动、缩放、连线和资源输出逻辑均未重写。
+- 回归证明图片节点单击不再出现提示词/模型面板，Config 生图节点仍能打开自己的面板并完成 4 图四宫格生成。类型检查、生产构建、候选 Docker 重建和专项 Playwright 通过。
+- 边界保持：3466 使用 Fake Provider，未产生真实费用；正式 3456 指纹未变化。旧全量 UI runner 的既有重叠节点夹具问题仍未在本轮处理。
+
+## 2026-07-29 图片节点与绘图节点第一版审查
+
+- 结论：实现遵守“只有两个节点”的需求。图片节点与绘图节点直接映射现有 Image/Config 类型，没有引入重复上传、生成、画布或节点体系。
+- 图片节点职责已收窄为图片输入与参考图输出，单击不出现提示词/模型面板；绘图节点集中承载参考图输入、提示词、参数、任务状态和结果。
+- 4 张结果继续复用现有多结果结构并按 2×2 展示，所选结果仍作为节点资源输出，没有破坏项目持久化格式。
+- 连续创建节点的默认位置增加保守避让，显式坐标创建逻辑未改；Codex 内置浏览器实测两个节点无重叠。
+- 剩余风险：未获授权，因此没有调用真实 Provider；视觉尺寸与细节仍需用户在 3466 人工确认，旧全量 UI runner 的重叠夹具仍需单独稳定化。
+
+## 2026-07-29 生图节点命名与右键菜单复核
+
+- 结论：修改复用了现有节点注册表、`NodeCreateMenu` 和 `createNode`，没有增加第二份创建列表或新的节点创建链路。
+- 菜单说明只在创建菜单渲染层隐藏，节点定义中的 `description` 数据继续保留，不影响其他需要说明信息的场景。
+- 空白画布右键会打开创建菜单；节点、连线和 `[data-canvas-no-zoom]` 交互区域不会误触发。双击入口仍然保留。
+- Codex 内置浏览器证据：菜单包含文本、图片、视频、音频、生图、组六个单行选项；逻辑宽 260px，在当前 58% 画布缩放下渲染约 150px，无说明小字、无横向溢出，右键创建和清理临时节点均成功。
+
+## 2026-07-29 创建菜单缩放耦合复核
+
+- 正确根因：菜单尺寸过小来自渲染层级错误。`InfiniteCanvas` 把全部 children 放进 viewport transform，创建菜单因此与节点共同缩放；单纯增大 CSS 宽度不能解决不同缩放档位的不一致。
+- 修复边界：只移动两个创建菜单的渲染层并转换显示坐标；节点、连线、选择框仍留在世界坐标层，右键/双击/拖线创建节点继续使用原世界坐标。
+- 回归证据：58% 与 100% 两档下菜单均为 300×425px，且菜单父层无 transform；创建与删除临时生图节点成功，说明坐标转换没有破坏创建行为。
+
+## 2026-07-29 双击创建菜单终态复核
+
+- 结论：终态与原版入口一致，空白画布只在双击时打开节点列表；右键不再触发节点创建列表。
+- 坐标职责清晰：`nodeCreatePosition` 保存世界坐标供 `createNode` 使用，`nodeCreateMenuPosition` 保存屏幕坐标供非缩放浮层显示，没有把屏幕坐标混入项目节点数据。
+- Codex 内置浏览器在 36% 缩放下实测菜单宽 300px，菜单左上角与双击点的子像素偏差小于 1px；说明小字不存在，右键菜单数量为 0。
+- 实际选择“生图节点”后节点数从 3 增至 4，证明创建链路可用；验收临时节点已删除，页面恢复 3 个原节点，控制台无错误。
+
+## 2026-07-29 Kimi Code 交接审查
+
+- 交接文档没有包含 API Key、密码、Token 或真实测试账号；只保留工作区、分支、容器和公开本地端口等继续开发所需信息。
+- 已突出当前工作树包含大量未提交和未跟踪改动，禁止后续执行者使用 `reset/clean/checkout --` 丢弃现场。
+- 已把 Task 13A 的实际状态、双击菜单终态、Fake Provider 边界、正式 3456 指纹和下一阶段人工门禁写入交接；没有把专项验收夸大为正式发布完成。
+
+## 2026-07-30 Agent 工具对齐审查（Kimi Code）
+
+- 改动只涉及 `backend/canvas-agent/tool-contracts.js`、`backend/canvas-agent/provider-planner.js` 和新增测试脚本，前端零改动，未触碰 Docker 与正式 3456。
+- 审查确认图片生成流程不再创建提示词文本节点：`generationFlowOps` 图片模式只产生生图节点 + 可选图片节点连线 + 选中 + 触发生成；`buildComposerGenerationContext` 无 token 分支本就会把全部连入图片节点作为参考图，行为闭环。
+- 非图片（文本/视频/音频）生成流程保留原文本节点结构，未顺手改动。
+- 假 planner 放宽仅覆盖“生成 xxx”句式，未假装具备自由理解能力；回退提示语已明确标注“只认得固定句式”。
+- 测试 22/22 通过；服务端实测提案结构正确；浏览器端由用户人工确认结果落入生图节点。未调用真实 Provider，无费用。
+
+## 2026-07-30 Agent 反推工具审查（Kimi Code）
+
+- `canvas_reverse_image_prompt` 不新增后端反推接口，执行复用画布既有 `/api/image-tools/reverse-prompt` 与 `createImageReversePromptNodes`，结果落点为画布文本节点，与工具条按钮行为一致。
+- 发现并修正快照脱敏边界：`compactNode` 会剥离 `metadata.content`，后端与假 planner 改用 `storageKey/assetId` 判断图片节点有图，避免误判空节点。
+- 契约测试覆盖指定节点、选中兜底、无图报错三种路径；24/24 通过；typecheck 与构建通过；浏览器端由用户人工确认。未调用真实 Provider，Docker 未动。
+
+## 2026-07-30 提示词库更名与上游功能取舍（Kimi Code）
+
+- 提示词库管理员发布层更名"默认提示词"：仅 UI 文案、注释、用户可见错误文案与 Agent 工具描述；API 路径、字段、错误码、数据库结构均不变。
+- 已核实候选无 GitHub 上游外部提示词注册表残留，无需删除；上游节点插件远程市场明确不接入，新节点由用户手动内置开发。
+- 验证：后端 26/26、前端 7/7、typecheck、构建通过；3468 重启加载。Docker 未动，未调用真实 Provider。
+
+## 2026-07-30 Agent Skills 审查（Kimi Code）
+
+- 范围与计划一致：仅管理员维护 + 纯提示词注入；未接 LibreChat/SKILL.md 文件包，未新增工具，未做用户自建。
+- 审查发现并修复：创建 skill 时 `enabled` 未传被误判为 0（默认启用应为 1），已补默认值并有测试锁定；删除后再删返回 404 的断言修正。
+- 绑定严格校验、运行时宽松解析的双模式有测试覆盖；停用技能后历史会话发消息不被阻断。
+- 3468 端到端六项实测通过；测试合计后端 31/31、前端 11/11；未调用真实 Provider，Docker 未动。
+
+## 2026-07-30 助手面板 UI 重构审查（Kimi Code）
+
+- 删除范围符合用户确认：仅前端 tab 与视图组件，后端 `/api/canvas/ecommerce-suite/*`、配置与存储保留，未顺手删除。
+- 模式切换状态保留 `store.setVisibleMode("dialog")` 语义；`AssistantPanelMode` 收窄为 "agent" | "dialog" 与渲染一致。
+- 新控制条复用既有状态流（switchSession/createSession/changeSkills），未引入第二份会话状态；技能菜单上限 3 与后端一致。
+- typecheck 与构建通过；3468 重启后健康检查 200。Docker 未动，未调用真实 Provider。
+
+## 2026-07-30 资产统一云端审查（Kimi Code）
+
+- 范围符合用户确认：本地资产库入口全部移除（侧 tab、"存资产"按钮、`saveNodeAsset`），云端双视图分工为"产品图库（纯上传）"与"全量资产库（含生成记录）"。
+- 迁移幂等：`prompt` 列用 PRAGMA 检查后 ALTER，老库启动即补；历史资产 prompt 为空属预期，不做回填。
+- 修复过程中三处 CRLF 行尾导致的替换遗漏（hover toolbar、project.tsx 第二处 onSaveAsset），typecheck 复核清零。
+- 测试后端 31/31 + 资产 2/2、前端 21/21；3468 实测 prompt 与 source 过滤正确。Docker 未动，未调用真实 Provider。
+
+## 2026-07-30 "生图记录" tab 审查（Kimi Code）
+
+- 抽取共享组件时遗漏 `AssetCover`，typecheck 捕获后补回；`asset-picker-modal.tsx` 保留 `InsertAssetPayload` 类型导出，共享组件反向 import 类型无循环依赖问题（仅类型）。
+- 侧栏 tab 与弹窗共用同一 store 过滤参数（q/kind/source），两处同时打开时筛选会互相覆盖——当前为可接受的共享视图语义，未引入独立筛选状态。
+- typecheck 与构建通过；3468 重启健康检查 200。Docker 未动。
+
+## 2026-07-30 tab 切换卡顿/重影修复审查（Kimi Code）
+
+- 前轮"两处共享筛选可接受"的判断被用户实测推翻：共享全局 `cloudAssets` 正是卡顿/重影根因。本轮改为每视图独立数据（`use-cloud-asset-list.ts`）+ tab 保持挂载，前轮的共享视图语义同时作废。
+- 全局 `cloudAssets` 字段与 `resetCloudAssets` 保留（登出清空逻辑仍引用），但已无任何视图读取；项目加载预加载已移除。
+- typecheck 与构建通过；3468 重启健康检查 200。Docker 未动。
+
+## 2026-07-30 用户中心弹窗审查（Kimi Code）
+
+- 范围与批准计划一致：六个核心区块，复用现有 API，未新增后端接口，未动主站 `/user/center` 与旧资产。
+- 头像上传复用资产 multipart 通道打 `/api/upload`，不接触对象存储密钥；预设头像使用画布自带 `public/avatars/`。
+- 服务端实测 profile（嵌套 user）、balance-logs、generations 三接口；前端解析已兼容嵌套结构。
+- typecheck 与构建通过；3468 在线生效。Docker 未动，未调用真实 Provider。
+
+## 2026-07-30 真实 AI 开通审查（Kimi Code）
+
+- 授权边界清晰：复制生产线路（用户选定）+ 最小验证（1 生图 + 1 Agent），未超出次数；验证后未补单。
+- Key 全程未打印、未写源码、未入 git；生产库只读打开，未触碰 3456 容器。
+- 真实生图计费闭环核对：预占 -10、成功结算、结果落盘字节数与尺寸属实；真实 Agent 回复确为模型生成而非假 planner 模板。
+- 遗留口径问题：`/api/health` 全局摘要只看 env Key 显示 mock，容易误判；线路级 `routeProviderStatus` 才是真实状态，已记录。Docker 未动。
+
+## 2026-07-31 付费验收审查（Kimi Code）
+
+- 授权范围：付费调试（5 项组合）。实际调用次数与用途一一对应，无越界补单；幂等验证复用相同 clientRequestId 未产生重复上游调用。
+- 反推首次 502 复核：响应为上游瞬时故障（第二次同请求成功），反推按设计不自动重试、本地未扣费，符合预期；lingsuan 间歇性 reset 仍是已知上游风险。
+- 批量 4 张约 4 分钟为同失败域串行调度的既定行为，非故障。
+- Docker 未动；生产库只读，3456 全程未受影响。
+
+## 2026-07-31 落盘链修复审查（Kimi Code）
+
+- 三个 bug 逐层剥出均有实证：`net is not defined`（缺 require）、IPv4-only CDN 上 family=6 的 ENOTFOUND（`api.mikoto.vip` 实测仅 A 记录）、下载超时（实测 5.1MB 需 121 秒，CDN 限速 ~42KB/s）。
+- 下载改用 happy-eyeballs 专用 agent 而非复用 Provider family 池：Provider API 到 lingsuan 需要 IPv6，结果 CDN 需要自由选族，两个诉求已分开。
+- 三次失败重试均全额退款（generation_refund 逐笔在账），`upstreamBillingAmbiguous` 按规则标记；最终成功任务预占转结算，无重复扣费。
+- 生产源码同病未回写：生产此前未踩到是网络/路径差异，不代表无风险；建议回写前先在候选完成一轮 4K 验证。Docker 未动。
+
+## 2026-07-31 首页暗色主题修复审查（Kimi Code）
+
+- 用户指出首页暗色翻车且未做视觉验收，属实：第一版只覆盖了组件层，没压住 app.css 的浅色背景渐变层与白色玻璃容器。
+- 修复后已用本地 Chromium headless 实际截图复核（`.scratch/home-dark4.png`）：暗色首页各区域可读、与画布暗色一致。
+- 流程教训记入基线：视觉改动必须截图验收，构建通过不算数。
+
+## 2026-07-31 首页悬停卡顿治理审查（Kimi Code）
+
+- 根因确认：大面积 backdrop-filter（全屏/顶栏/面板多层模糊）是主凶，其次是动画中的大阴影；之前几轮只优化单个动画属性，没动根因。
+- 治理为纯 CSS 覆盖：backdrop-filter 全移除、阴影退出过渡、过渡属性白名单化；共享 app.css 未改，影响面限定首页组件。
+- 截图对比无视觉回退；hover 流畅度提升的机制是重绘路径消失，非掩盖。

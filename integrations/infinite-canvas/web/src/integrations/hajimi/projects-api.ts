@@ -7,6 +7,7 @@ export type ProjectListItem = {
     id: string;
     name: string;
     thumbnail: string;
+    legacy?: boolean;
     updatedAt: string;
     createdAt: string;
 };
@@ -42,6 +43,7 @@ function toListItem(value: unknown): ProjectListItem | null {
         id: record.id,
         name: typeof record.name === "string" ? record.name : "未命名项目",
         thumbnail: typeof record.thumbnail === "string" ? record.thumbnail : "",
+        legacy: record.legacy === true,
         updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : "",
         createdAt: typeof record.createdAt === "string" ? record.createdAt : "",
     };

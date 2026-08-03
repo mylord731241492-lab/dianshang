@@ -1,14 +1,14 @@
 # 当前项目基线与防混淆地图
 
-> 最后更新：2026-07-28，北京时间。
-> 当前工作树：`F:\dianshang-worktrees\infinite-canvas-candidate`；开发分支：`codex/infinite-canvas-candidate`；Task 12 基线为 `5ae193f feat: add non-destructive legacy canvas import`，Task 13 自动化验收已完成。
+> 最后更新：2026-07-29，北京时间。
+> 当前工作树：`F:\dianshang-worktrees\infinite-canvas-candidate`；开发分支：`codex/infinite-canvas-candidate`；当前提交为 `4fbe705 fix: keep candidate login on infinite canvas`。Task 13A 源码与自动化已完成，当前处于 `ready-for-human`，Task 14 尚未授权。
 
 本文件是后续修改前的第一入口。`docs/progress-report.md` 和 `docs/review-log.md` 是时间线流水账，不是当前状态的唯一准绳。
 
 ## 当前准绳
 
 - Git 安全检查点：`fe5372d`，已推送到 `origin/codex/generation-stability-10-users`。
-- 当前候选分支：`codex/infinite-canvas-candidate`；Task 13 只在独立 `127.0.0.1:3466` 候选环境验收，Task 14 人工门禁通过前不得替换正式 `/canvas`。
+- 当前候选分支：`codex/infinite-canvas-candidate`；Task 13A 已在独立 `127.0.0.1:3466` 候选环境完成源码与自动化，仍待 3466/3467 人工 A/B、最终 UI/节点调整和用户明确验收；Task 14 通过前不得替换正式 `/canvas`。
 - `.scratch/`、`output/`、`outputs/`、数据库备份、运行时 `workflows/`、浏览器缓存和个人文件不属于提交基线。
 - 回滚前现场备份分支：`codex/backup-before-rollback-20260707-130326`。
 - 回滚前未提交改动：`stash@{0}`，消息为 `pre-rollback-to-51d4dab-20260707`。
@@ -18,11 +18,14 @@
 ## Infinite Canvas 隔离候选状态
 
 - Task 1–12 已落在候选分支，Task 12 提交为 `5ae193f`；Task 13 的隔离 Compose、API/UI 验收套件和验收文档已完成。
+- 2026-07-29 用户对比 3466 候选与 3467 原版后明确：主要目标是迁移原版功能，不接受只保留画布外形、用能力更少的三模式助手替换原版 Agent。Task 10 的 `fee1146` 只完成业务助手替换，不能作为 Agent 迁移完成证明。
+- Task 13A 已补齐画布读写、写操作确认/拒绝、会话恢复/删除、停止、脱敏日志、节点/图片附件和项目/任务/提示词/素材站点工具；源码与自动化已完成，人工 A/B 尚未完成。详细差异和验收见 `docs/infinite-canvas-agent-feature-migration.md`。
+- 2026-07-29 用户进一步明确候选必须是给其他人登录使用的网页版：复用 Infinite Canvas 原版 MCP 画布工具，但不依赖用户本机 Codex、`127.0.0.1`、Local URL 或 Connect token；服务端通过 Lingsuan 路线驱动，并按用户、项目、Agent 会话和浏览器会话隔离。
 - 候选入口为 `http://127.0.0.1:3466/canvas`，容器为 `dianshang-canvas-candidate`，只绑定回环地址。
 - 候选环境固定关闭真实 AI、对象存储、邮件和支付；本轮没有调用 Lingsuan/零算或其他真实 Provider。
 - Task 14 首轮人工复测发现 3466 登录后的 Vue Router 内部跳转误进入 `CanvasLegacySource`，继而跳到正式 3456 旧画布；现已改为画布目标使用整页同源导航，并把“真实填写登录表单后仍停在 3466 且标题为无限画布”加入候选 UI 阻断检查。
 - 自动化已经覆盖桌面 1440×900、移动端 390×844、10 节点/9 图片性能样本、项目/素材/提示词跨用户隔离和正式容器指纹不变。
-- Task 13 自动化通过不等于正式切换授权。下一阶段是 Task 14 用户人工验收；未经明确确认，不进入正式 3456 构建或迁移。
+- Task 13/13A 自动化通过不等于正式切换授权。下一阶段是继续在 3466 完成 UI/节点调整并执行 3466/3467 人工 A/B；用户明确通过后才重新进入 Task 14。未经明确确认，不进入正式 3456 构建或迁移。
 - 详细命令、范围与人工清单见 `docs/infinite-canvas-candidate-acceptance.md`。
 
 ## 阅读顺序
@@ -642,3 +645,321 @@
 - 候选改造只在独立工作树 `F:\dianshang-worktrees\infinite-canvas-candidate`（分支 `codex/infinite-canvas-candidate`）、独立端口 3466 和隔离数据中进行；主工作区 `F:\dianshang` 在 `codex/generation-stability-10-users` 上的 17 个未提交在途改动不得被覆盖、暂存或提交。
 - 旧基线“不启用 S3/MinIO”的决定已被 ADR-0005 重新打开，但只在云存储方案经用户确认并记录于 ADR-0006 后才可实施；此前不得安装或启用 S3/MinIO SDK。
 - `docs/plans/2026-06-26-source-stack-canvas-rebuild-plan.md` 继续仅作历史记录、不恢复；已废止的 Vue Flow 独立重建方案不恢复。
+
+## 2026-07-29 Infinite Canvas Agent 候选实现（Task 13A）
+
+- 3466 候选已补回网页版 Agent 主路径：登录用户可按项目新建、切换、刷新恢复和删除会话，发送自然语言请求，查看工具提案与脱敏事件，并对写操作确认或拒绝；运行中的分析支持停止。
+- Agent Runtime、会话/事件/工具调用均在服务端持久化，并按 `userId + projectId + browserSessionId + agentSessionId` 校验。重复确认不会重复执行；进程重启只把未完成调用收敛为安全中断，不自动重放可能已触达上游的写操作。
+- 候选已复用 Infinite Canvas 画布工具契约和现有哈吉米项目、素材、提示词、模型配置、任务状态与持久生图任务服务。浏览器不直连 Provider，不使用 Local URL、Connect token 或用户本机 Codex。
+- 画布写操作继续由浏览器在当前项目上下文中应用，执行结果回传服务端；生图携带稳定 `clientRequestId`，继续走原有任务幂等、预占、结算和退款链路。
+- 后端 18 个 Agent 专项测试、前端 4 个契约测试、TypeScript 类型检查、前端构建、候选 API smoke 和 Playwright 全流程均通过。浏览器实测完成“创建两个文本节点并连接 → 确认 → 刷新恢复 → 服务端历史恢复”。
+- 候选容器 `dianshang-canvas-candidate` 当前运行于 `127.0.0.1:3466`，Fake Provider、隔离数据库和隔离上传目录保持启用；正式 3456 容器指纹在完整验收前后未变。
+- 当前状态为 `ready-for-human`，不是正式发布完成：真实灵算 Agent/真实生图费用链路、3466 与 3467 人工 A/B、最终 UI 调整和新增节点类型均留待用户最后调试。Task 14–17 与正式 3456 切换仍未授权。
+
+## 2026-07-29 候选画布 Blob 参考图边界修复
+
+- 用户在 3466 图片节点生图时复现 `node-fetch cannot load blob:... URL scheme "blob" is not supported`。根因是画布恢复云端资产后使用浏览器 `blob:` 预览地址，直接图片节点/插件节点分支绕过了参考图 Data URL 水合；旧失败任务重试路径又只识别 `image:`，未识别当前 `asset:` 存储键。
+- `submitNodeImageGeneration` 现统一水合全部参考图，直接图片节点、插件节点和重试不再各自决定是否提交 `blob:`；生成 API 客户端拒绝漏网 `blob:`，服务端任务输入层也以 HTTP 400 + `GENERATION_REFERENCE_BLOB_URL_UNSUPPORTED` 明确拒绝，不再把边界错误拖到 `node-fetch` 形成 500。
+- `resolveMetadataReferences` 同时支持 `image:` 与 `asset:`，旧失败节点可以从持久资产恢复参考图后重试。用户当前项目中的原失败节点已在 Fake Provider 下重试成功并显示新图片。
+- 候选 smoke 新增 Blob URL 400 契约和完整浏览器回归：构造 `asset:` 参考图失败节点、点击重试、生成成功、刷新持久化为新 `asset:`，并断言项目 JSON 不含 `blob:`。前端契约测试、类型检查、Docker 重建、API/UI smoke 全部通过。
+- 当前候选镜像为 `sha256:93bb0c57771a030a8b4a2f9003e192e79052b2f788b84b7a8b12b6b1657ad59c`，容器 healthy；正式 3456 指纹在验收前后未变化。本轮仍为 Fake Provider，无真实灵算费用。
+
+## 2026-07-29 图片节点与生图节点第一版
+
+- 本轮只改造候选现有 `CanvasNodeType.Image` 与 `CanvasNodeType.Config`，对应“图片节点”和“生图节点”；没有新增第三种相关节点，也没有另起画布、上传服务、生图 API 或交互系统。
+- 图片节点只负责选择文件、拖放、Ctrl+V 粘贴、显示图片和通过连线提供参考图。它不显示提示词、模型、参数或生成面板；上传继续复用现有 `uploadImage`、账号资产存储和节点资源引用。
+- 生图节点负责接收参考图连接、输入提示词、设置模型与参数、提交生成任务并在节点内显示结果。提示词编辑器、参数控件及持久任务 submit/wait/cancel/restore 链路均复用现有实现。
+- 图片节点和生图节点标题常驻显示；生图面板位于节点下方，结果区与提示词/参数区属于同一生图节点。旧默认标题“生成配置/绘图节点”在当前界面统一显示并迁移为“生图节点”。
+- 生图节点最多保存 4 张结果，4 张按 2×2 四宫格显示；选中任一结果仍同步到节点顶层 `content/storageKey`，可继续作为下游输入，项目 JSON 不保存 `blob:`。
+- 从工具栏连续创建图片节点和生图节点时会寻找相邻空位，避免两个节点在画布中心完全重叠；从连线或双击菜单指定坐标创建的节点尊重原坐标。
+- 节点创建菜单已改成单行图标与名称布局，不显示节点说明小字；空白画布只通过双击打开创建列表，右键不打开列表。菜单位于非缩放 UI 浮层，固定为 300px 宽，不随画布缩放比例改变大小；菜单显示使用屏幕坐标，节点创建继续使用同一双击点对应的画布世界坐标。
+- Codex 内置浏览器已验证两类节点分离、创建不重叠、图片节点不出现生图面板、生图节点显示提示词/参数/结果区和已连接参考图数量。验证使用 Fake Provider，没有发起真实灵算或其他付费调用；正式 3456 未修改。
+
+## 2026-07-30 验证方式切换为本地 3468（用户指示，Docker 不动）
+
+- 用户明确 Docker 是生产端在跑，不要动；候选的后续验证改为候选工作树内本地运行：`node server.js` 监听 `127.0.0.1:3468`，`CANVAS_RUNTIME=infinite`，数据独立在 `.scratch/infinite-canvas-local/`（独立 SQLite/上传/工作流/对象存储），Fake Provider，本地账号 `test01`/`admin`。
+- 3466 候选容器与正式 3456 容器本轮起不再作为日常验证目标，未经用户明确授权不得重启、重建或改挂载。2026-07-30 凌晨 Docker Desktop 整体重启使两容器 StartedAt 变为 `2026-07-30T01:18:52Z`；容器 ID 与镜像与交接指纹一致，代码未变，验收脚本中的启动时间断言需按此更新。
+- 本地 3468 改了后端代码后需要重启本地 node 进程生效；前端改动后执行 `npm run build --prefix integrations/infinite-canvas/web` 重建 dist，浏览器刷新即可。
+
+## 2026-07-30 Agent 工具对齐图片节点+生图节点逻辑
+
+- 用户确认候选基本生图逻辑为“图片节点 + 生图节点”，Agent 工具已对齐：`backend/canvas-agent/tool-contracts.js` 的图片生成流程只创建生图节点、提示词直接写入本节点、参考图经 `referenceNodeIds` 连入图片节点，不再创建提示词文本节点；config 节点默认标题“生图节点”，工具描述、确认面板摘要和 planner 系统提示词同步新叫法与新职责。文本/视频/音频流程结构未变。
+- 假 planner 放宽为同时识别“生成 xxx”和“生图：xxx”；Agent 尚无反推能力，是否复用 `/api/template/reverse-prompt` 新增站点工具待用户决定。
+- 新增 `scripts/test-canvas-agent-tool-contracts.js`；后端 Agent 测试 22/22 通过；本地 3468 服务端提案结构实测正确；用户浏览器人工确认 Agent 生图节点创建与触发生成可用。全程 Fake Provider，未调用真实灵算，Docker 未动。
+
+## 2026-07-30 Agent 反推工具
+
+- Agent 新增 `canvas_reverse_image_prompt` 工具：对指定/选中/首个有图图片节点反推提示词，执行复用画布既有 `/api/image-tools/reverse-prompt` 与工具条同一函数，结果写入新"反推提示词"文本节点并连线；无图节点明确报错不执行。
+- 实现边界：后端契约 + `reverse_prompt` op + bridge 异步分发；快照脱敏后以 `storageKey/assetId` 判断有图。假 planner 识别"反推"句式。
+- 契约测试 3 例新增，后端 Agent 测试 24/24 通过；typecheck 与 Vite 构建通过；3468 服务端与浏览器均由用户确认可用。Fake Provider，Docker 未动。
+
+## 2026-07-30 提示词库更名"默认提示词"
+
+- 用户明确：提示词库中管理员发布层改叫"默认提示词"，内容用户自己维护，不使用 GitHub 上游外部提示词注册表。已核实候选无任何外部提示词源接线（`use-prompt-source-store` 仅为 Tab/搜索 UI 状态），无需删除代码。
+- 更名覆盖：画布提示词库面板 Tab 与空态文案、`prompts-api.ts`/测试、`backend/prompts/` 注释与用户可见错误文案、Agent 工具 `prompts_search` 描述。
+- 明确不变：API 路径 `/api/prompts/system` 与 `/api/user/prompts/copy-system`、字段 `systemPromptId`、错误码、数据库结构、旧打包资产与历史文档表述。
+- 验证：后端 prompts + Agent 测试 26/26、前端 `prompts-api.test.ts` 7/7、typecheck、Vite 构建通过；3468 已重启（入口 `index-D9-V23x1.js`）。Docker 未动，未调用真实 Provider。
+- 同日决定：上游节点插件系统（远程市场）不接入，后续新节点由用户手动内置开发；Agent token 用量显示与导出 zip 可用性验证列入真实灵算开通那一轮。
+
+## 2026-07-30 Agent Skills（管理员维护 · 纯提示词注入）
+
+- 用户确认：skill 由管理员统一维护（同默认提示词策展模式），能力边界为纯提示词注入，不新增工具、不执行代码、不接 LibreChat/SKILL.md 文件包。
+- 新模块 `backend/agent-skills/`：新表 `agent_skills`（name/description/markdown/enabled/sort_order）；`GET /api/agent-skills` 普通用户只读启用列表（不含 markdown 全文），`/api/admin/agent-skills*` 管理员 CRUD；markdown ≤8000 字。
+- 会话绑定：`canvas_agent_sessions` 幂等迁移新增 `skill_ids` 列；建会话可带 `skillIds`，`POST /api/canvas/agent/sessions/:id/skills` 随时更换；最多 3 个，绑定时严格校验（不存在/停用 400），发消息时宽松解析（后停用的自动失效）。
+- 注入：`runtime-service` 把启用 skill 的 name+markdown 传入 planner，`buildProviderInput` 在 policy 后追加"## 技能：{name}"段，并声明技能是用户显式选择的行为约束但不得违反安全边界；`turn_started` 事件记录 skillNames；假 planner 忽略技能不假装生效。
+- 前端：Agent 面板会话行下方新增"技能"多选（上限 3，无技能时整体隐藏）；`canvas-agent-api.ts` 增加 `listAgentSkills`/`updateSessionSkills`，会话类型带 `skillIds`。
+- 测试：新增 `scripts/test-agent-skills.js` 5 例（CRUD 校验、严格/宽松解析、会话绑定持久化、更换技能事件、planner 注入与不泄密）；后端合计 31/31、前端 11/11 通过；typecheck 与 Vite 构建通过。
+- 3468 端到端实测：普通用户写 403、admin 创建、用户只读列表、绑定/非法绑定 400、发消息 turn_started 含 skillNames。Fake Provider，Docker 未动。skill markdown 写作参照 `docs/ecommerce-suite-skills/00-skill-markdown-spec.md`。
+
+## 2026-07-30 助手面板 UI 重构（Agent 助手）
+
+- 用户决定：快速生图、电商套图从前端移除（后端接口、配置与存储保留，后续统一由技能承载）；面板标题"哈吉米助手"改为"Agent助手"，副标题改为"技能 · 对话 · 画布操作"。
+- 外壳 `hjm-canvas-assistant-panel.tsx`：删除快速生图/电商套图 tab 与视图组件（约 250 行），仅保留 Agent 主视图与「对话」辅助模式；模式切换从顶部 tab 改为底部控制条按钮。
+- Agent 视图重设计：顶部精简为状态标签 + 会话标题 + 日志/新建/删除图标（日志从底部移到顶部）；底部输入区上方新增控制条——会话菜单（自定义弹层：会话列表带预览/待确认徽标/新对话入口）、技能菜单（勾选式弹层，最多 3 个，管理员维护提示）、「对话」模式切换；原生 antd Select 全部移除。「对话」模式底部有"返回 Agent"按钮。
+- 验证：typecheck 与 Vite 构建通过，3468 已重启（入口 `index-BRgyCivv.js`）。本轮为纯前端改动，未动后端与 Docker，未调用真实 Provider。
+
+## 2026-07-30 资产体系统一为云端（删除本地资产库）
+
+- 用户决定：不要浏览器本地资产库。左侧"资产"tab 改为账号云端**产品图库**（`/api/user/assets` 固定 `kind=image + source=upload`），支持上传、搜索、插入画布、软删除和分页；云端资产库弹窗作为全量库，新增来源筛选（全部/我上传的/生成的）、来源徽标，生成类资产卡片显示**生图时间（created_at）与生图提示词**。
+- 后端：`user_assets` 幂等迁移新增 `prompt` 列；生图任务结果落资产时写入任务提示词（图片工具结果暂不写）；`/api/user/assets` 支持 `source` 过滤（upload/generated/tool/generation）。历史资产 prompt 为空属预期。
+- 前端清理：删除悬停工具条"存资产"按钮与 `saveNodeAsset`（原本地库唯一写入入口）；`assets-api`/`use-asset-store` 增加 prompt 与 source 过滤。本地资产 store 保留会话内临时态但已无 UI 和写入入口。
+- 验证：后端 31/31 + 资产专项 2/2、前端 21/21、typecheck、Vite 构建通过；3468 重启后实测新生成资产带 prompt 与 createdAt、source 过滤正确。Fake Provider，Docker 未动。
+
+## 2026-07-30 左侧面板新增"生图记录" tab
+
+- 用户反馈云端资产库只藏在工具栏小图标后不易发现：左侧面板在"资产"与"提示词库"之间新增**生图记录** tab，默认筛选生成的资产（可切换全部/我上传的），两列网格，卡片带生成时间与提示词；工具栏小图标与弹窗标题同步改名"生图记录"。
+- 实现：弹窗的资产浏览抽为共享组件 `cloud-assets-browser.tsx`（`CloudAssetsBrowser`，支持 defaultSource 与列数），弹窗与侧栏 tab 复用；`asset-picker-modal.tsx` 仅剩弹窗壳。
+- 验证：typecheck 与 Vite 构建通过，3468 重启（入口 `index-DKdpbmcX.js`）。纯前端改动，Docker 未动。
+
+## 2026-07-30 左侧 tab 切换卡顿/重影修复
+
+- 根因：左侧"资产"（source=upload）与"生图记录"（source=generated）共用全局 `cloudAssets` 列表和一份筛选，切 tab 互相覆盖数据；组件卸载重挂导致重复请求、空态闪烁和图片重载。
+- 修复：新增 `use-cloud-asset-list.ts` Hook，每个视图独立持有自己的分页数据（不再读写全局 `cloudAssets`）；左侧四个 tab 保持挂载，只切换显隐（hidden），不再卸载重挂。项目加载时的全局资产预加载同步移除。
+- 验证：typecheck 与 Vite 构建通过，3468 重启（入口 `index-CCzSO1LL.js`）。纯前端改动，Docker 未动。
+
+## 2026-07-30 用户中心移植画布弹窗
+
+- 画布顶栏菜单"用户中心"从跳主站改为打开画布内弹窗 `canvas-user-center-modal.tsx`（antd Modal + 画布主题 token，与资产弹窗同风格）。
+- 弹窗区块：资料卡（头像/用户名/邮箱/角色，首字母兜底）、头像设置（5 个预设 + 上传自定义，走 `/api/upload` + `PUT /api/user/avatar`）、算力余额 + 兑换码（`/api/user/redeem`）、算力明细最近 20 条、生成记录最近 20 条、退出登录。操作成功后 `refreshSessionUser()` 同步顶栏。
+- 新 API 封装 `integrations/hajimi/user-api.ts`（profile/balance-logs/generations/redeem/头像）；profile 响应嵌套 `user` 字段已兼容。不包含充值与 API 线路偏好（另行决定）。
+- 验证：typecheck 与 Vite 构建通过，3468 在线构建生效（入口 `index-pTvoRkBU.js`）；服务端实测 balance-logs/generations/profile 三个接口数据正常。Docker 未动。
+
+## 2026-07-30 本地 3468 开通真实 AI（用户授权最小验证）
+
+- 用户要求"所有 AI 与画布互通，达到可生产部署状态"，授权复制生产线路配置 + 最小真实验证（1 次生图 + 1 次 Agent 对话）。
+- 线路来源：从 `F:\dianshang\docker\data\data.db`（只读）复制 `app_state` 的 `admin.apiProviders` 到本地 3468 库：1 条文本（gpt-5.6-terra）+ 3 条图片（lingsuan-专线、cx-vip专线、派克），均 enabled 且 apiKey/baseUrl 齐全。Key 未打印、未写源码、未入 git。
+- 本地 3468 现以 `ENABLE_REAL_AI=true`、`PROVIDER_IMAGE_IP_FAMILY=6` 运行；`/api/health` 全局摘要仍显示 mock（它只看 env Key，属显示口径），实际调用走线路级 `routeProviderStatus` 为真实。
+- 真实生图验证：1 张 1K low，任务 `task_ms8crcmo386e2532` 约 12 秒成功，结果 1254×1254 PNG、1,174,258 字节落盘可下载；算力预占 -10（950→940）。
+- 真实 Agent 验证：文本路线真实回复（非假 planner 句式），会话含技能注入。Agent 分析调用走 chat 计费闭环。
+- 提醒：3468 之后所有生图/Agent/反推/扩写都是真实上游扣费，测试需自控次数。内网正式部署时需要：DB 配好线路、`ENABLE_REAL_AI=true`、按宿主选 `PROVIDER_IMAGE_IP_FAMILY`（Windows 6 / Linux 4）。
+
+## 2026-07-31 真实模式付费验收（用户授权）
+
+- 用户授权付费调试，按 5 项组合验收，实际发起真实调用：生图 3 次（含批量 4 张）、反推 1 次（首次 502 后同请求重试 1 次成功）、Agent 对话 2 次。
+- 结果：文生图 1 张成功（1254×1254）；**参考图图生图成功**；**批量 4 张成功**（同失败域串行约 4 分钟，4 图齐全）；**packyapi 线路成功**；**反推真实输出**（首次 502 为上游瞬时故障，反推按设计不自动重试）；**Agent 带"白底图专家"技能**真实提案 `canvas_generate_image`（3 操作结构正确，待用户浏览器确认完成端到端）。
+- 账务：逐笔预占/结算，无生图退款异常，chat -5×2，余额 870，无重复扣费（幂等重放验证复用了相同 clientRequestId）。
+- 补充：用户随后在浏览器完成 Agent 端到端——发送"茉莉白茶概念标签方案"，Agent 回复与提示词均带明显技能风格（白底/留白/无品牌文字），用户确认提案后真实生图任务进入上游生成。"Agent + 技能 → 生图节点真实出图"闭环已通。
+
+## 2026-07-31 结果落盘链三连修复（2K 真实任务验证）
+
+- 用户的 2K 3:4 任务连续失败，定位为落盘链三个叠加 bug（生产 `F:\dianshang` 源码同样存在，未回写）：
+  1. `net is not defined`：图片代理校验用 `net.isIP`/`dns` 但 server.js 未 require，已补。
+  2. 结果下载未挂地址族代理：裸 fetch 挂起；强制 IPv6 又撞 IPv4-only CDN（`api.mikoto.vip`）ENOTFOUND。新增 happy-eyeballs 下载专用 agent（`providerImageDownloadAgentForUrl`），Provider API 调用仍走 family 池。
+  3. 30 秒下载超时 vs 限速 CDN：实测 CDN 限速约 42KB/s，5MB 需约 121 秒。超时提至 180 秒，`PROVIDER_IMAGE_PERSIST_TIMEOUT_MS` 可调。
+- 验证：第四次重试完整成功——上游约 85 秒 + 下载落盘，1536×2048 PNG、4,823,609 字节；预占/退款逐笔正确，失败任务均全额退款，余额 850。高规格（2K）与 URL 落盘路径自此打通。
+
+## 2026-07-31 生图张数默认 1 张
+
+- 用户要求防止一次跑太多：画布生图默认张数从 3 改为 1（`use-config-store.ts` 的 `canvasImageCount`），手工和 Agent 创建的生图节点默认均为 1 张；planner 系统提示词新增"生图默认 1 张，用户明确要求多张时才设置 count，最多 4 张"。
+- typecheck、构建、planner/契约测试 10/10 通过；3468 重启（入口 `index-D194goGa.js`）。
+
+## 2026-07-31 画布左上角用户入口
+
+- 用户反馈用户数据藏在下拉菜单里：画布左上角菜单按钮旁新增用户头像图标（头像或首字母兜底 + 算力余额数字），点击直接打开用户中心弹窗；悬停显示"用户中心 · 用户名"。
+- typecheck 与构建通过，3468 在线生效（入口 `index-Bd3GisRy.js`）。
+
+## 2026-07-31 画布左上角入口放大并加"画布中心"
+
+- 用户头像图标放大一档（size-8 + 14px 余额数字），旁边新增"画布中心"按钮（图标+文字），点击打开我的画布列表；与下拉菜单解耦，两个高频入口都直接可见。
+- typecheck 与构建通过，3468 在线生效（入口 `index-C0CXYk6K.js`）。
+
+## 2026-07-31 首页重设计（创建画布 + 提示词案例）
+
+- 重写 `frontend/src/views/HomeWorkbench.vue`：深色主题与画布统一；移除原中央生成卡片（Chat/Fast/Agent 三模式表单），替换为"创建画布"主 CTA；新增提示词案例区（4 张案例卡：白底主图/场景氛围/包装标签/卖点展示），点击案例创建新画布并预填提示词；历史项目网格保留。
+- 首页路由从旧资产切换到源码 SPA：`sourceFrontendRoutePattern` 增加 `/`，`/` 现由 `frontend/dist` 服务（旧 HomeIndex 资产不再作为首页入口，其他旧路由不变）。
+- 画布支持 `?prompt=`：空画布加载后自动创建一个预填 `composerContent` 的生图节点并选中，随后从 URL 移除参数；非空画布不预填。
+- 验证：Vue 构建（vue-tsc + Vite）、React typecheck 与构建通过；3468 重启后 `/` 命中源码入口 `index-D5x4a6iV.js`。
+
+## 2026-07-31 首页按原布局重做 + 明暗双主题
+
+- 用户反馈上一版重设计偏离原首页：已按原布局恢复（顶栏品牌、侧轨、Hero 标题、历史项目区），仅做两处功能替换——中央生成表单模块改为"创建画布"卡片（沿用原玻璃质感），下方新增 4 张提示词案例卡（点击创建带提示词的画布）。
+- 首页主题跟随画布明暗：读取 `infinite-canvas:theme_store`（与画布同一主题存储），`theme-dark` 全套覆盖色（背景/玻璃面板/文字/卡片），`theme-light` 保持原浅色样式。
+- 侧轨"新画布"、顶栏"画布中心"均直接进画布；创建画布与案例创建走 `?prompt=` 预填链路。
+- Vue 构建通过，3468 在线生效（入口 `index-CKd9qaG_.js`）。
+
+## 2026-07-31 首页暗色主题修复与截图验收
+
+- 上一版暗色首页视觉翻车（浅色渐变背景层未覆盖，文字/按钮洗白）：补齐 `.home-background` 渐变、`::after` 叠层、`.global-workflow-actions`/`.side-rail` 容器、`.home-header` 的暗色覆盖。
+- 已用本地 Chromium headless 实际截图验收暗色首页：背景、标题、创建画布卡、案例卡、侧轨、顶栏按钮全部可读、风格与画布暗色一致（截图存 `.scratch/home-dark4.png`）。浅色主题沿用原 app.css 未动。
+- 教训记录：首页这类视觉改动必须截图验收，不能只靠构建通过。最终入口 `index-etfFhABn.js`。
+
+## 2026-07-31 首页布局与历史卡片动画优化
+
+- 提示词案例区下移到历史画布项目之后（页面顺序：Hero/创建画布 → 我的历史画布项目 → 提示词案例）。
+- 历史卡片 hover 动画去掉 `scale(1.015)`（整卡重绘导致卡顿），仅保留 `translateY(-2px)` 位移，过渡缩短至 0.16s ease-out。
+- 已用 Chromium headless 截图验收布局顺序与暗色风格（`.scratch/home-final.png`）。入口 `index-9erV2PC5.js`。
+
+## 2026-07-31 历史卡片预览图 + 遮罩动画 + 首页画布链接修复
+
+- 用户反馈三点：悬停遮罩过渡仍卡、历史卡片应显示画布内容预览、首页"创建画布"跳到了旧画布。
+- 遮罩：`.history-hover` 过渡移除（瞬时切换），卡片只保留位移动画，不再有遮罩淡入淡出卡顿。
+- 预览：`GET /api/user/projects` 现从项目 envelope（`data.project.nodes`）提取第一个带图节点：`/uploads/` 内容直用，`asset:` 引用签 15 分钟同源短时 URL；接口改为 async。实测"无限画布 5"返回可用预览（asset-content 200）。
+- 首页链接：`legacyUrl('/canvas')` 硬编码 `127.0.0.1:3456` 是旧画布入口，首页所有画布链接已改为同源相对路径 `/canvas`（新 Infinite Canvas）；其他"旧版页面"链接是刻意保留，未动。
+- 验证：server.js 语法、Vue 构建通过；3468 重启后接口实测。入口 `index-DuJ_edN5.js`。
+
+## 2026-07-31 首页悬停卡顿根因治理
+
+- 用户反馈整页悬停动画严重卡顿。根因三类叠加：大面积 `backdrop-filter`（全屏 `blur(3px)` 背景叠层、顶栏 `blur(26px)`、各玻璃面板 `blur(20px)`）、hover 过渡大模糊半径 box-shadow、单元素过渡属性过多。
+- 治理（全部在 HomeWorkbench.vue scoped，不碰共享 app.css）：所有玻璃层 `backdrop-filter: none`（视觉以半透底色兜底）；create-card/example-card 阴影改静态基础值、hover 只动 transform+border-color；过渡属性收敛到 transform/border-color/opacity。
+- 验证：Vue 构建通过；Chromium headless 截图对比无视觉回退（`.scratch/home-perf.png`）；scoped 块内已无有效 backdrop-filter、transition 中无 box-shadow。入口 `index-CjVARaW6.js`。
+
+## 2026-07-31 画布中心弹窗化 + 新建直进画布
+
+- 用户反馈：首页"新建画布"落到画布中心列表页而不是直接进画布；画布中心应该是画布内弹窗。
+- 根因：首页链接用 `?projectId=` 查询参数，而 React 路由项目页是 `/canvas/:id` 路径参数，`/canvas` 无 id 就是列表页。首页画布链接已改为 `/canvas/<id>`（`?prompt=` 保留）。
+- 画布中心弹窗：新增 `canvas-projects-modal.tsx`（antd Modal，复用画布库 store 与 `CanvasProjectCard`、删除确认对话框，支持新建/打开/删除）；画布左上角"画布中心"按钮从整页跳转改为打开该弹窗。`/canvas` 列表页路由保留（删除当前画布、加载失败返回等场景仍使用）。
+- 验证：React typecheck 与构建、Vue 构建通过；`/canvas/:id` 路由实测 200。画布入口 `index-BB3f0zBJ.js`，首页入口 `index-CBbaPRUl.js`。
+
+## 2026-07-31 旧数据隔离与旧项目转化修复
+
+- 用户反馈：旧画布数据不应出现在新画布；旧项目"导入为新版副本"转化不了。
+- **假 legacy 根因**：首页创建项目只 POST `{name}` 不带数据，服务端落了空 `{}`，被新画布按旧格式处理。首页创建现附带空信封（`hjm.infinite-canvas.project` v1），新建项目直接可用。
+- **旧数据隔离**：`GET /api/user/projects` 列表项新增 `legacy` 标记（信封 schema 判定）；新画布 store `loadProjects` 过滤 legacy 项（服务端数据原样保留，仅新画布列表隐藏；首页主站列表不受影响）。
+- **转化器修复**：旧画布主生成节点类型 `imagePromptGenerate`（生产 79 个项目、77 个节点）此前未识别被跳过，转化结果为空画布。已补充映射为 config 生图节点（model/size/quality/count；提示词由连入文本节点经 edges 供给）。用生产真实旧项目验证：4/4 节点、3/3 连线、零警告完整转换。
+- 验证：React typecheck 与构建、Vue 构建、projects-api 测试 8/8 通过；3468 重启后列表 legacy 标记实测正确。画布入口 `index-D9A3yria.js`。
+
+## 2026-07-31 Agent 面板支持拖拽与粘贴图片
+
+- Agent 输入区新增：Ctrl+V 粘贴图片（clipboardData.files）、拖拽图片到输入区（含拖拽中虚线高亮反馈）；复用既有 `uploadFiles`（上传账号资产库、最多 4 张附件）。
+- typecheck 与构建通过，3468 在线生效（入口 `index-CRmJA_ri.js`）。
+
+## 2026-07-31 Agent 对话支持 @ 引用画布节点
+
+- Agent 输入框换成画布同款 `CanvasResourceMentionTextarea`：输入 @ 弹出节点候选（图片/视频/音频/文本，标签与画布一致：图片1、文本1…），选中插入标签；`labelResourceNodes` 已导出复用。
+- 发送时把标签解析为 `mentions: [{label, nodeId, title, kind}]` 随消息上送：runtime 清洗后写入 user_message 事件并传给 planner；planner context 增加 mentions，系统提示词新增规则"mentions 给出标签与 nodeId 对应，参考图/指定节点优先用这些 nodeId（如 referenceNodeIds）"。
+- 端到端实测（真实模型）：发"参考 图片1 生成一张白底图"，模型正确识别引用并回答以「图片1」为参考。
+- 后端测试 14/14、typecheck、构建通过；3468 重启生效。画布入口 `index-D9A3yria.js` 之后最新构建。
+
+## 2026-07-31 @ 弹层全角兼容
+
+- 用户反馈 @ 弹层不出现：`CanvasResourceMentionTextarea` 触发正则只认半角 @，中文输入法全角 ＠ 不触发。正则已兼容 `＠`（\uFF20），共享组件，生图 composer 同步受益。入口 `index-ChZakNSS.js`。
+
+## 2026-07-31 @ 弹层根因与 CDP 验收
+
+- 用户刷新后仍无弹层。根因：用户当前画布是空项目，没有任何可引用节点，组件按设计抑制弹层（`references.some(active)` 为 false）。
+- 处理：空画布时弹层显示提示"画布上还没有可引用的节点，先添加图片或文本节点"，不再静默无反馈。
+- 验收（自建 CDP 驱动脚本 `.scratch/cdp-mention-verify.js`，真实 Chromium 操作）：有图片节点的项目输入 @ 弹层显示"图片1 洗衣液主图"候选（截图 `.scratch/cdp-mention.png`）；空项目显示空态提示（断言通过）。
+
+## 2026-07-31 @ 引用改为附件优先（用户逻辑纠正）
+
+- 用户指出：@ 不应依赖画布节点，应直接引用 Agent 面板内部上传的图片（粘贴/拖拽附件），生成时由 Agent 用附件建"图片节点→生图节点"节点组。
+- 实现：@ 候选改为附件优先（图片1…接续编号），画布节点排在其后；mentions 区分 `nodeId`（画布节点）与 `attachmentId`（附件）；planner 规则明确附件引用先用 `canvas_create_attachment_nodes` 建成图片节点再连入生图节点。空态提示改为"还没有可引用的图片：先粘贴/拖入图片，或在画布添加节点"。
+- CDP 实测三种场景全部通过：画布节点候选、空画布提示、**空画布+附件时 @ 显示"图片1 real-verify.png"**（截图 `.scratch/cdp-mention-attach2.png`）。后端测试 11/11、typecheck、构建通过。
+
+## 2026-07-31 @ 触发位置放宽
+
+- 用户反馈"用@"不触发：触发正则原本要求 @ 位于字符串开头或空格后，中文常直接跟在文字后输入。已放宽为任意位置（仅排除 @@ 连打），全角 ＠ 同步兼容。CDP 实测"用@"弹出 3 个候选（附件+画布图片节点）。
+
+## 2026-07-31 @ 功能回退（用户决定）
+
+- 用户复盘后决定：Agent 输入区不需要 @ 引用功能，回归纯输入框。已撤掉 Agent 面板的 `CanvasResourceMentionTextarea`、mentionReferences 和发送时的 mentions 解析，恢复 Input.TextArea（保留粘贴/拖拽图片与 Enter 发送）。
+- 保留项：后端 mentions 字段（无害透传，未使用）、共享组件的全角/任意位置 @ 正则改进（对生图节点 composer 有益）、空态提示文案。
+- 图片给图方式回归两种：粘贴/拖拽为附件，或直接把图片节点放进画布。typecheck 与构建通过，3468 在线生效（入口 `index-DBa5BTo4.js`）。
+
+## 2026-07-31 Agent 附件内容分析工具（按需，方案 B）
+
+- 用户选择按需识别而非每轮多模态。新增 Agent 工具 `canvas_describe_attachment`（读类、免确认）：附件 assetId → 签短时同源 URL → 读图片字节 → 文本路线视觉识别 → 返回主体/构图/风格/文字描述；planner 规则要求理解附件内容时必须调用、禁止猜测。
+- 端到端实测：模型调用工具成功返回真实描述（正确识别白色陶瓷马克杯主体、构图、光影、无文字），实现了"AI 看得懂附件"。
+- 过程修复：模型误传附件 `id`（attachment_ 前缀）而非 `assetId` 导致 404——服务端已兼容去前缀并在工具描述中写明；中途 server.js 转义损坏事故已修复并复核语法。
+- 后端测试 4/4、server.js 语法通过；3468 重启生效。
+
+## 2026-07-31 附件顺序编号（图片N 引用约定）
+
+- 多附件提示词引用模糊点：附件只有顺序没有编号，用户说"图1"模型只能猜。planner 上下文中的附件现按顺序显式标为 图片1、图片2…，规则写明"用户说图1/第一张即指 图片1"，用作参考图时先 canvas_create_attachment_nodes 建成图片节点再 referenceNodeIds 连入。
+- 与 @ 逻辑无重复：@ 已回退，附件引用仅此一条链路（使用 + 按需分析）。测试 4/4 通过，3468 重启生效。
+
+## 2026-07-31 图1/图2 区分验证 + 描述缓存
+
+- 用户要求验证多附件区分：传两张不同图（马克杯 + 茉莉白茶标签），问"图1和图2分别是什么"。模型分别调用分析工具，最终回答"图1：白底陶瓷马克杯；图2：茉莉白茶包装设计"，区分正确。
+- 发现浪费：模型在一轮里对同一张图重复调用分析 4 次。`describeAgentAssetImage` 已加 30 分钟内存缓存（按 userId+assetId，命中返回 cached:true，上限 200 条），重复分析不再重复烧视觉调用。
+- 3468 重启生效。
+
+## 2026-07-31 附件多模态直给（A 方案，用户确认）
+
+- 用户确认改 A：配图消息的附件图直接作为 `input_image` 进入规划上下文（每轮 planner 调用带图），模型直接看图回答，不再需要分析工具。`canvas_describe_attachment` 保留用于非本轮附件（如资产库图片）。
+- 实现：planner `plan()` 先经 `loadAttachmentImage`（assetId → 短时 URL → 字节 → dataUrl，userId 属主校验）解析最多 4 张；`buildProviderInput` 用户消息组装为 文本+图片N（标注+input_image）多模态结构；规则声明"图片已直接提供，可直接查看"。
+- 验证：同一问题"图1和图2分别是什么"，本轮 1 次规划调用、0 次工具调用即正确回答（此前同问题需 6+ 次视觉调用）。
+- 已知边界：单张 >3MB 的附件不附带（防请求过大），大图仍需分析工具兜底；后续如需大图直给，需引入图片缩放依赖（待定）。
+
+## 2026-07-31 附件大图压缩直给（sharp）
+
+- 用户确认引入 sharp（MIT，lovell/sharp，预编译二进制）替代"超 3MB 跳过"。`loadAgentAttachmentImage`：>3MB 附件先压缩（2048px WebP q82，仍超再降 1024px q70）后以 image/webp 附带，不再跳过。
+- 实测：4.6MB PNG 压缩至 ~210KB；新会话只带大图问"图1里画的是什么"，模型 0 工具调用直接正确描述茉莉白茶包装内容。大图直给链路完整。
+- `npm install sharp` 已写入 package.json 依赖。
+
+## 2026-07-31 @ 引用恢复（用户要求，附件优先形态）
+
+- 用户确认恢复 @：Agent 输入区重新启用 `CanvasResourceMentionTextarea`，候选为附件优先（图片1…）+ 画布节点接续编号；mentions 随消息上送（nodeId/attachmentId 区分），后端此前已保留 mentions 链路无需改动。
+- CDP 实测：注入附件后输入 @，弹层显示"图片1 real-verify.png"（附件）+ 画布图片节点（图片2-6），功能恢复。
+- typecheck、构建通过，3468 在线生效。
+
+## 2026-07-31 @ 候选跟随画布框选
+
+- 用户需求：画布图片节点太多时，@ 只显示已框选的节点并提示选中状态。
+- 实现：@ 候选 = 附件（不受框选影响）+ 已框选的资源节点（`snapshot.selectedNodeIds` 过滤）；共享组件 `CanvasResourceMentionTextarea` 新增 `menuHint` 透传，弹层顶部显示提示：有选中时"已选中 N 个图片节点"，无选中时引导框选。
+- CDP 实测：未选中时弹层只有附件+引导提示；点击"画布元素"列表选中 1 个图片节点后，弹层变为"已选中 1 个图片节点"并显示附件+该节点候选。
+- typecheck、构建通过，3468 在线生效。
+
+## 2026-07-31 @ 候选规则定稿（用户确认）
+
+- 用户最终确认：无框选时 @ 列出**全部**图片节点，框选后只列选中节点；验收要求 Agent 准确识别顺序与节点指向。
+- 实现：候选 = 附件 +（无框选 ? 全部资源节点 : 已框选资源节点）；提示语分别为"共 N 个图片节点，框选后可缩小范围"/"已选中 N 个图片节点"。
+- 顺带修复 图片N 边界 bug：mentions 过滤 `text.includes('图片1')` 会误命中图片10/11，已改边界匹配（标签后不允许跟数字），单测确认"图片1"不再误命中。
+- CDP 实测：无框选列出全部 5 个节点+附件；选中 1 个后仅显示该节点与"已选中"提示。typecheck、构建通过，3468 在线生效。
+
+## 2026-07-31 消息内引用缩略图
+
+- 用户需求：@ 引用的图片在对话消息里应以缩略图呈现。
+- 实现：发送时附件 mention 携带同源 accessUrl（后端 safeMentions 放行 `/api/asset-content/` 与 `/uploads/` 路径）；用户消息气泡下方渲染引用缩略图卡（附件用 accessUrl，画布节点用当前快照 content），带标签。
+- CDP 实测：选中"图片1"发送后，消息气泡内出现该图缩略图与"图片1"标签（截图 `.scratch/cdp-mention-thumb.png`）。typecheck、构建通过，3468 重启生效。
+
+## 2026-07-31 输入框内 @ 标签缩略图
+
+- 用户补充：输入框里的"图片1"标签也应显示缩略图。共享组件 `MentionHighlightText` 新增 `previews` 映射（label → previewUrl），高亮 chip 内联 16px 缩略图 + 标签；Agent 视图从 mentionReferences 构建映射（附件 accessUrl / 节点 content）。
+- CDP 验证：输入框 chip 的 DOM 为 `<img size-4> + 图片1`（截图缩小后不易看清，DOM 断言确认）。typecheck、构建通过，3468 在线生效。
+
+## 2026-07-31 附件缩略图 URL 过期修复
+
+- 用户截图发现 chip 缩略图消失。根因：附件 accessUrl 是 15 分钟短时签名，过期后 chip/@候选/消息气泡的缩略图全部 403。
+- 修复：面板打开时与每 10 分钟对当前附件逐个重新签发 accessUrl；消息气泡的 MentionThumbnails 改为异步解析——节点用快照 content，附件按 attachmentId 重新签发（模块级 12 分钟缓存）。
+- 截图中两个"图片1"为同一标签插入两次，非编号 bug，mentions 解析已按标签去重。
+- CDP 回归：chip 内联缩略图正常渲染。typecheck、构建通过，3468 在线生效。
+
+## 2026-07-31 @ 菜单节点预览图过期修复
+
+- 用户发现 @ 菜单中画布节点预览图破裂。根因与附件同源：节点 `metadata.content` 是页面水合时签发的 15 分钟短时 URL，页面打开超时后预览失效。
+- 修复：Agent 视图对画布上所有 `asset:` 节点按 assetId 实时重签预览地址（节点变化时 + 每 10 分钟），@ 候选与 chip 的 previewUrl 优先使用重签地址。
+- CDP 回归：chip 内联缩略图正常。typecheck、构建通过，3468 在线生效。
+
+## 2026-07-31 @ 输入区光标偏移修复
+
+- 用户反馈输入框光标位置偏移。根因：高亮 chip 内联 16px 缩略图后宽度大于原文本，叠加层与 textarea 文本层宽度不一致，原生光标按纯文本位置渲染导致视觉偏移。
+- 方案：高亮 chip 恢复纯文本（宽度与文本一致，光标不再偏移）；缩略图挪到输入框下方的引用预览条（图 + 标签，不占文本流）。
+- CDP 验证：预览条正常渲染引用缩略图。typecheck、构建通过，3468 在线生效。
+
+## 2026-08-03 生图节点拖不动修复
+
+- 用户反馈生图节点（带结果图）拖不动。CDP 逐层排查：拖拽点命中结果图 `GeneratedImageTile`，其 React `onMouseDown/onPointerDown` 全面 stopPropagation，合成事件无法冒泡到节点容器，拖拽不启动（单图结果时 Tile 占满整个节点体）。
+- 修复：Tile 不再拦截 mousedown；按下记录坐标，仅当位移 <5px 的点击才选中结果，拖动则让节点整体移动。首次修复因补丁脚本在写入前报错静默未落地，二次补写后 CDP 实测 `moved: true`。
+- 相关边界：位于右侧 Agent 面板覆盖区下的节点仍需折叠面板才能拖到（面板默认展开为既定需求）。
+- 仍未真实验证：2K/4K 高规格、多用户并发。

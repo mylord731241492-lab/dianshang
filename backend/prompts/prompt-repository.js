@@ -3,7 +3,7 @@
 // system_prompts / user_prompts 仓储（Task 7 双层云端提示词库）。
 // 建表遵循 task-repository.js / asset-repository.js 的幂等迁移先例（模块内 migrate()，server.js 只挂载）。
 // user_prompts 的所有查询强制带 user_id，跨用户访问对调用方表现为不存在；
-// 普通用户视角的系统提示词只读 status='published' AND deleted_at IS NULL。
+// 普通用户视角的默认提示词只读 status='published' AND deleted_at IS NULL。
 
 const PROMPT_TITLE_MAX = 120;
 const PROMPT_CONTENT_MAX = 20000;
@@ -211,7 +211,7 @@ function createPromptRepository(options = {}) {
     return result.changes > 0;
   }
 
-  // ---------------- 系统提示词 ----------------
+  // ---------------- 默认提示词 ----------------
 
   function insertSystemPrompt(input) {
     db.prepare(`
@@ -237,7 +237,7 @@ function createPromptRepository(options = {}) {
     return rowToSystemPrompt(row);
   }
 
-  // copy-system 专用：只允许复制已发布且未删除的系统提示词。
+  // copy-system 专用：只允许复制已发布且未删除的默认提示词。
   function getPublishedSystemPrompt(id) {
     const row = db.prepare("SELECT * FROM system_prompts WHERE id=? AND status='published' AND deleted_at IS NULL").get(id);
     return rowToSystemPrompt(row);

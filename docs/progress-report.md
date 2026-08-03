@@ -3592,3 +3592,156 @@
 - 候选容器健康；正式 3456 容器 ID、镜像、启动时间和健康状态在验收前后完全一致。本轮没有调用 Lingsuan/零算或其他真实 Provider，不产生真实费用。
 - Task 14 首轮人工复测证明登录回跳存在漏测：3466 登录成功后由 Vue Router 命中 `CanvasLegacySource`，实际跳到 3456 旧画布。已将画布目标改为同源整页导航，并新增真实表单登录回归；修复后最终 URL 为 `http://127.0.0.1:3466/canvas`，标题为“哈吉米 AI · 无限画布”。
 - 当前停在 Task 14 人工门禁前；自动化通过不代表允许替换正式 `/canvas`。
+
+## 2026-07-29 Agent 功能迁移目标修正
+
+- 用户同时打开 3466 哈吉米候选和 3467 GitHub 原版进行对比后，明确要求以原版功能迁移为主要目标，不接受只替换画布外观或用能力更少的业务助手覆盖原版 Agent。
+- 复核确认 Task 10 提交 `fee1146` 主动删除了本地 Agent 面板、聊天工具 UI 和站点工具，并移除了工具确认、会话恢复/删除、停止和日志等路径；当前 `CanvasAgentOp`、画布 bridge、资源引用和项目内 `chatSessions` 只构成部分基础，不等于端到端 Agent 等价。
+- 新增 `docs/infinite-canvas-agent-feature-migration.md`，把画布读写、确认/拒绝、幂等、会话、停止、诊断、图片/节点上下文和站点工具定义为 Task 13A 阻断项。
+- Task 14 暂缓。Task 13A 必须保持 3466 隔离 Mock/Fake 环境，先补自动化，再执行 3466/3467 人工 A/B；正式 3456、真实 Provider、真实对象存储和真实费用均不在本轮范围。
+- 用户确认最终形态是多人网页版，不允许普通用户连接本机 Codex。Task 13A 路线据此收口为：复用 Infinite Canvas 原版 MCP 工具和浏览器执行语义，删除本地 Codex 驱动假设，新增服务端 Lingsuan Agent Runtime 与认证后的多用户画布会话代理；`hajimi-website` MCP 不作为画布 MCP。
+## 2026-07-29 Infinite Canvas Agent 候选闭环
+
+- 在隔离候选 3466 完成 Task 13A 网页版 Agent：服务端持久会话/事件/工具调用、同源鉴权 SSE、写操作提案确认/拒绝、稳定调用 ID、重复确认幂等、停止和重启安全恢复。
+- 前端增加 Agent 会话 UI，并通过现有画布桥接应用结构化操作；对话、快速生图、电商套图仍保持原状态边界。
+- 站点工具复用现有项目、素材、提示词、模型配置和生成任务服务；Agent 生图继续使用稳定请求 ID 和既有任务计费/退款链路。
+- 后端 18 个专项测试、前端 4 个契约测试、类型检查、构建、候选 API smoke 与 Playwright 全流程均通过。自动化确认创建 2 个文本节点和 1 条连线，刷新后画布与服务端 Agent 历史均恢复。
+- 全程 Fake Provider、隔离数据、无真实付费调用；正式 3456 容器指纹前后未变。当前转为 `ready-for-human`，等待用户最后调试、UI 修改、节点需求和 3466/3467 A/B。
+## 2026-07-29 候选画布 Blob 参考图修复
+
+- 精确复现 `POST /api/generate/tasks` 携带 `blob:` 时返回 500 与 `node-fetch cannot load blob:`；确认源头是直接图片节点绕过参考图水合，旧重试路径另有 `asset:` 未识别问题。
+- 统一在 `submitNodeImageGeneration` 水合参考图，生成 API 客户端与服务端任务输入层分别增加边界防线，旧 `image:` 和当前 `asset:` 存储键均可恢复。
+- 用户当前 3466 项目中的原失败节点已用 Fake Provider 重试成功。自动化新增 HTTP 400 契约和浏览器 `asset:` 重试成功/持久化/无 Blob JSON 回归。
+- 类型检查、前端契约测试、Docker 重建、候选 API/UI smoke 均通过；候选镜像 `sha256:93bb0c57771a030a8b4a2f9003e192e79052b2f788b84b7a8b12b6b1657ad59c` healthy，正式 3456 指纹未变化。
+
+## 2026-07-29 图片节点与生图节点同节点返图
+
+- 按用户要求直接复用现有节点：图片节点补选择/拖放/粘贴入口；生图节点复用现有提示词、模型、参数和持久任务链路，只替换结果展示与写回方式。
+- 生图节点结果改为保存在本节点，4 张显示 2×2；选中结果继续作为现有节点资源输出，刷新恢复按嵌套 `storageKey` 水合。
+- 删除了两处与现有交互重复的实现：空图片内容区不再整体屏蔽节点拖动；生图预览不再自行切换面板，单击仍由现有 `CanvasNode` 处理。
+- `npm run typecheck`、`npm run build`、候选 API smoke 和节点专项 Playwright 通过。专项实测上传成功、4 张返图仍只有原 2 个节点、四宫格和选择索引持久化均通过，项目 JSON 无 `blob:`。
+- 候选仅运行于 `127.0.0.1:3466` 且 `ENABLE_REAL_*=false`，当前镜像 `sha256:bb49e7c0744d65de3d98611903a091f6e1abf3ff6d0ce26005bf826905664060` healthy；正式 3456 未重建且指纹未变化，无真实 Provider 调用。旧全量 UI runner 的“重叠节点后自动拖开再连线”步骤需要后续改为稳定夹具，本轮以独立节点专项用例作为验收事实。
+
+## 2026-07-29 图片节点通用面板隔离
+
+- 用户复测发现图片节点仍会打开“描述要生成的图片内容”及模型参数面板。该面板属于通用生成面板，不符合图片节点只上传、展示和输出图片的职责。
+- 直接复用 `CanvasNodeDefinition.hidePanel`，只给内置 Image 节点增加声明，不新增组件、不改画布单击/拖动/连线实现，也不影响 Config 生图节点面板。
+- TypeScript 类型检查和 Vite 生产构建通过。专项 Playwright 实际上传图片并单击图片节点，确认通用面板为 0；随后打开生图节点并完成 Fake Provider 4 图、2×2、无额外节点和持久化验证，浏览器控制台无错误。
+- 3466 候选已完整重建为镜像 `sha256:be35663178e6a0e8f6a05fcd41297c04af9eab17b569ea0c32007e3702504f47`，入口为 `assets/index-Cs-b685e.js`，容器 healthy。正式 3456 容器 ID、镜像、启动时间和 healthy 状态未变化；真实 Provider 未调用。
+
+## 2026-07-29 图片节点与绘图节点第一版
+
+- 按用户最新边界只完成两个节点角色：图片节点负责上传、粘贴、显示和参考图连接；绘图节点负责提示词、参数、参考图输入、生成和结果展示。
+- 复用现有 Image/Config 节点及上传、资产、连线、任务和恢复链路，没有新增第三种节点或重做现有画布交互。
+- 图片节点禁用通用提示词/模型面板；绘图节点采用标题常驻、节点下方横向绘图面板和同节点结果区，4 张结果继续按 2×2 显示。
+- 新增工具栏连续创建时的空位查找，避免图片节点和绘图节点默认重叠；显式连线坐标与右键坐标保持原行为。
+- Codex 内置浏览器已验证：两节点分开、图片节点不打开绘图面板、绘图节点可见提示词/参数/结果区并识别 1 张连接参考图。测试没有提交真实生成任务。
+
+## 2026-07-29 生图节点命名与右键创建菜单
+
+- 按用户最新要求把当前 UI 中的“绘图节点”统一改为“生图节点”，并同步工具栏、侧栏、节点标题、提示词库目标、提示文案和测试断言；旧“生成配置/绘图节点”默认标题会迁移为“生图节点”。
+- 现有 `NodeCreateMenu` 改成 260px 逻辑宽度的紧凑单行布局，条目只显示图标和名称，不再渲染节点说明小字，同时禁止横向滚动。
+- 画布空白处右键现复用双击已有的 `NodeCreateMenu`，创建坐标使用右键指针对应的画布坐标；节点、连线和菜单自身的右键行为保持隔离。
+- TypeScript 和 Docker Vite 构建通过。Codex 内置浏览器实测右键菜单打开、无说明小字、无横向溢出、“生图节点”命名及右键位置创建成功；验收临时节点已删除。
+
+## 2026-07-29 创建菜单固定屏幕尺寸
+
+- 用户复测指出右键菜单过小。确认根因不是字体本身，而是两个创建菜单仍作为 `InfiniteCanvas` 的子元素位于 `translate(...) scale(viewport.k)` 容器中；上一轮 260px 逻辑宽度在 58% 缩放下只剩约 150px。
+- `NodeCreateMenu` 与 `ConnectionCreateMenu` 已移到画布节点变换层之外，菜单锚点通过 `world → screen` 转换定位并在画布可视区域内夹紧；节点创建继续使用原世界坐标。
+- 菜单恢复原 300px 宽度、44px 图标底座、56px 单行点击区域，说明小字仍保持隐藏。
+- TypeScript 与 Docker Vite 构建通过。Codex 内置浏览器在 58% 和 100% 两档实测菜单均为 300×425px、父层无 transform；右键创建生图节点成功，临时节点已清理。
+
+## 2026-07-29 双击创建菜单与鼠标锚点修正
+
+- 用户最终确认按原版交互处理：空白画布双击打开节点列表，右键不再打开列表，只阻止浏览器系统菜单。
+- 节点创建坐标与菜单显示坐标分离保存：前者由 `screenToCanvas` 转成画布世界坐标，后者保存相对画布容器的屏幕坐标。菜单因此保持固定尺寸并精确锚定双击点，创建节点仍落在对应画布位置。
+- `npm run typecheck` 与候选 Docker Vite 构建通过。3466 在画布缩放 36% 时实测菜单仍为 300px，双击点与菜单左上角偏差小于 1px；右键后菜单数量为 0，“生图节点”可创建，临时节点已删除，控制台无错误。
+- 候选容器已完整重建为镜像 `sha256:42ce62efdce2d218cc2654206efc29970707aca4d50756ed0228a2fe6662668c`，入口为 `assets/index-Bubo2NEp.js`，容器 healthy。正式 3456 容器 ID、镜像、启动时间和 healthy 状态未变化；真实 Provider 未调用。
+
+## 2026-07-29 Kimi Code 交接整理
+
+- 按用户要求生成脱敏交接文档 `C:\Users\pc\AppData\Local\Temp\dianshang-kimi-code-handoff-20260729.md`，明确候选工作树、dirty diff、源码入口、验证命令、未完成门禁和正式 3456 隔离边界。
+- 修正 `docs/current-baseline.md` 与 `docs/infinite-canvas-candidate-acceptance.md` 的顶部状态：Task 13A 源码与自动化已完成，当前为 `ready-for-human`，下一步是 3466/3467 人工 A/B 和最终 UI/节点调整，不再把 Task 13A 描述为待开始。
+- 本轮只整理交接文档，没有修改业务源码、重建 Docker、触发真实 Provider 或操作正式 3456。
+
+## 2026-07-30 Agent 工具对齐图片节点+生图节点逻辑（Kimi Code，本地 3468 验证）
+
+- 用户明确 Docker 是生产端不再触碰，本轮起候选验证改为本地运行：工作树内 `node server.js` + `127.0.0.1:3468`，数据独立在 `.scratch/infinite-canvas-local/`，Fake Provider 与隔离边界不变；3466 候选容器与正式 3456 容器均未重启、未重建（两容器曾因 Docker Desktop 整体重启而 StartedAt 变为 2026-07-30T01:18:52Z，容器 ID 与镜像不变，代码未变）。
+- `backend/canvas-agent/tool-contracts.js`：图片生成流程（`canvas_generate_image`、`canvas_create_image_prompt_flow`、`canvas_create_generation_flow` 图片模式）只创建生图节点，提示词直接写入 `composerContent`，参考图经 `referenceNodeIds` 把图片节点连入，不再额外创建提示词文本节点和 `@[node:]` token；config 节点默认标题改为“生图节点”；工具描述与确认面板摘要同步新叫法；文本/视频/音频流程保留原结构。
+- `backend/canvas-agent/provider-planner.js`：系统提示词写明“图片节点只供参考图、生图节点自带提示词/参数/结果、不要为提示词额外建文本节点”；假 planner 放宽生成句式，`生成 xxx` 与 `生图：xxx` 等价。
+- 新增 `scripts/test-canvas-agent-tool-contracts.js` 4 个用例锁定新流结构；后端 Agent 测试合计 22/22 通过；本轮无前端 TS 改动。
+- 本地 3468 服务端实测“生图：一只白色咖啡杯”提案为 3 个操作（创建生图节点+选中+触发生成），无文本节点；用户在浏览器确认提案后生图节点创建、提示词落位并触发生成。未调用真实 Provider。
+- Agent 反推（图片→提示词）能力未加入工具集，待用户决定是否复用 `/api/template/reverse-prompt` 新增站点工具。
+
+## 2026-07-30 Agent 反推工具（Kimi Code，本地 3468 验证）
+
+- 用户确认新增 Agent 反推工具。`canvas_reverse_image_prompt`：目标解析顺序为指定 nodeId → 当前选中图片节点 → 首个有图图片节点；快照经 `compactNode` 脱敏后 `metadata.content` 被剥离，后端以 `storageKey/assetId` 判断节点有图；无图节点时报 `CANVAS_AGENT_REVERSE_SOURCE_NOT_FOUND` 不执行。
+- 前端新增 `reverse_prompt` op 类型，`use-agent-bridge.ts` 与 `run_generation` 同模式异步分发到 `project.tsx` 的 `reversePromptNodeRef`，执行与悬停工具条完全相同的 `createImageReversePromptNodes`（同源 `/api/image-tools/reverse-prompt`，结果写入新"反推提示词"文本节点并连线）。
+- 假 planner 识别"反推"句式并校验画布有图；planner 系统提示词要求反推必须走工具、禁止编造图片描述。
+- 契约测试新增 3 例，后端 Agent 测试合计 24/24 通过；`npm run typecheck` 与 Vite 构建通过；3468 重启后服务端实测"反推选中的图片"提案正确解析选中节点；用户在浏览器确认反推文本节点生成可用。未调用真实 Provider，Docker 未动。
+
+## 2026-07-30 提示词库更名"默认提示词"（Kimi Code）
+
+- 用户明确：管理员发布层提示词改叫"默认提示词"，内容自行维护，不使用 GitHub 上游外部提示词注册表；已核实候选无外部提示词源残留接线。
+- 更名范围：画布提示词库面板 Tab/空态、`prompts-api.ts` 及测试、`backend/prompts/` 注释与错误文案、Agent `prompts_search` 描述。API 路径、字段 `systemPromptId`、错误码、数据库结构、旧打包资产均不变。
+- 同日取舍：上游节点插件远程市场不接入（新节点用户手动内置开发）；Agent token 用量显示与导出 zip 验证列入真实灵算开通轮。
+- 验证：后端 prompts + Agent 测试 26/26、前端 `prompts-api.test.ts` 7/7、typecheck、Vite 构建通过；3468 已重启加载新构建 `index-D9-V23x1.js`。Docker 未动，未调用真实 Provider。
+
+## 2026-07-30 Agent Skills 接入（Kimi Code，本地 3468 验证）
+
+- 按已批准计划实现 Agent Skills：管理员统一维护、纯提示词注入。新模块 `backend/agent-skills/`（新表 `agent_skills` + 路由）；`/api/agent-skills` 用户只读启用列表，`/api/admin/agent-skills*` 管理员 CRUD。
+- 会话绑定：`canvas_agent_sessions` 新增 `skill_ids` 列（幂等迁移）；建会话可带 `skillIds`，`POST /api/canvas/agent/sessions/:id/skills` 更换，最多 3 个；绑定严格校验、发消息宽松解析。
+- planner 注入：`buildProviderInput` 在 policy 后追加"## 技能：{name}"段；`turn_started` 事件记录 skillNames；假 planner 忽略不假装生效。
+- 前端：Agent 面板"技能"多选（无技能时隐藏）；`canvas-agent-api.ts` 增加技能接口与 `skillIds` 字段。
+- 新增 `scripts/test-agent-skills.js` 5 例；后端合计 31/31、前端 11/11 通过；typecheck 与 Vite 构建通过；3468 端到端六项实测（越权 403、admin 创建、只读列表、绑定、非法 400、事件含 skillNames）通过。Fake Provider，Docker 未动。
+
+## 2026-07-30 助手面板 UI 重构（Kimi Code）
+
+- 用户拍板：快速生图/电商套图只删前端（后端保留待技能化）；标题改"Agent助手"。
+- 外壳删除两个 tab 与视图约 250 行；Agent 视图顶部精简（日志上移）、底部新增自定义控制条（会话菜单/技能菜单/对话切换），原生 Select 移除。
+- typecheck 与构建通过，3468 重启加载 `index-BRgyCivv.js`。纯前端改动，Docker 未动。
+
+## 2026-07-30 资产体系统一为云端（Kimi Code）
+
+- 左侧"资产"tab 换为云端产品图库（source=upload 固定过滤）；云端资产库弹窗加来源筛选与生图时间/提示词展示；删除"存资产"按钮与本地库写入入口。
+- 后端 `user_assets` 新增 `prompt` 列（幂等迁移），生图结果落资产写入任务提示词；`/api/user/assets` 支持 source 过滤。
+- 验证：后端 31/31 + 资产专项 2/2、前端 21/21、typecheck、构建通过；3468 实测生成资产带 prompt、过滤正确。Fake Provider，Docker 未动。
+
+## 2026-07-30 左侧"生图记录" tab（Kimi Code）
+
+- 左侧面板新增"生图记录" tab（默认筛选生成资产），工具栏图标与弹窗标题同步改名；资产浏览抽为共享组件 `cloud-assets-browser.tsx` 复用。
+- typecheck 与构建通过，3468 重启加载 `index-DKdpbmcX.js`。纯前端改动，Docker 未动。
+
+## 2026-07-30 左侧 tab 切换卡顿/重影修复（Kimi Code）
+
+- 根因为共享全局 `cloudAssets` + tab 卸载重挂；修复为 `use-cloud-asset-list.ts` 独立数据 Hook + 四 tab 保持挂载只切显隐。
+- typecheck 与构建通过，3468 重启加载 `index-CCzSO1LL.js`。纯前端改动，Docker 未动。
+
+## 2026-07-30 用户中心移植画布弹窗（Kimi Code）
+
+- 顶栏"用户中心"改为打开画布内弹窗：资料卡、头像设置（预设+上传）、算力余额+兑换码、算力明细、生成记录、退出登录；新封装 `user-api.ts`。
+- 修复 profile 响应嵌套 `user` 字段的解析；充值与线路偏好明确不做。
+- typecheck 与构建通过，3468 在线生效（`index-pTvoRkBU.js`）；三接口服务端实测正常。Docker 未动。
+
+## 2026-07-30 本地 3468 开通真实 AI（Kimi Code）
+
+- 用户授权复制生产线路 + 最小真实验证。生产库只读复制 `admin.apiProviders`（1 文本 + 3 图片线路，含 Key，未打印未入 git）到本地 3468 库；3468 以 `ENABLE_REAL_AI=true` + `PROVIDER_IMAGE_IP_FAMILY=6` 运行。
+- 最小验证通过：真实生图 1 张成功（1254×1254 PNG 落盘，预占 -10）；真实 Agent 文本路线回复正常（技能注入在链路中）。
+- 注意 `/api/health` 全局摘要按 env Key 显示 mock 属口径问题，线路级调用已是真实。3468 后续所有 AI 调用真实扣费。Docker 未动。
+
+## 2026-07-31 真实模式付费验收（Kimi Code）
+
+- 用户授权付费调试。文生图、参考图图生图、批量 4 张、packyapi 换线、反推（瞬时 502 重试成功）、Agent 带技能提案全部通过；账务逐笔正确无重复扣费，余额 870。
+- 未覆盖：2K/4K、并发、Agent 生图端到端（待用户浏览器确认提案 `agent_call_ms8dukf71fc62377`）。Docker 未动。
+
+## 2026-07-31 落盘链三连修复（Kimi Code）
+
+- 2K 任务连续失败定位为三个叠加 bug：server.js 缺 `net`/`dns` require（`net.isIP` 崩溃）；结果下载未挂地址族代理（裸 fetch 挂起 + 强制 IPv6 撞 IPv4-only CDN）；30s 下载超时不够（CDN 限速 ~42KB/s，5MB 需 ~121s，提至 180s 可 env 调）。
+- 修复后 2K 3:4 任务完整成功：1536×2048 PNG、4.8MB 落盘；失败任务均全额退款，账务正确。生产 `F:\dianshang` 源码存在同样 bug，未回写，待用户决定。Docker 未动。
+
+## 2026-07-31 其他 UI 改动（Kimi Code）
+
+- 生图张数默认 3→1（全局默认 + planner 规则"默认 1 张，明确要求才设 count 最多 4"）。
+- 画布左上角：用户头像+余额图标（直开用户中心）、"画布中心"按钮（替代下拉菜单入口），放大一档。
+- 首页重设计：HomeWorkbench.vue 深色重写（创建画布 CTA + 4 张提示词案例卡 + 历史项目网格）；`/` 切换到源码 SPA 入口；画布支持 `?prompt=` 预填生图节点。
+- 全部 typecheck/构建通过，3468 在线生效。Docker 未动。

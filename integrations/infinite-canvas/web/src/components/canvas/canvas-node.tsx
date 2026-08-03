@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { ChevronRight, Group, Image as ImageIcon, Music2, Puzzle, RefreshCw, Star, Video } from "lucide-react";
+import { ChevronRight, Group, Image as ImageIcon, Music2, Puzzle, RefreshCw, Star, Upload, Video } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { formatBytes } from "@/lib/image-utils";
@@ -52,6 +52,8 @@ type CanvasNodeProps = {
     onSetBatchPrimary?: (node: CanvasNodeData) => void;
     onRetry?: (node: CanvasNodeData) => void;
     onGenerateImage?: (node: CanvasNodeData) => void;
+    onUploadImage?: (node: CanvasNodeData) => void;
+    onDropImage?: (nodeId: string, file: File) => void;
     onViewImage?: (node: CanvasNodeData) => void;
     onCancelTask?: (node: CanvasNodeData) => void;
     onContextMenu: (event: React.MouseEvent, nodeId: string) => void;
@@ -74,6 +76,8 @@ type NodeContentRendererProps = {
     mentionReferences: CanvasResourceReference[];
     onRetry?: (node: CanvasNodeData) => void;
     onGenerateImage?: (node: CanvasNodeData) => void;
+    onUploadImage?: (node: CanvasNodeData) => void;
+    onDropImage?: (nodeId: string, file: File) => void;
     onCancelTask?: (node: CanvasNodeData) => void;
     onToggleBatch?: () => void;
     onSetBatchPrimary?: () => void;
@@ -115,6 +119,8 @@ export const CanvasNode = React.memo(function CanvasNode({
     onSetBatchPrimary,
     onRetry,
     onGenerateImage,
+    onUploadImage,
+    onDropImage,
     onViewImage,
     onCancelTask,
     onContextMenu,
@@ -137,6 +143,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     const forceInteractive = supportsInteractionToggle ? Boolean(definition?.forceInteractive?.(data)) : false;
     const contentInteractive = !supportsInteractionToggle || forceInteractive || !data.metadata?.content ? true : Boolean(data.metadata?.interactive);
     const isBatchChild = data.type === CanvasNodeType.Image && Boolean(data.metadata?.batchRootId);
+    const hasPersistentNodeLabel = data.type === CanvasNodeType.Image || data.type === CanvasNodeType.Config;
     // 透明背景节点(如 SVG):卡片背景/边框透明,直接融入画布;选中/关联态仍显示描边以便定位
     const transparentBg = Boolean(definition?.transparentBackground);
     const isActive = isConnectionTarget || isSelected || isFocusRelated;
@@ -159,6 +166,10 @@ export const CanvasNode = React.memo(function CanvasNode({
     useEffect(() => {
         setTitleDraft(data.title || "");
     }, [data.title]);
+
+    useEffect(() => {
+        if (data.type === CanvasNodeType.Config && (data.title === "生成配置" || data.title === "绘图节点")) onTitleChange(data.id, "生图节点");
+    }, [data.id, data.title, data.type, onTitleChange]);
 
     useEffect(() => {
         if (!isEditingTitle) return;
@@ -315,8 +326,9 @@ export const CanvasNode = React.memo(function CanvasNode({
             onMouseDownCapture={(event) => onSelectCapture?.(event, data.id)}
             onContextMenu={(event) => onContextMenu(event, data.id)}
         >
-            {(isSelected || hovered || isEditingTitle) && (
-                <div className="absolute left-3 top-[-28px] z-[65] max-w-[calc(100%-24px)]" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+            {(isSelected || hovered || isEditingTitle || hasPersistentNodeLabel) && (
+                <div className="absolute left-2 top-[-30px] z-[65] flex max-w-[calc(100%-16px)] items-center gap-1.5" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+                    {hasPersistentNodeLabel && definition?.icon ? <span className="grid size-5 shrink-0 place-items-center opacity-70 [&>svg]:size-3.5">{definition.icon}</span> : null}
                     {isEditingTitle ? (
                         <input
                             ref={titleInputRef}
@@ -411,6 +423,8 @@ export const CanvasNode = React.memo(function CanvasNode({
                         onStopEditing={() => setIsEditingContent(false)}
                         onRetry={onRetry}
                         onGenerateImage={onGenerateImage}
+                        onUploadImage={onUploadImage}
+                        onDropImage={onDropImage}
                         onCancelTask={onCancelTask}
                         onToggleBatch={() => onToggleBatch?.(data.id)}
                         onSetBatchPrimary={() => onSetBatchPrimary?.(data)}
@@ -429,9 +443,13 @@ export const CanvasNode = React.memo(function CanvasNode({
             </div>
 
             {!isGroup ? <ConnectionHandleDot side="left" visible={hovered || isSelected || isConnecting} onMouseDown={(event) => onConnectStart(event, data.id, "target")} /> : null}
-            {!isGroup ? <ConnectionHandleDot side="right" visible={(definition?.hasSourceHandle ?? true) && data.type !== CanvasNodeType.Config && (hovered || isSelected || isConnecting)} onMouseDown={(event) => onConnectStart(event, data.id, "source")} /> : null}
+            {!isGroup ? <ConnectionHandleDot side="right" visible={(definition?.hasSourceHandle ?? true) && (hovered || isSelected || isConnecting)} onMouseDown={(event) => onConnectStart(event, data.id, "source")} /> : null}
 
-            {showPanel && !isGroup && renderPanel ? <div className="absolute left-1/2 top-full z-[70] w-[600px] -translate-x-1/2 pt-4">{renderPanel(data)}</div> : null}
+            {showPanel && !isGroup && renderPanel ? (
+                <div className={`absolute left-1/2 top-full z-[70] -translate-x-1/2 pt-4 ${data.type === CanvasNodeType.Config ? "w-[820px] max-w-[calc(100vw-32px)]" : "w-[600px]"}`}>
+                    {renderPanel(data)}
+                </div>
+            ) : null}
         </div>
     );
 });
@@ -632,13 +650,63 @@ function ImageNodeContent(props: NodeContentRendererProps) {
     );
 }
 
-function EmptyImageContent({ theme, isBatchRoot, batchCount, batchExpanded, batchOpening, batchRecovering, onToggleBatch }: NodeContentRendererProps) {
+function EmptyImageContent({ node, theme, isBatchRoot, batchCount, batchExpanded, batchOpening, batchRecovering, onToggleBatch, onUploadImage, onDropImage }: NodeContentRendererProps) {
+    const takeImage = (files: FileList | File[]) => Array.from(files).find((file) => file.type.startsWith("image/"));
     const content = (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-3" style={{ color: theme.node.placeholder }}>
-            <div className="flex size-14 items-center justify-center rounded-2xl" style={{ background: theme.toolbar.activeBg }}>
-                <ImageIcon className="size-6 opacity-30" />
+        <div
+            tabIndex={0}
+            className="group/upload flex h-full w-full cursor-default flex-col items-center justify-center gap-3 rounded-[inherit] px-6 text-center outline-none transition focus-visible:ring-2 focus-visible:ring-inset"
+            style={{ color: theme.node.placeholder, boxShadow: `inset 0 0 0 1px ${theme.node.stroke}44` }}
+            onClick={(event) => event.currentTarget.focus()}
+            onDragEnter={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                event.currentTarget.dataset.dragging = "true";
+            }}
+            onDragOver={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                event.dataTransfer.dropEffect = "copy";
+            }}
+            onDragLeave={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) delete event.currentTarget.dataset.dragging;
+            }}
+            onDrop={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                delete event.currentTarget.dataset.dragging;
+                const file = takeImage(event.dataTransfer.files);
+                if (file) onDropImage?.(node.id, file);
+            }}
+            onPaste={(event) => {
+                const file = takeImage(event.clipboardData.files);
+                if (!file) return;
+                event.preventDefault();
+                event.stopPropagation();
+                onDropImage?.(node.id, file);
+            }}
+        >
+            <div className="flex size-14 items-center justify-center rounded-2xl border transition group-data-[dragging=true]/upload:scale-105" style={{ background: theme.toolbar.activeBg, borderColor: theme.node.stroke }}>
+                <ImageIcon className="size-6 opacity-55" />
             </div>
-            <span className="text-[10px] tracking-[0.18em] opacity-50">空图片节点</span>
+            <button
+                type="button"
+                className="inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-sm font-medium transition hover:-translate-y-0.5"
+                style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke, color: theme.node.text }}
+                onMouseDown={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                    event.stopPropagation();
+                    onUploadImage?.(node);
+                }}
+            >
+                <Upload className="size-4" />
+                选择图片
+            </button>
+            <span className="text-xs leading-5 opacity-70">拖放图片到这里<br />或按 Ctrl+V 粘贴</span>
+            <span className="text-[10px] opacity-45">支持 JPG、PNG、WebP 等图片格式</span>
         </div>
     );
     if (isBatchRoot)

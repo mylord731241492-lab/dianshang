@@ -50,6 +50,11 @@ function createAssetRepository(options = {}) {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_user_assets_owner_object
         ON user_assets(user_id, object_key);
     `);
+    // 幂等列迁移：生成类资产记录生图提示词（生图时间即 created_at）。
+    const columns = db.prepare('PRAGMA table_info(user_assets)').all().map((column) => column.name);
+    if (!columns.includes('prompt')) {
+      db.exec("ALTER TABLE user_assets ADD COLUMN prompt TEXT NOT NULL DEFAULT ''");
+    }
   }
 
   function rowToAsset(row) {
@@ -65,6 +70,7 @@ function createAssetRepository(options = {}) {
       checksumSha256: row.checksum_sha256 || '',
       tags: safeParse(row.tags_json, []),
       source: row.source || 'upload',
+      prompt: row.prompt || '',
       status: row.status || 'active',
       createdAt: row.created_at,
       updatedAt: row.updated_at
@@ -75,8 +81,8 @@ function createAssetRepository(options = {}) {
     db.prepare(`
       INSERT INTO user_assets (
         id,user_id,kind,name,object_key,storage_provider,mime_type,size_bytes,
-        width,height,checksum_sha256,tags_json,source,status
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        width,height,checksum_sha256,tags_json,source,prompt,status
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `).run(
       input.id,
       input.userId,
@@ -91,6 +97,7 @@ function createAssetRepository(options = {}) {
       input.checksumSha256 || '',
       JSON.stringify(Array.isArray(input.tags) ? input.tags : []),
       input.source || 'upload',
+      String(input.prompt || '').slice(0, 4000),
       'active'
     );
     return getAsset(input.userId, input.id);
@@ -131,12 +138,17 @@ function createAssetRepository(options = {}) {
   function listAssets(userId, options = {}) {
     const limit = Math.max(1, Math.min(Number(options.limit) || DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT));
     const kind = ['image', 'video', 'audio'].includes(options.kind) ? options.kind : '';
+    const source = ['upload', 'generated', 'tool', 'generation'].includes(options.source) ? options.source : '';
     const query = String(options.q || '').trim();
     const conditions = ['user_id = ?', 'deleted_at IS NULL'];
     const params = [userId];
     if (kind) {
       conditions.push('kind = ?');
       params.push(kind);
+    }
+    if (source) {
+      conditions.push('source = ?');
+      params.push(source);
     }
     if (query) {
       conditions.push("name LIKE ? ESCAPE '\\'");

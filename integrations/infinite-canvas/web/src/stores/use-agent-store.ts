@@ -28,7 +28,7 @@ const PANEL_WIDTH_STORAGE_KEY = "hjm-assistant-panel-width";
 
 export const useAgentStore = create<AgentStore>((set, get) => ({
     width: typeof window === "undefined" ? 440 : Number(localStorage.getItem(PANEL_WIDTH_STORAGE_KEY)) || 440,
-    panelOpen: false,
+    panelOpen: true,
     panelMounted: true,
     panelClosing: false,
     canvasContext: null,

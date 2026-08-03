@@ -2,7 +2,9 @@
 
 ## 结论
 
-Task 13 的隔离候选环境位于 `http://127.0.0.1:3466/canvas`。自动化阻断项已通过，候选环境继续保留给 Task 14 人工验收；未切换正式 `/canvas`，未重建或重启正式 3456 容器。
+Task 13 的隔离候选环境位于 `http://127.0.0.1:3466/canvas`。原范围自动化阻断项已通过；Task 13A 网页版 Agent 功能等价迁移的源码与自动化也已完成，当前状态为 `ready-for-human`。
+
+下一步继续在 3466 完成用户指定的 UI/节点调整，并按 `docs/infinite-canvas-agent-feature-migration.md` 执行 3466/3467 人工 A/B。未切换正式 `/canvas`，未重建或重启正式 3456 容器。
 
 候选环境固定使用：
 
@@ -26,8 +28,8 @@ Task 13 的隔离候选环境位于 `http://127.0.0.1:3466/canvas`。自动化�
 
 自动化在运行前后对正式容器 ID、镜像 ID、启动时间和健康状态做完全一致断言。最近一次通过时：
 
-- 候选镜像/容器：`sha256:736302a07d49472ef44c86652127e7b61e3a794f83c681b69c658e67ba552e63`，`2026-07-28T10:17:43.309096526Z`，`healthy`
-- 正式容器指纹：`6511deb920aabc66657973665e1cc6cfa66ee1cc79d8a4ccd197adcf5911f2b0|sha256:2e40b8e29d10d4ec9e2c00cf564bd06a4f7e692a8a93055a4243d838562267b0|2026-07-28T01:11:18.984994951Z|healthy`
+- 候选镜像/容器：`sha256:42ce62efdce2d218cc2654206efc29970707aca4d50756ed0228a2fe6662668c`，`2026-07-29T10:06:24.583635993Z`，`healthy`
+- 正式容器指纹：`6511deb920aabc66657973665e1cc6cfa66ee1cc79d8a4ccd197adcf5911f2b0|sha256:2e40b8e29d10d4ec9e2c00cf564bd06a4f7e692a8a93055a4243d838562267b0|2026-07-29T01:18:03.090423911Z|healthy`
 
 ## 自动化验收范围
 
@@ -54,6 +56,7 @@ Task 13 的隔离候选环境位于 `http://127.0.0.1:3466/canvas`。自动化�
 - 系统/个人提示词的复制、新建、编辑、收藏和插入
 - 局部遮罩编辑对话框、画笔、擦除、笔刷大小和蒙版绘制
 - 自动保存、刷新恢复和服务端项目 envelope
+- 浏览器 `blob:` 参考图不得进入生图 API；`asset:` 参考图失败节点可重试成功并持久化为新资产
 - 用户 A/B 切换后项目、素材、提示词、LocalStorage 与 IndexedDB 权限数据隔离
 - 浏览器控制台零错误、意外 HTTP 4xx/5xx 为零、页面无横向溢出
 
@@ -106,7 +109,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "F:\dianshang-worktrees\infi
 
 ## Task 14 人工门禁
 
-人工验收前保持候选容器运行，访问 `http://127.0.0.1:3466/canvas`。建议依次确认：
+当前状态：`blocked`。Task 13A 的实现与自动化已通过，候选状态为 `ready-for-human`；仍需用户完成 3466/3467 Agent A/B、真实灵算单笔授权验证和最终 UI/节点需求确认后，才能把 Task 13A 标记为 `done` 并重新进入本门禁。候选容器保持运行，访问 `http://127.0.0.1:3466/canvas`。除下列既有清单外，还必须执行 `docs/infinite-canvas-agent-feature-migration.md` 的 3466/3467 Agent A/B 清单。
 
 1. 桌面端创建项目，添加并拖动四类节点，连接后撤销/重做。
 2. 上传图片，打开云端素材库，完成搜索、改名、标签和插回画布。

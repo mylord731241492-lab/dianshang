@@ -364,6 +364,53 @@ $projectListB = Invoke-CandidateRequest -Method "GET" -Path "/api/user/projects"
 Assert-True -Condition (-not ($projectListB.Json.items | Where-Object { $_.id -eq $projectId })) -Message "User B can see user A's project"
 Invoke-CandidateRequest -Method "GET" -Path "/api/user/projects/$projectId" -Token $userB.Token -ExpectedStatus 404 | Out-Null
 
+$agentBrowserSessionId = "candidate-browser-$([Guid]::NewGuid().ToString('N'))"
+$agentSessionCreate = Invoke-CandidateRequest -Method "POST" -Path "/api/canvas/agent/sessions" -Token $userA.Token -ExpectedStatus 201 -JsonBody @{
+  projectId = $projectId
+  browserSessionId = $agentBrowserSessionId
+  title = "Task 13A Agent smoke"
+}
+$agentSessionId = [string]$agentSessionCreate.Json.session.id
+Assert-True -Condition ($agentSessionId.StartsWith("agent_session_")) -Message "Canvas Agent did not create a persistent session"
+$agentTurn = Invoke-CandidateRequest -Method "POST" -Path "/api/canvas/agent/sessions/$agentSessionId/messages" -Token $userA.Token -JsonBody @{
+  projectId = $projectId
+  browserSessionId = $agentBrowserSessionId
+  text = "create two text nodes and connect"
+  snapshot = @{
+    projectId = $projectId
+    title = "Task 13A Agent smoke"
+    nodes = @()
+    connections = @()
+    selectedNodeIds = @()
+    viewport = @{ x = 0; y = 0; k = 1 }
+  }
+  attachments = @()
+}
+Assert-True -Condition ([string]$agentTurn.Json.session.status -eq "waiting_confirmation") -Message "Canvas Agent write did not wait for confirmation"
+Assert-True -Condition ($agentTurn.Json.toolCalls.Count -eq 1) -Message "Canvas Agent did not return one deterministic Fake Provider proposal"
+$agentToolCallId = [string]$agentTurn.Json.toolCalls[0].id
+Assert-True -Condition ([string]$agentTurn.Json.toolCalls[0].execution.kind -eq "canvas_ops") -Message "Canvas Agent proposal is not a canvas_ops execution"
+Assert-True -Condition ($agentTurn.Json.toolCalls[0].execution.ops.Count -eq 3) -Message "Canvas Agent proposal does not contain two nodes and one connection"
+$agentConfirm = Invoke-CandidateRequest -Method "POST" -Path "/api/canvas/agent/sessions/$agentSessionId/tool-calls/$agentToolCallId/confirm" -Token $userA.Token -JsonBody @{
+  projectId = $projectId
+  browserSessionId = $agentBrowserSessionId
+}
+Assert-True -Condition ($agentConfirm.Json.execute -eq $true) -Message "First Canvas Agent confirmation did not grant one browser execution"
+$agentConfirmReplay = Invoke-CandidateRequest -Method "POST" -Path "/api/canvas/agent/sessions/$agentSessionId/tool-calls/$agentToolCallId/confirm" -Token $userA.Token -JsonBody @{
+  projectId = $projectId
+  browserSessionId = $agentBrowserSessionId
+}
+Assert-True -Condition ($agentConfirmReplay.Json.execute -eq $false -and $agentConfirmReplay.Json.replayed -eq $true) -Message "Repeated Canvas Agent confirmation was not idempotent"
+$agentResult = Invoke-CandidateRequest -Method "POST" -Path "/api/canvas/agent/sessions/$agentSessionId/tool-calls/$agentToolCallId/result" -Token $userA.Token -JsonBody @{
+  projectId = $projectId
+  browserSessionId = $agentBrowserSessionId
+  result = @{ ok = $true; nodeCount = 2; connectionCount = 1 }
+}
+Assert-True -Condition ([string]$agentResult.Json.toolCall.status -eq "executed") -Message "Canvas Agent execution result was not persisted"
+$agentRestore = Invoke-CandidateRequest -Method "GET" -Path "/api/canvas/agent/sessions/${agentSessionId}?projectId=$projectId&browserSessionId=$agentBrowserSessionId" -Token $userA.Token
+Assert-True -Condition ([bool]($agentRestore.Json.events | Where-Object { $_.type -eq "tool_executed" })) -Message "Canvas Agent history did not restore tool execution"
+Invoke-CandidateRequest -Method "GET" -Path "/api/canvas/agent/sessions/${agentSessionId}?projectId=$projectId&browserSessionId=$agentBrowserSessionId" -Token $userB.Token -ExpectedStatus 404 | Out-Null
+
 $assetUploadA = Upload-CandidateAsset -Token $userA.Token -FileName "candidate-a-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()).png"
 $assetUploadA2 = Upload-CandidateAsset -Token $userA.Token -FileName "candidate-page-$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()).png"
 $assetA = $assetUploadA.Json.asset
@@ -434,6 +481,18 @@ Invoke-CandidateRequest -Method "GET" -Path "/api/user/prompts/$privatePromptId"
 
 $generatedBefore = Invoke-CandidateRequest -Method "GET" -Path "/api/user/assets" -Token $userA.Token
 $generatedBeforeCount = @($generatedBefore.Json.items | Where-Object { $_.source -eq "generated" }).Count
+$blobBoundary = Invoke-CandidateRequest -Method "POST" -Path "/api/generate/tasks" -Token $userA.Token -ExpectedStatus 400 -JsonBody @{
+  prompt = "Candidate blob boundary"
+  modelKey = "gpt-image-2"
+  imageCount = 1
+  clientRequestId = "candidate-blob-boundary-$([Guid]::NewGuid().ToString('N'))"
+  referenceImages = @(@{
+    name = "reference.png"
+    type = "image/png"
+    url = "blob:http://127.0.0.1:3466/candidate-boundary"
+  })
+}
+Assert-True -Condition ($blobBoundary.Json.code -eq "GENERATION_REFERENCE_BLOB_URL_UNSUPPORTED") -Message "Blob URL was not rejected at the generation boundary"
 $clientRequestId = "candidate-generate-$([Guid]::NewGuid().ToString('N'))"
 $generationSubmit = Invoke-CandidateRequest -Method "POST" -Path "/api/generate/tasks" -Token $userA.Token -ExpectedStatus 202 -JsonBody @{
   prompt = "Task 13 Fake Provider single generation"

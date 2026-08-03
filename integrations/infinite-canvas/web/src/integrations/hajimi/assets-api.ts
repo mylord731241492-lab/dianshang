@@ -21,6 +21,7 @@ export type CloudAsset = {
     checksumSha256: string;
     tags: string[];
     source: string;
+    prompt?: string;
     status: string;
     createdAt: string;
     updatedAt: string;
@@ -99,6 +100,7 @@ export function readCloudAsset(payload: unknown): CloudAsset | null {
         checksumSha256: typeof source.checksumSha256 === "string" ? source.checksumSha256 : "",
         tags: Array.isArray(source.tags) ? source.tags.map((tag) => String(tag)) : [],
         source: typeof source.source === "string" ? source.source : "upload",
+        prompt: typeof source.prompt === "string" && source.prompt ? source.prompt : undefined,
         status: typeof source.status === "string" ? source.status : "active",
         createdAt: typeof source.createdAt === "string" ? source.createdAt : "",
         updatedAt: typeof source.updatedAt === "string" ? source.updatedAt : "",
@@ -128,10 +130,11 @@ export function readCloudAssetAccessUrl(payload: unknown): CloudAssetAccessUrl |
     };
 }
 
-function buildListPath(params: { q?: string; kind?: string; cursor?: string; limit?: number } = {}): string {
+function buildListPath(params: { q?: string; kind?: string; source?: string; cursor?: string; limit?: number } = {}): string {
     const search = new URLSearchParams();
     const query = String(params.q || "").trim();
     if (query) search.set("q", query);
+    if (params.source) search.set("source", String(params.source));
     if (params.kind && CLOUD_ASSET_KINDS.includes(params.kind)) search.set("kind", params.kind);
     if (params.cursor) search.set("cursor", params.cursor);
     const limit = Math.max(1, Math.min(Number(params.limit) || DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT));
@@ -142,7 +145,7 @@ function buildListPath(params: { q?: string; kind?: string; cursor?: string; lim
 
 export function createAssetsApi(client: AssetsApiClient, uploadTransport: AssetUploadTransport) {
     return {
-        async list(params: { q?: string; kind?: string; cursor?: string; limit?: number } = {}): Promise<CloudAssetListPage> {
+        async list(params: { q?: string; kind?: string; source?: string; cursor?: string; limit?: number } = {}): Promise<CloudAssetListPage> {
             return readCloudAssetList(await client.get(buildListPath(params)));
         },
         async upload(file: Blob, options: { name?: string } = {}): Promise<CloudAsset> {

@@ -193,6 +193,21 @@ export async function convertLegacyProject(raw: unknown, options: LegacyImportOp
                     ...(toText(data.quality || data.clarity) ? { quality: toText(data.quality || data.clarity) } : {}),
                 },
             });
+        } else if (type === "imagePromptGenerate") {
+            // 旧画布主生成节点：提示词在连入的文本节点里（随 edges 转换），本节点只携带生成参数。
+            nodes.push({
+                ...base,
+                type: "config",
+                title: toText(data.label) || "生图节点",
+                ...DEFAULT_NODE_SIZE.config,
+                metadata: {
+                    generationMode: "image",
+                    ...(toText(data.model || data.modelKey) ? { model: toText(data.model || data.modelKey) } : {}),
+                    ...(toText(data.size) ? { size: toText(data.size) } : {}),
+                    ...(toText(data.quality || data.clarity) ? { quality: toText(data.quality || data.clarity) } : {}),
+                    ...(Number(data.imageCount) ? { count: Math.max(1, Math.min(4, Number(data.imageCount))) } : {}),
+                },
+            });
         } else if (type === "image" || type === "video") {
             const url = toText(data.url || data.src);
             const metadata: Record<string, unknown> = {

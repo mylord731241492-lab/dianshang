@@ -1,31 +1,25 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
+  ArrowRight,
+  ArrowUpRight,
   BookOpen,
-  ChevronDown,
   Clock,
-  Download,
   FolderPlus,
   GalleryHorizontal,
   Home,
+  LayoutGrid,
   LayoutTemplate,
-  Save,
-  Sparkles,
   Trash2,
   UserCircle,
-  Workflow,
-  X
+  Workflow
 } from 'lucide-vue-next';
-import {
-  generateTemplateImage,
-  uploadTemplateFile,
-  type GeneratedImage
-} from '../api/templateImage';
 import { http, getApiErrorMessage } from '../api/http';
-import { legacyUrl } from '../config/legacy';
 
-const heroBackgroundUrl = new URL('../assets/home-product-workbench.png', import.meta.url).href;
+// 首页：保留原布局（顶栏 + 侧轨 + Hero + 历史项目）。
+// 中央生成模块改为「创建画布」，下方为提示词案例（点击创建带提示词的画布）。
+// 主题跟随画布明暗：读取 infinite-canvas:theme_store（与画布同一个主题存储）。
 
 interface CanvasProject {
   id: string;
@@ -35,49 +29,70 @@ interface CanvasProject {
   createdAt?: string;
 }
 
+interface PromptExample {
+  tag: string;
+  title: string;
+  prompt: string;
+}
+
+const heroBackgroundUrl = new URL('../assets/home-product-workbench.png', import.meta.url).href;
+
+// 新画布项目的空信封：不附带会创建无信封数据，被新画布误判为旧格式。
+const EMPTY_CANVAS_ENVELOPE = {
+  schema: 'hjm.infinite-canvas.project',
+  schemaVersion: 1,
+  engine: 'infinite-canvas',
+  upstreamVersion: '0.10.0',
+  project: {
+    nodes: [],
+    connections: [],
+    chatSessions: [],
+    activeChatId: null,
+    backgroundMode: 'lines',
+    showImageInfo: false,
+    viewport: { x: 0, y: 0, k: 1 }
+  }
+};
+
 const router = useRouter();
 const projects = ref<CanvasProject[]>([]);
-const uploadedImages = ref<Array<{ name: string; url: string; preview: string }>>([]);
-const generatedImages = ref<GeneratedImage[]>([]);
 const loadingProjects = ref(false);
-const uploading = ref(false);
-const generating = ref(false);
+const creating = ref(false);
 const errorMessage = ref('');
 
-const form = reactive({
-  mode: 'quick',
-  prompt: '',
-  imageRouteId: '',
-  imageModelKey: 'gpt-image-2',
-  imageCount: '1',
-  ratio: '1:1',
-  quality: '1k'
-});
+const theme = ref<'light' | 'dark'>(readCanvasTheme());
 
-const modeOptions = [
-  { label: 'Chat 对话', value: 'chat' },
-  { label: 'Fast 快速', value: 'quick' },
-  { label: 'AI 专业绘图 Agent', value: 'agent', badge: 'new' }
-];
+function readCanvasTheme(): 'light' | 'dark' {
+  try {
+    const raw = window.localStorage.getItem('infinite-canvas:theme_store');
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed?.state?.theme === 'light' ? 'light' : 'dark';
+  } catch {
+    return 'dark';
+  }
+}
 
-const countOptions = [
-  { label: '1 张', value: '1' },
-  { label: '2 张', value: '2' },
-  { label: '4 张', value: '4' }
-];
-
-const ratioOptions = [
-  { label: '1:1', value: '1:1' },
-  { label: '4:5', value: '4:5' },
-  { label: '3:4', value: '3:4' },
-  { label: '16:9', value: '16:9' },
-  { label: '9:16', value: '9:16' }
-];
-
-const qualityOptions = [
-  { label: '1K', value: '1k' },
-  { label: '2K', value: '2k' },
-  { label: '4K', value: '4k' }
+const promptExamples: PromptExample[] = [
+  {
+    tag: '白底主图',
+    title: '干净转化率最高的基本盘',
+    prompt: '一只白色陶瓷咖啡杯的纯白底电商主图，产品居中构图，柔和自然光，细腻阴影，商业摄影质感，画面干净无杂物'
+  },
+  {
+    tag: '场景氛围',
+    title: '把产品放进生活方式里',
+    prompt: '将一瓶护肤品置于清晨浴室的大理石台面上，晨光透过纱帘洒落，背景虚化绿植与毛巾，高级生活美学，色调温润'
+  },
+  {
+    tag: '包装标签',
+    title: '平面设计级标签视觉',
+    prompt: '为高端中国茶品牌设计一张竖版概念标签，主题茉莉白茶，米白棉纸纹理底色，玉绿色水墨茉莉花，细金线勾勒，现代宋体主标题，印刷级细节'
+  },
+  {
+    tag: '卖点展示',
+    title: '结构化呈现产品硬实力',
+    prompt: '无线降噪耳机悬浮分解结构展示，深色背景，耳机各部件层次分明悬浮排列，配冷蓝色科技感光线勾勒，未来感强'
+  }
 ];
 
 const sideItems = [
@@ -88,26 +103,16 @@ const sideItems = [
   { label: '指南', to: '/user/center', icon: BookOpen }
 ];
 
-const imageRouteOptions = computed(() => {
-  return [{ label: 'GPT Image 2', value: 'route_openai_gpt_image_2' }];
-});
-
-const modelOptions = computed(() => {
-  return [{ label: 'GPT Image 2', value: 'gpt-image-2' }];
-});
-
-const selectedModelLabel = computed(() => modelOptions.value.find((item) => item.value === form.imageModelKey)?.label || 'GPT Image 2');
-const selectedCountLabel = computed(() => countOptions.find((item) => item.value === form.imageCount)?.label || '1 张');
-const selectedQualityLabel = computed(() => qualityOptions.find((item) => item.value === form.quality)?.label || '1K');
-const estimatedCost = computed(() => Number(form.imageCount || 1) * 10);
-
-function canvasUrl(projectId?: string) {
-  const suffix = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
-  return `${legacyUrl('/canvas')}${suffix}`;
+function canvasUrl(projectId?: string, prompt?: string) {
+  const params = new URLSearchParams();
+  if (projectId) params.set('projectId', projectId);
+  if (prompt) params.set('prompt', prompt);
+  const suffix = params.size ? `?${params.toString()}` : '';
+  return `/canvas${projectId ? `/${encodeURIComponent(projectId)}` : ''}${suffix}`;
 }
 
-function openCanvas(projectId?: string) {
-  window.location.href = canvasUrl(projectId);
+function openCanvas(projectId?: string, prompt?: string) {
+  window.location.href = canvasUrl(projectId, prompt);
 }
 
 function navigateHomeItem(to: string) {
@@ -116,10 +121,6 @@ function navigateHomeItem(to: string) {
     return;
   }
   router.push(to);
-}
-
-function resultUrl(item: GeneratedImage) {
-  return item.url || item.imageUrl || item.preview || '';
 }
 
 function formatTime(value?: string) {
@@ -145,73 +146,18 @@ async function loadProjects() {
   }
 }
 
-async function addFiles(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const files = Array.from(input.files || []).slice(0, 6 - uploadedImages.value.length);
-  if (!files.length) return;
-  uploading.value = true;
+async function createProject(prompt?: string) {
+  if (creating.value) return;
+  creating.value = true;
   errorMessage.value = '';
   try {
-    for (const file of files) {
-      const preview = URL.createObjectURL(file);
-      const url = await uploadTemplateFile(file);
-      uploadedImages.value.push({ name: file.name, url, preview });
-    }
-  } catch (error) {
-    errorMessage.value = getApiErrorMessage(error, '图片上传失败', { unauthorized: '请先登录后再上传图片。' });
-  } finally {
-    input.value = '';
-    uploading.value = false;
-  }
-}
-
-function removeImage(index: number) {
-  const [item] = uploadedImages.value.splice(index, 1);
-  if (item?.preview) URL.revokeObjectURL(item.preview);
-}
-
-async function generateImage() {
-  if (!form.prompt.trim() && !uploadedImages.value.length) {
-    errorMessage.value = '请输入提示词或添加图片。';
-    return;
-  }
-  generating.value = true;
-  errorMessage.value = '';
-  generatedImages.value = [];
-  try {
-    const data = await generateTemplateImage({
-      templateKey: 'home-index',
-      templateType: 'home-index',
-      prompt: form.prompt.trim(),
-      fields: { userPrompt: form.prompt.trim(), mode: form.mode },
-      imageSlots: {
-        reference: uploadedImages.value.map((item) => ({ name: item.name, url: item.url }))
-      },
-      ratio: form.ratio,
-      quality: form.quality.toUpperCase(),
-      imageCount: Number(form.imageCount || 1),
-      imageRouteId: form.imageRouteId,
-      imageModelKey: form.imageModelKey,
-      imageModel: form.imageModelKey,
-      selectedPrompts: form.prompt.trim()
-        ? [{ id: 'home_prompt', label: '首页提示词', prompt: form.prompt.trim() }]
-        : []
-    });
-    generatedImages.value = data.resultImages || data.images || data.results || [];
-  } catch (error) {
-    errorMessage.value = getApiErrorMessage(error, '生成图片失败', { unauthorized: '请先登录后再生成图片。' });
-  } finally {
-    generating.value = false;
-  }
-}
-
-async function createProject() {
-  try {
-    const response = await http.post<{ id?: string; project?: CanvasProject }>('/api/user/projects', { name: '空白画布' });
+    const name = prompt ? prompt.slice(0, 20) : '空白画布';
+    const response = await http.post<{ id?: string; project?: CanvasProject }>('/api/user/projects', { name, data: EMPTY_CANVAS_ENVELOPE });
     const id = response.data.project?.id || response.data.id;
-    openCanvas(id);
-  } catch {
-    openCanvas();
+    openCanvas(id, prompt);
+  } catch (error) {
+    errorMessage.value = getApiErrorMessage(error, '创建画布失败', { unauthorized: '请先登录后再创建画布。' });
+    creating.value = false;
   }
 }
 
@@ -229,14 +175,11 @@ async function deleteProject(project: CanvasProject, event: MouseEvent) {
   }
 }
 
-onMounted(async () => {
-  form.imageRouteId = imageRouteOptions.value[0]?.value || '';
-  await loadProjects();
-});
+onMounted(loadProjects);
 </script>
 
 <template>
-  <main class="home-shell home-legacy-shell">
+  <main class="home-shell home-legacy-shell" :class="`theme-${theme}`">
     <div class="home-background" aria-hidden="true">
       <div class="home-bg-image" :style="{ backgroundImage: `url(${heroBackgroundUrl})` }"></div>
       <div class="home-glow glow-one"></div>
@@ -252,22 +195,15 @@ onMounted(async () => {
       <div class="header-actions">
         <div class="global-workflow-actions">
           <button type="button" class="workflow-action" @click="openCanvas()">
-            <Download :size="15" />
-            <span>导出</span>
-          </button>
-          <button type="button" class="workflow-action" @click="openCanvas()">
-            <Save :size="15" />
-            <span>保存</span>
+            <LayoutGrid :size="15" />
+            <span>画布中心</span>
           </button>
           <button type="button" class="workflow-action" @click="router.push('/user/records')">
             <Clock :size="15" />
             <span>历史记录</span>
           </button>
         </div>
-        <button type="button" class="header-icon-button" title="样式 1：视频播放">
-          <Sparkles :size="18" />
-        </button>
-        <button type="button" class="header-icon-button user" title="登录" @click="router.push('/login')">
+        <button type="button" class="header-icon-button user" title="用户中心" @click="router.push('/user/center')">
           <UserCircle :size="22" />
         </button>
       </div>
@@ -288,140 +224,35 @@ onMounted(async () => {
         <h1 class="hero-title">电商全流程工作台</h1>
         <p class="hero-desc">从主图、模板、画布到图库，统一完成电商素材生产与管理</p>
 
-        <section class="hero-panel liquid-glass-strong" aria-label="首页快速生成">
-          <div class="hero-inner liquid-glass-strong">
-            <div class="hero-tabs liquid-glass" role="tablist" aria-label="生成模式">
-              <button
-                v-for="item in modeOptions"
-                :key="item.value"
-                type="button"
-                class="hero-tab"
-                :class="{ active: form.mode === item.value }"
-                @click="form.mode = item.value"
-              >
-                {{ item.label }}
-                <span v-if="item.badge" class="tab-badge">{{ item.badge }}</span>
-              </button>
-            </div>
-
-            <div class="prompt-row">
-              <label class="upload-box liquid-glass" :title="uploadedImages.length ? '继续添加图片' : '可选：拖拽或添加底图'">
-                <input type="file" accept="image/*" multiple @change="addFiles" />
-                <div v-if="uploading" class="upload-state">
-                  <span class="upload-plus">...</span>
-                  <span>上传中</span>
-                </div>
-                <div v-else-if="uploadedImages.length" class="upload-preview">
-                  <div class="upload-preview-grid">
-                    <figure v-for="(image, index) in uploadedImages.slice(0, 4)" :key="image.preview" class="upload-preview-thumb">
-                      <span class="upload-order-badge">{{ index + 1 }}</span>
-                      <img :src="image.preview" alt="" />
-                      <button type="button" title="移除图片" @click.prevent="removeImage(index)">
-                        <X :size="13" />
-                      </button>
-                    </figure>
-                  </div>
-                  <span class="upload-count-badge">{{ uploadedImages.length }} 张</span>
-                </div>
-                <div v-else class="upload-empty">
-                  <span class="upload-plus">+</span>
-                  <span>添加图片</span>
-                  <small>可选：拖拽或添加底图</small>
-                </div>
-              </label>
-
-              <div class="prompt-input-wrap liquid-glass">
-                <textarea
-                  v-model="form.prompt"
-                  class="prompt-input"
-                  maxlength="500"
-                  placeholder="请输入你的图片生成创意与排版需求，例如：雨天魔法森林、日照暖阳黄金沙滩..."
-                  @keydown.ctrl.enter.prevent="generateImage"
-                ></textarea>
-                <span class="prompt-count">{{ form.prompt.length }} / 500</span>
-              </div>
-            </div>
-
-            <div class="params-row">
-              <div class="params-left">
-                <label class="param-pill liquid-glass">
-                  <span class="pill-dot"></span>
-                  <select v-model="form.imageModelKey">
-                    <option v-for="item in modelOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                  </select>
-                  <span>{{ selectedModelLabel }}</span>
-                  <ChevronDown :size="14" />
-                </label>
-                <label class="param-pill liquid-glass">
-                  <select v-model="form.imageCount">
-                    <option v-for="item in countOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                  </select>
-                  <span>{{ selectedCountLabel }}</span>
-                  <ChevronDown :size="14" />
-                </label>
-                <label class="param-pill liquid-glass">
-                  <select v-model="form.ratio">
-                    <option v-for="item in ratioOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                  </select>
-                  <span>{{ form.ratio }}</span>
-                  <ChevronDown :size="14" />
-                </label>
-                <label class="param-pill liquid-glass">
-                  <select v-model="form.quality">
-                    <option v-for="item in qualityOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                  </select>
-                  <span>{{ selectedQualityLabel }}</span>
-                  <ChevronDown :size="14" />
-                </label>
-                <div class="power-cost liquid-glass">
-                  <span>预计消耗</span>
-                  <strong>{{ estimatedCost }}</strong>
-                  <span>算力</span>
-                </div>
-              </div>
-              <button type="button" class="generate-button" :disabled="generating || uploading" @click="generateImage">
-                <Sparkles :size="17" />
-                <span>{{ generating ? '生成中' : '生成' }}</span>
-              </button>
-            </div>
-
+        <section class="hero-panel liquid-glass-strong" aria-label="创建画布">
+          <div class="hero-inner liquid-glass-strong create-inner">
+            <button type="button" class="create-card" :disabled="creating" @click="createProject()">
+              <span class="create-icon">
+                <FolderPlus :size="26" />
+              </span>
+              <span class="create-text">
+                <strong>{{ creating ? '正在创建…' : '创建画布' }}</strong>
+                <small>空白项目 · 图片节点 + 生图节点 + Agent 助手</small>
+              </span>
+              <ArrowRight :size="22" class="create-arrow" />
+            </button>
+            <p class="create-hint">从下方提示词案例开始，会自动把提示词放进生图节点</p>
             <p v-if="errorMessage" class="home-error">{{ errorMessage }}</p>
-            <div v-if="generatedImages.length" class="home-generated-strip">
-              <a v-for="image in generatedImages" :key="resultUrl(image)" :href="resultUrl(image)" target="_blank">
-                <img :src="resultUrl(image)" alt="生成结果" />
-              </a>
-            </div>
           </div>
         </section>
+
 
         <section class="history-carousel" aria-label="我的历史画布项目">
           <div class="history-header">
             <h2>我的历史画布项目</h2>
-            <button type="button" @click="createProject">
+            <button type="button" @click="createProject()">
               <FolderPlus :size="14" />
               新建项目 +
             </button>
           </div>
           <div v-if="loadingProjects" class="history-empty liquid-glass">正在加载画布项目</div>
           <div v-else class="history-wrap">
-            <button type="button" class="history-nav history-nav-left" aria-label="上一组">
-              <span>‹</span>
-            </button>
             <div class="history-track">
-              <article class="history-card" @click="openProject()">
-                <div class="history-thumb">
-                  <div class="history-blank">
-                    <span>+</span>
-                    <em>空白画布</em>
-                  </div>
-                  <div class="history-hover">进入画布 -></div>
-                </div>
-                <div class="history-meta">
-                  <strong>示例项目</strong>
-                  <span>{{ formatTime() }}</span>
-                </div>
-              </article>
-
               <article v-for="project in projects" :key="project.id" class="history-card" @click="openProject(project)">
                 <div class="history-thumb">
                   <img v-if="project.thumbnail" :src="project.thumbnail" alt="" />
@@ -440,8 +271,22 @@ onMounted(async () => {
                 </div>
               </article>
             </div>
-            <button type="button" class="history-nav history-nav-right" aria-label="下一组">
-              <span>›</span>
+          </div>
+        </section>
+
+        <section class="examples-section" aria-label="提示词案例">
+          <div class="examples-header">
+            <h2>提示词案例</h2>
+            <span>点击任意案例，直接创建带提示词的画布</span>
+          </div>
+          <div class="examples-grid">
+            <button v-for="item in promptExamples" :key="item.tag" type="button" class="example-card liquid-glass" @click="createProject(item.prompt)">
+              <span class="example-top">
+                <span class="example-tag">{{ item.tag }}</span>
+                <ArrowUpRight :size="15" class="example-go" />
+              </span>
+              <strong class="example-title">{{ item.title }}</strong>
+              <span class="example-prompt">{{ item.prompt }}</span>
             </button>
           </div>
         </section>
@@ -449,3 +294,326 @@ onMounted(async () => {
     </section>
   </main>
 </template>
+
+<style scoped>
+/* ===== 创建画布模块（替换原生成表单，沿用原有玻璃质感） ===== */
+.create-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 34px 28px 26px;
+}
+
+.create-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: min(520px, 100%);
+  padding: 20px 24px;
+  border: 1px solid rgba(56, 130, 246, 0.35);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(56, 130, 246, 0.14), rgba(16, 185, 129, 0.08));
+  color: inherit;
+  cursor: pointer;
+  box-shadow: 0 8px 28px rgba(56, 130, 246, 0.12);
+  transition: transform 0.18s ease-out, border-color 0.18s ease-out;
+}
+
+.create-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: rgba(56, 130, 246, 0.75);
+}
+
+.create-card:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.create-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(56, 130, 246, 0.18);
+  color: #2f6fe0;
+  flex-shrink: 0;
+}
+
+.create-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  flex: 1;
+}
+
+.create-text strong {
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.create-text small {
+  font-size: 12px;
+  opacity: 0.55;
+}
+
+.create-arrow {
+  opacity: 0.5;
+  transition: transform 0.18s, opacity 0.18s;
+}
+
+.create-card:hover:not(:disabled) .create-arrow {
+  transform: translateX(4px);
+  opacity: 1;
+}
+
+.create-hint {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.5;
+}
+
+/* ===== 提示词案例 ===== */
+.examples-section {
+  margin-top: 34px;
+}
+
+.examples-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.examples-header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.examples-header span {
+  font-size: 12px;
+  opacity: 0.45;
+}
+
+.examples-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.example-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 16px;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(56, 130, 246, 0.08);
+  transition: transform 0.16s ease-out, border-color 0.16s ease-out;
+}
+
+.example-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(56, 130, 246, 0.45);
+}
+
+.example-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.example-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(56, 130, 246, 0.14);
+  color: #2f6fe0;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.example-go {
+  opacity: 0.35;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.example-card:hover .example-go {
+  opacity: 1;
+  transform: translate(1px, -1px);
+}
+
+.example-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.example-prompt {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.7;
+  opacity: 0.55;
+}
+
+/* ===== 性能：移除大面积 backdrop-filter（hover 重绘主凶），视觉以半透底色兜底 ===== */
+.home-legacy-shell .home-background::after,
+.home-legacy-shell .home-header,
+.home-legacy-shell .hero-panel,
+.home-legacy-shell .hero-inner,
+.home-legacy-shell .history-carousel,
+.liquid-glass,
+.liquid-glass-strong {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* ===== 历史卡片动画优化：去掉 scale 与遮罩淡入淡出，只保留瞬时状态切换 ===== */
+.home-legacy-shell .history-card {
+  transition: transform 0.16s ease-out, border-color 0.16s ease-out;
+}
+
+.home-legacy-shell .history-card:hover {
+  transform: translateY(-2px);
+}
+
+.home-legacy-shell .history-hover {
+  transition: none;
+}
+
+/* ===== 暗色主题（匹配画布暗色模式） ===== */
+.theme-dark.home-legacy-shell {
+  background: #0a0c10;
+  color: #e7eaf0;
+}
+
+.theme-dark .home-background {
+  background:
+    radial-gradient(circle at 16% 14%, rgba(56, 130, 246, 0.1), transparent 32%),
+    radial-gradient(circle at 82% 20%, rgba(16, 185, 129, 0.08), transparent 36%),
+    linear-gradient(180deg, #0a0c10 0%, #0c1016 50%, #090b0f 100%);
+}
+
+.theme-dark .home-bg-image {
+  opacity: 0.14;
+  filter: blur(14px) saturate(0.7) brightness(0.55);
+}
+
+.theme-dark .home-background::after {
+  background:
+    linear-gradient(90deg, rgba(10, 12, 16, 0.88) 0%, rgba(10, 12, 16, 0.66) 45%, rgba(10, 12, 16, 0.35) 100%),
+    radial-gradient(circle at 58% 48%, rgba(56, 130, 246, 0.08), transparent 38%),
+    linear-gradient(180deg, rgba(10, 12, 16, 0.1), rgba(10, 12, 16, 0.35));
+}
+
+.theme-dark .hero-title,
+.theme-dark .brand-text,
+.theme-dark .history-header h2,
+.theme-dark .examples-header h2 {
+  color: #f2f4f8;
+}
+
+.theme-dark .hero-desc,
+.theme-dark .create-hint,
+.theme-dark .examples-header span {
+  color: rgba(231, 234, 240, 0.55);
+}
+
+.theme-dark .liquid-glass,
+.theme-dark .liquid-glass-strong,
+.theme-dark .hero-panel,
+.theme-dark .hero-inner,
+.theme-dark .history-empty {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: none;
+}
+
+.theme-dark .home-header {
+  background: transparent;
+  box-shadow: none;
+}
+
+.theme-dark .global-workflow-actions,
+.theme-dark .side-rail {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+.theme-dark .workflow-action,
+.theme-dark .side-item,
+.theme-dark .history-header button {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(231, 234, 240, 0.75);
+  box-shadow: none;
+}
+
+.theme-dark .workflow-action:hover,
+.theme-dark .side-item:hover,
+.theme-dark .history-header button:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+
+.theme-dark .side-item.active {
+  background: rgba(56, 130, 246, 0.18);
+  color: #7eb0f9;
+}
+
+.theme-dark .header-icon-button {
+  color: rgba(231, 234, 240, 0.75);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.theme-dark .brand-beta {
+  background: rgba(56, 130, 246, 0.18);
+  color: #7eb0f9;
+}
+
+.theme-dark .create-card {
+  background: linear-gradient(135deg, rgba(56, 130, 246, 0.2), rgba(16, 185, 129, 0.1));
+  color: #e7eaf0;
+}
+
+.theme-dark .create-icon {
+  color: #7eb0f9;
+}
+
+.theme-dark .example-card {
+  color: #e7eaf0;
+}
+
+.theme-dark .example-tag {
+  background: rgba(56, 130, 246, 0.2);
+  color: #7eb0f9;
+}
+
+.theme-dark .history-card {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.theme-dark .history-card:hover {
+  border-color: rgba(56, 130, 246, 0.5);
+}
+
+.theme-dark .history-meta strong {
+  color: #e7eaf0;
+}
+
+.theme-dark .history-meta span {
+  color: rgba(231, 234, 240, 0.4);
+}
+
+.theme-dark .history-blank {
+  color: rgba(231, 234, 240, 0.3);
+}
+</style>

@@ -89,15 +89,22 @@ function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: s
     const referenceAudios = selectedInputs.map((input) => input.audio).filter((audio): audio is ReferenceAudio => Boolean(audio));
 
     if (!hasToken) {
+        const referenceImages = inputs.map((input) => input.image).filter((image): image is ReferenceImage => Boolean(image));
+        const referenceVideos = inputs.map((input) => input.video).filter((video): video is ReferenceVideo => Boolean(video));
+        const referenceAudios = inputs.map((input) => input.audio).filter((audio): audio is ReferenceAudio => Boolean(audio));
+        const upstreamText = inputs
+            .map((input) => input.text)
+            .filter(Boolean)
+            .join("\n\n");
         return {
-            prompt,
-            referenceImages: [],
-            referenceVideos: [],
-            referenceAudios: [],
-            textCount: 0,
-            imageCount: 0,
-            videoCount: 0,
-            audioCount: 0,
+            prompt: upstreamText ? `${prompt}\n\n${upstreamText}` : prompt,
+            referenceImages,
+            referenceVideos,
+            referenceAudios,
+            textCount: inputs.filter((input) => input.type === "text").length,
+            imageCount: referenceImages.length,
+            videoCount: referenceVideos.length,
+            audioCount: referenceAudios.length,
         };
     }
 
@@ -127,9 +134,13 @@ export function buildNodeGenerationInputs(nodeId: string, nodes: CanvasNodeData[
     });
 }
 
-export async function hydrateNodeGenerationContext(context: NodeGenerationContext) {
+async function hydrateReferenceImages(referenceImages: ReferenceImage[]) {
     const { imageToDataUrl } = await import("@/services/image-storage");
-    return { ...context, referenceImages: await Promise.all(context.referenceImages.map(async (image) => ({ ...image, dataUrl: await imageToDataUrl(image) }))) };
+    return Promise.all(referenceImages.map(async (image) => ({ ...image, dataUrl: await imageToDataUrl(image) })));
+}
+
+export async function hydrateNodeGenerationContext(context: NodeGenerationContext) {
+    return { ...context, referenceImages: await hydrateReferenceImages(context.referenceImages) };
 }
 
 // ---- Task 8：画布生图统一走同源持久任务 /api/generate/tasks（禁止 Provider 直连）----
@@ -171,6 +182,7 @@ export function taskStateFromGenerationTask(task: GenerationTask, imageIndex?: n
 
 // 创建持久生图任务：幂等键由调用方按操作生成并复用；参考图以 dataUrl/url 提交，服务端暂存任务文件。
 export async function submitNodeImageGeneration(api: GenerationApi, input: NodeImageGenerationSubmit): Promise<GenerationTask> {
+    const referenceImages = await hydrateReferenceImages(input.referenceImages);
     return api.submit({
         prompt: input.prompt,
         modelKey: normalizeNodeModelKey(input.model),
@@ -179,7 +191,7 @@ export async function submitNodeImageGeneration(api: GenerationApi, input: NodeI
         quality: input.quality,
         imageCount: input.imageCount,
         clientRequestId: input.clientRequestId,
-        referenceImages: input.referenceImages.map((image) =>
+        referenceImages: referenceImages.map((image) =>
             image.dataUrl.startsWith("data:")
                 ? { name: image.name, type: image.type, dataUrl: image.dataUrl }
                 : { name: image.name, type: image.type, url: image.dataUrl },
@@ -203,7 +215,7 @@ function generationLabel(type: NodeGenerationInput["type"], index: number) {
 }
 
 function readReferenceImage(node: CanvasNodeData): ReferenceImage | null {
-    if (node.type !== CanvasNodeType.Image || !node.metadata?.content) return null;
+    if ((node.type !== CanvasNodeType.Image && node.type !== CanvasNodeType.Config) || !node.metadata?.content) return null;
     return {
         id: node.id,
         name: `${node.title || node.id}.png`,

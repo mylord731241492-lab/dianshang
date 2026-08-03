@@ -65,8 +65,8 @@ export function AgentPanel() {
                             <Bot className="size-4" />
                         </span>
                         <div className="min-w-0">
-                            <div className="text-base font-semibold leading-5">哈吉米助手</div>
-                            <div className="truncate text-xs" style={{ color: theme.node.muted }}>对话 · 快速生图 · 电商套图</div>
+                            <div className="text-base font-semibold leading-5">Agent助手</div>
+                            <div className="truncate text-xs" style={{ color: theme.node.muted }}>技能 · 对话 · 画布操作</div>
                         </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">

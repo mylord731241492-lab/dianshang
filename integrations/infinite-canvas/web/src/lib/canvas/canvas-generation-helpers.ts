@@ -34,8 +34,9 @@ export async function resolveMetadataReferences(metadata: CanvasNodeMetadata) {
     if (!metadata.references?.length) return null;
     const references = await Promise.all(
         metadata.references.map(async (url, index) => {
-            const dataUrl = url.startsWith("image:") ? await resolveImageUrl(url, "") : url;
-            return dataUrl ? { id: `${index}`, name: `reference-${index}.png`, type: "image/png", dataUrl, storageKey: url.startsWith("image:") ? url : undefined } : null;
+            const isStoredImage = url.startsWith("image:") || url.startsWith("asset:");
+            const dataUrl = isStoredImage ? await resolveImageUrl(url, "") : url;
+            return dataUrl ? { id: `${index}`, name: `reference-${index}.png`, type: "image/png", dataUrl, storageKey: isStoredImage ? url : undefined } : null;
         }),
     );
     return references.every(Boolean) ? (references as ReferenceImage[]) : null;
@@ -53,13 +54,38 @@ export async function hydrateCanvasImages(nodes: CanvasNodeData[]) {
 
     return Promise.all(
         nodes.map(async (node) => {
-            const content = node.metadata?.content;
-            if ((node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio) && node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveMediaUrl(node.metadata.storageKey, content) } };
-            if (node.type !== CanvasNodeType.Image) return node;
-            if (node.metadata?.storageKey) return { ...node, metadata: { ...node.metadata, content: await resolveStoredImage(node.metadata.storageKey, content) } };
+            let metadata = node.metadata;
+            const generatedImages = metadata?.generatedImages;
+            if (generatedImages?.length) {
+                const hydratedImages = await Promise.all(
+                    generatedImages.map(async (image) => ({
+                        ...image,
+                        content: image.storageKey ? await resolveStoredImage(image.storageKey, image.content) : image.content,
+                    })),
+                );
+                const selectedIndex = Math.max(0, Math.min(metadata?.selectedGeneratedImageIndex ?? 0, hydratedImages.length - 1));
+                const selected = hydratedImages[selectedIndex];
+                metadata = {
+                    ...metadata,
+                    generatedImages: hydratedImages,
+                    selectedGeneratedImageIndex: selectedIndex,
+                    content: selected?.content || metadata?.content,
+                    storageKey: selected?.storageKey || metadata?.storageKey,
+                    naturalWidth: selected?.naturalWidth || metadata?.naturalWidth,
+                    naturalHeight: selected?.naturalHeight || metadata?.naturalHeight,
+                    bytes: selected?.bytes || metadata?.bytes,
+                    mimeType: selected?.mimeType || metadata?.mimeType,
+                };
+            }
+
+            const content = metadata?.content;
+            if ((node.type === CanvasNodeType.Video || node.type === CanvasNodeType.Audio) && metadata?.storageKey)
+                return { ...node, metadata: { ...metadata, content: await resolveMediaUrl(metadata.storageKey, content) } };
+            if (node.type !== CanvasNodeType.Image) return metadata === node.metadata ? node : { ...node, metadata };
+            if (metadata?.storageKey) return { ...node, metadata: { ...metadata, content: await resolveStoredImage(metadata.storageKey, content) } };
             if (!content) return node;
             if (!content.startsWith("data:image/")) return node;
-            return { ...node, metadata: { ...node.metadata, ...imageMetadata(await uploadImage(content)) } };
+            return { ...node, metadata: { ...metadata, ...imageMetadata(await uploadImage(content)) } };
         }),
     );
 }

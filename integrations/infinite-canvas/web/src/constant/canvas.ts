@@ -10,9 +10,9 @@ type CanvasNodeSpec = {
 };
 
 export const NODE_DEFAULT_SIZE = {
-    [CanvasNodeType.Image]: { width: 340, height: 240, title: "图片" },
+    [CanvasNodeType.Image]: { width: 320, height: 320, title: "图片节点" },
     [CanvasNodeType.Text]: { width: 340, height: 240, title: "文本" },
-    [CanvasNodeType.Config]: { width: 340, height: 240, title: "生成配置" },
+    [CanvasNodeType.Config]: { width: 420, height: 420, title: "生图节点" },
     [CanvasNodeType.Video]: { width: 420, height: 236, title: "视频" },
     [CanvasNodeType.Audio]: { width: 340, height: 120, title: "音频" },
     [CanvasNodeType.Group]: { width: 760, height: 480, title: "组" },

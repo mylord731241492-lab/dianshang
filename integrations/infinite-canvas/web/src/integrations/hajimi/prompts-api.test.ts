@@ -58,15 +58,15 @@ const sampleUserPrompt = {
     updatedAt: "2026-07-27 09:00:00",
 };
 
-test("系统提示词只从 /api/prompts/system 获取，带 q/category/tag/cursor/limit", async () => {
+test("默认提示词只从 /api/prompts/system 获取，带 q/category/tag/cursor/limit", async () => {
     const { client, calls } = createFakeClient(() => ({ success: true, items: [sampleSystemPrompt], nextCursor: "cursor-2" }));
     const api = createPromptsApi(client);
     const page = await api.listSystem({ q: "白底", category: "电商主图", tag: "产品", cursor: "cursor-1", limit: 12 });
     assert.equal(calls.length, 1);
     assert.equal(calls[0]!.method, "GET");
     const path = calls[0]!.path;
-    assert.ok(path.startsWith(`${PROMPT_LIBRARY_SYSTEM_PATH}?`), `系统提示词列表路径异常：${path}`);
-    assert.ok(!path.startsWith(PROMPT_LIBRARY_USER_PATH), "系统提示词不得走我的提示词接口");
+    assert.ok(path.startsWith(`${PROMPT_LIBRARY_SYSTEM_PATH}?`), `默认提示词列表路径异常：${path}`);
+    assert.ok(!path.startsWith(PROMPT_LIBRARY_USER_PATH), "默认提示词不得走我的提示词接口");
     const search = new URLSearchParams(path.slice(PROMPT_LIBRARY_SYSTEM_PATH.length + 1));
     assert.equal(search.get("q"), "白底");
     assert.equal(search.get("category"), "电商主图");
@@ -87,7 +87,7 @@ test("我的提示词只从 /api/user/prompts 获取，favorite 序列化为 1�
     const page = await api.listUser({ q: "私有", favorite: true, limit: 9999 });
     const path = calls[0]!.path;
     assert.ok(path.startsWith(`${PROMPT_LIBRARY_USER_PATH}?`), `我的提示词列表路径异常：${path}`);
-    assert.ok(!path.startsWith(PROMPT_LIBRARY_SYSTEM_PATH), "我的提示词不得走系统提示词接口");
+    assert.ok(!path.startsWith(PROMPT_LIBRARY_SYSTEM_PATH), "我的提示词不得走默认提示词接口");
     const search = new URLSearchParams(path.slice(PROMPT_LIBRARY_USER_PATH.length + 1));
     assert.equal(search.get("favorite"), "1");
     assert.equal(search.get("limit"), "100", "limit 必须收敛到契约上限 100");
@@ -122,7 +122,7 @@ test("创建/详情/编辑/删除走 /api/user/prompts*，方法路径请求体�
     assert.deepEqual(calls[3], { method: "DELETE", path: `${PROMPT_LIBRARY_USER_PATH}/prompt_usr_1`, body: undefined });
 });
 
-test("复制系统提示词走 copy-system，请求体只含 systemPromptId", async () => {
+test("复制默认提示词走 copy-system，请求体只含 systemPromptId", async () => {
     const { client, calls } = createFakeClient(() => ({ success: true, item: { ...sampleUserPrompt, id: "prompt_copy_1" } }));
     const api = createPromptsApi(client);
     const copy = await api.copySystem("prompt_sys_1");

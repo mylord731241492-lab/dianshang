@@ -1,8 +1,8 @@
 // 双层云端提示词库：/api/prompts/system 与 /api/user/prompts* 同源 API 封装（Task 7）。
 // 契约以 server.js + backend/prompts 为准：
-// - 「系统提示词」只从 GET /api/prompts/system 获取（后端只返回已发布且未删除）。
+// - 「默认提示词」只从 GET /api/prompts/system 获取（后端只返回已发布且未删除）。
 // - 「我的提示词」只从 /api/user/prompts* 获取，按账号严格隔离。
-// - 复制系统提示词走 POST /api/user/prompts/copy-system，副本归当前账号私有。
+// - 复制默认提示词走 POST /api/user/prompts/copy-system，副本归当前账号私有。
 // - 列表均为 cursor 分页：{ success, items, nextCursor }。
 // - 提示词正文权威副本只在服务端；本模块是纯契约层，
 //   不得 import 应用源码、@/ 别名、JSX，也不得触碰 localStorage/IndexedDB/localforage。
@@ -20,11 +20,11 @@ export type CloudPrompt = {
     isFavorite: boolean;
     createdAt: string;
     updatedAt: string;
-    /** 仅系统提示词返回。 */
+    /** 仅默认提示词返回。 */
     version?: number;
-    /** 仅系统提示词返回。 */
+    /** 仅默认提示词返回。 */
     status?: SystemPromptStatus;
-    /** 仅系统提示词返回。 */
+    /** 仅默认提示词返回。 */
     sortOrder?: number;
 };
 
@@ -175,7 +175,7 @@ function toRequestBody(input: Partial<UserPromptInput>): Record<string, unknown>
 
 export function createPromptsApi(client: PromptsApiClient) {
     return {
-        // 系统提示词：普通用户只读，后端只返回已发布。
+        // 默认提示词：普通用户只读，后端只返回已发布。
         async listSystem(params: SystemPromptListParams = {}): Promise<CloudPromptListPage> {
             return readCloudPromptList(await client.get(buildSystemListPath(params)));
         },
@@ -202,10 +202,10 @@ export function createPromptsApi(client: PromptsApiClient) {
         async remove(id: string): Promise<void> {
             await client.delete(`${PROMPT_LIBRARY_USER_PATH}/${encodeURIComponent(id)}`);
         },
-        // 复制已发布系统提示词为当前账号私有副本。
+        // 复制已发布默认提示词为当前账号私有副本。
         async copySystem(systemPromptId: string): Promise<CloudPrompt> {
             const item = readCloudPrompt(await client.post(PROMPT_LIBRARY_COPY_SYSTEM_PATH, { systemPromptId }));
-            if (!item) throw new Error("复制系统提示词响应缺少提示词实体");
+            if (!item) throw new Error("复制默认提示词响应缺少提示词实体");
             return item;
         },
     };

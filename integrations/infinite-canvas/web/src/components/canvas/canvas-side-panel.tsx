@@ -1,6 +1,6 @@
-import { memo, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { App, Empty, Input, Popconfirm, Select, Tag } from "antd";
-import { Check, ChevronRight, Download, FileText, Image as ImageIcon, ListChecks, Music2, Plus, Search, Settings2, Square, Trash2, Type, Video } from "lucide-react";
+import { memo, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { App, Button, Empty, Input, Popconfirm, Select, Tag } from "antd";
+import { Check, ChevronRight, Download, FileText, Image as ImageIcon, ListChecks, Music2, Palette, Plus, Search, Square, Trash2, Type, Video } from "lucide-react";
 import { motion } from "motion/react";
 
 import { canvasThemes, type CanvasTheme } from "@/lib/canvas-theme";
@@ -8,9 +8,10 @@ import { exportCanvasNodes } from "@/lib/canvas/canvas-export";
 import { getNodeDefinition } from "@/lib/canvas/node-registry";
 import { cn } from "@/lib/utils";
 import { PromptLibraryPanel } from "@/components/hajimi/prompt-library-panel";
-import { uploadMediaFile } from "@/services/file-storage";
-import { uploadImage } from "@/services/image-storage";
-import { useAssetStore, type Asset, type AssetKind } from "@/stores/use-asset-store";
+import { assetStorageKey, type CloudAsset } from "@/integrations/hajimi/assets-api";
+import { CloudAssetsBrowser } from "./cloud-assets-browser";
+import { useCloudAssetList } from "@/lib/canvas/use-cloud-asset-list";
+import { useAssetStore } from "@/stores/use-asset-store";
 import { CANVAS_SIDE_PANEL_MAX_WIDTH, CANVAS_SIDE_PANEL_MIN_WIDTH, CANVAS_SIDE_PANEL_MOTION_MS, useCanvasSidePanelStore } from "@/stores/use-canvas-side-panel-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { CanvasNodeType, type CanvasNodeData } from "@/types/canvas";
@@ -20,7 +21,7 @@ import type { InsertAssetPayload } from "./asset-picker-modal";
 const PANEL_MOTION_SECONDS = CANVAS_SIDE_PANEL_MOTION_MS / 1000;
 const PANEL_EASE = [0.22, 1, 0.36, 1] as const;
 
-type PanelTab = "canvas" | "assets" | "prompts";
+type PanelTab = "canvas" | "assets" | "records" | "prompts";
 
 type Props = {
     nodes: CanvasNodeData[];
@@ -34,7 +35,7 @@ const NODE_TYPE_ICON: Record<string, typeof Square> = {
     [CanvasNodeType.Video]: Video,
     [CanvasNodeType.Audio]: Music2,
     [CanvasNodeType.Text]: Type,
-    [CanvasNodeType.Config]: Settings2,
+    [CanvasNodeType.Config]: Palette,
     [CanvasNodeType.Group]: Square,
 };
 
@@ -96,16 +97,23 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, onFocusNode, onInsertA
                 <div className="flex items-center gap-5 px-4 pt-3.5">
                     <TabButton label="画布" active={tab === "canvas"} theme={theme} onClick={() => setTab("canvas")} />
                     <TabButton label="资产" active={tab === "assets"} theme={theme} onClick={() => setTab("assets")} />
+                    <TabButton label="生图记录" active={tab === "records"} theme={theme} onClick={() => setTab("records")} />
                     <TabButton label="提示词库" active={tab === "prompts"} theme={theme} onClick={() => setTab("prompts")} />
                 </div>
                 <div className="mt-2 min-h-0 flex-1 overflow-hidden">
-                    {tab === "canvas" ? (
+                    {/* 四个 tab 保持挂载只切显隐：避免切换时重复请求与图片重载造成的卡顿/重影 */}
+                    <div className={tab === "canvas" ? "h-full" : "hidden"}>
                         <CanvasNodesTab nodes={nodes} selectedNodeIds={selectedNodeIds} onFocusNode={onFocusNode} theme={theme} />
-                    ) : tab === "assets" ? (
+                    </div>
+                    <div className={tab === "assets" ? "h-full" : "hidden"}>
                         <CanvasAssetsTab onInsert={onInsertAsset} theme={theme} />
-                    ) : (
+                    </div>
+                    <div className={tab === "records" ? "h-full overflow-y-auto px-3 py-2" : "hidden"}>
+                        <CloudAssetsBrowser onInsert={onInsertAsset} defaultSource="generated" gridClassName="grid-cols-2" />
+                    </div>
+                    <div className={tab === "prompts" ? "h-full" : "hidden"}>
                         <PromptLibraryPanel onInsert={onInsertAsset} theme={theme} />
-                    )}
+                    </div>
                 </div>
                 <button type="button" className="absolute inset-y-0 right-0 z-40 w-4 translate-x-1/2 cursor-col-resize" onPointerDown={startResize} aria-label="调整左侧面板宽度" />
             </motion.aside>
@@ -132,13 +140,18 @@ const NODE_FILTER_OPTIONS = [
     { label: "视频", value: CanvasNodeType.Video },
     { label: "文本", value: CanvasNodeType.Text },
     { label: "音频", value: CanvasNodeType.Audio },
-    { label: "配置", value: CanvasNodeType.Config },
+    { label: "生图", value: CanvasNodeType.Config },
     { label: "分组", value: CanvasNodeType.Group },
 ];
 
 function nodePreviewText(node: CanvasNodeData) {
     if (node.type === CanvasNodeType.Text) return node.metadata?.content || node.metadata?.prompt || "";
     return getNodeDefinition(node.type)?.title || node.type;
+}
+
+function nodeDisplayTitle(node: CanvasNodeData) {
+    if (node.type === CanvasNodeType.Config && (node.title === "生成配置" || node.title === "绘图节点")) return "生图节点";
+    return node.title || getNodeDefinition(node.type)?.title || "未命名节点";
 }
 
 function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes: CanvasNodeData[]; selectedNodeIds: Set<string>; onFocusNode: (nodeId: string) => void; theme: CanvasTheme }) {
@@ -151,7 +164,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
 
     const filtered = useMemo(() => {
         const query = keyword.trim().toLowerCase();
-        return nodes.filter((node) => (typeFilter === "all" || node.type === typeFilter) && (!query || [node.title, node.metadata?.content, node.metadata?.prompt].filter(Boolean).join(" ").toLowerCase().includes(query)));
+        return nodes.filter((node) => (typeFilter === "all" || node.type === typeFilter) && (!query || [nodeDisplayTitle(node), node.metadata?.content, node.metadata?.prompt].filter(Boolean).join(" ").toLowerCase().includes(query)));
     }, [nodes, keyword, typeFilter]);
 
     const exitSelect = () => {
@@ -225,7 +238,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
                                         {isImage ? <img src={node.metadata!.content} alt={node.title} className="size-full object-cover" /> : <Icon className="size-5 opacity-60" />}
                                     </span>
                                     <span className="min-w-0 flex-1 space-y-0.5">
-                                        <span className="block truncate text-sm font-medium leading-snug">{node.title || getNodeDefinition(node.type)?.title || "未命名节点"}</span>
+                                        <span className="block truncate text-sm font-medium leading-snug">{nodeDisplayTitle(node)}</span>
                                         <span className="block truncate text-xs leading-snug opacity-50">{nodePreviewText(node)}</span>
                                     </span>
                                     {node.metadata?.status && node.metadata.status !== "idle" ? <span className="size-1.5 shrink-0 rounded-full" style={{ background: STATUS_COLOR[node.metadata.status] || "transparent" }} /> : null}
@@ -268,75 +281,55 @@ function CheckMark({ checked, theme }: { checked: boolean; theme: CanvasTheme })
 }
 
 // ---------------------------------------------------------------------------
-// 资产 Tab —— 按类型折叠分组 + 标签筛选,点击插入画布
+// 资产 Tab —— 账号云端产品图库（source=upload）：自己上传的产品图，事实源在服务端 /api/user/assets
 // ---------------------------------------------------------------------------
-
-const ASSET_GROUPS: { kind: AssetKind; label: string; icon: typeof Square }[] = [
-    { kind: "image", label: "图片", icon: ImageIcon },
-    { kind: "video", label: "视频", icon: Video },
-    { kind: "text", label: "文本", icon: FileText },
-];
-
-function buildInsertPayload(asset: Asset): InsertAssetPayload {
-    if (asset.kind === "text") return { kind: "text", content: asset.data.content, title: asset.title };
-    if (asset.kind === "video") return { kind: "video", url: asset.data.url, storageKey: asset.data.storageKey, title: asset.title, width: asset.data.width, height: asset.data.height };
-    return { kind: "image", dataUrl: asset.data.dataUrl, storageKey: asset.data.storageKey, title: asset.title };
-}
 
 const CanvasAssetsTab = memo(function CanvasAssetsTab({ onInsert, theme }: { onInsert: (payload: InsertAssetPayload) => void; theme: CanvasTheme }) {
     const { message } = App.useApp();
-    const assets = useAssetStore((state) => state.assets);
-    const addAsset = useAssetStore((state) => state.addAsset);
-    const removeAsset = useAssetStore((state) => state.removeAsset);
+    // 本视图独立持有"产品图"列表（kind=image + source=upload），不与生图记录共享数据。
+    const { items: cloudAssets, nextCursor: cloudNextCursor, loading: cloudLoading, error: cloudError, refresh: refreshCloudAssets, loadMore: loadMoreCloudAssets, upload: uploadCloudAsset, remove: deleteCloudAsset } = useCloudAssetList({ kind: "image", source: "upload" });
+
     const [keyword, setKeyword] = useState("");
-    const [tagFilter, setTagFilter] = useState<string>("all");
-    const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const allTags = useMemo(() => Array.from(new Set(assets.flatMap((asset) => asset.tags || []))).slice(0, 20), [assets]);
-
-    const filtered = useMemo(() => {
-        const query = keyword.trim().toLowerCase();
-        return assets.filter((asset) => (tagFilter === "all" || (asset.tags || []).includes(tagFilter)) && (!query || [asset.title, ...(asset.tags || [])].join(" ").toLowerCase().includes(query)));
-    }, [assets, keyword, tagFilter]);
-
-    const groups = useMemo(() => ASSET_GROUPS.map((group) => ({ ...group, items: filtered.filter((asset) => asset.kind === group.kind) })).filter((group) => group.items.length > 0), [filtered]);
+    // 本 tab 固定只看自己上传的图片（产品图），生成结果在生图记录查看；搜索防抖只刷新关键词。
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            void refreshCloudAssets({ q: keyword.trim() || undefined });
+        }, 300);
+        return () => window.clearTimeout(timer);
+    }, [keyword, refreshCloudAssets]);
 
     const handleFiles = async (fileList: FileList | null) => {
-        const files = Array.from(fileList || []);
+        const files = Array.from(fileList || []).filter((file) => file.type.startsWith("image/"));
         if (!files.length) return;
         setUploading(true);
-        const hide = message.loading("正在添加资产…", 0);
-        let added = 0;
         try {
             for (const file of files) {
-                if (file.type.startsWith("image/")) {
-                    const image = await uploadImage(file);
-                    addAsset({ kind: "image", title: file.name || "图片", coverUrl: image.url, tags: [], data: { dataUrl: image.url, storageKey: image.storageKey, width: image.width, height: image.height, bytes: image.bytes, mimeType: image.mimeType } });
-                    added += 1;
-                } else if (file.type.startsWith("video/")) {
-                    const media = await uploadMediaFile(file, "video");
-                    addAsset({ kind: "video", title: file.name || "视频", coverUrl: "", tags: [], data: { url: media.url, storageKey: media.storageKey, width: media.width || 0, height: media.height || 0, bytes: media.bytes, mimeType: media.mimeType } });
-                    added += 1;
-                }
+                await uploadCloudAsset(file, file.name || "产品图");
             }
-            if (added) message.success(`已添加 ${added} 个资产`);
-            else message.warning("仅支持图片或视频文件");
+            message.success(`已上传 ${files.length} 张产品图`);
         } catch (error) {
-            console.error(error);
-            message.error("添加失败，请重试");
+            message.error(error instanceof Error ? error.message : "上传失败");
         } finally {
-            hide();
             setUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = "";
         }
     };
 
+    const handleInsert = (asset: CloudAsset) => {
+        if (!asset.accessUrl) {
+            message.error("资产访问 URL 缺失，请刷新后重试");
+            return;
+        }
+        onInsert({ kind: "image", dataUrl: asset.accessUrl, storageKey: assetStorageKey(asset.id), title: asset.name });
+    };
+
     return (
         <div className="flex h-full flex-col">
             <div className="flex items-center gap-2 px-3 pb-2 pt-1">
-                <Input size="small" allowClear prefix={<Search className="size-3.5 text-stone-400" />} placeholder="搜索资产" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+                <Input size="small" allowClear prefix={<Search className="size-3.5 text-stone-400" />} placeholder="搜索产品图" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
                 <button
                     type="button"
                     disabled={uploading}
@@ -345,90 +338,51 @@ const CanvasAssetsTab = memo(function CanvasAssetsTab({ onInsert, theme }: { onI
                     style={{ color: theme.node.text }}
                 >
                     <Plus className="size-3.5" />
-                    添加
+                    {uploading ? "上传中…" : "添加"}
                 </button>
-                <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => void handleFiles(e.target.files)} />
+                <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => void handleFiles(e.target.files)} />
             </div>
-            {allTags.length ? (
-                <div className="flex flex-wrap gap-1.5 px-3 pb-2">
-                    <Tag.CheckableTag checked={tagFilter === "all"} className={cn("prompt-filter-tag", tagFilter === "all" && "is-active")} onChange={() => setTagFilter("all")}>
-                        全部
-                    </Tag.CheckableTag>
-                    {allTags.map((tag) => (
-                        <Tag.CheckableTag key={tag} checked={tagFilter === tag} className={cn("prompt-filter-tag", tagFilter === tag && "is-active")} onChange={() => setTagFilter((prev) => (prev === tag ? "all" : tag))}>
-                            {tag}
-                        </Tag.CheckableTag>
-                    ))}
-                </div>
-            ) : null}
+            {cloudError ? <div className="mx-3 mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-400">{cloudError}</div> : null}
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-                {groups.length ? (
-                    <div className="space-y-1">
-                        {groups.map((group) => {
-                            const isCollapsed = collapsed[group.kind];
-                            return (
-                                <div key={group.kind}>
+                {cloudAssets.length ? (
+                    <div className="grid grid-cols-2 gap-2 px-1 pt-1">
+                        {cloudAssets.map((asset) => (
+                            <div key={asset.id} className="group relative aspect-square overflow-hidden rounded-xl border transition duration-200 hover:-translate-y-0.5 hover:shadow-lg" style={{ borderColor: theme.node.stroke, background: theme.node.panel }}>
+                                {asset.accessUrl ? <img src={asset.accessUrl} alt={asset.name} className="size-full object-cover transition duration-300 group-hover:scale-[1.04]" /> : null}
+                                <div className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-black/70 to-transparent px-2 pb-1.5 pt-5 text-[11px] text-white/90">{asset.name}</div>
+                                <div className="absolute inset-0 flex items-center justify-center gap-2.5 opacity-0 transition duration-200 group-hover:opacity-100">
                                     <button
                                         type="button"
-                                        onClick={() => setCollapsed((prev) => ({ ...prev, [group.kind]: !prev[group.kind] }))}
-                                        className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1.5 text-left text-xs font-semibold opacity-75 transition hover:opacity-100"
+                                        onClick={() => handleInsert(asset)}
+                                        className="grid size-8 place-items-center rounded-full bg-white/90 text-stone-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-stone-900 dark:bg-black/60 dark:text-stone-100 dark:hover:bg-black/80"
+                                        aria-label="插入画布"
                                     >
-                                        <ChevronRight className={cn("size-3.5 transition-transform", !isCollapsed && "rotate-90")} />
-                                        <group.icon className="size-3.5" />
-                                        <span>{group.label}</span>
-                                        <span className="opacity-50">{group.items.length}</span>
+                                        <Plus className="size-4" />
                                     </button>
-                                    {isCollapsed ? null : (
-                                        <div className="grid grid-cols-2 gap-2 px-1 pb-2 pt-1">
-                                            {group.items.map((asset) => (
-                                                <AssetCard key={asset.id} asset={asset} theme={theme} onInsert={() => onInsert(buildInsertPayload(asset))} onRemove={() => (removeAsset(asset.id), message.success("资产已移除"))} />
-                                            ))}
-                                        </div>
-                                    )}
+                                    <Popconfirm title="删除该图片?" description="软删除，云端对象保留；引用它的画布节点将失效。" okText="删除" cancelText="取消" okButtonProps={{ danger: true }} onConfirm={() => void deleteCloudAsset(asset.id)}>
+                                        <button
+                                            type="button"
+                                            className="grid size-8 place-items-center rounded-full bg-white/90 text-stone-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-red-500 dark:bg-black/60 dark:text-stone-100 dark:hover:bg-black/80 dark:hover:text-red-400"
+                                            aria-label="删除资产"
+                                        >
+                                            <Trash2 className="size-4" />
+                                        </button>
+                                    </Popconfirm>
                                 </div>
-                            );
-                        })}
+                            </div>
+                        ))}
                     </div>
                 ) : (
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无资产" className="pt-16" />
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={cloudLoading ? "加载中…" : "还没有产品图，点击「添加」上传"} className="pt-16" />
                 )}
             </div>
+            {cloudNextCursor ? (
+                <div className="flex justify-center border-t px-3 py-2" style={{ borderColor: theme.toolbar.border }}>
+                    <Button size="small" loading={cloudLoading} onClick={() => void loadMoreCloudAssets()}>
+                        加载更多
+                    </Button>
+                </div>
+            ) : null}
         </div>
     );
 });
-
-function AssetCard({ asset, theme, onInsert, onRemove }: { asset: Asset; theme: CanvasTheme; onInsert: () => void; onRemove: () => void }) {
-    return (
-        <div className="group relative aspect-square overflow-hidden rounded-xl border transition duration-200 hover:-translate-y-0.5 hover:shadow-lg" style={{ borderColor: theme.node.stroke, background: theme.node.panel }}>
-            <AssetCover asset={asset} />
-            <div className="absolute inset-0 flex items-center justify-center gap-2.5 opacity-0 transition duration-200 group-hover:opacity-100">
-                <button
-                    type="button"
-                    onClick={onInsert}
-                    className="grid size-8 place-items-center rounded-full bg-white/90 text-stone-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-stone-900 dark:bg-black/60 dark:text-stone-100 dark:hover:bg-black/80"
-                    aria-label="插入画布"
-                >
-                    <Plus className="size-4" />
-                </button>
-                <Popconfirm title="移除该资产?" okText="移除" cancelText="取消" okButtonProps={{ danger: true }} onConfirm={onRemove}>
-                    <button
-                        type="button"
-                        className="grid size-8 place-items-center rounded-full bg-white/90 text-stone-700 shadow-sm backdrop-blur transition hover:bg-white hover:text-red-500 dark:bg-black/60 dark:text-stone-100 dark:hover:bg-black/80 dark:hover:text-red-400"
-                        aria-label="移除资产"
-                    >
-                        <Trash2 className="size-4" />
-                    </button>
-                </Popconfirm>
-            </div>
-        </div>
-    );
-}
-
-function AssetCover({ asset }: { asset: Asset }) {
-    if (asset.kind === "text") return <div className="size-full overflow-hidden whitespace-pre-wrap break-words p-2.5 text-[11px] leading-snug opacity-80">{asset.data.content}</div>;
-    if (asset.kind === "video") {
-        if (asset.coverUrl) return <img src={asset.coverUrl} alt="" className="size-full object-cover transition duration-300 group-hover:scale-[1.04]" />;
-        return <video src={`${asset.data.url}#t=0.1`} muted playsInline preload="metadata" className="size-full object-cover transition duration-300 group-hover:scale-[1.04]" />;
-    }
-    return <img src={asset.coverUrl || asset.data.dataUrl} alt="" className="size-full object-cover transition duration-300 group-hover:scale-[1.04]" />;
-}

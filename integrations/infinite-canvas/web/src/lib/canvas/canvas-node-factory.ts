@@ -4,7 +4,15 @@ import type { AiConfig } from "@/stores/use-config-store";
 import type { UploadedImage } from "@/services/image-storage";
 import type { UploadedFile } from "@/services/file-storage";
 import type { ReferenceImage } from "@/types/image";
-import { CanvasNodeType, type CanvasImageGenerationType, type CanvasNodeData, type CanvasNodeMetadata, type CanvasNodeTypeId, type Position } from "@/types/canvas";
+import {
+    CanvasNodeType,
+    type CanvasGeneratedImage,
+    type CanvasImageGenerationType,
+    type CanvasNodeData,
+    type CanvasNodeMetadata,
+    type CanvasNodeTypeId,
+    type Position,
+} from "@/types/canvas";
 
 export function createCanvasNode(type: CanvasNodeTypeId, position: Position, metadata?: CanvasNodeMetadata): CanvasNodeData {
     const spec = getNodeSpec(type);
@@ -26,6 +34,33 @@ export function createCanvasNode(type: CanvasNodeTypeId, position: Position, met
 
 export function imageMetadata(image: UploadedImage): CanvasNodeMetadata {
     return { content: image.url, storageKey: image.storageKey, status: "success", naturalWidth: image.width, naturalHeight: image.height, bytes: image.bytes, mimeType: image.mimeType };
+}
+
+export function generatedImageMetadata(image: UploadedImage): CanvasGeneratedImage {
+    return {
+        content: image.url,
+        storageKey: image.storageKey,
+        naturalWidth: image.width,
+        naturalHeight: image.height,
+        bytes: image.bytes,
+        mimeType: image.mimeType,
+    };
+}
+
+export function generatedImageSelectionMetadata(images: CanvasGeneratedImage[], selectedIndex = 0): CanvasNodeMetadata {
+    const index = Math.max(0, Math.min(selectedIndex, Math.max(0, images.length - 1)));
+    const selected = images[index];
+    if (!selected) return { generatedImages: [], selectedGeneratedImageIndex: 0 };
+    return {
+        generatedImages: images,
+        selectedGeneratedImageIndex: index,
+        content: selected.content,
+        storageKey: selected.storageKey,
+        naturalWidth: selected.naturalWidth,
+        naturalHeight: selected.naturalHeight,
+        bytes: selected.bytes,
+        mimeType: selected.mimeType,
+    };
 }
 
 export function videoMetadata(video: UploadedFile): CanvasNodeMetadata {

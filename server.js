@@ -9,9 +9,12 @@ const fs = require('fs');
 const crypto = require('crypto');
 const zlib = require('zlib');
 const https = require('https');
+const net = require('net');
+const dns = require('dns');
 const Database = require('better-sqlite3');
 const multer = require('multer');
 const { HttpsProxyAgent } = require('https-proxy-agent');
+const sharp = require('sharp');
 const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
 const { StreamableHTTPServerTransport } = require('@modelcontextprotocol/sdk/server/streamableHttp.js');
 const { z } = require('zod');
@@ -24,6 +27,13 @@ const { createGenerationTaskRepository } = require('./backend/generation/task-re
 const { GenerationTaskService } = require('./backend/generation/generation-task-service');
 const { createAssetService, registerAssetRoutes } = require('./backend/assets');
 const { createPromptService, registerPromptRoutes } = require('./backend/prompts');
+const { createCanvasAgentRepository } = require('./backend/canvas-agent/session-repository');
+const { createCanvasAgentRuntime } = require('./backend/canvas-agent/runtime-service');
+const { createCanvasAgentPlanner } = require('./backend/canvas-agent/provider-planner');
+const { createCanvasAgentSiteTools } = require('./backend/canvas-agent/site-tools');
+const { registerCanvasAgentRoutes } = require('./backend/canvas-agent/routes');
+const { createAgentSkillRepository } = require('./backend/agent-skills/skill-repository');
+const { registerAgentSkillRoutes } = require('./backend/agent-skills/routes');
 
 const envPath = path.join(__dirname, '.env');
 if (fs.existsSync(envPath)) {
@@ -424,6 +434,7 @@ const assetService = createAssetService({
 // 系统提示词 + 我的提示词双层云端提示词库（backend/prompts，Task 7）：
 // system_prompts/user_prompts 建表在模块幂等迁移内完成；user_prompts 全部查询强制 user_id 隔离。
 const promptService = createPromptService({ db, idFactory: uid });
+const canvasAgentRepository = createCanvasAgentRepository({ db, idFactory: uid });
 
 // Auth middleware
 function auth(req, res, next) {
@@ -2285,6 +2296,15 @@ async function loadReferenceImageFile(reference = {}, req) {
 
   const resolvedUrl = resolveReferenceUrl(rawUrl, req);
   if (!resolvedUrl) throw new Error('参考图地址为空');
+  if (!/^https?:\/\//i.test(resolvedUrl)) {
+    throw generationInputError(
+      400,
+      'GENERATION_REFERENCE_BLOB_URL_UNSUPPORTED',
+      /^blob:/i.test(resolvedUrl)
+        ? '参考图片仍是浏览器临时地址，请等待上传完成后重试'
+        : '参考图地址仅支持 data URL、站内路径或 HTTP(S) URL'
+    );
+  }
   const resp = await fetch(resolvedUrl);
   if (!resp.ok) throw new Error(`参考图读取失败: ${resp.status}`);
   const arrayBuffer = await resp.arrayBuffer();
@@ -3489,6 +3509,20 @@ function shouldUseChatForTextRoute(route = {}, status = {}) {
   return String(status.gateway || '').toLowerCase() === 'new-api';
 }
 
+function responsesToolsToChatTools(tools = []) {
+  return (Array.isArray(tools) ? tools : []).flatMap((tool) => {
+    if (!tool || tool.type !== 'function' || !tool.name) return [];
+    return [{
+      type: 'function',
+      function: {
+        name: tool.name,
+        description: tool.description || '',
+        parameters: tool.parameters || { type: 'object', properties: {} }
+      }
+    }];
+  });
+}
+
 async function callProviderResponses(input, options = {}) {
   const status = options.status || routeProviderStatus(options.route, 'text');
   const timeoutMs = positiveNumber(options.timeoutMs, status.timeoutMs || PROVIDER_TIMEOUT_MS);
@@ -3504,6 +3538,10 @@ async function callProviderResponses(input, options = {}) {
   }
 
   const controller = new AbortController();
+  const externalSignal = options.signal;
+  const abortFromExternal = () => controller.abort();
+  if (externalSignal?.aborted) controller.abort();
+  else externalSignal?.addEventListener?.('abort', abortFromExternal, { once: true });
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const useChat = shouldUseChatForTextRoute(options.route, requestStatus);
@@ -3511,6 +3549,12 @@ async function callProviderResponses(input, options = {}) {
     const requestBody = useChat
       ? { model, messages: responsesInputToChatMessages(input), stream: false }
       : { model, input };
+    if (Array.isArray(options.tools) && options.tools.length) {
+      requestBody.tools = useChat ? responsesToolsToChatTools(options.tools) : options.tools;
+    }
+    if (options.toolChoice !== undefined) {
+      requestBody.tool_choice = options.toolChoice;
+    }
     const resp = await fetch(requestUrl, {
       method: 'POST',
       headers: {
@@ -3541,6 +3585,7 @@ async function callProviderResponses(input, options = {}) {
     };
   } finally {
     clearTimeout(timer);
+    externalSignal?.removeEventListener?.('abort', abortFromExternal);
   }
 }
 
@@ -4898,12 +4943,33 @@ app.post('/api/user/redeem', auth, (req, res) => {
 });
 
 // ===================== PROJECTS / CANVAS =====================
-app.get('/api/user/projects', auth, (req, res) => {
+// 项目预览图：取画布内第一个带图节点的展示地址；asset: 引用签 15 分钟短时同源 URL，不泄露签名之外信息。
+async function projectPreviewThumbnail(userId, data) {
+  if (data && typeof data.thumbnail === 'string' && data.thumbnail) return data.thumbnail;
+  const nodes = Array.isArray(data?.project?.nodes) ? data.project.nodes : (Array.isArray(data?.nodes) ? data.nodes : []);
+  for (const node of nodes) {
+    const meta = node?.metadata || {};
+    const content = String(meta.content || '');
+    if (content.startsWith('/uploads/')) return content;
+    const storageKey = String(meta.storageKey || '');
+    if (!storageKey.startsWith('asset:')) continue;
+    try {
+      const access = await assetService.createAccessUrl(userId, storageKey.slice(6));
+      if (access?.url) return access.url;
+    } catch {
+      // 资产已删除或不可用时跳过该节点。
+    }
+  }
+  return '';
+}
+
+app.get('/api/user/projects', auth, async (req, res) => {
   const ps = db.prepare('SELECT * FROM projects WHERE user_id=? ORDER BY updated_at DESC').all(req.user.userId);
-  const items = ps.map(p=>{
+  const items = [];
+  for (const p of ps) {
     const data = projectDataFromRow(p);
-    return {id:p.id,name:p.name,thumbnail:data.thumbnail||'',updatedAt:p.updated_at,createdAt:p.created_at};
-  });
+    items.push({ id: p.id, name: p.name, thumbnail: await projectPreviewThumbnail(req.user.userId, data), legacy: data?.schema !== 'hjm.infinite-canvas.project', updatedAt: p.updated_at, createdAt: p.created_at });
+  }
   res.json({ success: true, items, projects: items, list: items, data: items, total: items.length });
 });
 app.post('/api/user/projects', auth, (req, res) => {
@@ -5025,6 +5091,22 @@ function providerImageAgentForUrl(url = '') {
   try { protocol = new URL(String(url)).protocol; } catch {}
   if (protocol !== 'https:') return undefined;
   return isLingsuanImageProxyTarget(url) ? providerImageProxyAgent : providerImageHttpsAgent;
+}
+
+// 结果图下载专用：上游 CDN 可能只有 IPv4（如 api.mikoto.vip），强制 family 会 ENOTFOUND/挂起；
+// 用 happy-eyeballs 让 Node 自动选择可用地址族。Provider API 调用仍走上面的 family 池。
+const providerImageDownloadAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 16,
+  maxFreeSockets: 8,
+  autoSelectFamily: true,
+  autoSelectFamilyAttemptTimeout: 250
+});
+function providerImageDownloadAgentForUrl(url = '') {
+  let protocol = '';
+  try { protocol = new URL(String(url)).protocol; } catch {}
+  if (protocol !== 'https:') return undefined;
+  return isLingsuanImageProxyTarget(url) ? providerImageProxyAgent : providerImageDownloadAgent;
 }
 
 function providerImageTransportForUrl(url = '') {
@@ -5242,6 +5324,7 @@ async function fetchValidatedProxyImage(rawUrl, signal) {
     const upstream = await fetch(currentUrl, {
       headers: { 'User-Agent': 'hjm-mb-clone/1.0' },
       redirect: 'manual',
+      agent: providerImageDownloadAgentForUrl(currentUrl),
       signal
     });
     if (![301, 302, 303, 307, 308].includes(upstream.status)) return upstream;
@@ -5387,14 +5470,17 @@ async function fetchProviderImageForPersistence(rawUrl, signal) {
     return fetch(rawUrl, {
       headers: { 'User-Agent': 'hjm-mb-clone/1.0' },
       redirect: 'follow',
+      agent: providerImageDownloadAgentForUrl(rawUrl),
       signal
     });
   }
   return fetchValidatedProxyImage(rawUrl, signal);
 }
+// 结果图 CDN（如 api.mikoto.vip）限速约 42KB/s，5MB 结果需要约 120s；30s 必然超时。
+const PROVIDER_IMAGE_PERSIST_DOWNLOAD_TIMEOUT_MS = Math.max(30000, Number(process.env.PROVIDER_IMAGE_PERSIST_TIMEOUT_MS) || 180000);
 async function loadRemoteProviderImagePayload(rawUrl = '') {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
+  const timer = setTimeout(() => controller.abort(), PROVIDER_IMAGE_PERSIST_DOWNLOAD_TIMEOUT_MS);
   try {
     const upstream = await fetchProviderImageForPersistence(rawUrl, controller.signal);
     if (!upstream.ok) {
@@ -5574,7 +5660,8 @@ async function attachGeneratedResultAssets(userId, images = [], context = {}) {
       userId,
       buffer: payload.buffer,
       name: payload.name || `生成图片 ${context.taskId || ''}`.trim(),
-      source: assetSource
+      source: assetSource,
+      prompt: context.prompt
     });
     results.push({ ...raw, assetId: asset.id });
   }
@@ -6928,7 +7015,7 @@ async function executePersistentGenerationItem(task, item, signal) {
   let persistedResults;
   try {
     persistedResults = await persistProviderImageResults(providerResult.images, providerRequestMeta);
-    persistedResults = await attachGeneratedResultAssets(task.userId, persistedResults, { taskId: task.id });
+    persistedResults = await attachGeneratedResultAssets(task.userId, persistedResults, { taskId: task.id, prompt: task.prompt });
   } catch (error) {
     if (!error.code) {
       error.code = 'GENERATION_ASSET_PERSIST_FAILED';
@@ -6979,6 +7066,200 @@ const recoveredGenerationTasks = generationTaskService.start();
 if (recoveredGenerationTasks.length) {
   console.warn(`[GENERATION_RECOVERY] ${recoveredGenerationTasks.length} 个中断任务已安全失败并退款`);
 }
+
+async function callCanvasAgentProvider(input, options = {}) {
+  const route = options.route || resolveTextRoute({});
+  const status = routeProviderStatus(route, 'text');
+  const modelKey = String(options.model || route?.dm || AI_TEXT_MODEL).trim();
+  if (!status.enabled) {
+    return callProviderResponses(input, { ...options, route, model: modelKey, status });
+  }
+
+  const user = db.prepare("SELECT * FROM users WHERE id=? AND status='active'").get(options.agentUserId);
+  if (!user) throw integrationError(401, 'AUTH_USER_NOT_FOUND', '登录状态已失效，请重新登录');
+  const turnId = String(options.agentTurnId || uid('agent_turn_')).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80);
+  const requestId = `canvas_agent_${turnId}`.slice(0, 120);
+  const stepHash = crypto.createHash('sha256').update(JSON.stringify({ modelKey, input })).digest('hex');
+  const pricedModel = { k: modelKey, p: modelCost(modelKey, 'text') };
+  reserveChatCharge(requestId, user, pricedModel, stepHash, true);
+  const result = await callProviderResponses(input, {
+    ...options,
+    route,
+    model: modelKey,
+    status
+  });
+  if (result.success) {
+    completeChatStep(requestId, stepHash, false);
+  } else {
+    refundChatCharge(requestId, result.message || 'Canvas Agent 上游调用失败', stepHash);
+  }
+  return result;
+}
+
+// Agent 附件图直接随规划消息提供（多模态）：assetId → 短时 URL → 读字节 → dataUrl。
+// 单张超过 3MB 不附带（可用分析工具按需查看），保持规划请求体积可控。
+async function loadAgentAttachmentImage(attachment = {}, userId = '') {
+  const assetId = String(attachment.assetId || '').trim();
+  if (!assetId || !userId) return null;
+  const access = await assetService.createAccessUrl(userId, assetId).catch(() => null);
+  if (!access?.url) return null;
+  const reference = await loadReferenceImageFile({ url: access.url });
+  if (!reference.buffer.length) return null;
+  // 超过 3MB 的附件先压缩再附带（2048px WebP 为主，仍超则降到 1024px），不再跳过。
+  if (reference.buffer.length > 3 * 1024 * 1024) {
+    const compressed = await compressAgentAttachmentImage(reference.buffer);
+    if (!compressed) return null;
+    return `data:image/webp;base64,${compressed.toString('base64')}`;
+  }
+  return `data:${reference.mime};base64,${reference.buffer.toString('base64')}`;
+}
+
+async function compressAgentAttachmentImage(buffer) {
+  const attempts = [
+    { width: 2048, quality: 82 },
+    { width: 1024, quality: 70 }
+  ];
+  for (const attempt of attempts) {
+    try {
+      const out = await sharp(buffer).resize({ width: attempt.width, withoutEnlargement: true }).webp({ quality: attempt.quality }).toBuffer();
+      if (out.length <= 3 * 1024 * 1024) return out;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+const canvasAgentPlanner = createCanvasAgentPlanner({
+  callProvider: callCanvasAgentProvider,
+  loadAttachmentImage: loadAgentAttachmentImage,
+  providerOptions: (input) => {
+    const route = resolveTextRoute({});
+    return {
+      route,
+      model: String(route?.dm || AI_TEXT_MODEL).trim(),
+      timeoutMs: CANVAS_DIALOG_ANALYSIS_TIMEOUT_MS,
+      agentUserId: input.userId,
+      agentSessionId: input.sessionId,
+      agentTurnId: input.turnId
+    };
+  }
+});
+
+// Agent 附件内容分析（按需）：资产签短时同源 URL → 读取图片字节 → 文本路线视觉识别 → 文字描述。
+// 与 /api/image-tools/reverse-prompt 共用 callProviderResponses 与 loadReferenceImageFile，不产生画布写操作。
+const agentDescribeCache = new Map();
+const AGENT_DESCRIBE_CACHE_TTL_MS = 30 * 60 * 1000;
+async function describeAgentAssetImage(userId, input = {}) {
+  const rawAssetId = String(input.attachmentId || input.assetId || '').trim();
+  const assetId = rawAssetId.startsWith('attachment_') ? rawAssetId.slice('attachment_'.length) : rawAssetId;
+  if (!assetId) throw integrationError(400, 'CANVAS_AGENT_DESCRIBE_INPUT_REQUIRED', '缺少要分析的附件 attachmentId');
+  const cacheKey = `${userId}:${assetId}`;
+  const cached = agentDescribeCache.get(cacheKey);
+  if (cached && Date.now() - cached.at < AGENT_DESCRIBE_CACHE_TTL_MS) return { ...cached.result, cached: true };
+  const asset = assetService.getAsset(userId, assetId);
+  const access = await assetService.createAccessUrl(userId, asset.id);
+  const reference = await loadReferenceImageFile({ url: access.url });
+  const route = resolveTextRoute({});
+  const model = String(route?.dm || AI_TEXT_MODEL).trim();
+  const instruction = [
+    '请分析这张图片，输出简洁中文描述：主体是什么、外观与包装要点、构图、光线、色调、画面中的文字，以及适合电商作图的观察。',
+    '不要输出提示词，不要输出列表标题，直接描述画面'
+  ].join('\n');
+   const providerResult = await callProviderResponses([{
+    role: 'user',
+    content: [
+      { type: 'input_text', text: instruction },
+      { type: 'input_image', image_url: `data:${reference.mime};base64,${reference.buffer.toString('base64')}` }
+    ]
+  }], { route, model });
+  if (!providerResult.success) {
+    throw integrationError(502, providerResult.code || 'CANVAS_AGENT_DESCRIBE_FAILED', providerResult.message || '附件图片分析失败');
+  }
+  const result = {
+    attachmentId: asset.id,
+    name: asset.name,
+    description: imageToolOutputText(providerResult) || '（模型未返回有效描述）',
+    provider: providerResult.provider?.mode || 'real'
+  };
+  agentDescribeCache.set(cacheKey, { at: Date.now(), result });
+  if (agentDescribeCache.size > 200) agentDescribeCache.delete(agentDescribeCache.keys().next().value);
+  return result;
+}
+
+const canvasAgentSiteTools = createCanvasAgentSiteTools({
+  db,
+  generationTaskService,
+  promptService,
+  assetService,
+  describeAssetImage: describeAgentAssetImage,
+  listRoutes: (_userId, group) => filteredRoutes(group).map(route => ({
+    id: route.id,
+    displayName: route.displayName,
+    enabled: route.enabled,
+    isDefault: route.isDefault,
+    defaultModelKey: route.defaultModelKey,
+    group: route.group
+  })),
+  listModels: (_userId, routeId) => {
+    const route = filteredRoutes('image').find(item => routeMatchesId(item, routeId));
+    return (route?.models || []).map(model => ({
+      modelKey: model.modelKey,
+      displayName: model.displayName,
+      enabled: model.enabled,
+      points: model.pointCost,
+      qualities: model.qualities || []
+    }));
+  },
+  submitGeneration: async (input) => {
+    const request = {
+      user: { userId: input.userId },
+      body: input.body,
+      get: (name) => String(name || '').toLowerCase() === 'idempotency-key' ? input.idempotencyKey : ''
+    };
+    return submitPersistentGenerationTask(
+      request,
+      { ...input.body, clientRequestId: input.idempotencyKey },
+      {
+        idempotencyKey: input.idempotencyKey,
+        source: 'canvas-agent',
+        requestMeta: {
+          projectId: input.projectId,
+          agentSessionId: input.sessionId,
+          agentToolCallId: input.callId
+        }
+      }
+    );
+  }
+});
+
+const agentSkillRepository = createAgentSkillRepository({ db, idFactory: uid });
+
+const canvasAgentRuntime = createCanvasAgentRuntime({
+  repository: canvasAgentRepository,
+  planner: canvasAgentPlanner,
+  siteTools: canvasAgentSiteTools,
+  idFactory: uid,
+  resolveSkills: (skillIds, resolveOptions) => agentSkillRepository.resolveEnabledSkills(skillIds, resolveOptions)
+});
+const recoveredCanvasAgentState = canvasAgentRuntime.start();
+if (recoveredCanvasAgentState.sessions || recoveredCanvasAgentState.toolCalls) {
+  console.warn(
+    `[CANVAS_AGENT_RECOVERY] ${recoveredCanvasAgentState.sessions} 个会话、${recoveredCanvasAgentState.toolCalls} 个工具调用已进入 interrupted 安全终态`
+  );
+}
+
+registerCanvasAgentRoutes(app, {
+  auth,
+  runtime: canvasAgentRuntime,
+  assertProjectAccess(userId, projectId) {
+    const project = db.prepare('SELECT id FROM projects WHERE id=? AND user_id=?').get(projectId, userId);
+    if (!project) throw integrationError(404, 'CANVAS_AGENT_PROJECT_NOT_FOUND', '项目不存在');
+  }
+});
+
+registerAgentSkillRoutes(app, { auth, admin, agentSkillRepository });
+
 cleanupExpiredGenerationTaskInputs().catch((error) => {
   console.warn(`[GENERATION_INPUT_CLEANUP] ${error.message}`);
 });
@@ -9210,7 +9491,7 @@ app.use((err, req, res, next) => {
 });
 
 // ===================== SPA FALLBACK =====================
-const sourceFrontendRoutePattern = /^\/(?:admin(?:\/.*)?|gallery\/?|login\/?)$/;
+const sourceFrontendRoutePattern = /^\/(?:|admin(?:\/.*)?|gallery\/?|login\/?)$/;
 const chatFallbackRoutePattern = /^\/chat(?:\/.*)?$/;
 
 app.get(/^\/(?:chat|CHAT)\/?$/, (req, res, next) => {

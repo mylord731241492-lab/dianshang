@@ -12,7 +12,7 @@ import { useUserStore } from "@/stores/use-user-store";
 import type { InsertAssetPayload, PromptInsertTarget } from "@/components/canvas/asset-picker-modal";
 
 // 画布内双层云端提示词库（Task 7）：
-// - 「系统提示词」只读（后端只返回已发布），支持复制文本与“复制到我的提示词”。
+// - 「默认提示词」只读（后端只返回已发布），支持复制文本与“复制到我的提示词”。
 // - 「我的提示词」为当前账号私有，支持新建/编辑/删除/收藏；账号切换后按用户重新拉取，401 即清空。
 // - 提示词数据一律经 /api/* 获取，本组件不读写 localStorage/IndexedDB；
 //   Store（use-prompt-source-store）只保存 Tab/搜索/筛选/当前选择等 UI 状态。
@@ -22,7 +22,7 @@ const PAGE_LIMIT = 24;
 
 const INSERT_TARGETS: { key: PromptInsertTarget; label: string }[] = [
     { key: "selected-node", label: "插入当前节点" },
-    { key: "config-node", label: "生成配置节点" },
+    { key: "config-node", label: "新建生图节点" },
     { key: "assistant", label: "插入 Assistant 输入框" },
 ];
 
@@ -63,7 +63,7 @@ export const PromptLibraryPanel = memo(function PromptLibraryPanel({ onInsert, t
 
     const filters = { q: debouncedKeyword.trim(), category, tag };
 
-    // 系统提示词：所有登录账号可见的已发布集合，与账号无关。
+    // 默认提示词：所有登录账号可见的已发布集合，与账号无关。
     const systemQuery = useInfiniteQuery({
         queryKey: ["hjm-system-prompts", filters.q, filters.category, filters.tag],
         queryFn: ({ pageParam }) => getPromptsApi().listSystem({ ...filters, cursor: pageParam || undefined, limit: PAGE_LIMIT }),
@@ -175,7 +175,7 @@ export const PromptLibraryPanel = memo(function PromptLibraryPanel({ onInsert, t
                         className="text-xs font-semibold transition-opacity"
                         style={{ color: theme.node.text, opacity: activeTab === tabKey ? 1 : 0.45 }}
                     >
-                        {tabKey === "system" ? "系统提示词" : "我的提示词"}
+                        {tabKey === "system" ? "默认提示词" : "我的提示词"}
                     </button>
                 ))}
                 {activeTab === "user" ? (
@@ -249,7 +249,7 @@ export const PromptLibraryPanel = memo(function PromptLibraryPanel({ onInsert, t
                         ) : null}
                     </div>
                 ) : (
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={debouncedKeyword.trim() || category || tag ? "无匹配提示词" : activeTab === "system" ? "暂无已发布系统提示词" : "暂无我的提示词"} className="pt-12" />
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={debouncedKeyword.trim() || category || tag ? "无匹配提示词" : activeTab === "system" ? "暂无默认提示词" : "暂无我的提示词"} className="pt-12" />
                 )}
             </div>
 

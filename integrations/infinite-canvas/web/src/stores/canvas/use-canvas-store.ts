@@ -100,7 +100,8 @@ export const useCanvasStore = create<CanvasStore>()((set, get) => ({
     hydrated: false,
     projects: [],
     loadProjects: async () => {
-        const items = await getProjectsApi().list();
+        // 旧画布格式的项目不在新画布出现（数据原样保留在服务端，仅列表隐藏）。
+        const items = (await getProjectsApi().list()).filter((item) => item.legacy !== true);
         set((state) => ({
             hydrated: true,
             projects: items.map((item) => {

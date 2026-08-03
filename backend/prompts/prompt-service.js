@@ -121,10 +121,10 @@ function createPromptService(options = {}) {
     return { deleted: true, id };
   }
 
-  // 复制已发布系统提示词为当前用户私有副本；副本独立编辑，不回写系统提示词。
+  // 复制已发布默认提示词为当前用户私有副本；副本独立编辑，不回写默认提示词。
   function copySystemPrompt(userId, body = {}) {
     const systemPromptId = String(body.systemPromptId || body.id || '').trim();
-    if (!systemPromptId) throw promptError(400, 'PROMPT_SYSTEM_ID_REQUIRED', '缺少系统提示词 ID');
+    if (!systemPromptId) throw promptError(400, 'PROMPT_SYSTEM_ID_REQUIRED', '缺少默认提示词 ID');
     const source = repository.getPublishedSystemPrompt(systemPromptId);
     if (!source) throw notFound();
     return repository.insertUserPrompt({
@@ -138,7 +138,7 @@ function createPromptService(options = {}) {
     });
   }
 
-  // ---------------- 系统提示词（admin 维护；普通用户只读已发布） ----------------
+  // ---------------- 默认提示词（admin 维护；普通用户只读已发布） ----------------
 
   function listPublishedSystemPrompts(query = {}) {
     const result = repository.listPublishedSystemPrompts(query);

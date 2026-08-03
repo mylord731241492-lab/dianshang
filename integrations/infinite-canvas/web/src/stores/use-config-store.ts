@@ -37,7 +37,7 @@ export const defaultConfig: AiConfig = {
     size: "1:1",
     background: "",
     count: "1",
-    canvasImageCount: "3",
+    canvasImageCount: "1",
     videoSeconds: "6",
     vquality: "720",
     videoGenerateAudio: "true",

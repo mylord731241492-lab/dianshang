@@ -5,6 +5,7 @@ async page => {
   const mobileIssues = [];
   const consoleErrors = [];
   const badResponses = [];
+  const expectedNotFoundUrls = new Set();
   const pngBuffer = new Uint8Array([
     137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1,
     8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 218, 99, 252, 207,
@@ -31,6 +32,7 @@ async page => {
     const status = response.status();
     if (status < 400) return;
     const url = response.url();
+    if (status === 404 && expectedNotFoundUrls.has(url)) return;
     if (!url.includes('/favicon')) {
       badResponses.push({ step: currentStep, status, url });
     }
@@ -142,6 +144,11 @@ async page => {
     data: { username: 'admin', password: 'CanvasCandidate!2026!Strong' }
   });
   ensure(admin.json?.token, 'candidate admin login failed');
+  await api(`/api/admin/users/${userA.user.id}/balance`, {
+    method: 'POST',
+    token: admin.json.token,
+    data: { amount: 200, remark: 'Task 13 isolated UI smoke credit' }
+  });
 
   const systemMarker = `UI 系统提示词 ${stamp}`;
   const systemPrompt = await api('/api/admin/system-prompts', {
@@ -200,6 +207,16 @@ async page => {
   const renamedProject = `UI 候选画布 ${stamp}`;
   await topTitleInput.fill(renamedProject);
   await topTitleInput.press('Enter');
+  let renamedProjectPersisted = false;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const renamedProjectRead = await api(`/api/user/projects/${projectId}`, { token: userA.token });
+    if (renamedProjectRead.json?.name === renamedProject) {
+      renamedProjectPersisted = true;
+      break;
+    }
+    await page.waitForTimeout(100);
+  }
+  ensure(renamedProjectPersisted, 'canvas title rename did not persist before node editing');
   await page.getByRole('button', { name: '文本', exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll('[data-node-id]').length === 1);
   const textNode = page.locator('[data-node-id]').first();
@@ -213,14 +230,16 @@ async page => {
   await page.waitForTimeout(200);
   ensure((await textNode.getAttribute('style')) !== textTransform, 'node drag did not change position');
 
-  await page.getByRole('button', { name: '图片', exact: true }).click();
+  await page.getByRole('button', { name: '图片节点', exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll('[data-node-id]').length === 2);
   const imageNode = page.locator('[data-node-id]').nth(1);
+  ensure((await imageNode.getByRole('button', { name: '选择图片', exact: true }).count()) === 1, 'empty image node is missing file selection');
+  ensure((await imageNode.getByText('拖放图片到这里', { exact: false }).count()) === 1, 'empty image node is missing drag-and-paste guidance');
   const initialImageBox = await imageNode.boundingBox();
   ensure(initialImageBox, 'image node has no bounding box');
-  await page.mouse.move(initialImageBox.x + initialImageBox.width / 2, initialImageBox.y + initialImageBox.height / 2);
+  await page.mouse.move(initialImageBox.x + 40, initialImageBox.y + initialImageBox.height - 40);
   await page.mouse.down();
-  await page.mouse.move(initialImageBox.x + initialImageBox.width / 2 + 360, initialImageBox.y + initialImageBox.height / 2, { steps: 12 });
+  await page.mouse.move(initialImageBox.x + 400, initialImageBox.y + initialImageBox.height - 40, { steps: 12 });
   await page.mouse.up();
   await page.waitForTimeout(200);
   const canvas = page.locator('div.cursor-grab.select-none.overflow-hidden').first();
@@ -242,7 +261,7 @@ async page => {
   await page.waitForTimeout(100);
   ensure((await page.locator('[data-connection-id]').count()) >= 1, 'redo did not restore the connection');
 
-  await page.getByRole('button', { name: '生成配置', exact: true }).click();
+  await page.getByRole('button', { name: '生图节点', exact: true }).click();
   await page.getByRole('button', { name: '组', exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll('[data-node-id]').length === 4, null, { timeout: 10000 });
   ensure((await page.locator('[data-node-id]').count()) === 4, 'text/image/config/group nodes were not all created');
@@ -381,7 +400,7 @@ async page => {
   ensure((await systemRow.getByRole('button', { name: '编辑' }).count()) === 0, 'system prompt unexpectedly exposes edit action');
   await systemRow.getByRole('button', { name: '复制到我的提示词' }).click();
   await systemRow.getByRole('button', { name: '插入' }).click();
-  await page.getByText('生成配置节点', { exact: true }).click();
+  await page.getByText('新建生图节点', { exact: true }).click();
   await page.waitForTimeout(300);
 
   await page.getByRole('button', { name: '我的提示词', exact: true }).click();
@@ -406,7 +425,7 @@ async page => {
   await page.waitForTimeout(500);
   const editedRow = page.locator('div.group.rounded-lg').filter({ hasText: `${createdPromptTitle} 已编辑` }).first();
   await editedRow.getByRole('button', { name: '插入' }).click();
-  await page.getByText('生成配置节点', { exact: true }).click();
+  await page.getByText('新建生图节点', { exact: true }).click();
 
   currentStep = 'mask-dialog';
   await uploadedImageNode.dispatchEvent('mousedown', { button: 0, buttons: 1 });
@@ -526,6 +545,134 @@ async page => {
   page.off('request', requestListener);
   results.push({ step: currentStep, ok: true, restoreMs, autosaveRequestsDuringDrag, blobUrlsBefore, blobUrlsAfter });
 
+  currentStep = 'blob-reference-retry';
+  const blobReferenceNodeId = `blob-reference-${stamp}`;
+  const blobRetryNodeId = `blob-retry-${stamp}`;
+  const blobRegressionProject = await api('/api/user/projects', {
+    method: 'POST',
+    token: userA.token,
+    data: {
+      name: `Blob 引用回归 ${stamp}`,
+      data: await projectEnvelope(
+        [
+          {
+            id: blobReferenceNodeId,
+            type: 'image',
+            title: '云端参考图',
+            position: { x: 0, y: 0 },
+            width: 320,
+            height: 220,
+            metadata: {
+              content: '',
+              storageKey: `asset:${primaryAsset.id}`,
+              mimeType: 'image/png',
+              status: 'success'
+            }
+          },
+          {
+            id: blobRetryNodeId,
+            type: 'image',
+            title: 'Blob 引用重试',
+            position: { x: 440, y: 0 },
+            width: 320,
+            height: 220,
+            metadata: {
+              prompt: '使用参考图生成电商主图',
+              status: 'error',
+              generationType: 'edit',
+              model: 'gpt-image-2',
+              size: '1:1',
+              quality: 'auto',
+              count: 1,
+              references: [`asset:${primaryAsset.id}`],
+              errorDetails: 'node-fetch cannot load blob: candidate regression fixture'
+            }
+          }
+        ],
+        [{ id: `blob-connection-${stamp}`, fromNodeId: blobReferenceNodeId, toNodeId: blobRetryNodeId }]
+      )
+    }
+  });
+  const blobRegressionProjectId = blobRegressionProject.json?.id;
+  ensure(blobRegressionProjectId, 'blob reference regression project create failed');
+  await page.goto(`${baseUrl}/canvas/${blobRegressionProjectId}?candidate-ui=blob-reference-retry`);
+  await waitCanvasReady(2);
+  const blobRetryNode = page.locator(`[data-node-id="${blobRetryNodeId}"]`);
+  ensure((await blobRetryNode.count()) === 1, 'blob reference retry node is missing');
+  const blobRetryButton = blobRetryNode.getByRole('button', { name: '重试', exact: true });
+  ensure((await blobRetryButton.count()) === 1, 'blob reference retry action is missing');
+  await blobRetryButton.click();
+  await page.waitForFunction(
+    nodeId => {
+      const node = document.querySelector(`[data-node-id="${nodeId}"]`);
+      const text = node?.textContent || '';
+      return Boolean(node?.querySelector('img')) && !text.includes('node-fetch') && !text.includes('Failed to fetch');
+    },
+    blobRetryNodeId,
+    { timeout: 20000 }
+  );
+  let blobRegressionSaved = null;
+  let blobRegressionSavedNode = null;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    blobRegressionSaved = await api(`/api/user/projects/${blobRegressionProjectId}`, { token: userA.token });
+    blobRegressionSavedNode = blobRegressionSaved.json?.data?.project?.nodes?.find(node => node.id === blobRetryNodeId);
+    if (blobRegressionSavedNode?.metadata?.status === 'success') break;
+    await page.waitForTimeout(250);
+  }
+  const blobRegressionSavedJson = JSON.stringify(blobRegressionSaved.json?.data || {});
+  ensure(blobRegressionSavedNode?.metadata?.status === 'success', 'blob reference retry did not persist success');
+  ensure(String(blobRegressionSavedNode?.metadata?.storageKey || '').startsWith('asset:'), 'blob reference retry did not persist a generated asset');
+  ensure(!blobRegressionSavedJson.includes('blob:'), 'blob reference retry persisted a browser-only URL');
+  results.push({ step: currentStep, ok: true, projectId: blobRegressionProjectId, nodeId: blobRetryNodeId });
+
+  currentStep = 'generation-node-four-grid';
+  const fourGridNodeId = `four-grid-${stamp}`;
+  const fourGridProject = await api('/api/user/projects', {
+    method: 'POST',
+    token: userA.token,
+    data: {
+      name: `生图节点四宫格 ${stamp}`,
+      data: await projectEnvelope([
+        {
+          id: fourGridNodeId,
+          type: 'config',
+          title: '生图节点',
+          position: { x: 80, y: 60 },
+          width: 420,
+          height: 420,
+          metadata: {
+            status: 'idle',
+            prompt: '四宫格回归测试',
+            composerContent: '四宫格回归测试',
+            count: 4,
+            model: 'gpt-image-2',
+            size: '1:1',
+            quality: 'auto'
+          }
+        }
+      ])
+    }
+  });
+  const fourGridProjectId = fourGridProject.json?.id;
+  ensure(fourGridProjectId, 'four-grid fixture project create failed');
+  await page.goto(`${baseUrl}/canvas/${fourGridProjectId}?candidate-ui=four-grid`);
+  await waitCanvasReady(1);
+  const fourGridNode = page.locator(`[data-node-id="${fourGridNodeId}"]`);
+  await fourGridNode.getByText('开始绘图', { exact: true }).click();
+  await page.waitForSelector('text=结果保留在本节点', { timeout: 10000 });
+  await page.getByRole('button', { name: '开始生成', exact: true }).click();
+  await fourGridNode.locator('img').first().waitFor({ state: 'visible', timeout: 15000 });
+  ensure((await fourGridNode.locator('img').count()) === 4, 'generation node did not render four results in the same node');
+  ensure((await page.locator('[data-node-id]').count()) === 1, 'generation node created scattered image nodes instead of writing back to itself');
+  const gridClass = await fourGridNode.locator('.grid').first().getAttribute('class');
+  ensure(gridClass?.includes('grid-cols-2') && gridClass?.includes('grid-rows-2'), `four results are not a 2x2 grid: ${gridClass}`);
+  await fourGridNode.locator('button').nth(2).click();
+  await page.waitForTimeout(1200);
+  const fourGridSaved = await api(`/api/user/projects/${fourGridProjectId}`, { token: userA.token });
+  const fourGridSavedNode = fourGridSaved.json?.data?.project?.nodes?.find(node => node.id === fourGridNodeId);
+  ensure(fourGridSavedNode?.metadata?.selectedGeneratedImageIndex === 2, 'selected four-grid result did not persist');
+  results.push({ step: currentStep, ok: true, projectId: fourGridProjectId, imageCount: 4 });
+
   currentStep = 'cross-user-isolation';
   const crossProjectName = `A 私有项目 ${stamp}`;
   const crossProject = await api('/api/user/projects', {
@@ -626,6 +773,36 @@ async page => {
   ensure(aProjectsAgain.json.items.some(item => item.id === crossProjectId), 'switching back to user A did not restore project');
   results.push({ step: currentStep, ok: true, crossProjectId, crossAssetId: crossAsset.id });
 
+  currentStep = 'canvas-agent-confirm-and-restore';
+  await page.goto(`${baseUrl}/canvas/${crossProjectId}?candidate-ui=agent`);
+  await waitCanvasReady(1);
+  const agentNodeCountBefore = await page.locator('[data-node-id]').count();
+  await page.getByRole('button', { name: 'AI 助手', exact: true }).click();
+  await page.waitForSelector('text=可让 Agent 读取画布', { timeout: 15000 });
+  const agentComposer = page.getByPlaceholder('例如：创建两个文本节点并连接');
+  await agentComposer.fill('创建两个文本节点并连接');
+  await page.getByRole('button', { name: '发送给 Agent' }).click();
+  await page.waitForSelector('text=等待确认', { timeout: 15000 });
+  ensure((await page.getByRole('button', { name: '确认执行', exact: true }).count()) === 1, 'Agent write proposal did not show one confirmation action');
+  await page.getByRole('button', { name: '确认执行', exact: true }).click();
+  await page.waitForFunction(
+    count => document.querySelectorAll('[data-node-id]').length === count + 2,
+    agentNodeCountBefore,
+    { timeout: 15000 }
+  );
+  ensure((await page.locator('[data-connection-id]').count()) >= 1, 'Agent confirmation did not create the proposed connection');
+  await page.waitForTimeout(1200);
+  await page.reload();
+  await waitCanvasReady(agentNodeCountBefore + 2);
+  ensure((await page.locator('[data-node-id]').count()) === agentNodeCountBefore + 2, 'Agent canvas operations were not restored after refresh');
+  const browserSessionId = await page.evaluate(() => sessionStorage.getItem('hjm-canvas-agent-browser-session-v1') || '');
+  const agentSessions = await api(`/api/canvas/agent/sessions?projectId=${encodeURIComponent(crossProjectId)}&browserSessionId=${encodeURIComponent(browserSessionId)}`, { token: userA.token });
+  ensure(agentSessions.json.sessions?.length >= 1, 'Agent session was not restored from server');
+  const agentSessionId = agentSessions.json.sessions[0].id;
+  const agentHistory = await api(`/api/canvas/agent/sessions/${agentSessionId}?projectId=${encodeURIComponent(crossProjectId)}&browserSessionId=${encodeURIComponent(browserSessionId)}`, { token: userA.token });
+  ensure(agentHistory.json.events.some(event => event.type === 'tool_executed'), 'Agent execution history did not persist');
+  results.push({ step: currentStep, ok: true, agentSessionId, nodeCount: agentNodeCountBefore + 2 });
+
   currentStep = 'mobile-390x844';
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${baseUrl}/canvas/${perfProjectId}?candidate-ui=mobile`);
@@ -646,7 +823,13 @@ async page => {
   results.push({ step: currentStep, ok: mobileIssues.length === 0, metrics: mobileMetrics, issues: mobileIssues });
 
   await page.setViewportSize({ width: 1440, height: 900 });
+  expectedNotFoundUrls.add(`${baseUrl}/api/user/projects/${perfProjectId}`);
   await api(`/api/user/projects/${perfProjectId}`, { method: 'DELETE', token: userA.token });
+  expectedNotFoundUrls.add(`${baseUrl}/api/user/projects/${blobRegressionProjectId}`);
+  await api(`/api/user/projects/${blobRegressionProjectId}`, { method: 'DELETE', token: userA.token });
+  expectedNotFoundUrls.add(`${baseUrl}/api/user/projects/${fourGridProjectId}`);
+  await api(`/api/user/projects/${fourGridProjectId}`, { method: 'DELETE', token: userA.token });
+  expectedNotFoundUrls.add(`${baseUrl}/api/user/projects/${crossProjectId}`);
   await api(`/api/user/projects/${crossProjectId}`, { method: 'DELETE', token: userA.token });
   await api(`/api/user/prompts/${privatePromptId}`, { method: 'DELETE', token: userA.token });
   await api(`/api/user/prompts/${crossPrompt.json.item.id}`, { method: 'DELETE', token: userA.token });
@@ -667,6 +850,7 @@ async page => {
   ensure((await page.getByText(`${renamedProject} 已改名`, { exact: true }).count()) === 1, 'project card rename did not persist');
   const renamedProjectCard = page.locator('article').filter({ hasText: `${renamedProject} 已改名` }).first();
   await renamedProjectCard.getByRole('button', { name: '删除' }).click();
+  expectedNotFoundUrls.add(`${baseUrl}/api/user/projects/${projectId}`);
   await page.locator('.ant-modal:visible').last().locator('.ant-modal-footer button').last().click();
   await page.waitForTimeout(500);
   ensure((await page.getByText(`${renamedProject} 已改名`, { exact: true }).count()) === 0, 'project card delete did not remove project');

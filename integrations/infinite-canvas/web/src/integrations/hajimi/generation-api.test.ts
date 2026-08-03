@@ -110,6 +110,27 @@ test("提交创建任务：同源 POST /api/generate/tasks，携带生成的 cli
     assertSameOriginApiUrls(calls);
 });
 
+test("浏览器 blob URL 不得跨边界提交给服务端", async () => {
+    const { fetchImpl, calls } = createFakeFetch(() => ({
+        status: 202,
+        body: { success: true, accepted: true, taskId: "task_blob", id: "task_blob", status: "pending", stage: "queued", queuePosition: 1, reservedCost: 15, billingStatus: "reserved", replayed: false, canCancel: true, request: {} },
+    }));
+    const api = createGenerationApi(createTestClient(fetchImpl));
+
+    await assert.rejects(
+        () =>
+            api.submit({
+                prompt: "参考图生图",
+                modelKey: "gpt-image-2",
+                imageCount: 1,
+                clientRequestId: createClientRequestId(),
+                referenceImages: [{ name: "reference.png", type: "image/png", url: "blob:http://127.0.0.1:3466/test-reference" }],
+            }),
+        (error) => error instanceof ApiError && error.code === "GENERATION_REFERENCE_BLOB_URL_UNSUPPORTED",
+    );
+    assert.equal(calls.length, 0, "blob URL 应在浏览器边界被拒绝，不得发送 HTTP 请求");
+});
+
 test("同一用户同一操作只提交一次：复用同一幂等键，重放返回原 taskId", async () => {
     let submitCount = 0;
     const { fetchImpl, calls } = createFakeFetch(() => {

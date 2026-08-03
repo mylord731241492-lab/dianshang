@@ -11,7 +11,8 @@ export type CanvasAgentOp =
     | { type: "connect_nodes"; id?: string; fromNodeId: string; toNodeId: string }
     | { type: "set_viewport"; viewport: ViewportTransform }
     | { type: "select_nodes"; ids: string[] }
-    | { type: "run_generation"; nodeId: string; mode?: "text" | "image" | "video" | "audio"; prompt?: string };
+    | { type: "run_generation"; nodeId: string; mode?: "text" | "image" | "video" | "audio"; prompt?: string; clientRequestId?: string }
+    | { type: "reverse_prompt"; nodeId: string };
 
 export type CanvasAgentSnapshot = {
     projectId: string;
@@ -92,5 +93,6 @@ function opLabel(type: string) {
     if (type === "set_viewport") return "调整视图";
     if (type === "select_nodes") return "选择节点";
     if (type === "run_generation") return "触发生成";
+    if (type === "reverse_prompt") return "反推提示词";
     return type;
 }

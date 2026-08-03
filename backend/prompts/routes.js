@@ -2,7 +2,7 @@
 
 // /api/prompts/system、/api/user/prompts*、/api/admin/system-prompts* 路由。
 // server.js 只调用 registerPromptRoutes 挂载，不内联任何提示词逻辑。
-// 系统提示词写接口走 admin 守卫；user_prompts 所有操作由 service 强制 user_id 隔离。
+// 默认提示词写接口走 admin 守卫；user_prompts 所有操作由 service 强制 user_id 隔离。
 // 管理员接口不提供读取所有用户提示词正文的能力（刻意不实现，见计划 Task 7 边界）。
 
 const { createPromptService } = require('./prompt-service');
@@ -22,7 +22,7 @@ function registerPromptRoutes(app, options = {}) {
     }
   };
 
-  // 普通用户只读已发布系统提示词
+  // 普通用户只读已发布默认提示词
   app.get('/api/prompts/system', auth, wrap(async (req, res) => {
     const { items, nextCursor } = service.listPublishedSystemPrompts({
       q: req.query.q,
@@ -52,7 +52,7 @@ function registerPromptRoutes(app, options = {}) {
     res.json({ success: true, item });
   }));
 
-  // 复制已发布系统提示词为当前用户私有副本（支撑前端“复制到我的提示词”）
+  // 复制已发布默认提示词为当前用户私有副本（支撑前端“复制到我的提示词”）
   app.post('/api/user/prompts/copy-system', auth, wrap(async (req, res) => {
     const item = service.copySystemPrompt(req.user.userId, req.body || {});
     res.json({ success: true, item });
@@ -71,7 +71,7 @@ function registerPromptRoutes(app, options = {}) {
     res.json({ success: true, deleted: true, id: req.params.id });
   }));
 
-  // 系统提示词后台管理（admin）
+  // 默认提示词后台管理（admin）
   app.get('/api/admin/system-prompts', auth, admin, wrap(async (req, res) => {
     const { items, nextCursor } = service.listSystemPromptsAdmin({
       q: req.query.q,

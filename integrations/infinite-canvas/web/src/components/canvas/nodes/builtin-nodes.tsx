@@ -23,7 +23,7 @@ const BUILTIN_DEFINITIONS: CanvasNodeDefinition[] = [
     { type: CanvasNodeType.Image, title: "图片节点", description: "上传图片并作为参考图连接", icon: <ImageIcon className={iconClass} />, minimapColor: "#10b981", hidePanel: true, keepAspectRatio: (node: CanvasNodeData) => !node.metadata?.freeResize, resource: builtinResource },
     { type: CanvasNodeType.Video, title: "视频", icon: <Video className={iconClass} />, minimapColor: "#f97316", keepAspectRatio: () => true, resource: builtinResource },
     { type: CanvasNodeType.Audio, title: "音频", icon: <Music2 className={iconClass} />, minimapColor: "#a855f7", resource: builtinResource },
-    { type: CanvasNodeType.Config, title: "生图节点", description: "输入提示词、设置参数并生成图片", icon: <Palette className={iconClass} />, minimapColor: "#60a5fa" },
+    { type: CanvasNodeType.Config, title: "生图节点", description: "输入提示词、设置参数并生成图片", icon: <Palette className={iconClass} />, minimapColor: "#60a5fa", resource: builtinResource },
     { type: CanvasNodeType.Group, title: "组", icon: <Group className={iconClass} />, minimapColor: "#94a3b8" },
 ].map((def) => {
     const spec = NODE_SPECS[def.type];

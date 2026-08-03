@@ -1014,3 +1014,9 @@
 - 双击结果图放大原图：GeneratedImageTile 新增 onDoubleClick → antd Image preview（与引用图预览同一形态），单击选中/节点拖拽行为不变。
 - 多图选中→下游继续生图：链路确认无需改码——点击 tile 时 generatedImageSelectionMetadata 已把 metadata.content/storageKey 写为选中图，下游 readReferenceImage 读 metadata.content，连到生图节点即以选中图为参考图。
 - CDP 验收 PREVIEW PASS：单击出现 cyan 选中框、双击打开原图预览、可关闭。typecheck/build 通过。
+
+## 2026-08-03 生图→生图链式连接（E2E 实测通过）
+
+- 用户要的"多图节点选一张→连到下游生图节点继续生图"原先是断的：normalizeConnection 禁止 Config↔Config 连线，且 Config 节点定义未注册 resource（resourceKind 不识别其为资源节点）。两处修复后链路贯通：连线允许；上游选中图（selectedGeneratedImageIndex 写入的 metadata.content）即下游参考图。
+- E2E 实测（CDP 驱动 3468 真实生成）：A 节点生成 2 张 → 点选第 2 张（徽标 2/2）→ JS 事件直连 A→B → B 面板"参考图 1 张" → B 真实生成成功；服务端落盘的 B 参考图（task_msd2r6ro7345d613/reference-1.png，2.13MB）经目视比对正是 A 的第 2 张（茉莉白茶海报）而非第 1 张。
+- 过程产物：发现节点虚拟化导致视口外节点不可选（侧栏点击居中解决）；CDP 拖拽需 buttons=1；B 创建落点可能与 A 重叠且被 Agent 面板遮挡（JS 事件直连绕过）。

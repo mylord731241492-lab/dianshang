@@ -68,7 +68,7 @@ export function normalizeConnection(firstNodeId: string, secondNodeId: string, n
     const second = nodes.find((node) => node.id === secondNodeId);
     if (!first || !second || first.id === second.id) return null;
     if (first.type === CanvasNodeType.Group || second.type === CanvasNodeType.Group) return null;
-    if (first.type === CanvasNodeType.Config && second.type === CanvasNodeType.Config) return null;
+    // 允许生图节点→生图节点链式连接（选中结果图作为下游参考图）；下游输入解析由 resourceKind(Config) 支持。
     if (second.type === CanvasNodeType.Config) return { fromNodeId: first.id, toNodeId: second.id };
     if (first.type === CanvasNodeType.Config && firstHandleType === "target") return { fromNodeId: second.id, toNodeId: first.id };
     if (first.type === CanvasNodeType.Config) return { fromNodeId: first.id, toNodeId: second.id };

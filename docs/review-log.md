@@ -5892,3 +5892,7 @@
 - 结论：有条件放行。2 Critical（reset-password 无验证、验证码明文回传——内网可信部署可降级接受，公网必修）、2 高优数据/稳定性问题（草稿恢复 UTC 时间比较 bug 致草稿静默丢弃；拖拽节点时 Agent 面板 access-url 请求风暴）、1 个死功能（admin template-workflows skill/upload 404）、2 个部署必踩（SPA 回退白名单缺 /user/* 等；CANVAS_RUNTIME 需在 compose 显式设 infinite）。
 - 通过项：鉴权覆盖 110 路由无漏网、SQL 全参数化、路径穿越、密钥 mask、SSRF 防护、.dockerignore、双前端构建进镜像、DB 迁移幂等、用户中心 9 条链路契约逐字段一致、双端认证键一致、typecheck+22 单测全绿。
 - 详细发现见对话记录；修复排期待用户决定。
+
+## 2026-08-03 生图链式连接审查（Kimi Code）
+
+- 这不是纯测试问题而是产品缺口：Config↔Config 在 normalizeConnection 被显式禁止，Config 定义缺 resource 注册——用户需求（选图续接生图）在旧逻辑下不可能完成。修复为最小放行，输入解析只读直接上游（无递归），A↔B 互连不会死循环。

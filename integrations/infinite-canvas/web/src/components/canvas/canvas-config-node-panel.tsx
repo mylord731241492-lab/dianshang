@@ -1,5 +1,5 @@
 import { useRef, useState, type CSSProperties } from "react";
-import { AlertCircle, Image as ImageIcon, LoaderCircle, Play, Settings2, Square } from "lucide-react";
+import { AlertCircle, Check, Image as ImageIcon, LoaderCircle, Play, Settings2, Square } from "lucide-react";
 import { Button, Image } from "antd";
 
 import { defaultConfig, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
@@ -117,6 +117,15 @@ function GeneratedImageTile({ image, index, selected, onSelect }: { image: Canva
             }}
         >
             <img src={image.content} alt={`生成结果 ${index + 1}`} className="h-full w-full object-contain" draggable={false} />
+            {selected ? (
+                <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 bg-cyan-500/15">
+                    <span className="flex items-center gap-1 rounded-full bg-cyan-500/90 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg">
+                        <Check className="size-3.5" />
+                        已选中
+                    </span>
+                    <span className="rounded-full bg-black/55 px-2 py-0.5 text-[10px] text-white/90">将作为下游参考图</span>
+                </span>
+            ) : null}
             <span className="absolute left-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-black/70 text-[10px] font-semibold text-white">{index + 1}</span>
         </button>
         {previewOpen ? (

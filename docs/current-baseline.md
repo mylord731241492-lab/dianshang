@@ -1020,3 +1020,8 @@
 - 用户要的"多图节点选一张→连到下游生图节点继续生图"原先是断的：normalizeConnection 禁止 Config↔Config 连线，且 Config 节点定义未注册 resource（resourceKind 不识别其为资源节点）。两处修复后链路贯通：连线允许；上游选中图（selectedGeneratedImageIndex 写入的 metadata.content）即下游参考图。
 - E2E 实测（CDP 驱动 3468 真实生成）：A 节点生成 2 张 → 点选第 2 张（徽标 2/2）→ JS 事件直连 A→B → B 面板"参考图 1 张" → B 真实生成成功；服务端落盘的 B 参考图（task_msd2r6ro7345d613/reference-1.png，2.13MB）经目视比对正是 A 的第 2 张（茉莉白茶海报）而非第 1 张。
 - 过程产物：发现节点虚拟化导致视口外节点不可选（侧栏点击居中解决）；CDP 拖拽需 buttons=1；B 创建落点可能与 A 重叠且被 Agent 面板遮挡（JS 事件直连绕过）。
+
+## 2026-08-03 结果图选中态 UI 强化
+
+- 多图节点选中态从仅青色描边升级为：居中「✓ 已选中」胶囊（cyan）+ 下方「将作为下游参考图」提示小胶囊 + 淡青底色遮罩，序号徽标保留。
+- CDP 验收 SELECT-UI PASS（文案存在 + 截图 canvas-selected-ui.png）。

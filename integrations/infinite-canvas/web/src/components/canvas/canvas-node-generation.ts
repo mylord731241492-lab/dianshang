@@ -200,7 +200,9 @@ export async function submitNodeImageGeneration(api: GenerationApi, input: NodeI
 }
 
 export async function waitNodeImageGeneration(api: GenerationApi, taskId: string, options: { signal?: AbortSignal; onUpdate?: (task: GenerationTask) => void } = {}): Promise<GenerationTask> {
-    return api.waitForTask(taskId, { signal: options.signal, onUpdate: options.onUpdate });
+    // 10 人共用全局并发 3 的有界队列，排队 + 慢线路可能远超默认 5 分钟；放宽到 20 分钟，
+    // 避免前端误判失败（服务端任务仍在跑且已扣费，超时只能依赖刷新后的 resume 找回）。
+    return api.waitForTask(taskId, { signal: options.signal, onUpdate: options.onUpdate, timeoutMs: 20 * 60 * 1000 });
 }
 
 function readNodeTextInput(node: CanvasNodeData) {

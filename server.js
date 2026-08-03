@@ -9467,6 +9467,14 @@ app.get('/api/health', (req, res) => {
 });
 
 // ===================== API GUARDS =====================
+// Express 4 不接管 async handler 的 rejection，Node 20 默认 unhandledRejection=throw 会让整个进程崩溃。
+// 生产（10 人共用）必须保住进程：记日志但不退出，出错请求由超时/客户端重试兜底。
+process.on('unhandledRejection', (error) => {
+  console.error('[UNHANDLED_REJECTION]', error);
+});
+process.on('uncaughtException', (error) => {
+  console.error('[UNCAUGHT_EXCEPTION]', error);
+});
 app.use('/api', (req, res) => {
   res.status(404).json({
     success: false,
@@ -9491,7 +9499,7 @@ app.use((err, req, res, next) => {
 });
 
 // ===================== SPA FALLBACK =====================
-const sourceFrontendRoutePattern = /^\/(?:|admin(?:\/.*)?|gallery\/?|login\/?)$/;
+const sourceFrontendRoutePattern = /^\/(?:|admin(?:\/.*)?|gallery\/?|login\/?|register\/?|template-image\/?|templates\/?|user(?:\/.*)?)$/;
 const chatFallbackRoutePattern = /^\/chat(?:\/.*)?$/;
 
 app.get(/^\/(?:chat|CHAT)\/?$/, (req, res, next) => {

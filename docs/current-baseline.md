@@ -962,4 +962,43 @@
 - 用户反馈生图节点（带结果图）拖不动。CDP 逐层排查：拖拽点命中结果图 `GeneratedImageTile`，其 React `onMouseDown/onPointerDown` 全面 stopPropagation，合成事件无法冒泡到节点容器，拖拽不启动（单图结果时 Tile 占满整个节点体）。
 - 修复：Tile 不再拦截 mousedown；按下记录坐标，仅当位移 <5px 的点击才选中结果，拖动则让节点整体移动。首次修复因补丁脚本在写入前报错静默未落地，二次补写后 CDP 实测 `moved: true`。
 - 相关边界：位于右侧 Agent 面板覆盖区下的节点仍需折叠面板才能拖到（面板默认展开为既定需求）。
+
+## 2026-08-03 用户中心改版为旧版抽屉 + 折叠卡片
+
+- 用户要求按旧版（主站 /user/center）形态表达：右侧滑出抽屉 + 可折叠卡片，替代原居中 Modal 全展开布局。
+- `canvas-user-center-modal.tsx` 重写为 antd Drawer（400px 右侧）：资料卡、头像设置、算力余额、算力明细、兑换码、生成记录、API 线路（新增 `/api/user/api-status` 展示当前线路/默认模型/模型数）、界面语言（中文/EN 偏好持久化，注明英文逐步覆盖）、退出登录；默认仅头像设置展开。
+- CDP 实测：抽屉打开且 7 个区块全部渲染（截图 `.scratch/cdp-user-center.png`）。typecheck、构建通过，3468 在线生效。
+
+## 2026-08-03 首页用户中心抽屉（用户澄清：首页而非画布）
+
+- 用户澄清需求对象是首页 `/`：首页右上角用户图标原跳旧版 `/user/center` 页面，现改为首页内右侧滑出抽屉，形态与画布内用户中心一致（折叠卡片）。
+- 新增 `frontend/src/components/UserCenterDrawer.vue`（Vue 实现，同一数据链路：资料/头像/余额/明细/兑换码/生成记录/API 线路/界面语言/退出登录）；首页用户图标改为打开抽屉。
+- CDP 实测：首页抽屉打开且 7 个区块全部渲染（截图 `.scratch/cdp-home-user-center.png`）。Vue 构建通过，3468 在线生效（首页入口 `index-CcLu8rxt.js`）。
 - 仍未真实验证：2K/4K 高规格、多用户并发。
+
+## 2026-08-03 两处用户中心严格对齐旧版卡片式（含选线路）
+
+- 用户给出旧版右侧卡片式用户中心截图，要求画布内弹窗与首页抽屉严格一致，必须具备选线路与兑换码。
+- 旧版功能清单从 main 分支编译产物还原（`assets/i18n-*.js` 字典 + 用户截图）：资料卡（升级按钮）、头像设置（随机头像/上传/预设头像下拉+圆形列表）、算力余额、算力明细（展开/收起）、兑换码、API 线路（普通用户只能选择模式：状态标签、当前线路、线路列表选择、模型列表、安全说明）、界面语言（中文/EN）、退出登录。旧版无"生成记录"卡，两处均已移除以保持严格一致。
+- `user-api.ts` 扩展：`getRoutes('image')`（GET /api/user/routes）与 `selectImageRoute(routeId)`（POST /api/user/preferences/api-route），ApiStatusResult 增加 models/routeKey。后端无需改动（偏好保存与 resolveImageRoute 已存在）。
+- `canvas-user-center-modal.tsx` 与 `frontend/src/components/UserCenterDrawer.vue` 整体重写为旧版样式：浅灰底 #f4f4f5 + 白卡 20px 圆角 + 橙色 #f97316 强调；画布内兑换码输入框弃用 antd Input 改原生（暗色主题下曾显示为黑底）。
+- CDP 验收（`.scratch/cdp-uc-align.js`，截图 uc-home-drawer.png / uc-canvas-drawer.png）：两处区块齐全；首页点选"高速专线 img2"后当前线路即时切换，画布内打开同步显示已选线路（偏好后端持久化生效）。构建通过，3468 在线生效。
+
+## 2026-08-03 用户中心 UI 层级重排
+
+- 用户反馈卡片同权重、乱、无层级。重排为五级层级：① 资料主卡改橙渐变+橙色描边投影（视觉锚点）→ ② 头像设置 → ③ 算力资产卡（余额大数字 28px / 明细默认收起灰色 inset / 兑换码，三区以分隔带合一，卡片数 8→5）→ ④ API 线路（当前线路改为左标签右值两行式；线路行加单选圆点强化选择语义）→ ⑤ 界面语言 slim 单行卡 + 退出登录弱化为 13px 文本链。
+- 首页 Vue 抽屉兑换码输入框补显式白底（深色首页全局样式曾染黑）；两处实现保持同一结构同一 token。
+- CDP 双端截图验收通过（uc-home-drawer.png / uc-canvas-drawer.png），选线功能复测仍生效。构建通过，3468 在线生效。
+
+## 2026-08-03 上 Docker 前稳定性修复包（内网 10 人部署定位）
+
+- 定位确认：内网 Docker、10 人规模、画布稳定出图为核心。reset-password 无验证/验证码明文回传按内网可信降级接受，不修。
+- 已修：
+  1. 草稿恢复 UTC 时间比较 bug（project.tsx 新增 parseServerTime 按 UTC 解析无 Z 的 updated_at；此前 UTC+8 下恒判草稿不新→静默删除未保存草稿）。
+  2. 拖拽节点请求风暴（hjm-canvas-agent-view.tsx 预览重签 effect 依赖改为 asset storageKey 稳定字符串 key；此前拖拽每帧对全部资产重签 access-url）。
+  3. SPA 回退白名单补 register/template-image/templates/user/*（此前直开或画布跳转这些 Vue 路由会落到旧版 index.html）。
+  4. legacy.ts 默认 origin 改同源相对（此前硬编码 127.0.0.1:3456，Docker 同域下"旧版页面"链接全死）。
+  5. 进程级 unhandledRejection/uncaughtException 兜底（Express 4 不接 async rejection，Node 20 默认崩进程；10 人共用必须保进程）。
+  6. 生图前端轮询超时 5→20 分钟（10 人排队 + 慢线路会超 5 分钟，此前前端误判失败但服务端已扣费继续跑）。
+- 核实无需改：生图队列 backend/provider/image-request-scheduler.js（全局并发 3、单域名 1、队列上限 30、熔断器 + 瞬时错误分类），10 人规模适配；DB 迁移对生产旧库幂等。
+- 验收：server 语法/typecheck/双前端构建通过；3468 重启后 CDP 实测（cdp-predeploy-check.js）：/user/records、/template-image 直开为 Vue SPA，画布可达，用户中心抽屉选线/兑换码正常。PREDEPLOY PASS。

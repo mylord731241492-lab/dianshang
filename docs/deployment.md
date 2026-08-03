@@ -290,3 +290,31 @@ server {
 6. 通过 Provider Adapter 对接 New-API，不直接重造 New-API/CPA 已有能力。
 7. 服务器部署前补齐 `.env`、Nginx/HTTPS、备份恢复和访问权限。
 8. 公司多人规模化前再迁移到 Postgres + Redis + BullMQ。
+
+## 生图并发与排队（10 人内网推荐值）
+
+生图请求统一走 `backend/provider/image-request-scheduler.js` 的有界公平队列：超员只排队不失败，配熔断与 429 退避，10 人规模不会打挂上游或本服务。参数均为环境变量，已写入 `docker/docker-compose.yml` 与 `docker/docker-compose.canvas-candidate.yml`（可用 shell 环境覆盖）：
+
+| 变量 | 推荐值 | 说明 |
+| --- | --- | --- |
+| `GENERATION_GLOBAL_CONCURRENCY` | 4 | 全服同时跑的上游生图请求。实际并行度 = 线路域名数（每条线路一个域名一份 key），3 条线路设 4 留余量 |
+| `GENERATION_DOMAIN_CONCURRENCY` | 1 | 单上游域名并发。中转站按 key 限量，并发高易 429/封号；未确认额度前不要调大 |
+| `GENERATION_DOMAIN_START_INTERVAL_MS` | 2000 | 同域名新请求启动间隔。服务端默认 5000 排队体验差，2000 兼顾上游压力 |
+| `GENERATION_MAX_QUEUED` | 60 | 排队上限，超出直接拒绝。10 人 × 单用户 3 任务 = 30 会顶满旧默认，必须留余量 |
+| `GENERATION_MAX_USER_NONTERMINAL` | 3 | 单用户未完结任务上限，防一人刷满队列 |
+
+体验预期：同时 3~4 张在跑，其余排队（前端显示排队位置，轮询 20 分钟不超时），无人被拒绝。每小时吞吐约 150~250 张。文本对话/Agent 不走此队列，互不影响。要提吞吐，优先加不同域名/key 的线路，而不是调大域名并发。
+
+## 候选环境密钥管理（2026-08 起）
+
+`docker/docker-compose.canvas-candidate.yml` 不再内置密钥。启动前：
+
+```powershell
+Copy-Item "docker/.env.example" "docker/.env"   # 然后填入真实值
+docker compose -f docker/docker-compose.canvas-candidate.yml config
+docker compose -f docker/docker-compose.canvas-candidate.yml up --build -d
+```
+
+- `docker/.env` 已被 `docker/.gitignore` 忽略，不会入库；服务器部署需重新创建。
+- `JWT_SECRET`、`ADMIN_BOOTSTRAP_PASSWORD` 为空时服务按 fail-closed 拒绝启动，属预期。
+- 生产 `docker/docker-compose.yml` 同理：`JWT_SECRET` 用占位值会拒绝启动，必须在 shell 环境或 `.env` 配真实强密钥；上新画布需 `CANVAS_RUNTIME=infinite`。

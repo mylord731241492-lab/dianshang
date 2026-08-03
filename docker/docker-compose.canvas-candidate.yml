@@ -6,6 +6,9 @@ name: dianshang-canvas-candidate
 # - 数据全部落在候选工作树 ../.scratch/infinite-canvas-candidate/，不挂载正式 docker/data、docker/uploads。
 # - 全部 ENABLE_REAL_*=false：Fake Provider / Fake Storage，零真实 Provider 调用与费用。
 # - 不启动、不重建正式 gateway、app、LibreChat、MongoDB；本文件只含候选 app 一个服务。
+#
+# 密钥不再入库：启动前复制 docker/.env.example 为 docker/.env 并填值（docker/.env 已被 git 忽略）。
+# 未配置时服务会按 fail-closed 设计拒绝启动（JWT_SECRET 为空属弱密钥）。
 
 services:
   app:
@@ -21,9 +24,9 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3466
-      JWT_SECRET: c4nv4s-c4nd1d4t3-7f3a9e1d5b2846c0a9f7e2d1b8c365
+      JWT_SECRET: ${JWT_SECRET}
       ADMIN_BOOTSTRAP_USERNAME: admin
-      ADMIN_BOOTSTRAP_PASSWORD: CanvasCandidate!2026!Strong
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD}
       CORS_ORIGINS: ""
       CANVAS_RUNTIME: infinite
       DATA_DIR: /app/data
@@ -36,8 +39,14 @@ services:
       ENABLE_REAL_PAYMENT: "false"
       ENABLE_REAL_STORAGE: "false"
       ENABLE_LIBRECHAT: "false"
-      ASSET_URL_SIGNING_SECRET: a55et-c4nd1d4t3-9d2f47b1e6a3c805d1f9b264
+      ASSET_URL_SIGNING_SECRET: ${ASSET_URL_SIGNING_SECRET}
       ASSET_FAKE_STORAGE_ROOT: /app/object-storage
+      # ---- 生图并发参数（10 人内网推荐值，详见 docs/deployment.md「生图并发与排队」）----
+      GENERATION_GLOBAL_CONCURRENCY: ${GENERATION_GLOBAL_CONCURRENCY:-4}        # 全服同时跑的上游生图请求；实际上限=线路域名数，3 条线路设 4 留余量
+      GENERATION_DOMAIN_CONCURRENCY: ${GENERATION_DOMAIN_CONCURRENCY:-1}        # 单上游域名并发；中转 key 并发高易 429/封号，没确认额度前保持 1
+      GENERATION_DOMAIN_START_INTERVAL_MS: ${GENERATION_DOMAIN_START_INTERVAL_MS:-2000}  # 同域名新请求启动间隔，默认 5000 太慢，2000 兼顾体验与上游压力
+      GENERATION_MAX_QUEUED: ${GENERATION_MAX_QUEUED:-60}                       # 排队上限；10 人×每人 3 任务=30 会顶满默认值被拒，留一倍余量
+      GENERATION_MAX_USER_NONTERMINAL: ${GENERATION_MAX_USER_NONTERMINAL:-3}    # 单用户未完结任务上限，防一人刷满队列
     ports:
       - "127.0.0.1:3466:3466"
     volumes:

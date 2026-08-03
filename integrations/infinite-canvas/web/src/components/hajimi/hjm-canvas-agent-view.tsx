@@ -182,13 +182,17 @@ export function HjmCanvasAgentView({ theme, onOpenDialog }: { theme: CanvasTheme
         void ensureSession();
     }, [ensureSession]);
 
+    // 依赖用 asset storageKey 集合的稳定字符串：拖拽中 nodes 每帧换数组引用，
+    // 直接依赖 nodes 会导致每帧重跑 effect、对每个资产重签 access-url（请求风暴）。
+    const assetNodeKey = [...new Set((canvasContext?.snapshot.nodes || [])
+        .map((node) => String(node.metadata?.storageKey || ""))
+        .filter((key) => key.startsWith("asset:")))]
+        .sort()
+        .join(",");
+
     // 画布 asset: 节点的预览地址同样 15 分钟过期：随节点变化与每 10 分钟重签。
     useEffect(() => {
-        const nodes = canvasContext?.snapshot.nodes || [];
-        const assetIds = [...new Set(nodes.flatMap((node) => {
-            const key = String(node.metadata?.storageKey || "");
-            return key.startsWith("asset:") ? [key.slice(6)] : [];
-        }))];
+        const assetIds = assetNodeKey ? assetNodeKey.split(",").map((key) => key.slice(6)) : [];
         if (!assetIds.length) return;
         let cancelled = false;
         const refresh = async () => {
@@ -215,7 +219,7 @@ export function HjmCanvasAgentView({ theme, onOpenDialog }: { theme: CanvasTheme
             cancelled = true;
             window.clearInterval(timer);
         };
-    }, [canvasContext?.snapshot.nodes]);
+    }, [assetNodeKey]);
 
     // 附件 accessUrl 为 15 分钟短时签名：面板打开时与每 10 分钟续签，避免缩略图过期 403。
     useEffect(() => {

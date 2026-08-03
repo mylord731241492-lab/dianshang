@@ -16,6 +16,7 @@ import {
   Workflow
 } from 'lucide-vue-next';
 import { http, getApiErrorMessage } from '../api/http';
+import UserCenterDrawer from '../components/UserCenterDrawer.vue';
 
 // 首页：保留原布局（顶栏 + 侧轨 + Hero + 历史项目）。
 // 中央生成模块改为「创建画布」，下方为提示词案例（点击创建带提示词的画布）。
@@ -59,6 +60,7 @@ const projects = ref<CanvasProject[]>([]);
 const loadingProjects = ref(false);
 const creating = ref(false);
 const errorMessage = ref('');
+const userCenterOpen = ref(false);
 
 const theme = ref<'light' | 'dark'>(readCanvasTheme());
 
@@ -203,7 +205,7 @@ onMounted(loadProjects);
             <span>历史记录</span>
           </button>
         </div>
-        <button type="button" class="header-icon-button user" title="用户中心" @click="router.push('/user/center')">
+        <button type="button" class="header-icon-button user" title="用户中心" @click="userCenterOpen = true">
           <UserCircle :size="22" />
         </button>
       </div>
@@ -292,6 +294,8 @@ onMounted(loadProjects);
         </section>
       </section>
     </section>
+
+    <UserCenterDrawer :open="userCenterOpen" @close="userCenterOpen = false" />
   </main>
 </template>
 

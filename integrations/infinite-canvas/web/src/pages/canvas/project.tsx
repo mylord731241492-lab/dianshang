@@ -743,12 +743,19 @@ function InfiniteCanvasPage() {
             projectLoadedRef.current = true;
             setProjectLoaded(true);
 
-            // 崩溃恢复：草稿比服务器新时提供恢复，否则清理过期草稿。
+            // 崩溃恢复：草稿比服务器新时提供恢复，否则清理过期草稿。 updated_at 为 UTC 无 Z 字符串，需按 UTC 解析，否则 UTC+8 下比较恒为假、草稿被误删。
             const userId = useUserStore.getState().user?.id || "";
             if (!userId) return;
             const draft = loadProjectDraft(userId, projectId);
             if (!draft) return;
-            const serverTime = Date.parse(project.updatedAt || "") || 0;
+            const parseServerTime = (value: string) => {
+                const raw = String(value || "").trim();
+                if (!raw) return 0;
+                const hasZone = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(raw);
+                const normalized = hasZone ? raw : `${raw.replace(" ", "T")}Z`;
+                return Date.parse(normalized) || 0;
+            };
+            const serverTime = parseServerTime(project.updatedAt || "");
             const draftTime = Date.parse(draft.savedAt || "") || 0;
             if (draftTime > serverTime) {
                 modal.confirm({

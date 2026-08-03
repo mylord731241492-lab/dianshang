@@ -36,6 +36,27 @@ export type RedeemResult = {
     balance: number;
 };
 
+export type ApiStatusResult = {
+    routeId: string;
+    routeKey: string;
+    routeName: string;
+    defaultImageModel: string;
+    modelCount: number;
+    models: string[];
+    supportsChat: boolean;
+    supportsImage: boolean;
+};
+
+export type RouteItem = {
+    id: string;
+    routeKey: string;
+    displayName: string;
+    enabled: boolean;
+    isDefault: boolean;
+    defaultModelDisplayName: string;
+    modelCount: number;
+};
+
 export type UserProfile = {
     id: string;
     username: string;
@@ -114,6 +135,49 @@ export function createUserApi(client: UserApiClient, uploadTransport?: UserUploa
                 .map(readGeneration)
                 .filter((item): item is GenerationRecord => Boolean(item))
                 .slice(0, limit);
+        },
+        async getApiStatus(): Promise<ApiStatusResult> {
+            const record = toRecord(await client.get("/api/user/api-status")) ?? {};
+            const provider = toRecord(record.provider) ?? {};
+            const models = (Array.isArray(provider.models) ? provider.models : [])
+                .map((model) => {
+                    const row = toRecord(model) ?? {};
+                    return String(row.displayName || row.modelKey || row.realName || row.name || "").trim();
+                })
+                .filter(Boolean);
+            return {
+                routeId: String(provider.routeId || provider.id || ""),
+                routeKey: String(provider.routeKey || provider.lineKey || ""),
+                routeName: String(provider.displayName || provider.name || "默认线路"),
+                defaultImageModel: String(provider.defaultImageModel || ""),
+                modelCount: Array.isArray(provider.models) ? provider.models.length : 0,
+                models,
+                supportsChat: provider.supportsChat === true,
+                supportsImage: provider.supportsImage === true,
+            };
+        },
+        async getRoutes(group = "image"): Promise<RouteItem[]> {
+            const record = toRecord(await client.get(`/api/user/routes?group=${encodeURIComponent(group)}`)) ?? {};
+            const items = Array.isArray(record.items) ? record.items : Array.isArray(record.data) ? record.data : [];
+            return items
+                .map((value) => {
+                    const row = toRecord(value);
+                    if (!row) return null;
+                    const models = Array.isArray(row.models) ? row.models : [];
+                    return {
+                        id: String(row.id || row.routeId || row.lineId || ""),
+                        routeKey: String(row.routeKey || row.lineKey || row.key || ""),
+                        displayName: String(row.displayName || row.routeDisplayName || row.name || "未命名线路"),
+                        enabled: row.enabled !== false,
+                        isDefault: row.isDefault === true,
+                        defaultModelDisplayName: String(row.defaultModelDisplayName || ""),
+                        modelCount: models.length,
+                    };
+                })
+                .filter((item): item is RouteItem => Boolean(item && item.id));
+        },
+        async selectImageRoute(routeId: string): Promise<void> {
+            await client.post("/api/user/preferences/api-route", { routeId, lineId: routeId });
         },
         async redeem(code: string): Promise<RedeemResult> {
             const record = toRecord(await client.post("/api/user/redeem", { code: code.trim() })) ?? {};

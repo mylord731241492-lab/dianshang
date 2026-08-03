@@ -3,7 +3,6 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   ArrowRight,
-  ArrowUpRight,
   BookOpen,
   Clock,
   FolderPlus,
@@ -19,7 +18,7 @@ import { http, getApiErrorMessage } from '../api/http';
 import UserCenterDrawer from '../components/UserCenterDrawer.vue';
 
 // 首页：保留原布局（顶栏 + 侧轨 + Hero + 历史项目）。
-// 中央生成模块改为「创建画布」，下方为提示词案例（点击创建带提示词的画布）。
+// 中央生成模块改为「创建画布」，下方为历史项目。
 // 主题跟随画布明暗：读取 infinite-canvas:theme_store（与画布同一个主题存储）。
 
 interface CanvasProject {
@@ -28,12 +27,6 @@ interface CanvasProject {
   thumbnail?: string;
   updatedAt?: string;
   createdAt?: string;
-}
-
-interface PromptExample {
-  tag: string;
-  title: string;
-  prompt: string;
 }
 
 const heroBackgroundUrl = new URL('../assets/home-product-workbench.png', import.meta.url).href;
@@ -73,29 +66,6 @@ function readCanvasTheme(): 'light' | 'dark' {
     return 'dark';
   }
 }
-
-const promptExamples: PromptExample[] = [
-  {
-    tag: '白底主图',
-    title: '干净转化率最高的基本盘',
-    prompt: '一只白色陶瓷咖啡杯的纯白底电商主图，产品居中构图，柔和自然光，细腻阴影，商业摄影质感，画面干净无杂物'
-  },
-  {
-    tag: '场景氛围',
-    title: '把产品放进生活方式里',
-    prompt: '将一瓶护肤品置于清晨浴室的大理石台面上，晨光透过纱帘洒落，背景虚化绿植与毛巾，高级生活美学，色调温润'
-  },
-  {
-    tag: '包装标签',
-    title: '平面设计级标签视觉',
-    prompt: '为高端中国茶品牌设计一张竖版概念标签，主题茉莉白茶，米白棉纸纹理底色，玉绿色水墨茉莉花，细金线勾勒，现代宋体主标题，印刷级细节'
-  },
-  {
-    tag: '卖点展示',
-    title: '结构化呈现产品硬实力',
-    prompt: '无线降噪耳机悬浮分解结构展示，深色背景，耳机各部件层次分明悬浮排列，配冷蓝色科技感光线勾勒，未来感强'
-  }
-];
 
 const sideItems = [
   { label: '首页', to: '/', icon: Home, active: true },
@@ -238,11 +208,9 @@ onMounted(loadProjects);
               </span>
               <ArrowRight :size="22" class="create-arrow" />
             </button>
-            <p class="create-hint">从下方提示词案例开始，会自动把提示词放进生图节点</p>
             <p v-if="errorMessage" class="home-error">{{ errorMessage }}</p>
           </div>
         </section>
-
 
         <section class="history-carousel" aria-label="我的历史画布项目">
           <div class="history-header">
@@ -276,22 +244,6 @@ onMounted(loadProjects);
           </div>
         </section>
 
-        <section class="examples-section" aria-label="提示词案例">
-          <div class="examples-header">
-            <h2>提示词案例</h2>
-            <span>点击任意案例，直接创建带提示词的画布</span>
-          </div>
-          <div class="examples-grid">
-            <button v-for="item in promptExamples" :key="item.tag" type="button" class="example-card liquid-glass" @click="createProject(item.prompt)">
-              <span class="example-top">
-                <span class="example-tag">{{ item.tag }}</span>
-                <ArrowUpRight :size="15" class="example-go" />
-              </span>
-              <strong class="example-title">{{ item.title }}</strong>
-              <span class="example-prompt">{{ item.prompt }}</span>
-            </button>
-          </div>
-        </section>
       </section>
     </section>
 
@@ -379,93 +331,6 @@ onMounted(loadProjects);
   opacity: 0.5;
 }
 
-/* ===== 提示词案例 ===== */
-.examples-section {
-  margin-top: 34px;
-}
-
-.examples-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.examples-header h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.examples-header span {
-  font-size: 12px;
-  opacity: 0.45;
-}
-
-.examples-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: 14px;
-}
-
-.example-card {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  border-radius: 16px;
-  text-align: left;
-  color: inherit;
-  cursor: pointer;
-  box-shadow: 0 6px 20px rgba(56, 130, 246, 0.08);
-  transition: transform 0.16s ease-out, border-color 0.16s ease-out;
-}
-
-.example-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(56, 130, 246, 0.45);
-}
-
-.example-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.example-tag {
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: rgba(56, 130, 246, 0.14);
-  color: #2f6fe0;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.example-go {
-  opacity: 0.35;
-  transition: opacity 0.15s, transform 0.15s;
-}
-
-.example-card:hover .example-go {
-  opacity: 1;
-  transform: translate(1px, -1px);
-}
-
-.example-title {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.example-prompt {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  font-size: 12px;
-  line-height: 1.7;
-  opacity: 0.55;
-}
-
 /* ===== 性能：移除大面积 backdrop-filter（hover 重绘主凶），视觉以半透底色兜底 ===== */
 .home-legacy-shell .home-background::after,
 .home-legacy-shell .home-header,
@@ -518,14 +383,12 @@ onMounted(loadProjects);
 
 .theme-dark .hero-title,
 .theme-dark .brand-text,
-.theme-dark .history-header h2,
-.theme-dark .examples-header h2 {
+.theme-dark .history-header h2 {
   color: #f2f4f8;
 }
 
 .theme-dark .hero-desc,
-.theme-dark .create-hint,
-.theme-dark .examples-header span {
+.theme-dark .create-hint {
   color: rgba(231, 234, 240, 0.55);
 }
 
@@ -588,15 +451,6 @@ onMounted(loadProjects);
 }
 
 .theme-dark .create-icon {
-  color: #7eb0f9;
-}
-
-.theme-dark .example-card {
-  color: #e7eaf0;
-}
-
-.theme-dark .example-tag {
-  background: rgba(56, 130, 246, 0.2);
   color: #7eb0f9;
 }
 

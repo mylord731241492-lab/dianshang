@@ -1260,6 +1260,48 @@ function InfiniteCanvasPage() {
         if (next.type !== CanvasNodeType.Group) setDialogNodeId(id);
     }, []);
 
+    // 复制生图节点当前选中的结果图到系统剪贴板；非安全上下文（http 内网 IP 访问）降级为下载。
+    const copyNodeImageToClipboard = useCallback(async (nodeId: string) => {
+        const node = nodesRef.current.find((item) => item.id === nodeId);
+        const images = node?.metadata?.generatedImages || [];
+        if (!node || !images.length) {
+            message.warning("当前节点没有可复制的图片");
+            return;
+        }
+        const index = Math.max(0, Math.min(node.metadata?.selectedGeneratedImageIndex || 0, images.length - 1));
+        const url = images[index]?.content || "";
+        if (!url) {
+            message.warning("当前节点没有可复制的图片");
+            return;
+        }
+        try {
+            const source = await fetch(url).then((res) => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.blob();
+            });
+            // Chrome 剪贴板仅稳定支持 image/png：统一经画布转码。
+            const bitmap = await createImageBitmap(source);
+            const canvas = document.createElement("canvas");
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+            canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+            const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+            if (!png) throw new Error("PNG 编码失败");
+            await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]);
+            message.success("已复制当前图片");
+        } catch {
+            try {
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `canvas-image-${Date.now()}.png`;
+                link.click();
+                message.info("当前环境不支持直接复制图片，已改为下载");
+            } catch {
+                message.error("复制图片失败");
+            }
+        }
+    }, [message]);
+
     const copySelectedNodes = useCallback(() => {
         const selectedIds = selectedNodeIdsRef.current;
         if (!selectedIds.size) return;
@@ -3527,6 +3569,15 @@ function InfiniteCanvasPage() {
                             duplicateNode(contextMenu.nodeId);
                             setContextMenu(null);
                         }}
+                        onCopyImage={(() => {
+                            if (contextMenu.type !== "node") return undefined;
+                            const target = nodesRef.current.find((node) => node.id === contextMenu.nodeId);
+                            if (!(target?.metadata?.generatedImages || []).length) return undefined;
+                            return () => {
+                                void copyNodeImageToClipboard(contextMenu.nodeId);
+                                setContextMenu(null);
+                            };
+                        })()}
                         onDelete={() => {
                             if (contextMenu.type === "node") {
                                 deleteNodes(new Set([contextMenu.nodeId]));

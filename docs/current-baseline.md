@@ -1002,3 +1002,9 @@
   6. 生图前端轮询超时 5→20 分钟（10 人排队 + 慢线路会超 5 分钟，此前前端误判失败但服务端已扣费继续跑）。
 - 核实无需改：生图队列 backend/provider/image-request-scheduler.js（全局并发 3、单域名 1、队列上限 30、熔断器 + 瞬时错误分类），10 人规模适配；DB 迁移对生产旧库幂等。
 - 验收：server 语法/typecheck/双前端构建通过；3468 重启后 CDP 实测（cdp-predeploy-check.js）：/user/records、/template-image 直开为 Vue SPA，画布可达，用户中心抽屉选线/兑换码正常。PREDEPLOY PASS。
+
+## 2026-08-03 首页移除提示词案例 + 生图节点复制当前图片
+
+- 首页 `HomeWorkbench.vue` 删除「提示词案例」模块：examples-section 模板、promptExamples 数据、PromptExample 接口、ArrowUpRight 导入、相关 CSS（含暗色覆盖）及引用案例的 create-hint 一并移除；diff 逐行核对仅含该模块删除。
+- 生图节点右键菜单新增「复制当前图片」（canvas-context-menu.tsx + project.tsx `copyNodeImageToClipboard`）：取当前选中结果图转 PNG 写系统剪贴板；非安全上下文（http 内网 IP）自动降级为下载并提示。仅节点有生成结果时菜单项出现。
+- CDP 验收：REMOVE-EXAMPLES PASS（案例消失、历史项目 21 张卡正常）、COPY-IMAGE PASS（菜单项出现、点击反馈 toast 正常）。构建/类型检查全绿。

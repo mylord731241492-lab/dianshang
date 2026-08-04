@@ -8361,6 +8361,19 @@ app.all('/api/integrations/librechat/mcp', integrationServiceAuth, integrationUs
   }
 });
 
+// 每用户画布 UI 偏好（工具栏自定义等）：账号绑定，换浏览器/设备同步。
+const userUiPreferencesKey = (userId) => `user.uiPreferences.${String(userId || '').replace(/[^\w-]/g, '')}`;
+app.get('/api/user/ui-preferences', auth, (req, res) => {
+  res.json({ success: true, data: ensureState(userUiPreferencesKey(req.user.userId), {}) });
+});
+app.put('/api/user/ui-preferences', auth, (req, res) => {
+  const data = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  // 防御：偏好体积小，截断到 32KB 防止滥用 app_state
+  const text = JSON.stringify(data).slice(0, 32768);
+  writeState(userUiPreferencesKey(req.user.userId), JSON.parse(text));
+  res.json({ success: true });
+});
+
 app.post('/api/user/preferences/api-provider', auth, (req, res) => {
   res.json({ success: true, mode: req.body.mode || 'auto' });
 });

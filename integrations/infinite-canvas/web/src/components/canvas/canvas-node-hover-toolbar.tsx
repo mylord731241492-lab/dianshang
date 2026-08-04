@@ -10,6 +10,7 @@ import { CanvasNodeType, type CanvasNodeData, type ViewportTransform } from "@/t
 import type { CanvasNodeToolbarItem } from "@/types/canvas-plugin";
 import { ImageToolSettingsModal, type ImageToolbarSettingsTool } from "./canvas-image-toolbar-settings-modal";
 import { IMAGE_QUICK_TOOLS_STORAGE_KEY, buildImageToolbarTools, defaultImageQuickToolIds, readImageQuickToolsConfig, type ImageQuickToolId } from "./canvas-image-toolbar-tools";
+import { getUserApi } from "@/integrations/hajimi/browser-client";
 
 type CanvasNodeHoverToolbarProps = {
     node: CanvasNodeData | null;
@@ -89,14 +90,31 @@ export function CanvasNodeHoverToolbar({
     useEffect(() => {
         try {
             const stored = window.localStorage.getItem(IMAGE_QUICK_TOOLS_STORAGE_KEY);
-            if (!stored) return;
-            const parsed = JSON.parse(stored) as unknown;
-            const config = readImageQuickToolsConfig(parsed);
-            setQuickImageToolIds(config.ids);
-            setShowImageToolLabels(config.showLabels);
+            if (stored) {
+                const config = readImageQuickToolsConfig(JSON.parse(stored) as unknown);
+                setQuickImageToolIds(config.ids);
+                setShowImageToolLabels(config.showLabels);
+            }
         } catch {
             window.localStorage.removeItem(IMAGE_QUICK_TOOLS_STORAGE_KEY);
         }
+        // 账号绑定：服务端偏好覆盖本地（换浏览器/设备同步）；失败保持本地。
+        let cancelled = false;
+        void getUserApi()
+            .getUiPreferences()
+            .then((prefs) => {
+                if (cancelled) return;
+                const remote = prefs[IMAGE_QUICK_TOOLS_STORAGE_KEY];
+                if (remote === undefined) return;
+                const config = readImageQuickToolsConfig(remote);
+                setQuickImageToolIds(config.ids);
+                setShowImageToolLabels(config.showLabels);
+                window.localStorage.setItem(IMAGE_QUICK_TOOLS_STORAGE_KEY, JSON.stringify(config));
+            })
+            .catch(() => {});
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     useEffect(() => {
@@ -176,6 +194,10 @@ export function CanvasNodeHoverToolbar({
         setQuickImageToolIds(config.ids);
         setShowImageToolLabels(config.showLabels);
         window.localStorage.setItem(IMAGE_QUICK_TOOLS_STORAGE_KEY, JSON.stringify(config));
+        // 账号绑定：双写服务端；失败仅降级为本地保存。
+        void getUserApi()
+            .putUiPreferences({ [IMAGE_QUICK_TOOLS_STORAGE_KEY]: config })
+            .catch(() => {});
         closeImageToolSettings();
     };
 

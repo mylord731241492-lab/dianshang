@@ -1025,3 +1025,8 @@
 
 - 多图节点选中态从仅青色描边升级为：居中「✓ 已选中」胶囊（cyan）+ 下方「将作为下游参考图」提示小胶囊 + 淡青底色遮罩，序号徽标保留。
 - CDP 验收 SELECT-UI PASS（文案存在 + 截图 canvas-selected-ui.png）。
+
+## 2026-08-03 图片节点工具栏审计 + 自定义设置账号绑定
+
+- 工具栏 17 项审计：16 项已接通（信息/删除/下载/编辑/复制提示词/反推提示词/替换图片/锁比例/局部编辑 inpaint/智能擦除 erase/扩图 outpaint/裁剪本地/切图本地/放大走生图任务/多角度走生图任务/查看大图）；**超分为占位弹窗「暂未实现」**（project.tsx AI 超分 Modal）。defaultBaseToolIds 含 saveAsset 但无对应工具实现（死配置项，不可见）。
+- 自定义设置原本只存 localStorage（canvas-image-quick-tools-v6），换浏览器/设备即丢。已加账号绑定：服务端新增 GET/PUT /api/user/ui-preferences（app_state 按 userId 分键，32KB 截断防御）；画布挂载时服务端配置覆盖本地并回填 localStorage，保存时双写。验收：PUT 200 → app_state 落库 → 清 localStorage 重载后配置从服务端恢复（UI-PREFS PASS）。

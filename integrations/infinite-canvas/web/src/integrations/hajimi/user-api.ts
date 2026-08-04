@@ -179,6 +179,13 @@ export function createUserApi(client: UserApiClient, uploadTransport?: UserUploa
         async selectImageRoute(routeId: string): Promise<void> {
             await client.post("/api/user/preferences/api-route", { routeId, lineId: routeId });
         },
+        async getUiPreferences(): Promise<Record<string, unknown>> {
+            const record = toRecord(await client.get("/api/user/ui-preferences")) ?? {};
+            return toRecord(record.data) ?? {};
+        },
+        async putUiPreferences(data: Record<string, unknown>): Promise<void> {
+            await client.put("/api/user/ui-preferences", data);
+        },
         async redeem(code: string): Promise<RedeemResult> {
             const record = toRecord(await client.post("/api/user/redeem", { code: code.trim() })) ?? {};
             return { amount: Number(record.amount) || 0, balance: Number(record.balance) || 0 };

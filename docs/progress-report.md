@@ -78,6 +78,15 @@
 - 验证结果：判定与现有已抽模块、门禁、最近稳定性改动一致；未改代码行为。
 - 未覆盖风险：单测数量为 0（目录扫描因 node_modules 超时，但 package.json 无 devDependencies/test script，结论可靠）；未做真实故障窗口压测复测。
 
+## 2026-08-06 DS Pro 后端重构 PRD（Draft）
+
+- 分支：codex/infinite-canvas-candidate（本轮提交）
+- 完成内容：输出 `docs/prd/2026-08-06-ds-pro-backend-refactor-prd.md`——等 DS Pro 发布后执行后端重构的 PRD，含触发条件、8 项目标、非目标、M0-M5 里程碑、7 条验收标准、风险与 5 项待确认。
+- 修改文件：docs/prd/2026-08-06-ds-pro-backend-refactor-prd.md、docs 三件套。
+- 验证方式：文档评审（与 ADR-0007/0008 一致，触发点不拆 server.js、不启动 Phase 4，符合门禁）。
+- 验证结果：PRD 定稿为 Draft；无代码行为改动；3466 候选端不受影响。
+- 待确认：DS Pro 具体指代、M0 是否现在启动、拆分顺序、node:test、Postgres 优先。
+
 ## 2026-07-13 Chat MCP 工具续传 409 修复进度报告
 
 - 分支：`main`，工作区保留既有未提交改动。

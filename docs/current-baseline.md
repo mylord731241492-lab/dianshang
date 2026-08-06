@@ -77,6 +77,13 @@
 - 三大债务：单体耦合（122 直 SQL + 258 顶层函数）、无自动化测试、app_state JSON 承载 6+ 类配置无 schema/版本。
 - 整改优先级：P0 确认 ADR-0007 并按 auth→users→projects→admin 拆分 + 核心单测；P1 app_state 拆表/mock 隔离/结构化日志；P2 Phase 4 生产化门禁。
 
+## 2026-08-06 DS Pro 发布后后端重构 PRD（Draft）
+
+- 用户决定等 DS Pro 发布后再重构后端，先定稿 PRD：`docs/prd/2026-08-06-ds-pro-backend-refactor-prd.md`（Draft，待触发）。
+- 触发条件：DS Pro 正式发布且本地/中转可用 + 用户明确开始；此前不拆 server.js、不动 Phase 4。
+- 目标：server.js ≤1500 行组合根、模块化（auth/users/projects/admin 等 11 模块）、repository 收敛 SQL、app_state 拆表、mock 隔离、node:test 单测、结构化日志；M5 Phase 4 生产化另行确认。
+- M0 准备（契约基线/smoke 基线/拆分顺序）不依赖 DS Pro，待用户确认后即可开始。
+
 ## 当前准绳
 
 - Git 安全检查点：`fe5372d`，已推送到 `origin/codex/generation-stability-10-users`。

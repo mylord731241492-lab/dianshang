@@ -36,6 +36,9 @@ const clearExpiredSession = (message?: string) => {
     window.dispatchEvent(new CustomEvent('auth-session-expired', {
       detail: { message: message || '登录已过期，请重新登录。' }
     }));
+    if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {
+      window.location.assign('/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search));
+    }
   } catch {
     // localStorage may be unavailable in restricted browser modes.
   }

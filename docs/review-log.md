@@ -5896,3 +5896,26 @@
 ## 2026-08-03 生图链式连接审查（Kimi Code）
 
 - 这不是纯测试问题而是产品缺口：Config↔Config 在 normalizeConnection 被显式禁止，Config 定义缺 resource 注册——用户需求（选图续接生图）在旧逻辑下不可能完成。修复为最小放行，输入解析只读直接上游（无递归），A↔B 互连不会死循环。
+
+## 2026-08-05 首页登录门焦点陷阱修复审查（Codex）
+
+- 用户报告 3456 首页登录未修好。确认 3456 本地 node server 运行的是候选工作树源码前端（opencode 首页登录界面改动，未提交）。
+- 根因复现：首页 `LoginGateModal.vue` 的 `n-modal` 默认 `trap-focus`，点击/聚焦输入框后焦点被 focus-trap 0×0 哨兵抢走（activeElement 为 `<div aria-hidden tabindex=0>`），键盘输入无法进入输入框，提交恒报“请输入用户名和密码”。
+- 修复：n-modal 增加 `:trap-focus="false"`；403 响应优先使用服务端 message，管理员入口提示改为“管理员请使用后台登录入口 请使用 http://localhost:3456/admin 后台入口。”
+- 验证：typecheck + vite build 通过；Playwright 实测输入、admin 403 提示、注册 200 + token 写入 + 弹窗关闭 + `/api/user/projects` 200。
+- 清理：验证产生的 2 个测试账号（无 projects/generations/balance_logs）已删除，清理前库备份 `.scratch/candidate-data-db-before-login-fix.db`。
+- 未覆盖：生产 Docker 端（192.168.0.39:3456）未动；opencode 与本次改动均未提交、未并入主工作区。
+
+## 2026-08-05 /canvas 旧画布问题根因审查（Codex）
+
+- 用户反馈 /canvas 不是新画布。排查确认：项目未拉错，3456 运行的正是候选工作树（`/api/health` paths 指向 `F:\dianshang-worktrees\infinite-canvas-candidate`），但进程启动时 `CANVAS_RUNTIME` 未设置（默认 legacy），`/canvas` 未挂载无限画布路由而落入旧根入口。
+- 修复：以 `CANVAS_RUNTIME=infinite` 重启 3456（旧 PID 38020 → 新 PID 39704），`/api/health` 返回 `canvasRuntime: infinite`；`/canvas` 返回无限画布 HTML（标题“哈吉米 AI · 无限画布”，入口 `/canvas-app/assets/index-2bgaesU7.js`）。
+- Playwright 验证：未登录访问 /canvas 会跳 /login?redirect=%2Fcanvas；注册临时账号后 /canvas 渲染无限画布（画布库、新建画布、Agent 助手），无页面错误。临时账号 cv4721892（无关联数据）已清理，清理前库备份 `.scratch/candidate-data-db-before-cleanup-cv4721892.db`。
+- 注意：以后启动候选 3456 必须设置 `CANVAS_RUNTIME=infinite`；正式生产 Docker 未动。
+
+## 2026-08-06 候选端登录统一为整页登录（Codex 实施+提交）
+
+- 按用户确认「整页登录（推荐）」实施：首页不再强制弹窗，受限功能未登录统一跳 `/login?redirect=原目标`，与生产 Docker 旧 SPA 和无限画布守卫语义对齐。
+- 改动：HomeWorkbench.vue（移除弹窗引用与强制逻辑，画布/创建/用户中心未登录跳登录）；router/index.ts（requiresAuth + beforeEach）；api/http.ts（401 整页跳登录，登录/注册页除外）；AuthSource.vue（管理员入口链接 + 403/401 文案）。
+- 验证：vue-tsc + vite build 通过；Playwright 在 3466 全链路 16 项断言通过（首页不弹窗、画布中心跳登录、错误密码、admin 后台提示、管理员链接、/user/center 与 /gallery 守卫、注册、无限画布、401 跳登录），无页面错误。
+- 环境变化：localhost:3456 已切回 Docker 生产端；候选验证端口为 127.0.0.1:3466（CANVAS_RUNTIME=infinite）。测试账号已清理；生产 Docker 未动。本轮已提交。

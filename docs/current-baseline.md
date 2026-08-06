@@ -1,9 +1,28 @@
 # 当前项目基线与防混淆地图
 
-> 最后更新：2026-07-29，北京时间。
-> 当前工作树：`F:\dianshang-worktrees\infinite-canvas-candidate`；开发分支：`codex/infinite-canvas-candidate`；当前提交为 `4fbe705 fix: keep candidate login on infinite canvas`。Task 13A 源码与自动化已完成，当前处于 `ready-for-human`，Task 14 尚未授权。
+> 最后更新：2026-08-06，北京时间。
+> 当前工作树：`F:\dianshang-worktrees\infinite-canvas-candidate`；开发分支：`codex/infinite-canvas-candidate`；当前提交为 `f9ce974 feat: 工具栏自定义设置改为账号绑定（服务端持久化）`；工作树含 2026-08-05 opencode 首页登录界面改动与 Codex 登录门修复，均未提交。Task 14 尚未授权。
 
 本文件是后续修改前的第一入口。`docs/progress-report.md` 和 `docs/review-log.md` 是时间线流水账，不是当前状态的唯一准绳。
+
+## 2026-08-05 首页登录门修复（当前状态）
+
+- 3456 端口当前运行 `F:\dianshang-worktrees\infinite-canvas-candidate` 源码前端（server.js + frontend/dist），首页入口为 `index-B9aQaa_n.js`；这是 opencode 首页登录界面改动后的构建产物。
+- 2026-08-05 用户反馈 /canvas 仍显示旧画布：根因不是项目拉错，而是 3456 进程启动时未设置 `CANVAS_RUNTIME`（默认 legacy），`/canvas` 落入旧根入口。已以 `CANVAS_RUNTIME=infinite` 重启 3456（新进程 PID 39704，`/api/health` 返回 `canvasRuntime: infinite`），`/canvas` 现命中无限画布（标题“哈吉米 AI · 无限画布”，入口 `/canvas-app/assets/index-2bgaesU7.js`）。
+- 以后启动候选 3456 必须设置 `CANVAS_RUNTIME=infinite`（例如 PowerShell：`$env:CANVAS_RUNTIME="infinite"; node server.js`），否则画布路由会回到旧画布。
+- 首页未登录时由 `HomeWorkbench.vue` + `LoginGateModal.vue` 弹出登录门。实测根因：`n-modal` 默认 `trap-focus` 把输入框焦点抢到 focus-trap 哨兵，导致用户名/密码无法输入，提交恒报“请输入用户名和密码”。
+- 修复（未提交）：`frontend/src/components/LoginGateModal.vue` 的 n-modal 增加 `:trap-focus="false"`；403 响应优先显示服务端 message（管理员登录显示“管理员请使用后台登录入口”并提示后台地址）。
+- 验证：`vue-tsc --noEmit && vite build` 通过；Playwright 实测首页弹窗可输入、admin 登录提示后台入口、注册成功写入 `auth_token`、弹窗关闭并加载 `/api/user/projects`。
+- 验证产生的两个测试账号已清理，清理前数据库备份在 `F:\dianshang\.scratch\candidate-data-db-before-login-fix.db`。
+- 待办：opencode 改动（LoginGateModal.vue 新增、HomeWorkbench.vue 修改）与本次修复均未提交，未并入主工作区；3456 为本地 node server，非 Docker 生产端（192.168.0.39:3456 未动）。
+
+## 2026-08-06 候选端登录统一为整页登录（已实施+验证+提交）
+
+- 按用户确认方案实施：移除首页强制登录弹窗；首页可浏览；「画布中心/新画布/创建画布/用户中心」未登录统一跳 `/login?redirect=原目标`。
+- `frontend/src/router/index.ts` 为 `/canvas`、`/template-image`、`/gallery`、`/user/*` 增加 `meta.requiresAuth` 与全局 `beforeEach` 守卫；`api/http.ts` 401 时清 token 后整页跳登录（登录/注册页除外）；`AuthSource.vue` 增加管理员入口链接、403/401 文案对齐服务端；`HomeWorkbench.vue` 移除 LoginGateModal 引用与强制弹窗逻辑。
+- 注意：2026-08-06 起 localhost:3456 已回到 Docker 生产端（health paths=/app/...，无 canvasRuntime 字段）；候选登录改动在 `127.0.0.1:3466`（`CANVAS_RUNTIME=infinite`）验证。
+- 验证（Playwright 3466）：首页不弹窗/可浏览、画布中心跳登录、错误密码提示、admin 后台入口提示、管理员链接、/user/center 与 /gallery 守卫、注册写 token 并跳转、登录后进入无限画布、401 自动跳登录，全部通过，无页面错误。测试账号已清理（loginpage*、u401* 共 4 个）。
+- 本轮已提交；LoginGateModal.vue 保留但已不再引用；生产 Docker（192.168.0.39:3456）未动。
 
 ## 当前准绳
 

@@ -33,7 +33,9 @@ const targetAfterAuth = computed(() => {
 });
 
 function friendlyError(error: unknown, fallback: string) {
-  return getApiErrorMessage(error, fallback);
+  const response = (error as { response?: { status?: number; data?: { message?: string } } }).response;
+  if (response?.status === 403 && response.data?.message) return response.data.message;
+  return getApiErrorMessage(error, fallback, { unauthorized: '账号或密码不正确。' });
 }
 
 function requiresServerCanvasNavigation(target: string) {
@@ -119,6 +121,7 @@ async function submit() {
         <RouterLink :to="isLogin ? '/register' : '/login'">
           {{ isLogin ? '没有账号，去注册' : '已有账号，去登录' }}
         </RouterLink>
+        <a href="/admin/login">管理员入口</a>
         <a :href="legacyUrl(isLogin ? '/login' : '/register')">旧版页面</a>
       </div>
     </section>

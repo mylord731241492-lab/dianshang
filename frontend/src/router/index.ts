@@ -5,9 +5,9 @@ export const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'home', component: HomeWorkbench },
-    { path: '/canvas', name: 'canvas', component: () => import('../views/CanvasLegacySource.vue') },
-    { path: '/template-image', name: 'template-image', component: () => import('../views/TemplateImageSource.vue') },
-    { path: '/gallery', name: 'gallery', component: () => import('../views/GallerySource.vue') },
+    { path: '/canvas', name: 'canvas', component: () => import('../views/CanvasLegacySource.vue'), meta: { requiresAuth: true } },
+    { path: '/template-image', name: 'template-image', component: () => import('../views/TemplateImageSource.vue'), meta: { requiresAuth: true } },
+    { path: '/gallery', name: 'gallery', component: () => import('../views/GallerySource.vue'), meta: { requiresAuth: true } },
     { path: '/login', name: 'login', component: () => import('../views/AuthSource.vue'), props: { mode: 'login' } },
     { path: '/register', name: 'register', component: () => import('../views/AuthSource.vue'), props: { mode: 'register' } },
     { path: '/admin', name: 'admin-root', redirect: '/admin/login' },
@@ -25,9 +25,16 @@ export const router = createRouter({
     { path: '/admin/system-prompts', name: 'admin-system-prompts', component: () => import('../views/AdminSystemPromptsSource.vue') },
     { path: '/admin/chat-settings', name: 'admin-chat-settings', component: () => import('../views/AdminChatSettingsSource.vue') },
     { path: '/admin/settings', name: 'admin-settings', component: () => import('../views/AdminSettingsSource.vue') },
-    { path: '/user/center', name: 'user-center', component: () => import('../views/UserCenterSource.vue') },
-    { path: '/user/records', name: 'user-records', component: () => import('../views/UserRecordsSource.vue') },
-    { path: '/user/redeem', name: 'user-redeem', component: () => import('../views/UserRedeemSource.vue') },
+    { path: '/user/center', name: 'user-center', component: () => import('../views/UserCenterSource.vue'), meta: { requiresAuth: true } },
+    { path: '/user/records', name: 'user-records', component: () => import('../views/UserRecordsSource.vue'), meta: { requiresAuth: true } },
+    { path: '/user/redeem', name: 'user-redeem', component: () => import('../views/UserRedeemSource.vue'), meta: { requiresAuth: true } },
     { path: '/:pathMatch(.*)*', redirect: '/' }
   ]
+});
+
+router.beforeEach((to) => {
+  if (to.meta.requiresAuth && !window.localStorage.getItem('auth_token')) {
+    return { path: '/login', query: { redirect: to.fullPath } };
+  }
+  return true;
 });

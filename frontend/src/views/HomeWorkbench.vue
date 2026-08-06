@@ -84,7 +84,12 @@ function canvasUrl(projectId?: string, prompt?: string) {
 }
 
 function openCanvas(projectId?: string, prompt?: string) {
-  window.location.href = canvasUrl(projectId, prompt);
+  const url = canvasUrl(projectId, prompt);
+  if (!window.localStorage.getItem('auth_token')) {
+    window.location.assign('/login?redirect=' + encodeURIComponent(url));
+    return;
+  }
+  window.location.href = url;
 }
 
 function navigateHomeItem(to: string) {
@@ -120,6 +125,10 @@ async function loadProjects() {
 
 async function createProject(prompt?: string) {
   if (creating.value) return;
+  if (!window.localStorage.getItem('auth_token')) {
+    window.location.assign('/login?redirect=' + encodeURIComponent('/canvas'));
+    return;
+  }
   creating.value = true;
   errorMessage.value = '';
   try {
@@ -147,7 +156,18 @@ async function deleteProject(project: CanvasProject, event: MouseEvent) {
   }
 }
 
-onMounted(loadProjects);
+
+function handleUserButtonClick() {
+  if (window.localStorage.getItem('auth_token')) {
+    userCenterOpen.value = true;
+    return;
+  }
+  window.location.assign('/login?redirect=' + encodeURIComponent('/user/center'));
+}
+
+onMounted(() => {
+  loadProjects();
+});
 </script>
 
 <template>
@@ -175,7 +195,7 @@ onMounted(loadProjects);
             <span>历史记录</span>
           </button>
         </div>
-        <button type="button" class="header-icon-button user" title="用户中心" @click="userCenterOpen = true">
+        <button type="button" class="header-icon-button user" title="用户中心" @click="handleUserButtonClick">
           <UserCircle :size="22" />
         </button>
       </div>

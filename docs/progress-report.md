@@ -51,6 +51,15 @@
 - 清理：fault_1 用户、7 条任务/生成/余额日志、object-storage 与 generation-task-inputs 测试残留、mock 进程已清理；数据库备份保留在 .scratch。
 - 未覆盖风险：未在真实上游故障窗口实测；未测 Packy 线路。
 
+## 2026-08-06 LibreChat 后台移除（已提交）
+
+- 分支：codex/infinite-canvas-candidate（本轮提交）
+- 完成内容：整仓移除最早的后台 LibreChat——integrations/librechat/ 目录、server.js 约 2136 行集成代码、前端 Chat 设置页/API/资源、6 个 LibreChat 脚本、docker chat 服务与 nginx 路由。
+- 修改文件：server.js、frontend/src（router/adminNavigation/frontendMigration + 删除 2 文件）、index.html、assets/chat-entry-link.js（删除）、scripts/*（删除 6 + 更新 9）、docker/*（compose 清理 + 删除 chat-test/nginx + README）、docs 三件套。
+- 验证方式：node --check、3466 重启接口冒烟（health/admin/dashboard/ecommerce/template 200，chat 接口 404）、frontend vue-tsc + vite build、scripts node --check。
+- 验证结果：全部通过；画布聊天依赖保留完好；生产 Docker 未动。
+- 未覆盖风险：正式生产迁移 LibreChat 移除需走 Docker 重建验收；历史 docs 保留 LibreChat 记录未清理。
+
 ## 2026-07-13 Chat MCP 工具续传 409 修复进度报告
 
 - 分支：`main`，工作区保留既有未提交改动。

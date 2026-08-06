@@ -1,7 +1,7 @@
 # 当前项目基线与防混淆地图
 
 > 最后更新：2026-08-06，北京时间。
-> 当前工作树：`F:\dianshang-worktrees\infinite-canvas-candidate`；开发分支：`codex/infinite-canvas-candidate`；当前提交为 `b0759ee feat: 候选端登录统一为整页登录并补齐守卫`；工作树含桥豆式生图重试改造（待提交）。Task 14 尚未授权。
+> 当前工作树：`F:\dianshang-worktrees\infinite-canvas-candidate`；开发分支：`codex/infinite-canvas-candidate`；当前提交为 `7831bab feat: 生图与文本链路瞬时错误自动重试（桥豆式稳定化）`；工作树含 LibreChat 移除（待提交）。Task 14 尚未授权。
 
 本文件是后续修改前的第一入口。`docs/progress-report.md` 和 `docs/review-log.md` 是时间线流水账，不是当前状态的唯一准绳。
 
@@ -50,6 +50,18 @@
 - 验证（mock 故障序列 429→成功→500→成功→断连→成功，每张首次必错）：改造后 6/6 成功、每张 2~6s；mock 日志 12 次上游调用证明每次重试都发生；改造前同序列 2/6 失败、最慢 183s。
 - 真实官转冒烟：task_msh7lyce12b6415d success、cost=10，链路正常；官转 baseUrl 已恢复 https://edge.lingsuan.org。
 - 清理：fault_1 用户及 7 条任务/生成/余额日志已删；mock 进程已停；object-storage 与 generation-task-inputs 测试残留已删；运行时目录已加入 .gitignore；数据库备份保留在 F:\dianshang\.scratch\。
+
+## 2026-08-06 LibreChat 后台移除（候选支线，已实施待提交）
+
+- 用户确认「原来最早的后台 LibreChat 可以在这个支线删了」后执行整仓移除：
+  - 删除 `integrations/librechat/`（Dockerfile、librechat.yaml、patches、skills、upstream 源码包 7MB）；
+  - server.js 移除约 2136 行：ENABLE_LIBRECHAT/LIBRECHAT_* 环境变量与启动守卫、chat_sso_tickets/chat_image_quotes/chat_image_plans/chat_managed_conversations 表、integrationServiceAuth/integrationUser/SSO 桥接、/api/integrations/librechat/*（含 MCP）、/api/chat/status|home-catalog|completions、/api/admin/chat/*、代理函数链（proxyLibreChat*、responses*Chat*、chatSettingsState 等）、/chat/ SPA fallback 与错误处理分支；
+  - 保留画布聊天依赖：reserveChatCharge/completeChatStep/refundChatCharge、integrationError、callProviderResponses、routes/settings/templateWorkflows/modelPrices 等状态函数（删除时曾误删已恢复）。
+  - 前端：删除 AdminChatSettingsSource.vue、adminChatSettings.ts、路由/导航/迁移清单中的 Chat 设置；index.html 移除 chat-entry-link.js 并删除该资源。
+  - 脚本：删除 smoke-chat-production-ui/smoke-librechat-integration/start-librechat-real-test/sync-librechat-reviewed-skills/test-chat-image-generation-tools/test-librechat-tool-continuation；更新 smoke-internal-prod、test-internal-production-launch-gates、test-internal-prod-source-package 及 7 个测试脚本的 ENABLE_LIBRECHAT 残留。
+  - Docker：docker-compose.yml 移除 chat-mongodb/librechat/gateway 服务与 chat_* 卷；删除 docker-compose.chat-test.yml、docker/gateway/nginx.conf；docker/README.md 与 canvas-candidate 注释标注已移除。
+- 验证：`node --check server.js` 通过；3466 候选端重启后 /api/health、/api/admin/login、/api/admin/dashboard、/api/canvas/ecommerce-suite/config、/api/template/settings 均 200，/api/chat/status 与 /api/integrations/librechat/* 返回 404；frontend `vue-tsc --noEmit && vite build` 通过；全部 scripts/*.js `node --check` 通过。
+- 边界：docs/ 历史记录保留原文（含 LibreChat 流水账），不再删改；生产 Docker（192.168.0.39:3456）未动。
 
 ## 当前准绳
 

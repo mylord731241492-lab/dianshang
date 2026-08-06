@@ -30,7 +30,6 @@ export const frontendMigrationRoutes: FrontendMigrationRoute[] = [
   { path: '/admin/api-providers', title: 'API 线路管理', area: 'admin', status: 'source', note: '写入试点已接入旧后台字段、保存回显、默认线路和 API Key 掩码；真实测试连接需确认。' },
   { path: '/admin/model-prices', title: '模型价格', area: 'admin', status: 'source', note: '源码第一版已接入只读模型价格列表与搜索。' },
   { path: '/admin/template-workflows', title: '模板工作流', area: 'admin', status: 'source', note: '源码第一版已接入只读模板工作流列表与搜索。' },
-  { path: '/admin/chat-settings', title: 'Chat 设置', area: 'admin', status: 'source', note: '管理 Chat 运行时策略、部署状态和无费用连接测试。' },
   { path: '/admin/settings', title: '系统设置', area: 'admin', status: 'source', note: '保存试点已接入基础设置和图片工具配置草稿回显。' }
 ];
 

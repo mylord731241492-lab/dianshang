@@ -159,7 +159,6 @@ try {
   $env:ENABLE_REAL_AI = "false"
   $env:ENABLE_REAL_EMAIL = "false"
   $env:ENABLE_REAL_PAYMENT = "false"
-  $env:ENABLE_LIBRECHAT = "false"
   $env:ASSET_URL_SIGNING_SECRET = $signingSecret
   if ($UseFakeStorage) {
     $env:ENABLE_REAL_STORAGE = "false"

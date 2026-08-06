@@ -70,6 +70,24 @@
 
 - 删除 LibreChat 遗留；输出后端架构设计文档（用户已确认）。
 
+## 2026-08-06 LibreChat 移除复核（代码级）
+
+### 已验证
+
+- 全仓引用审计：integrations/librechat/、server.js 集成代码、前端 Chat 设置页与资源、6 个 LibreChat 脚本、docker chat 栈（chat-mongodb/librechat/gateway + chat_* 卷）、nginx chat 路由均移除；docs/ 历史记录保留。
+- 删除范围校验：`node --check server.js` 通过；rg 复查无 ENABLE_LIBRECHAT/chat_sso/proxyLibreChat/chatSettingsState/chatFallbackRoutePattern 残留；画布依赖函数（reserveChatCharge、completeChatStep、refundChatCharge、integrationError、callProviderResponses）完好。
+- 运行验证：3466 候选端重启后 /api/health、/api/admin/login、/api/admin/dashboard、/api/canvas/ecommerce-suite/config、/api/template/settings 200；/api/chat/status 与 /api/integrations/librechat/* 404（符合删除预期）。
+- 前端验证：`vue-tsc --noEmit && vite build` 通过，dist 无 chat-settings/chat-entry-link 残留；scripts/*.js 全部 node --check 通过。
+
+### 新发现风险
+
+- 删除过程中曾误删共享状态函数（routeState/settingsState 等）与 workflowFilePayload 收尾，均已当场恢复并以语法+接口冒烟复核；无残留。
+- 正式 Docker 生产（192.168.0.39:3456）仍可能运行 LibreChat 旧镜像，本改动仅限候选支线；生产迁移需另行走 Docker 重建流程。
+
+### 下一轮优先级
+
+- 输出后端架构设计文档（用户已确认），把当前 mono server.js 逐步模块化。
+
 ## 2026-07-13 Chat MCP 工具续传 409 复核
 
 ### 已验证

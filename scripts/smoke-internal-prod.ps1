@@ -173,7 +173,6 @@ Assert-True -Condition ($homeResponse.Content -match "canvas-performance-mode\.c
 Assert-True -Condition ($homeResponse.Content -match "canvas-image-node-polish\.css\?v=20260721promptread1") -Message "Canvas image polish prompt readability CSS missing from home page"
 Assert-True -Condition ($homeResponse.Content -match "canvas-prompt-enhancer\.css\?v=20260721enhance1") -Message "Canvas prompt enhancer CSS missing from home page"
 Assert-True -Condition ($homeResponse.Content -match "template-workbench-gallery-polish\.css\?v=20260710gallery2") -Message "Template workbench gallery polish CSS missing from home page"
-Assert-True -Condition ($homeResponse.Content -match "chat-entry-link\.js\?v=20260715availability1") -Message "AI chat entry script missing from home page"
 Assert-True -Condition ($homeResponse.Content -match "auth-direct-register-bridge\.js\?v=20260715directreset1") -Message "Direct password reset bridge missing from home page"
 $productionAuthBridge = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/auth-direct-register-bridge.js?v=20260715directreset1").Content
 Assert-True -Condition ($productionAuthBridge -match "fetch\('/api/auth/reset-password'" -and $productionAuthBridge -match "username: account, newPassword: newPassword") -Message "Direct password reset bridge request contract is invalid"
@@ -184,14 +183,6 @@ Assert-True -Condition ($productionImagePolishCss.Contains('min-height: 168px !i
 $productionPromptEnhancerCss = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/canvas-prompt-enhancer.css?v=20260721enhance1").Content
 Assert-True -Condition ($productionPromptEnhancerCss.Contains('.vue-flow .image-prompt-generate-node .prompt-shell.hjm-prompt-enhance-host')) -Message "Canvas prompt enhancer CSS is not scoped to the current canvas node"
 Assert-True -Condition ($productionPromptEnhancerCss.Contains('padding-bottom: 60px !important;') -and $productionPromptEnhancerCss.Contains('bottom: 12px !important;')) -Message "Canvas prompt enhancer button layout is stale"
-$productionChatEntry = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/chat-entry-link.js?v=20260715availability1").Content
-Assert-True -Condition ($productionChatEntry -match "function isHomeRoute\(\)" -and $productionChatEntry -match "return window\.location\.pathname === '/'") -Message "AI chat entry script must be gated to the home route"
-Assert-True -Condition ($productionChatEntry -match "fetch\('/api/chat/status'" -and $productionChatEntry -match "if \(!availability\.accessReady\)") -Message "AI chat entry script must hide itself when Chat deployment is unavailable"
-Assert-True -Condition ($productionChatEntry -match "window\.location\.assign\('/chat/'\)") -Message "AI chat entry script must navigate to /chat/"
-Assert-True -Condition ($productionChatEntry -match "teardown: function\(\)") -Message "AI chat entry script route-leave teardown missing"
-$productionChatStatus = Invoke-Json -Method "GET" -Path "/api/chat/status"
-Assert-True -Condition ([bool]$productionChatStatus.success) -Message "Public Chat deployment status endpoint failed"
-Assert-True -Condition ($null -ne $productionChatStatus.accessReady -and $productionChatStatus.chatPath -eq "/chat/") -Message "Public Chat deployment status contract is invalid"
 $productionEntry = (Invoke-WebRequest -UseBasicParsing "$baseUrl/assets/index-DglIsp_g.js?v=20260717reversecopy1").Content
 Assert-True -Condition ($productionEntry.Contains('Yr.value?yr.value=X_(localStorage.getItem(qn)):(yr.value=null,localStorage.removeItem(qn))')) -Message "Frontend auth bootstrap should clear auth_user when token is missing"
 Assert-True -Condition ($productionEntry -match "HomeIndex-DAjDt0aj\.js\?v=20260709restorehide1") -Message "Production home chunk version missing from entry asset"

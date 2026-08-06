@@ -90,7 +90,6 @@ async function main() {
       ENABLE_REAL_EMAIL: 'false',
       ENABLE_REAL_PAYMENT: 'false',
       ENABLE_REAL_STORAGE: 'false',
-      ENABLE_LIBRECHAT: 'false'
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });

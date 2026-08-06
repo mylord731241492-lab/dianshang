@@ -82,17 +82,9 @@ function assertDockerBuildContract() {
   assert(/^docker\/backup\/?$/m.test(dockerignore), '.dockerignore 必须排除生产备份');
 }
 
-function assertChatEntryContract() {
-  const indexHtml = fs.readFileSync(path.join(repoRoot, 'index.html'), 'utf8');
-  const source = fs.readFileSync(path.join(repoRoot, 'assets', 'chat-entry-link.js'), 'utf8');
-  assert(indexHtml.includes('/assets/chat-entry-link.js?v=20260715availability1'), '首页必须命中新版 Chat 可用性门禁资源');
-  assert(source.includes("fetch('/api/chat/status'"), 'Chat 入口必须先查询公开部署状态');
-  assert(source.includes('if (!availability.accessReady)'), 'Chat 不可用时必须拒绝插入入口');
-}
 
 async function main() {
   assertDockerBuildContract();
-  assertChatEntryContract();
 
   const port = await availablePort();
   const baseUrl = `http://127.0.0.1:${port}`;
@@ -118,7 +110,6 @@ async function main() {
       ENABLE_REAL_EMAIL: 'false',
       ENABLE_REAL_PAYMENT: 'false',
       ENABLE_REAL_STORAGE: 'false',
-      ENABLE_LIBRECHAT: 'false'
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -156,11 +147,6 @@ async function main() {
     }));
     assert(login.status === 200 && login.body.token, `管理员登录失败：${JSON.stringify(login)}`);
     const token = login.body.token;
-
-    const chatStatus = await requestJson(`${baseUrl}/api/chat/status`);
-    assert(chatStatus.status === 200, `Chat 状态接口应返回 200，实际 ${chatStatus.status}`);
-    assert(chatStatus.body.enabled === false && chatStatus.body.accessReady === false, 'Chat 未部署时必须明确不可用');
-    assert(!JSON.stringify(chatStatus.body).match(/secret|key|mongo|internalUrl/i), 'Chat 公开状态不得泄露内部配置字段');
 
     const orders = await requestJson(`${baseUrl}/api/admin/orders`, jsonRequest('GET', token));
     assert(orders.status === 200, `订单接口应返回 200，实际 ${orders.status}`);

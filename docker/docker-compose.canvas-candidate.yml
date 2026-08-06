@@ -5,7 +5,7 @@ name: dianshang-canvas-candidate
 # - 只绑定 127.0.0.1:3466，不占用正式 3456/3457/3464。
 # - 数据全部落在候选工作树 ../.scratch/infinite-canvas-candidate/，不挂载正式 docker/data、docker/uploads。
 # - 全部 ENABLE_REAL_*=false：Fake Provider / Fake Storage，零真实 Provider 调用与费用。
-# - 不启动、不重建正式 gateway、app、LibreChat、MongoDB；本文件只含候选 app 一个服务。
+# - 不启动、不重建正式 gateway/app（LibreChat 与 MongoDB 已随候选支线移除）；本文件只含候选 app 一个服务。
 #
 # 密钥不再入库：启动前复制 docker/.env.example 为 docker/.env 并填值（docker/.env 已被 git 忽略）。
 # 未配置时服务会按 fail-closed 设计拒绝启动（JWT_SECRET 为空属弱密钥）。
@@ -38,7 +38,6 @@ services:
       ENABLE_REAL_EMAIL: "false"
       ENABLE_REAL_PAYMENT: "false"
       ENABLE_REAL_STORAGE: "false"
-      ENABLE_LIBRECHAT: "false"
       ASSET_URL_SIGNING_SECRET: ${ASSET_URL_SIGNING_SECRET}
       ASSET_FAKE_STORAGE_ROOT: /app/object-storage
       # ---- 生图并发参数（10 人内网推荐值，详见 docs/deployment.md「生图并发与排队」）----

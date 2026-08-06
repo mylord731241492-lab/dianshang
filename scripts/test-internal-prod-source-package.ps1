@@ -49,7 +49,6 @@ try {
       "docker/docker-compose.yml",
       "docker/docker-compose.chat-production.yml",
       "docker/docker-compose.server-direct.yml",
-      "integrations/librechat/upstream/LibreChat-0.8.6-rc1.tar.gz",
       "scripts/restore-internal-prod-windows.ps1",
       "release-manifest.json"
     )

@@ -40,6 +40,7 @@ class ImageRequestScheduler {
   constructor(options = {}) {
     this.globalConcurrency = numberOption(options.globalConcurrency, 3, 1, 20);
     this.perDomainConcurrency = numberOption(options.perDomainConcurrency, 1, 1, 10);
+    this.userConcurrency = numberOption(options.userConcurrency, 1, 1, 5);
     this.maxQueued = numberOption(options.maxQueued, 30, 1, 1000);
     this.domainStartIntervalMs = numberOption(options.domainStartIntervalMs, 0, 0, 60 * 1000);
     this.circuitThreshold = numberOption(options.circuitThreshold, 3, 1, 20);
@@ -148,6 +149,7 @@ class ImageRequestScheduler {
       mode: 'bounded-fair',
       globalConcurrency: this.globalConcurrency,
       perDomainConcurrency: this.perDomainConcurrency,
+      userConcurrency: this.userConcurrency,
       domainStartIntervalMs: this.domainStartIntervalMs,
       active: this.active.size,
       queued: this.queue.length,
@@ -195,7 +197,7 @@ class ImageRequestScheduler {
   canRun(job) {
     if (this.active.size >= this.globalConcurrency) return false;
     if ((this.activeByDomain.get(job.failureDomain) || 0) >= this.perDomainConcurrency) return false;
-    if ((this.activeByUser.get(job.userId) || 0) >= 1) return false;
+    if ((this.activeByUser.get(job.userId) || 0) >= this.userConcurrency) return false;
     return this.domainRetryAfter(job.failureDomain) <= 0;
   }
 

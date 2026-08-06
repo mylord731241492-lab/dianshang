@@ -120,8 +120,12 @@ const GENERATION_TASK_INPUT_DIR = process.env.GENERATION_TASK_INPUT_DIR
   : path.join(DATA_DIR, 'generation-task-inputs');
 const GENERATION_GLOBAL_CONCURRENCY = Math.max(1, Math.min(Number(process.env.GENERATION_GLOBAL_CONCURRENCY || 3) || 3, 20));
 const GENERATION_DOMAIN_CONCURRENCY = Math.max(1, Math.min(Number(process.env.GENERATION_DOMAIN_CONCURRENCY || 1) || 1, 10));
+const GENERATION_USER_CONCURRENCY = Math.max(1, Math.min(Number(process.env.GENERATION_USER_CONCURRENCY || 1) || 1, 5));
 const GENERATION_MAX_QUEUED = Math.max(1, Math.min(Number(process.env.GENERATION_MAX_QUEUED || 30) || 30, 1000));
 const GENERATION_MAX_USER_NONTERMINAL = Math.max(1, Math.min(Number(process.env.GENERATION_MAX_USER_NONTERMINAL || 3) || 3, 20));
+const GENERATION_MAX_TRANSIENT_RETRIES = Math.max(0, Math.min(Number(process.env.GENERATION_MAX_TRANSIENT_RETRIES || 1) || 1, 3));
+const GENERATION_TRANSIENT_RETRY_BACKOFF_MS = Math.max(100, Number(process.env.GENERATION_TRANSIENT_RETRY_BACKOFF_MS || 1000) || 1000);
+const CANVAS_AGENT_MAX_TRANSIENT_RETRIES = Math.max(0, Math.min(Number(process.env.CANVAS_AGENT_MAX_TRANSIENT_RETRIES || 1) || 1, 3));
 const GENERATION_DOMAIN_START_INTERVAL_RAW = Number(process.env.GENERATION_DOMAIN_START_INTERVAL_MS ?? 5000);
 const GENERATION_DOMAIN_START_INTERVAL_MS = Number.isFinite(GENERATION_DOMAIN_START_INTERVAL_RAW)
   ? Math.max(0, Math.min(GENERATION_DOMAIN_START_INTERVAL_RAW, 60 * 1000))
@@ -400,6 +404,7 @@ const rcode = () => String(Math.floor(100000 + Math.random() * 900000));
 const imageRequestScheduler = new ImageRequestScheduler({
   globalConcurrency: GENERATION_GLOBAL_CONCURRENCY,
   perDomainConcurrency: GENERATION_DOMAIN_CONCURRENCY,
+  userConcurrency: GENERATION_USER_CONCURRENCY,
   maxQueued: GENERATION_MAX_QUEUED,
   domainStartIntervalMs: GENERATION_DOMAIN_START_INTERVAL_MS,
   circuitThreshold: GENERATION_CIRCUIT_THRESHOLD,
@@ -3537,54 +3542,91 @@ async function callProviderResponses(input, options = {}) {
     };
   }
 
+  const maxTransientRetries = Math.max(0, Math.min(Number(options.maxTransientRetries || 0) || 0, 3));
   const controller = new AbortController();
   const externalSignal = options.signal;
   const abortFromExternal = () => controller.abort();
   if (externalSignal?.aborted) controller.abort();
   else externalSignal?.addEventListener?.('abort', abortFromExternal, { once: true });
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let retryCount = 0;
   try {
-    const useChat = shouldUseChatForTextRoute(options.route, requestStatus);
-    const requestUrl = joinProviderUrl(requestStatus.baseUrl, useChat ? routeTextChatEndpoint(options.route) : routeTextEndpoint(options.route));
-    const requestBody = useChat
-      ? { model, messages: responsesInputToChatMessages(input), stream: false }
-      : { model, input };
-    if (Array.isArray(options.tools) && options.tools.length) {
-      requestBody.tools = useChat ? responsesToolsToChatTools(options.tools) : options.tools;
+    for (;;) {
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const useChat = shouldUseChatForTextRoute(options.route, requestStatus);
+        const requestUrl = joinProviderUrl(requestStatus.baseUrl, useChat ? routeTextChatEndpoint(options.route) : routeTextEndpoint(options.route));
+        const requestBody = useChat
+          ? { model, messages: responsesInputToChatMessages(input), stream: false }
+          : { model, input };
+        if (Array.isArray(options.tools) && options.tools.length) {
+          requestBody.tools = useChat ? responsesToolsToChatTools(options.tools) : options.tools;
+        }
+        if (options.toolChoice !== undefined) {
+          requestBody.tool_choice = options.toolChoice;
+        }
+        const resp = await fetch(requestUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${providerAuthKey('text', options.route)}`
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          const upstreamStatus = resp.status;
+          const transient = upstreamStatus >= 500 || upstreamStatus === 408 || upstreamStatus === 429;
+          if (transient && retryCount < maxTransientRetries && !externalSignal?.aborted && !controller.signal.aborted) {
+            retryCount += 1;
+            const retryAfter = Number(resp.headers.get('retry-after') || 0);
+            const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+              ? Math.min(retryAfter * 1000, 60000)
+              : (retryCount === 1 ? 1000 : 3000);
+            await wait(waitMs);
+            continue;
+          }
+          return {
+            success: false,
+            code: useChat ? 'PROVIDER_CHAT_FAILED' : 'PROVIDER_RESPONSES_FAILED',
+            message: data.message || data.error?.message || `Provider returned ${upstreamStatus}`,
+            provider: requestStatus,
+            upstreamStatus,
+            upstream: data,
+            transientRetryCount: retryCount,
+            billingAuditRequired: transient && retryCount > 0
+          };
+        }
+        return {
+          success: true,
+          provider: { ...requestStatus, textEndpoint: useChat ? 'chat/completions' : 'responses' },
+          ...data,
+          transientRetryCount: retryCount
+        };
+      } catch (error) {
+        const externalAborted = !!externalSignal?.aborted;
+        const timeoutAbort = error.name === 'AbortError' && !externalAborted;
+        const networkError = error.name !== 'AbortError';
+        const isTransient = timeoutAbort || networkError;
+        if (isTransient && retryCount < maxTransientRetries && !externalAborted && !controller.signal.aborted) {
+          retryCount += 1;
+          const waitMs = retryCount === 1 ? 1000 : 3000;
+          await wait(waitMs);
+          continue;
+        }
+        return {
+          success: false,
+          code: error.name === 'AbortError' ? 'PROVIDER_TIMEOUT' : 'PROVIDER_REQUEST_FAILED',
+          message: error.name === 'AbortError' ? `AI Provider 请求超时（已等待 ${Math.round(timeoutMs / 1000)} 秒）` : `AI Provider 调用失败: ${error.message}`,
+          provider: requestStatus,
+          transientRetryCount: retryCount,
+          billingAuditRequired: retryCount > 0
+        };
+      } finally {
+        clearTimeout(timer);
+      }
     }
-    if (options.toolChoice !== undefined) {
-      requestBody.tool_choice = options.toolChoice;
-    }
-    const resp = await fetch(requestUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${providerAuthKey('text', options.route)}`
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal
-    });
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-      return {
-        success: false,
-        code: useChat ? 'PROVIDER_CHAT_FAILED' : 'PROVIDER_RESPONSES_FAILED',
-        message: data.message || data.error?.message || `Provider returned ${resp.status}`,
-        provider: requestStatus,
-        upstreamStatus: resp.status,
-        upstream: data
-      };
-    }
-    return { success: true, provider: { ...requestStatus, textEndpoint: useChat ? 'chat/completions' : 'responses' }, ...data };
-  } catch (error) {
-    return {
-      success: false,
-      code: error.name === 'AbortError' ? 'PROVIDER_TIMEOUT' : 'PROVIDER_REQUEST_FAILED',
-      message: error.name === 'AbortError' ? `AI Provider 请求超时（已等待 ${Math.round(timeoutMs / 1000)} 秒）` : `AI Provider 调用失败: ${error.message}`,
-      provider: requestStatus
-    };
   } finally {
-    clearTimeout(timer);
     externalSignal?.removeEventListener?.('abort', abortFromExternal);
   }
 }
@@ -3675,19 +3717,60 @@ function notifyProviderImageStage(options = {}, stage, meta = {}) {
   } catch {}
 }
 
+// 请求级瞬时错误自动重试（桥豆式）：仅对 429/408/5xx/超时/断连等瞬时错误补发；
+// 200-空响应（已计费）、LINGSUAN_SKIPPED_MAINLINE / 524（等待无收益）与用户取消不重试。
+// 重试等待发生在调度器执行单元内部，不占新并发槽；幂等键与任务级账务由上层保持不变。
+function isProviderTransientRetryable(result = {}) {
+  if (!result || result.success !== false || !result.transient) return false;
+  const code = String(result.code || '').toUpperCase();
+  if (code === 'LINGSUAN_SKIPPED_MAINLINE' || code === 'PROVIDER_ORIGIN_TIMEOUT_524') return false;
+  return true;
+}
+function providerTransientRetryWaitMs(result = {}, attempt = 1) {
+  const retryAfter = Number(result?.retryAfterMs || 0);
+  if (Number.isFinite(retryAfter) && retryAfter > 0) return Math.min(retryAfter, 60 * 1000);
+  return GENERATION_TRANSIENT_RETRY_BACKOFF_MS * attempt;
+}
+async function runProviderImageRequestWithRetry(runRequest, options = {}, signal) {
+  const maxRetries = Number.isInteger(options.maxTransientRetries)
+    ? Math.max(0, Math.min(options.maxTransientRetries, 3))
+    : GENERATION_MAX_TRANSIENT_RETRIES;
+  let attempts = 0;
+  for (;;) {
+    const result = await runRequest(signal);
+    if (isProviderTransientRetryable(result) && attempts < maxRetries && !signal?.aborted) {
+      attempts += 1;
+      const waitMs = providerTransientRetryWaitMs(result, attempts);
+      notifyProviderImageStage(options, 'retrying', {
+        attempt: attempts,
+        maxRetries,
+        waitMs,
+        code: result.code || '',
+        upstreamStatus: result.upstreamStatus || 0
+      });
+      await wait(waitMs);
+      continue;
+    }
+    if (attempts === 0) return result;
+    if (result && result.success === false) {
+      return { ...result, request: { ...(result.request || {}), transientRetryCount: attempts, transientRetryExhausted: true } };
+    }
+    return { ...result, request: { ...(result.request || {}), transientRetryCount: attempts } };
+  }
+}
 function runQueuedProviderImageRequest(runRequest, options = {}) {
   if (options.bypassProviderQueue) {
     notifyProviderImageQueue(options, 'running', 0, {
       queueMode: 'persistent-task-worker',
       failureDomain: imageProviderFailureDomain(options.route)
     });
-    return runRequest(options.signal);
+    return runProviderImageRequestWithRetry(runRequest, options, options.signal);
   }
   const delayMs = providerImageRequestDelay(options);
   const failureDomain = imageProviderFailureDomain(options.route);
   return imageRequestScheduler.schedule(async (signal) => {
     if (options.forceQueueDelay && delayMs > 0) await wait(delayMs);
-    return runRequest(signal);
+    return runProviderImageRequestWithRetry(runRequest, options, signal);
   }, {
     taskId: options.taskId || '',
     userId: options.userId || options.req?.user?.userId || options.taskId || 'direct-image-request',
@@ -5086,11 +5169,32 @@ function isLingsuanImageProxyTarget(url = '') {
   }
 }
 
+const providerImageAgentPools = new Map();
 function providerImageAgentForUrl(url = '') {
   let protocol = '';
-  try { protocol = new URL(String(url)).protocol; } catch {}
+  let hostname = '';
+  try {
+    const parsed = new URL(String(url));
+    protocol = parsed.protocol;
+    hostname = parsed.hostname.toLowerCase();
+  } catch {}
   if (protocol !== 'https:') return undefined;
-  return isLingsuanImageProxyTarget(url) ? providerImageProxyAgent : providerImageHttpsAgent;
+  if (isLingsuanImageProxyTarget(url)) return providerImageProxyAgent;
+  if (!providerImageAgentPools.has(hostname)) {
+    const poolOptions = {
+      keepAlive: true,
+      maxSockets: Math.max(GENERATION_DOMAIN_CONCURRENCY + 1, 2),
+      maxFreeSockets: 2
+    };
+    if (PROVIDER_IMAGE_IP_FAMILY) {
+      poolOptions.family = PROVIDER_IMAGE_IP_FAMILY;
+    } else {
+      poolOptions.autoSelectFamily = true;
+      poolOptions.autoSelectFamilyAttemptTimeout = 250;
+    }
+    providerImageAgentPools.set(hostname, new https.Agent(poolOptions));
+  }
+  return providerImageAgentPools.get(hostname);
 }
 
 // 结果图下载专用：上游 CDN 可能只有 IPv4（如 api.mikoto.vip），强制 family 会 ENOTFOUND/挂起；
@@ -7086,7 +7190,8 @@ async function callCanvasAgentProvider(input, options = {}) {
     ...options,
     route,
     model: modelKey,
-    status
+    status,
+    maxTransientRetries: CANVAS_AGENT_MAX_TRANSIENT_RETRIES
   });
   if (result.success) {
     completeChatStep(requestId, stepHash, false);

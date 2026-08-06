@@ -35,3 +35,5 @@ output/
 outputs/
 workflows/
 data.db.backup-*
+generation-task-inputs/
+object-storage/

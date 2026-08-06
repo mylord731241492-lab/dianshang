@@ -25,6 +25,32 @@
 - 需要人工介入：
 ```
 
+## 2026-08-06 故障注入对比（是否改编排）
+
+- 分支：codex/infinite-canvas-candidate（未提交本轮）
+- 完成内容：mock 上游注入 429/500/断连/成功序列；A=3466 现状编排单发 6 张（2 成功 4 失败、熔断拖慢至 183s）；B=桥豆式重试 6 张（6 成功、4 张被重试救回、额外 4 次尝试）。
+- 修改文件：仅文档记录；官转 baseUrl 临时切换 mock 已恢复 edge.lingsuan.org。
+- 验证方式：同序列双跑 + SQLite 任务/attempt 核对 + 恢复后 DB 复核。
+- 验证结果：现状编排在瞬时错误下成功率 33%，重试可到 100%。结论：建议修改后台编排（调度器加瞬时错误请求级重试），待用户确认后实施。
+- 未覆盖风险：真实上游故障窗口未实测；Packy/文本链路未测；重试需保留幂等与 200-空响应不重试。
+## 2026-08-06 官转生图「单发 vs 桥豆式重试」对比测试
+
+- 分支：codex/infinite-canvas-candidate（未提交本轮）
+- 完成内容：代码审计确认后端生图「单发、失败即终态、无请求级重试」；完成 20 张 + 1 张冒烟官转对比（A 经 3466 单发 10 张、B 直连 edge 重试 10 张）。
+- 修改文件：仅 docs/current-baseline.md、docs/review-log.md、docs/progress-report.md 记录；临时脚本放 .scratch，不入库。
+- 验证方式：真实官转调用 + SQLite 任务/attempt 表核对；compare_1..3 清理后复核归零。
+- 验证结果：A 10/10 成功平均 70.3s；B 10/10 成功平均 61s、重试救回 0 张；21 次调用全部 attempt 1 / upstream=200，本次窗口上游无瞬时失败。
+- 未覆盖风险：重试收益只在故障窗口可验证；调度器未改动、未 commit。
+## 2026-08-06 桥豆式生图重试改造落地（已提交）
+
+- 分支：codex/infinite-canvas-candidate（本轮提交）
+- 完成内容：`server.js` 生图链路落地 `runProviderImageRequestWithRetry`（429/408/5xx/超时/断连自动重试，默认 1 次上限 3 次、退避 1s→2s、429 按 Retry-After）；文本链路 `callProviderResponses` 增加安全重试（画布 Agent 默认 1 次）；生图 Agent 按域名 keep-alive 池；调度器新增 `userConcurrency`（默认 1、上限 5）。
+- 修改文件：`server.js`、`backend/provider/image-request-scheduler.js`、`.gitignore`（加入 `generation-task-inputs/`、`object-storage/`）、docs 三件套。
+- 验证方式：mock 故障序列回归（改造后 6/6 成功、改造前 2/6）+ 真实官转冒烟（task_msh7lyce12b6415d success、cost=10）+ `node --check server.js`。
+- 验证结果：瞬时错误场景成功率从 33% 提到 100%，重试均在调度器执行单元内部完成、不占新并发槽；冒烟链路正常。
+- 清理：fault_1 用户、7 条任务/生成/余额日志、object-storage 与 generation-task-inputs 测试残留、mock 进程已清理；数据库备份保留在 .scratch。
+- 未覆盖风险：未在真实上游故障窗口实测；未测 Packy 线路。
+
 ## 2026-07-13 Chat MCP 工具续传 409 修复进度报告
 
 - 分支：`main`，工作区保留既有未提交改动。

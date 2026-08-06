@@ -1,7 +1,7 @@
 # 当前项目基线与防混淆地图
 
 > 最后更新：2026-08-06，北京时间。
-> 当前工作树：`F:\dianshang-worktrees\infinite-canvas-candidate`；开发分支：`codex/infinite-canvas-candidate`；当前提交为 `f9ce974 feat: 工具栏自定义设置改为账号绑定（服务端持久化）`；工作树含 2026-08-05 opencode 首页登录界面改动与 Codex 登录门修复，均未提交。Task 14 尚未授权。
+> 当前工作树：`F:\dianshang-worktrees\infinite-canvas-candidate`；开发分支：`codex/infinite-canvas-candidate`；当前提交为 `b0759ee feat: 候选端登录统一为整页登录并补齐守卫`；工作树含桥豆式生图重试改造（待提交）。Task 14 尚未授权。
 
 本文件是后续修改前的第一入口。`docs/progress-report.md` 和 `docs/review-log.md` 是时间线流水账，不是当前状态的唯一准绳。
 
@@ -23,6 +23,33 @@
 - 注意：2026-08-06 起 localhost:3456 已回到 Docker 生产端（health paths=/app/...，无 canvasRuntime 字段）；候选登录改动在 `127.0.0.1:3466`（`CANVAS_RUNTIME=infinite`）验证。
 - 验证（Playwright 3466）：首页不弹窗/可浏览、画布中心跳登录、错误密码提示、admin 后台入口提示、管理员链接、/user/center 与 /gallery 守卫、注册写 token 并跳转、登录后进入无限画布、401 自动跳登录，全部通过，无页面错误。测试账号已清理（loginpage*、u401* 共 4 个）。
 - 本轮已提交；LoginGateModal.vue 保留但已不再引用；生产 Docker（192.168.0.39:3456）未动。
+## 2026-08-06 官转生图「单发 vs 桥豆式重试」对比测试
+
+- 目的：量化「桥豆画布式请求级自动重试」能否挽回当前后端「只打一次、失败即终态」造成的生图失败。模式 A = 现状单发（经 3466 完整链路）；模式 B = 独立脚本直连 edge.lingsuan.org 模拟桥豆重试（瞬时错误最多重试 2 次，退避 1s/3s，429 按 Retry-After 等待，上限 60s）。
+- 环境：官转路由 pub_route_mr5yltmuc7edcb2b（baseUrl 当前为 https://edge.lingsuan.org，apiKey 存于 3466 data.db）；3466 调度器参数 globalConcurrency=4 / perDomainConcurrency=4 / userConcurrency=2 / domainStartIntervalMs=500 / IMAGE_PROVIDER_REQUEST_DELAY_MS=200，熔断器干净。
+- 结果（20 张 + 1 张冒烟全部成功，均为 attempt 1、upstream=200）：
+  - 模式 A（经 3466）：10/10 成功，平均 70.3s，最快 27s，最慢 149s，平均排队 24.6s。
+  - 模式 B（直连+重试）：10/10 成功，全部首试成功，重试救回 0 张，平均 61s，最快 32s，最慢 93s，无额外计费尝试。
+  - 关键结论：本次测试窗口内上游无瞬时失败，重试无额外收益；桥豆式重试的价值在 429/断连/超时等瞬时错误发生时（本次未出现），当前「单发即终态」在健康窗口下不损失成功率。
+- 数据库备份：F:\dianshang\.scratch\candidate-data-db-before-compare.db；测试用户 compare_1..3 及 11 条任务已清理（余额日志同步删除）。
+
+## 2026-08-06 故障注入对比：确认「是否改编排」
+
+- 方法：本地 mock 上游（127.0.0.1:3480）按固定序列注入瞬时错误（429+Retry-After、500、socket 断连、成功、429、成功）；官转路由 baseUrl 临时指向 mock（DB 热读立即生效，测后已恢复 https://edge.lingsuan.org），对比「经 3466 现状编排单发」与「独立脚本桥豆式重试」。
+- 结果（同序列各 6 张）：
+  - 模式 A（3466 现状）：2/6 成功、4/6 失败（429×2、500、断连全部直接 failed）；熔断 60s 冷却把后续任务拖到 123s/183s。
+  - 模式 B（桥豆式重试）：6/6 成功，其中 4 张被重试救回（429×2、500、断连各多打 1 次，额外 4 次尝试）；每张仅多等 1~2s。
+- 结论：**建议修改后台编排**——在调度器内增加「瞬时错误请求级自动重试（1~2 次，退避 1s→3s，429 按 Retry-After 等待）」，可把同类故障下成功率从 33% 提到 100%；同时保留 200-空响应不重试（已计费）与幂等防重放。本轮未实施，等用户确认后再落代码。
+- 恢复与清理：官转 baseUrl 已还原 edge.lingsuan.org（hasKey 保留）；fault_1 用户及 6 条任务已清理；mock 进程已停止；未改代码、未 commit、3456/生产未动。
+
+## 2026-08-06 桥豆式请求级重试已落地（代码改造 + 回归验证）
+
+- 用户确认采用桥豆模式后落地：`server.js` 生图链路新增 `runProviderImageRequestWithRetry`，对 429/408/5xx/超时/断连等瞬时错误自动补发（默认 1 次、上限 3 次，退避 1s→2s，429 按 Retry-After 等待上限 60s）；200-空响应（已计费）、LINGSUAN_SKIPPED_MAINLINE、524 不重试。`providerImageAgentForUrl` 改为按域名独立 keep-alive Agent 池（maxSockets=domainConcurrency+1）。
+- 文本链路 `callProviderResponses` 增加安全重试（默认 maxTransientRetries=0，仅画布 Agent 链路经 `CANVAS_AGENT_MAX_TRANSIENT_RETRIES` 启用）；新增环境变量 `GENERATION_MAX_TRANSIENT_RETRIES`、`GENERATION_TRANSIENT_RETRY_BACKOFF_MS`、`CANVAS_AGENT_MAX_TRANSIENT_RETRIES`（默认 1/1000/1，上限 3）。
+- 调度器放开单用户并发：`backend/provider/image-request-scheduler.js` 新增可配置 `userConcurrency`（默认 1，上限 5），替换硬编码「每用户同时 1 张」；`server.js` 通过 `GENERATION_USER_CONCURRENCY`（默认 1，上限 5）传入。
+- 验证（mock 故障序列 429→成功→500→成功→断连→成功，每张首次必错）：改造后 6/6 成功、每张 2~6s；mock 日志 12 次上游调用证明每次重试都发生；改造前同序列 2/6 失败、最慢 183s。
+- 真实官转冒烟：task_msh7lyce12b6415d success、cost=10，链路正常；官转 baseUrl 已恢复 https://edge.lingsuan.org。
+- 清理：fault_1 用户及 7 条任务/生成/余额日志已删；mock 进程已停；object-storage 与 generation-task-inputs 测试残留已删；运行时目录已加入 .gitignore；数据库备份保留在 F:\dianshang\.scratch\。
 
 ## 当前准绳
 

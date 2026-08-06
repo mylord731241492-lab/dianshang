@@ -104,6 +104,23 @@
 
 - 用户确认 ADR-0007 后，从 auth 模块开始按序拆分。
 
+## 2026-08-06 后端架构健康判定复核（ADR-0008）
+
+### 已验证
+
+- 量化事实核对：server.js 7586 行、db.prepare 122 处、/api 路由 97 条、顶层函数/常量 258 个、process.env 62 处、表定义 19 处；backend/ 7 领域模块 23 文件、server.js 引用 13 处；package.json 无 devDependencies 与 test script（无自动化单测）；日志为 console + 文件重定向（无结构化）。
+- 健康资产核对：瞬时错误重试（mock 故障注入 6/6）、任务幂等/恢复退款、余额预占/结算/退款、7 领域模块、ADR-0002/0004-0007 已固化。
+- 门禁核对：ADR-0007 Proposed 未执行拆分（合规）；Phase 4 未启动（合规）；LibreChat 移除后无残留引用。
+
+### 新发现风险
+
+- 单测数量统计依赖 package.json 判断（无 test script/devDependencies），未逐个遍历 node_modules 外文件；结论方向可靠。
+- 122 处直 SQL 中部分位于已抽模块 repository（backend/generation 43 处、billing 6 处属正常 repository 内 SQL），真正债务是 server.js 内剩余直 SQL；拆分时需区分。
+
+### 下一轮优先级
+
+- 用户确认 ADR-0007/0008 整改方向后，从 auth 模块拆分 + 核心单测开始。
+
 ## 2026-07-13 Chat MCP 工具续传 409 复核
 
 ### 已验证

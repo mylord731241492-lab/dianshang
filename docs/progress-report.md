@@ -69,6 +69,15 @@
 - 验证结果：方案不与现有已抽模块冲突，拆分顺序与验收点明确；未改代码行为。
 - 未覆盖风险：模块边界未经用户确认前不执行拆分；生产 Docker 未动。
 
+## 2026-08-06 后端架构健康判定（ADR-0008）
+
+- 分支：codex/infinite-canvas-candidate（本轮提交）
+- 完成内容：基于提交 9adb0ad/c93650a 后工作树量化指标（7586 行/122 直 SQL/97 路由/0 单测/7 领域模块）输出健康判定 ADR-0008，整体 B-，含分维度评分、6 项风险、整改优先级。
+- 修改文件：docs/adr/0008-architecture-health-assessment.md、docs 三件套。
+- 验证方式：量化指标由 rg 统计 + backend 目录盘点 + package.json 核对；对照 ADR-0007 与 AGENTS.md Phase 门禁。
+- 验证结果：判定与现有已抽模块、门禁、最近稳定性改动一致；未改代码行为。
+- 未覆盖风险：单测数量为 0（目录扫描因 node_modules 超时，但 package.json 无 devDependencies/test script，结论可靠）；未做真实故障窗口压测复测。
+
 ## 2026-07-13 Chat MCP 工具续传 409 修复进度报告
 
 - 分支：`main`，工作区保留既有未提交改动。

@@ -69,6 +69,14 @@
 - 状态 Proposed：按 AGENTS.md 门禁，拆分 server.js 前需用户确认模块边界；确认后按 auth → users → projects → admin 顺序逐个抽取（每模块独立 commit + smoke）。
 - 本 ADR 不改变运行行为；3466 候选端与生产 Docker 均未受影响。
 
+## 2026-08-06 后端架构健康判定（ADR-0008，Assessed）
+
+- 产出 `docs/adr/0008-architecture-health-assessment.md`：整体评分 B-（过渡期可用、亚健康偏良）。
+- 量化事实（提交 9adb0ad/c93650a 后）：server.js 7586 行、122 处直 SQL、97 条 /api 路由、258 个顶层函数/常量、62 处 process.env；backend/ 已抽 7 领域模块 23 文件、server.js 引用 13 处；自动化单测 0 个；无结构化日志。
+- 分维度：模块化 6/10、可维护性 4/10、稳定性 7.5/10、可测试性 2/10、生产化 3/10、安全 5/10、契约文档 8/10、依赖 7/10。
+- 三大债务：单体耦合（122 直 SQL + 258 顶层函数）、无自动化测试、app_state JSON 承载 6+ 类配置无 schema/版本。
+- 整改优先级：P0 确认 ADR-0007 并按 auth→users→projects→admin 拆分 + 核心单测；P1 app_state 拆表/mock 隔离/结构化日志；P2 Phase 4 生产化门禁。
+
 ## 当前准绳
 
 - Git 安全检查点：`fe5372d`，已推送到 `origin/codex/generation-stability-10-users`。

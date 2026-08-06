@@ -88,6 +88,22 @@
 
 - 输出后端架构设计文档（用户已确认），把当前 mono server.js 逐步模块化。
 
+## 2026-08-06 后端架构设计复核（ADR-0007）
+
+### 已验证
+
+- ADR-0007 与 AGENTS.md Phase 3/4 门禁一致：先定契约与边界、不推倒 server.js、生产化基础设施需方案+环境确认+迁移验收点；模块边界与现有 backend/{assets,prompts,generation,canvas-agent,provider,billing,agent-skills} 不冲突。
+- 现状盘点基于提交 `9adb0ad` 后 server.js（7586 行）与 backend/ 目录，未包含 LibreChat 遗留代码。
+
+### 新发现风险
+
+- 拆分顺序依赖用户确认；任何一步拆分都需 smoke-api-disposable + 接口冒烟全绿。
+- app_state 拆专属表属于数据迁移，必须走 Phase 4 门禁（演练+回滚+双跑）。
+
+### 下一轮优先级
+
+- 用户确认 ADR-0007 后，从 auth 模块开始按序拆分。
+
 ## 2026-07-13 Chat MCP 工具续传 409 复核
 
 ### 已验证

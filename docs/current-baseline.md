@@ -63,6 +63,12 @@
 - 验证：`node --check server.js` 通过；3466 候选端重启后 /api/health、/api/admin/login、/api/admin/dashboard、/api/canvas/ecommerce-suite/config、/api/template/settings 均 200，/api/chat/status 与 /api/integrations/librechat/* 返回 404；frontend `vue-tsc --noEmit && vite build` 通过；全部 scripts/*.js `node --check` 通过。
 - 边界：docs/ 历史记录保留原文（含 LibreChat 流水账），不再删改；生产 Docker（192.168.0.39:3456）未动。
 
+## 2026-08-06 后端架构设计（ADR-0007，Proposed）
+
+- 产出 `docs/adr/0007-backend-modular-architecture.md`：按「Express 兼容组合根 + 领域模块 + Provider 适配层 + 数据访问层」四层组织，列出 11 个模块边界（auth/users/projects/generation/billing/assets/prompts/canvas-agent/provider/admin/infra）、依赖方向、数据层目标（app_state 拆专属表、SQLite→Postgres 迁移路径）、任务编排契约（调度器→BullMQ AI Worker 等价验收点）、Phase 4 生产化门禁与风险。
+- 状态 Proposed：按 AGENTS.md 门禁，拆分 server.js 前需用户确认模块边界；确认后按 auth → users → projects → admin 顺序逐个抽取（每模块独立 commit + smoke）。
+- 本 ADR 不改变运行行为；3466 候选端与生产 Docker 均未受影响。
+
 ## 当前准绳
 
 - Git 安全检查点：`fe5372d`，已推送到 `origin/codex/generation-stability-10-users`。

@@ -60,6 +60,15 @@
 - 验证结果：全部通过；画布聊天依赖保留完好；生产 Docker 未动。
 - 未覆盖风险：正式生产迁移 LibreChat 移除需走 Docker 重建验收；历史 docs 保留 LibreChat 记录未清理。
 
+## 2026-08-06 后端架构设计（ADR-0007）
+
+- 分支：codex/infinite-canvas-candidate（本轮提交）
+- 完成内容：输出 `docs/adr/0007-backend-modular-architecture.md`——后端四层架构、11 个模块边界、数据层与任务编排目标、Phase 4 生产化门禁；状态 Proposed，待用户确认后按序拆分 server.js。
+- 修改文件：docs/adr/0007-backend-modular-architecture.md、docs 三件套。
+- 验证方式：文档评审（模块边界与现有 backend/* 已抽模块、AGENTS.md Phase 3/4 门禁、api-contract-next 分层一致）。
+- 验证结果：方案不与现有已抽模块冲突，拆分顺序与验收点明确；未改代码行为。
+- 未覆盖风险：模块边界未经用户确认前不执行拆分；生产 Docker 未动。
+
 ## 2026-07-13 Chat MCP 工具续传 409 修复进度报告
 
 - 分支：`main`，工作区保留既有未提交改动。

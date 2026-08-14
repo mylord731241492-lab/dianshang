@@ -1140,3 +1140,11 @@
 - 方向确认（用户选 A）：不换 Rust，Node 工程化加固——测试入库 + 渐进模块化。
 - scripts/e2e-cdp/：14 项 CDP 验收（11 免费 + 3 AI 付费）+ 统一 runner（run-all.js，--with-ai）+ README；修复 2 项过时测试（mention 改新版 textarea 流程、dblclick 改「已选中」断言），免费全量 11/11 通过。
 - 拆分第一批①：`backend/provider/image-helpers.js` 新模块，server.js 移出 15 个 providerImage 纯函数 + 5 个依赖工具 + 1 常量（净 -277/+19 行）；子代理做了 796 组新旧实现等价对比（全一致）；重启 3468 后真实生图冒烟 success。
+
+## 2026-08-14 server.js 渐进拆分第一批完成（四批）
+
+- ① backend/provider/image-helpers.js（providerImage 纯函数族，796 组等价对拍）
+- ② backend/billing/balance-service.js（流水/兑换码，13 组行为对拍；冒烟 +100、二次 404）
+- ③ backend/workflows/routes.js（三条 workflows 路由，URL 零变化，冒烟 200）
+- ④ backend/image-tools/routes.js（四条 image-tools POST，400 校验逐字一致）
+- server.js 7590→约 6980 行；每批均 node --check + 重启 3468 冒烟 + 免费 E2E 11/11 通过。

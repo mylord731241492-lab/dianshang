@@ -2374,6 +2374,77 @@ function InfiniteCanvasPage() {
         [effectiveConfig, finishGenerationRequest, message, startGenerationRequest, updateGenerationTaskNodes, refreshAccountAfterGenerationTask],
     );
 
+    // AI 超分（原「暂未实现」占位）：走 Task 8 同源持久生图任务，图生图方式提升分辨率与细节。
+    const superResolveImageNode = useCallback(
+        async (node: CanvasNodeData) => {
+            if (!node.metadata?.content) return;
+            const generationConfig = { ...buildGenerationConfig(effectiveConfig, node, "image"), count: "1" };
+            const childId = nanoid();
+            const imageConfig = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
+            const title = "AI 超分";
+            const prompt = "将参考图超分辨率增强：提升分辨率、锐化细节、修复模糊与压缩伪影，保持主体、构图、颜色、材质和所有文字完全一致，不添加新元素、不改变画面内容。";
+            const generationMetadata = buildImageGenerationMetadata("edit", generationConfig, 1, [
+                { id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey },
+            ]);
+            setSuperResolveNodeId(null);
+            setRunningNodeId(childId);
+            setNodes((prev) => [
+                ...prev,
+                {
+                    id: childId,
+                    type: CanvasNodeType.Image,
+                    title,
+                    position: { x: node.position.x + node.width + 96, y: node.position.y },
+                    width: imageConfig.width,
+                    height: imageConfig.height,
+                    metadata: { prompt, status: NODE_STATUS_LOADING, sourceNodeId: node.id, derivedFrom: "superResolve", ...generationMetadata },
+                },
+            ]);
+            setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: childId }]);
+            setSelectedNodeIds(new Set([childId]));
+            setDialogNodeId(childId);
+            const controller = startGenerationRequest(childId, node.id, childId);
+            try {
+                const referenceDataUrl = await imageToDataUrl({ url: node.metadata.content, storageKey: node.metadata.storageKey });
+                const submitted = await submitNodeImageGeneration(getGenerationApi(), {
+                    prompt,
+                    model: generationConfig.model,
+                    routeId: node.metadata?.routeId,
+                    size: generationConfig.size,
+                    quality: generationConfig.quality,
+                    imageCount: 1,
+                    referenceImages: [{ id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: referenceDataUrl, storageKey: node.metadata.storageKey }],
+                    clientRequestId: createClientRequestId(),
+                });
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, generationTask: taskStateFromGenerationTask(submitted, 0) } } : item)));
+                const final = await waitNodeImageGeneration(getGenerationApi(), submitted.taskId, {
+                    signal: controller.signal,
+                    onUpdate: (task) => updateGenerationTaskNodes(task),
+                });
+                updateGenerationTaskNodes(final);
+                if (final.status !== "success" || !final.images[0]) throw new Error(generationTaskFailureDetails(final));
+                const uploaded = await resolveGenerationTaskImage(final.images[0]);
+                const size = fitNodeSize(uploaded.width, uploaded.height, imageConfig.width, imageConfig.height);
+                setNodes((prev) =>
+                    prev.map((item) =>
+                        item.id === childId
+                            ? { ...item, width: size.width, height: size.height, metadata: { ...item.metadata, ...imageMetadata(uploaded), prompt, sourceNodeId: node.id, derivedFrom: "superResolve", ...generationMetadata } }
+                            : item,
+                    ),
+                );
+                refreshAccountAfterGenerationTask();
+            } catch (error) {
+                if (isGenerationCanceled(error)) return;
+                const errorDetails = error instanceof Error ? error.message : "生成失败";
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails } } : item)));
+            } finally {
+                finishGenerationRequest(childId, controller);
+                setRunningNodeId(null);
+            }
+        },
+        [effectiveConfig, finishGenerationRequest, startGenerationRequest, updateGenerationTaskNodes, refreshAccountAfterGenerationTask],
+    );
+
     const handleFontSizeChange = useCallback((nodeId: string, fontSize: number) => {
         setNodes((prev) => prev.map((node) => (node.id === nodeId ? { ...node, metadata: { ...node.metadata, fontSize } } : node)));
     }, []);
@@ -3613,8 +3684,17 @@ function InfiniteCanvasPage() {
                     <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => setUpscaleNodeId(null)} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} />
                 ) : null}
 
-                <Modal title="AI 超分" open={Boolean(superResolveNode?.metadata?.content)} centered footer={null} onCancel={() => setSuperResolveNodeId(null)}>
-                    <div className="py-8 text-center text-base font-medium">暂未实现</div>
+                <Modal
+                    title="AI 超分"
+                    open={Boolean(superResolveNode?.metadata?.content)}
+                    centered
+                    onCancel={() => setSuperResolveNodeId(null)}
+                    onOk={() => superResolveNode && void superResolveImageNode(superResolveNode)}
+                    okText="开始超分"
+                    cancelText="取消"
+                    width={420}
+                >
+                    <div className="py-2 text-sm leading-6 opacity-80">基于当前图片生成一张 AI 超分辨率增强图：提升分辨率、锐化细节、修复模糊与压缩伪影，画面内容保持不变。将创建一个新的图片节点。</div>
                 </Modal>
 
                 {angleNode?.metadata?.content ? <CanvasNodeAngleDialog dataUrl={angleNode.metadata.content} open={Boolean(angleNode)} onClose={() => setAngleNodeId(null)} onConfirm={(params) => void generateAngleNode(angleNode!, params)} /> : null}

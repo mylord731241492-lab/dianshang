@@ -1121,3 +1121,9 @@
 
 - 用户实测蒙版工具报错「找不到模型」/ETIMEDOUT。两根因：① image-tools（蒙版/擦除/扩图）的 resolveRequestImageRoute 在请求未带 routeId 时直接取 routes[0]——本地 routes[0] 是文本线路，未按 image 过滤也不走用户选线偏好；已改为 resolveImageRoute(body, userId)（与普通生图一致的解析：image 过滤、用户偏好、默认线路）。② 本机 DNS 污染（解析出 face:b00c 假 IPv6）致 Provider 直连 ETIMEDOUT，普通生图同样中招；本地 3468 启动加 LINGSUAN_IMAGE_PROXY_URL=http://127.0.0.1:7890（Clash），LINGSUAN_IMAGE_PROXY_HOSTS 补 packyapi 域名。生产 Docker 直连网络正常，无需此变量（compose 已支持可选注入）。
 - 验证：代理后生图任务 success；erase 真实调用 success（mock:false）。
+
+## 2026-08-03 模型调度链路统一 + 超分接入
+
+- 全量审计模型调度入口：生图任务/多角度（resolveImageRoute ✓）、image-tools 蒙版/擦除/扩图（本次已修）、文本类（反推提示词/提示词扩写/套图 Agent/对话 Agent/画布 Agent planner/模板反推）均走 resolveTextRoute（text 种类过滤+默认线路）✓。
+- 「超分」从「暂未实现」占位接入：superResolveImageNode 走同源持久生图任务（图生图增强，提示词锁定画面内容不变），确认弹窗「开始超分」→ 生成子节点。CDP 真实调用验证 PASS（tool-superresolve.png）。
+- 至此工具栏 17 项全部可用（扩图受本机网络影响，经 Clash 代理后恢复）。

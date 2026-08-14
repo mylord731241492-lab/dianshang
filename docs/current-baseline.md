@@ -1127,3 +1127,10 @@
 - 全量审计模型调度入口：生图任务/多角度（resolveImageRoute ✓）、image-tools 蒙版/擦除/扩图（本次已修）、文本类（反推提示词/提示词扩写/套图 Agent/对话 Agent/画布 Agent planner/模板反推）均走 resolveTextRoute（text 种类过滤+默认线路）✓。
 - 「超分」从「暂未实现」占位接入：superResolveImageNode 走同源持久生图任务（图生图增强，提示词锁定画面内容不变），确认弹窗「开始超分」→ 生成子节点。CDP 真实调用验证 PASS（tool-superresolve.png）。
 - 至此工具栏 17 项全部可用（扩图受本机网络影响，经 Clash 代理后恢复）。
+
+## 2026-08-03 模仿/复刻规则移植候选分支（交接任务 1、2 完成）
+
+- 核对结果：生产 F:\dianshang 工作树已含 buildCanvasDialogAgentInput 模仿规则（未提交），候选分支没有；套图 Agent 两仓都没有模仿语义；Chat 托管智能体（ecommerce-main-image/responsesRequestFromChat/confirm 工具）整条链路只存在于生产代码，候选分支无此功能，不涉及。
+- 已做：① buildCanvasDialogAgentInput 移植生产两条模仿规则（有参考图/无参考图两分支 + 用途方向）；② buildEcommerceSuitePromptInput 参考图规则补模仿语义（要求复刻时照参考图执行构图/光影/氛围/卖点/版式，不混入参考图品牌产品文字）；③ callProviderResponses 补 agent: providerImageAgentForUrl（文本链路此前裸 fetch 直连，DNS 污染下 502）。
+- 行为验证：dialog-agent-generate 以「严格照参考图复刻，不要原创」+ 1 张参考图真实调用，analysisSummary 明确「图1承担完整主图复刻角色」，finalPrompt 输出「1:1复刻…不做原创设计」（.scratch/dialog-resp.json）。
+- 剩余 P0：生产 chatSettings 旧 instructions 改写属生产库写操作，且该功能不在候选分支，待用户确认后另行处理。

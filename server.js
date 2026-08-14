@@ -1505,12 +1505,15 @@ async function canvasDialogReferencesForAnalysis(body = {}, req) {
 function buildCanvasDialogAgentInput(requirement = '', references = []) {
   const referenceRules = references.length
     ? [
+      '模仿规则：参考图是允许模仿的对象。用户要求复刻时，可以照抄参考图的构图、光影、配色、排版、场景、道具和卖点表达；图生图时必须保留用户产品图上的产品主体外观，只把参考图的风格和结构迁移过来。',
+      '用途方向：根据用户需求判断，常见方向包括——主图复刻（照参考图的结构和卖点层级）、副图复刻（逐张对应参考图）、详情页复刻（按参考图的分镜和模块）、白底图（产品主体不变、背景干净）、场景风格（学习参考图的光影氛围）。',
       '分析要求：识别用户指定的图序角色，例如排版、构图、风格、配色、桌子、背景、道具、产品、标签、文案等来源。',
       '生成要求：最终提示词要说明每张参考图只承担用户指定的作用；不要让排版图、风格图、配色图、背景图里的无关商品或文字混进最终画面。',
       '保持规则：最终主商品以用户指定的产品图或待编辑原图为准，商品外观、包装结构、品牌/Logo、标签、关键文字、比例和材质尽量稳定；用户明确要求修改的内容按用户要求执行。',
       '发挥规则：背景、桌面、道具、氛围、光影、空间层次和画面高级感可以合理优化，但不能遮挡商品、改变商品识别或喧宾夺主。'
     ]
     : [
+      '模仿规则：如果用户提供参考图并要求模仿，允许复刻参考图的构图、光影、配色、排版和风格；没有参考图时按用户文字需求生成。',
       '分析要求：识别参考图中的产品主体、包装结构、品牌/Logo/产品名、关键文字、颜色、材质、构图、背景和风格。',
       '生成要求：保持产品外观、包装结构、品牌识别、颜色和关键文字一致；只根据用户需求调整标签设计、背景、构图、光影和电商表现。'
     ];
@@ -1701,7 +1704,7 @@ function buildEcommerceSuitePromptInput(context = {}, references = []) {
     'JSON 字段：promptPlans。未显式指定板块时，由你根据商品需求决定数组长度。',
     'promptPlans 每项字段：sectionKey、sectionName、title、prompt、negativePrompt、analysisSummary。',
     '产品图规则：产品图用于锁定真实主体、包装结构、颜色、材质、品牌识别、可辨识文字和 SKU 信息。',
-    '参考图规则：参考图只用于迁移构图、光影、背景氛围、卖点表达和版式节奏，不要把参考图里的其他品牌或产品替换进来。',
+    '参考图规则：参考图是允许模仿的对象。用户要求复刻/对标时，照参考图执行构图、光影、背景氛围、卖点表达和版式节奏；未要求复刻时，参考图用于迁移上述视觉结构。无论哪种情况，都不要把参考图里的其他品牌、产品或文字替换进来，最终画面只出现用户自己的产品。',
     '合规规则：不要虚构价格、认证、功效、活动标签、二维码、水印或参考图里没有且用户没要求的文字；不要生成乱码文字和畸形产品。',
     `设计师 skill：${context.skill?.name || 'Gloria'}。`,
     skillMarkdown ? `设计师 Markdown：\n${skillMarkdown}` : '设计师 Markdown：无。',
@@ -2389,6 +2392,7 @@ async function callProviderResponses(input, options = {}) {
             'Authorization': `Bearer ${providerAuthKey('text', options.route)}`
           },
           body: JSON.stringify(requestBody),
+          agent: providerImageAgentForUrl(requestUrl),
           signal: controller.signal
         });
         const data = await resp.json().catch(() => ({}));

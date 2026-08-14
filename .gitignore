@@ -34,6 +34,7 @@ build/
 output/
 outputs/
 workflows/
+!backend/workflows/
 data.db.backup-*
 generation-task-inputs/
 object-storage/

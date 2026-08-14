@@ -121,3 +121,4 @@ NestJS API Server
 - `backend/provider/image-helpers.js`：providerImage 纯工具函数族（尺寸/宽高比/格式/质量/响应消息/载荷）+ normalizeImageRatio 等依赖工具 + PROVIDER_IMAGE_ASPECT_TOLERANCE。server.js 顶部解构 require，调用点零改动。
 - 下一批候选：计费/兑换码、workflows 路由、image-tools 一族、canvas agent 挂载。
 - `backend/billing/balance-service.js`：recordBalanceLog（8 处 6 列 INSERT 统一）、listUserBalanceLogs、redeemCode 全 SQL；工厂函数注入 db，路由层留 server.js。兑换冒烟：+100、二次 404。
+- `backend/workflows/routes.js`：registerWorkflowRoutes(app, options) 工厂模式（auth/uid/db/workflowDir/workflowDataFromBody/normalizeWorkflowJson 注入），三条 workflows 路由 URL 逐字不变，save-json/local-json 冒烟 200。

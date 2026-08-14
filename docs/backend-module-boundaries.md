@@ -115,3 +115,8 @@ NestJS API Server
 - 先补或确认对应 smoke 覆盖。
 - 拆分后必须保持旧路径和关键响应字段。
 - 每拆一个模块，必须运行后端 smoke 和 `/api/health`。
+
+## 2026-08-14 渐进拆分记录
+
+- `backend/provider/image-helpers.js`：providerImage 纯工具函数族（尺寸/宽高比/格式/质量/响应消息/载荷）+ normalizeImageRatio 等依赖工具 + PROVIDER_IMAGE_ASPECT_TOLERANCE。server.js 顶部解构 require，调用点零改动。
+- 下一批候选：计费/兑换码、workflows 路由、image-tools 一族、canvas agent 挂载。

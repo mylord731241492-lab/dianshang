@@ -1134,3 +1134,9 @@
 - 已做：① buildCanvasDialogAgentInput 移植生产两条模仿规则（有参考图/无参考图两分支 + 用途方向）；② buildEcommerceSuitePromptInput 参考图规则补模仿语义（要求复刻时照参考图执行构图/光影/氛围/卖点/版式，不混入参考图品牌产品文字）；③ callProviderResponses 补 agent: providerImageAgentForUrl（文本链路此前裸 fetch 直连，DNS 污染下 502）。
 - 行为验证：dialog-agent-generate 以「严格照参考图复刻，不要原创」+ 1 张参考图真实调用，analysisSummary 明确「图1承担完整主图复刻角色」，finalPrompt 输出「1:1复刻…不做原创设计」（.scratch/dialog-resp.json）。
 - 剩余 P0：生产 chatSettings 旧 instructions 改写属生产库写操作，且该功能不在候选分支，待用户确认后另行处理。
+
+## 2026-08-14 工程化加固启动：E2E 入库 + server.js 渐进拆分第一批
+
+- 方向确认（用户选 A）：不换 Rust，Node 工程化加固——测试入库 + 渐进模块化。
+- scripts/e2e-cdp/：14 项 CDP 验收（11 免费 + 3 AI 付费）+ 统一 runner（run-all.js，--with-ai）+ README；修复 2 项过时测试（mention 改新版 textarea 流程、dblclick 改「已选中」断言），免费全量 11/11 通过。
+- 拆分第一批①：`backend/provider/image-helpers.js` 新模块，server.js 移出 15 个 providerImage 纯函数 + 5 个依赖工具 + 1 常量（净 -277/+19 行）；子代理做了 796 组新旧实现等价对比（全一致）；重启 3468 后真实生图冒烟 success。

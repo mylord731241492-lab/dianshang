@@ -42,6 +42,7 @@ const {
   normalizeImageRatio
 } = require('./backend/provider/image-helpers');
 const { createGenerationTaskRepository } = require('./backend/generation/task-repository');
+const { createBalanceService } = require('./backend/billing/balance-service');
 const { GenerationTaskService } = require('./backend/generation/generation-task-service');
 const { createAssetService, registerAssetRoutes } = require('./backend/assets');
 const { createPromptService, registerPromptRoutes } = require('./backend/prompts');
@@ -387,6 +388,8 @@ const generationTaskRepository = createGenerationTaskRepository({
   maxUserNonterminal: GENERATION_MAX_USER_NONTERMINAL,
   maxQueued: GENERATION_MAX_QUEUED
 });
+// 余额流水与兑换码服务（backend/billing/balance-service.js）：SQL 自本文件平移，路由仍在此。
+const balanceService = createBalanceService({ db });
 
 // 账号隔离云端资产库（ADR-0006）：Fake Storage 与将来真实对象存储同一接口；
 // ENABLE_REAL_STORAGE=true 且真实驱动未实施时资产写接口返回 503 ASSET_STORAGE_UNAVAILABLE，不回退本地 uploads。
@@ -1946,8 +1949,7 @@ const reserveChatCharge = db.transaction((requestId, user, model, stepHash, allo
     .run(requestId, user.id, model.k, cost, 'reserved', now, now);
   db.prepare('INSERT INTO chat_text_steps (request_id,step_hash,status,created_at,updated_at) VALUES (?,?,?,?,?)')
     .run(requestId, stepHash, 'reserved', now, now);
-  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
-    .run(user.id, 'chat', -cost, before, after, `AI 对话: ${model.k}`);
+  balanceService.recordBalanceLog(user.id, 'chat', -cost, before, after, `AI 对话: ${model.k}`);
   return { duplicate: false, charge: { request_id: requestId, user_id: user.id, model_key: model.k, cost, status: 'reserved' } };
 });
 
@@ -1978,8 +1980,7 @@ const refundChatCharge = db.transaction((requestId, reason = '上游调用失败
     db.prepare("UPDATE chat_text_steps SET status='refunded', updated_at=? WHERE request_id=? AND status='reserved'")
       .run(Date.now(), requestId);
   }
-  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
-    .run(charge.user_id, 'chat_refund', Number(charge.cost || 0), before, after, `AI 对话退款: ${reason}`);
+  balanceService.recordBalanceLog(charge.user_id, 'chat_refund', Number(charge.cost || 0), before, after, `AI 对话退款: ${reason}`);
   return true;
 });
 
@@ -3462,7 +3463,7 @@ app.post('/api/auth/register', (req, res) => {
   const giftCredits = Math.max(0, Number(settings.registrationGiftCredits ?? 0) || 0);
   db.prepare('INSERT INTO users (id,username,email,password_hash,role,balance) VALUES (?,?,?,?,?,?)').run(id,username,email,h(password),'user',giftCredits);
   if (giftCredits > 0) {
-    db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)').run(id,'register_gift',giftCredits,0,giftCredits,`注册赠送 ${giftCredits} 算力`);
+    balanceService.recordBalanceLog(id,'register_gift',giftCredits,0,giftCredits,`注册赠送 ${giftCredits} 算力`);
   }
   const token = jwt.sign({ userId: id, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: san(db.prepare('SELECT * FROM users WHERE id=?').get(id)) });
@@ -3586,19 +3587,11 @@ app.get('/api/user/api-status', optionalAuth, (req, res) => {
   });
 });
 app.get('/api/user/balance-logs', auth, (req, res) => {
-  res.json({ items: db.prepare('SELECT * FROM balance_logs WHERE user_id=? ORDER BY created_at DESC LIMIT 50').all(req.user.userId) });
+  res.json({ items: balanceService.listUserBalanceLogs(req.user.userId) });
 });
 app.post('/api/user/redeem', auth, (req, res) => {
-  const { code } = req.body;
-  if (!code) return res.status(400).json({ message: '请输入兑换码' });
-  const rc = db.prepare('SELECT * FROM redeem_codes WHERE code=? AND enabled=1 AND used_count<max_uses').get(code.toUpperCase());
-  if (!rc) return res.status(404).json({ message: '兑换码不存在' });
-  const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.user.userId);
-  const nb = u.balance + rc.amount;
-  db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
-  db.prepare('UPDATE redeem_codes SET used_count=used_count+1 WHERE code=?').run(code.toUpperCase());
-  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)').run(u.id,'redeem',rc.amount,u.balance,nb,'兑换码: '+code.toUpperCase());
-  res.json({ success: true, balance: nb, amount: rc.amount });
+  const result = balanceService.redeemCode(req.user.userId, req.body.code);
+  res.status(result.status).json(result.body);
 });
 
 // ===================== PROJECTS / CANVAS =====================
@@ -5234,8 +5227,7 @@ app.post('/api/canvas/ecommerce-suite/prompts', auth, async (req, res) => {
   }
   const nb = u.balance - analysisCost;
   db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
-  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
-    .run(u.id, 'generation', -analysisCost, u.balance, nb, `电商套图提示词: ${textModel} x${promptPlans.length}`);
+  balanceService.recordBalanceLog(u.id, 'generation', -analysisCost, u.balance, nb, `电商套图提示词: ${textModel} x${promptPlans.length}`);
 
   res.json({
     success: true,
@@ -5377,8 +5369,7 @@ app.post('/api/canvas/ecommerce-suite/generate', auth, async (req, res) => {
   });
   const nb = u.balance - imageCost;
   db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
-  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
-    .run(u.id, 'generation', -imageCost, u.balance, nb, `电商套图生图: ${imageModel} x${results.length}`);
+  balanceService.recordBalanceLog(u.id, 'generation', -imageCost, u.balance, nb, `电商套图生图: ${imageModel} x${results.length}`);
 
   res.json({
     success: true,
@@ -5550,8 +5541,7 @@ app.post('/api/canvas/dialog-agent-generate', auth, async (req, res) => {
   });
   const nb = u.balance - totalCost;
   db.prepare('UPDATE users SET balance=? WHERE id=?').run(nb, u.id);
-  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
-    .run(u.id, 'generation', -totalCost, u.balance, nb, `对话 Agent 生图: ${textModel} + ${imageModel} x${imageCount}`);
+  balanceService.recordBalanceLog(u.id, 'generation', -totalCost, u.balance, nb, `对话 Agent 生图: ${textModel} + ${imageModel} x${imageCount}`);
 
   res.json({
     success: true,
@@ -6625,8 +6615,7 @@ app.post('/api/admin/users/:id/balance', auth, admin, (req, res) => {
     return res.status(409).json({ success: false, code: 'INSUFFICIENT_BALANCE', message: '调整后余额不能小于 0' });
   }
   db.prepare('UPDATE users SET balance=? WHERE id=?').run(next, user.id);
-  db.prepare('INSERT INTO balance_logs (user_id,type,change_amount,before_balance,after_balance,remark) VALUES (?,?,?,?,?,?)')
-    .run(user.id, 'admin_adjust', amount, user.balance, next, req.body.remark || '管理员调整余额');
+  balanceService.recordBalanceLog(user.id, 'admin_adjust', amount, user.balance, next, req.body.remark || '管理员调整余额');
   res.json({ success: true, user: adminUserRow(db.prepare('SELECT * FROM users WHERE id=?').get(user.id)) });
 });
 app.post('/api/admin/users/:id/security-check', auth, admin, (req, res) => {

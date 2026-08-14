@@ -3972,7 +3972,7 @@ function normalizeLingsuanImageProxyUrl(value = '') {
   }
 }
 const LINGSUAN_IMAGE_PROXY_URL = normalizeLingsuanImageProxyUrl(process.env.LINGSUAN_IMAGE_PROXY_URL);
-const LINGSUAN_IMAGE_PROXY_HOSTS = new Set(['lingsuan.top']);
+const LINGSUAN_IMAGE_PROXY_HOSTS = new Set(['lingsuan.top', 'www.packyapi.ai', 'packyapi.ai']);
 const providerImageProxyAgent = LINGSUAN_IMAGE_PROXY_URL
   ? new HttpsProxyAgent(LINGSUAN_IMAGE_PROXY_URL, { keepAlive: true })
   : null;
@@ -5084,7 +5084,7 @@ async function runImageToolEdit(req, res, type = 'inpaint') {
     if (!references.length) return res.status(400).json({ success: false, code: 'IMAGE_TOOL_IMAGE_REQUIRED', message: '缺少待处理图片' });
     if (!mask) return res.status(400).json({ success: false, code: 'IMAGE_TOOL_MASK_REQUIRED', message: '请先涂抹需要处理的区域' });
 
-    const route = resolveRequestImageRoute(req.body);
+    const route = resolveImageRoute(req.body, req.user && req.user.userId);
     const model = resolveImageModelKey(req.body);
     const operationType = type;
     const prompt = buildImageToolPrompt(req.body, operationType);
@@ -5131,7 +5131,7 @@ async function runImageToolOutpaint(req, res) {
     const references = imageToolReferences(req.body);
     if (!references.length) return res.status(400).json({ success: false, code: 'IMAGE_TOOL_IMAGE_REQUIRED', message: '缺少待扩展图片' });
 
-    const route = resolveRequestImageRoute(req.body);
+    const route = resolveImageRoute(req.body, req.user && req.user.userId);
     const model = resolveImageModelKey(req.body);
     const prompt = buildImageToolPrompt(req.body, 'outpaint');
     const providerResult = await callProviderImageEdit(prompt, {

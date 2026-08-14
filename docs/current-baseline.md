@@ -1116,3 +1116,8 @@
 - 修复 1 处真实可用性缺口：「多角度」在全局未选模型时硬阻断（新用户必现）。已改为模型留空时交服务端按线路默认模型解析（project.tsx generateAngleNode），修复后实测 PASS。主生图路径两处同类守卫保留（有模型选择器兜底）。
 - 下载在 headless 不落盘是浏览器对非用户激活事件的下载策略，链路探针确认 saveAs/锚点派发正常（canvas-image-*.png）。
 - 测试环境经验：工具栏按钮用 aria-label/索引定位（title 属性不可用）；超宽工具栏会被左右面板遮挡，节点虚拟化致视口外节点不可点；JS 派发点击可绕遮挡做功能验证。
+
+## 2026-08-03 image-tools 路由解析修复 + 本地代理出站
+
+- 用户实测蒙版工具报错「找不到模型」/ETIMEDOUT。两根因：① image-tools（蒙版/擦除/扩图）的 resolveRequestImageRoute 在请求未带 routeId 时直接取 routes[0]——本地 routes[0] 是文本线路，未按 image 过滤也不走用户选线偏好；已改为 resolveImageRoute(body, userId)（与普通生图一致的解析：image 过滤、用户偏好、默认线路）。② 本机 DNS 污染（解析出 face:b00c 假 IPv6）致 Provider 直连 ETIMEDOUT，普通生图同样中招；本地 3468 启动加 LINGSUAN_IMAGE_PROXY_URL=http://127.0.0.1:7890（Clash），LINGSUAN_IMAGE_PROXY_HOSTS 补 packyapi 域名。生产 Docker 直连网络正常，无需此变量（compose 已支持可选注入）。
+- 验证：代理后生图任务 success；erase 真实调用 success（mock:false）。

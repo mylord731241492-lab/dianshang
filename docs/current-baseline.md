@@ -1109,3 +1109,10 @@
 
 - 工具栏 17 项审计：16 项已接通（信息/删除/下载/编辑/复制提示词/反推提示词/替换图片/锁比例/局部编辑 inpaint/智能擦除 erase/扩图 outpaint/裁剪本地/切图本地/放大走生图任务/多角度走生图任务/查看大图）；**超分为占位弹窗「暂未实现」**（project.tsx AI 超分 Modal）。defaultBaseToolIds 含 saveAsset 但无对应工具实现（死配置项，不可见）。
 - 自定义设置原本只存 localStorage（canvas-image-quick-tools-v6），换浏览器/设备即丢。已加账号绑定：服务端新增 GET/PUT /api/user/ui-preferences（app_state 按 userId 分键，32KB 截断防御）；画布挂载时服务端配置覆盖本地并回填 localStorage，保存时双写。验收：PUT 200 → app_state 落库 → 清 localStorage 重载后配置从服务端恢复（UI-PREFS PASS）。
+
+## 2026-08-03 图片节点工具栏全工具实测（17 项）
+
+- CDP 真实点击逐项验证：信息/删除/下载/编辑/复制提示词/反推提示词(真实文本AI)/替换图片/锁比例/局部编辑/智能擦除/裁剪/切图/放大/多角度/查看大图 = 15 项全部跑通；扩图代码链路通（提交到达 Provider），失败原因为本机网络 ETIMEDOUT（DNS 污染 IPv6，与此前记录的本机出站问题同类，非代码问题）；超分为「暂未实现」占位弹窗（已知）。
+- 修复 1 处真实可用性缺口：「多角度」在全局未选模型时硬阻断（新用户必现）。已改为模型留空时交服务端按线路默认模型解析（project.tsx generateAngleNode），修复后实测 PASS。主生图路径两处同类守卫保留（有模型选择器兜底）。
+- 下载在 headless 不落盘是浏览器对非用户激活事件的下载策略，链路探针确认 saveAs/锚点派发正常（canvas-image-*.png）。
+- 测试环境经验：工具栏按钮用 aria-label/索引定位（title 属性不可用）；超宽工具栏会被左右面板遮挡，节点虚拟化致视口外节点不可点；JS 派发点击可绕遮挡做功能验证。

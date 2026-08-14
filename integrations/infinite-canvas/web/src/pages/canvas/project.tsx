@@ -2306,10 +2306,8 @@ function InfiniteCanvasPage() {
         async (node: CanvasNodeData, params: CanvasImageAngleParams) => {
             if (!node.metadata?.content) return;
             const generationConfig = { ...buildGenerationConfig(effectiveConfig, node, "image"), count: "1" };
-            if (!normalizeNodeModelKey(generationConfig.model)) {
-                message.warning("请先在生图节点选择模型");
-                return;
-            }
+            // 模型留空时不再硬阻断：与生图节点一致，交给服务端按当前线路默认模型解析
+            // （此前新用户未选模型时点「多角度」直接报错，属于工具可用性缺口）。
             const childId = nanoid();
             const imageConfig = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
             const title = buildAngleLabel(params);

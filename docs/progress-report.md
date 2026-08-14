@@ -3844,3 +3844,11 @@
 - 补齐路由守卫、401 全局跳登录、管理员入口链接与错误文案。
 - 3466 全链路 Playwright 16 项断言全部通过；构建通过；测试账号已清理。
 - 3456 已回到 Docker 生产端，本轮未动生产；候选改动本轮已提交。
+
+## 2026-08-14 P0 生产 chatSettings 旧指令修复（Kimi Code，用户确认后执行）
+
+- 生产 admin/admin123 不可用，经用户授权走直接改库路径。
+- 备份整个 admin.chatSettings 到 F:\dianshang\.scratch\chatSettings-backup-2026-08-14T0907.json（2627B）。
+- 幂等改写：仅当 ecommerce-main-image.instructions 命中旧特征文本（自由生成/不得套用）时替换为源码新默认；其他 3 个 agent 与其余设置键未动。
+- 回读验证：旧文本无残留、新文本命中。生产服务 readState 每请求读库，无需重启容器即生效。
+- 至此交接文档三项全部完成（对话 Agent 移植、套图补齐、P0 生产配置）。

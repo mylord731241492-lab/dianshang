@@ -123,3 +123,4 @@ NestJS API Server
 - `backend/billing/balance-service.js`：recordBalanceLog（8 处 6 列 INSERT 统一）、listUserBalanceLogs、redeemCode 全 SQL；工厂函数注入 db，路由层留 server.js。兑换冒烟：+100、二次 404。
 - `backend/workflows/routes.js`：registerWorkflowRoutes(app, options) 工厂模式（auth/uid/db/workflowDir/workflowDataFromBody/normalizeWorkflowJson 注入），三条 workflows 路由 URL 逐字不变，save-json/local-json 冒烟 200。
 - `backend/image-tools/routes.js`：registerImageToolRoutes(app, options)，/api/image-tools 四条 POST（outpaint/reverse-prompt/inpaint/erase）+ 独占支撑函数迁入；imageToolOutputText 等共享函数留 server.js 注入。400 校验路径逐字一致。/api/image-tools/settings 与 /tasks/:id 两条 GET 留 server.js。
+- `backend/admin/routes.js`：registerAdminRoutes(app, options)，39 条 /api/admin/* 全部迁入（含 login），依赖大清单注入；admin login/users/api-providers/settings 冒烟通过。

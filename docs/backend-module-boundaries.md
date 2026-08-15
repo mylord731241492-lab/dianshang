@@ -124,3 +124,4 @@ NestJS API Server
 - `backend/workflows/routes.js`：registerWorkflowRoutes(app, options) 工厂模式（auth/uid/db/workflowDir/workflowDataFromBody/normalizeWorkflowJson 注入），三条 workflows 路由 URL 逐字不变，save-json/local-json 冒烟 200。
 - `backend/image-tools/routes.js`：registerImageToolRoutes(app, options)，/api/image-tools 四条 POST（outpaint/reverse-prompt/inpaint/erase）+ 独占支撑函数迁入；imageToolOutputText 等共享函数留 server.js 注入。400 校验路径逐字一致。/api/image-tools/settings 与 /tasks/:id 两条 GET 留 server.js。
 - `backend/admin/routes.js`：registerAdminRoutes(app, options)，39 条 /api/admin/* 全部迁入（含 login），依赖大清单注入；admin login/users/api-providers/settings 冒烟通过。
+- `backend/ecommerce-suite/routes.js`：registerEcommerceSuiteRoutes(app, options)，3 条套图路由 + 15 个独占支撑函数迁入；settings 归一化链（被 settingsState/admin 共享）留 server.js 注入。config 200、prompts 400 校验路径一致，原代码逐字 diff IDENTICAL。

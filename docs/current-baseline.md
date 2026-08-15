@@ -1148,3 +1148,11 @@
 - ③ backend/workflows/routes.js（三条 workflows 路由，URL 零变化，冒烟 200）
 - ④ backend/image-tools/routes.js（四条 image-tools POST，400 校验逐字一致）
 - server.js 7590→约 6980 行；每批均 node --check + 重启 3468 冒烟 + 免费 E2E 11/11 通过。
+
+## 2026-08-15 server.js 渐进拆分第二批完成（⑤⑥⑦）
+
+- ⑤ backend/admin/routes.js：39 条 /api/admin/* 全部迁入，admin login/users/api-providers/settings 冒烟通过。
+- ⑥ backend/ecommerce-suite/routes.js：3 条套图路由 + 15 个支撑函数，原代码逐字 diff IDENTICAL。
+- ⑦ backend/canvas-routes/routes.js：template/settings、canvas/generate-prompt、template/generate-image、template/reverse-prompt 迁入；enhance-prompt 与 dialog-agent-generate 因两个校验脚本的 server.js 字符串锚点保留原位（agent 已确认锚点重放全 OK）。
+- 附带修复：verify-canvas-performance-assets.js 的 server 读取合并 image-tools/canvas-routes 两个新模块（第四批拆分导致的断言失效）。
+- server.js 7590→5598 行（-26%），全部批次 E2E 12/12 通过。

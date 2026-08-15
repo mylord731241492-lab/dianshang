@@ -53,7 +53,9 @@ const nodeRadiusCss = read(files.nodeRadiusCss);
 const canvasCss = read(files.canvasCss);
 const entryA = read(files.entryA);
 const entryB = read(files.entryB);
-const server = read(files.server);
+const server = read(files.server)
+  + read(path.join(root, 'backend', 'image-tools', 'routes.js'))
+  + read(path.join(root, 'backend', 'canvas-routes', 'routes.js'));
 const promptFlowJs = read(files.promptFlowJs);
 const promptFlowCss = read(files.promptFlowCss);
 const imagePreviewRuntime = read(files.imagePreviewRuntime);

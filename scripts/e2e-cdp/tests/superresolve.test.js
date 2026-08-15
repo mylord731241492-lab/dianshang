@@ -18,11 +18,15 @@ async function main() {
   await sleep(1500);
 
   // 点超分（idx 14）
-  await evaluate(`(() => {
+  const toolbarDump = await evaluate(`(() => {
     const toolbar = [...document.querySelectorAll('div')].find((d) => d.className.includes('z-[70]') && d.className.includes('-translate-y-full'));
-    toolbar.querySelectorAll('button')[14].click();
-    return 1;
+    if (!toolbar) return 'no-toolbar';
+    const btns = [...toolbar.querySelectorAll('button')];
+    const b = btns[14];
+    if (b) b.click();
+    return { count: btns.length, clicked: b ? b.getAttribute('aria-label') : null };
   })()`);
+  console.log('toolbar:', JSON.stringify(toolbarDump));
   await sleep(1500);
   const modal = await evaluate(`(() => {
     const m = document.querySelector('.ant-modal-wrap');
@@ -32,26 +36,26 @@ async function main() {
 
   // 确认开始超分
   const before = await evaluate(`document.querySelectorAll('.node-element').length`);
-  await evaluate(`(() => {
-    const b = [...document.querySelectorAll('.ant-modal-wrap .ant-modal-footer button, .ant-modal-wrap button')].find((x) => x.textContent.includes('开始超分'));
+  const confirm = await evaluate(`(() => {
+    const btns = [...document.querySelectorAll('.ant-modal-wrap button')].map((x) => x.textContent.trim());
+    const b = [...document.querySelectorAll('.ant-modal-wrap button')].find((x) => x.textContent.includes('开始超分'));
     if (b) b.click();
-    return 1;
+    return { found: !!b, btns };
   })()`);
-  console.log('submitted, waiting...');
+  console.log('confirm:', JSON.stringify(confirm));
+  // 断言查库：超分提示词的任务出现且成功（子节点可能落在视口外——节点虚拟化下 DOM 断言不可靠）
+  const path = require('path');
+  const Database = require(path.join(process.cwd(), 'node_modules', 'better-sqlite3'));
+  const dbPath = process.env.E2E_DB_PATH || path.join(__dirname, '..', '..', '..', '.scratch', 'infinite-canvas-local', 'data', 'data.db');
   let done = false;
   for (let i = 0; i < 90; i += 1) {
     await sleep(4000);
-    const st = await evaluate(`(() => {
-      const nodes = [...document.querySelectorAll('.node-element')];
-      const sr = nodes.find((el) => el.textContent.includes('AI 超分'));
-      if (!sr) return 'no-child';
-      if (sr.querySelector('img')) return 'has-image';
-      if (sr.textContent.includes('失败')) return 'failed';
-      return 'waiting';
-    })()`);
-    if (i % 6 === 0) console.log('poll', i, st);
-    if (st === 'has-image') { done = true; break; }
-    if (st === 'failed' || st === 'no-child') break;
+    const db = new Database(dbPath, { readonly: true });
+    const row = db.prepare('SELECT status FROM generation_tasks WHERE prompt LIKE ? ORDER BY created_at DESC LIMIT 1').get('%超分辨率增强%');
+    db.close();
+    if (row && row.status === 'success') { done = true; console.log('task success at poll', i); break; }
+    if (row && row.status === 'failed') { console.log('task failed'); break; }
+    if (i % 6 === 0) console.log('poll', i, row ? row.status : 'no-task');
   }
   await shot('tool-superresolve.png');
   console.log(done ? 'SUPERRESOLVE PASS' : 'SUPERRESOLVE FAIL');

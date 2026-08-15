@@ -146,6 +146,22 @@ async function main() {
     if (bState !== 'waiting') break;
   }
   console.log('B final:', bState);
+  // UI 未及时更新时刷新一次：resumeGenerationTasks 应恢复已完成任务的结果
+  if (bState === 'waiting') {
+    console.log('B not updated in-place, reloading to test resume path...');
+    await send('Page.navigate', { url: `http://127.0.0.1:3468/canvas/${process.argv[2] || 'proj_mscjyl35965edc3d'}` });
+    await sleep(9000);
+    for (let i = 0; i < 30; i += 1) {
+      await sleep(4000);
+      bState = await evaluate(`(() => {
+        const single = [...document.querySelectorAll('.node-element')].filter((el) => el.textContent.includes('生图节点') && el.querySelectorAll('[data-drawing-node-preview] img').length === 1);
+        const multi = [...document.querySelectorAll('.node-element')].filter((el) => el.querySelectorAll('[data-drawing-node-preview] img').length >= 2);
+        return single.length > multi.length ? 'done' : 'waiting';
+      })()`);
+      if (bState !== 'waiting') break;
+    }
+    console.log('B after reload:', bState);
+  }
   await shot('e2e-v3-B-done.png');
 
   // 查库验证

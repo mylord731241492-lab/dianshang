@@ -7,7 +7,7 @@ import AdminPageHeader from '../components/admin/AdminPageHeader.vue';
 import AdminPageShell from '../components/admin/AdminPageShell.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { NButton, NInput, NPagination, NSelect, NTag } from 'naive-ui';
+import { NButton, NInput, NModal, NPagination, NSelect, NTag } from 'naive-ui';
 import {
   CheckCircle2,
   Edit3,
@@ -24,8 +24,7 @@ import {
   Server,
   Star,
   TestTube2,
-  Trash2,
-  XCircle
+  Trash2
 } from 'lucide-vue-next';
 import { clearAdminAuthSession } from '../api/adminAuth';
 import {
@@ -739,17 +738,13 @@ onMounted(loadProviders);
 
       <AdminStatGrid :stats="statCards" label="API 线路统计" />
 
-      <section v-if="formOpen" class="admin-source-panel admin-api-provider-form-panel">
-        <div class="admin-panel-head">
-          <div>
-            <p class="eyebrow">旧后台字段</p>
-            <h2>{{ editingId ? '编辑 API 线路' : '新增 API 线路' }}</h2>
-          </div>
-          <n-button secondary @click="cancelForm">
-            <template #icon><XCircle :size="16" /></template>
-            取消
-          </n-button>
-        </div>
+      <n-modal
+        :show="formOpen"
+        preset="card"
+        :title="editingId ? '编辑 API 线路' : '新增 API 线路'"
+        style="width: min(960px, 94vw); max-height: 88vh; overflow-y: auto"
+        @update:show="(value) => { if (!value) cancelForm(); }"
+      >
 
         <div class="admin-api-default-reference" aria-label="当前线路请求预览">
           <div>
@@ -885,7 +880,7 @@ onMounted(loadProviders);
             </n-button>
           </div>
         </form>
-      </section>
+      </n-modal>
 
       <section class="admin-source-panel admin-api-providers-panel">
         <div class="admin-panel-head">

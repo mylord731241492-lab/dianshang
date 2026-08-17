@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { NButton, NInput, useMessage } from 'naive-ui';
+import { NButton, NConfigProvider, NInput, useMessage } from 'naive-ui';
 import { ArrowLeft, KeyRound, ShieldCheck } from 'lucide-vue-next';
 import { adminLogin, migrateLegacyAdminSession, saveAdminAuthSession } from '../api/adminAuth';
 import { getApiErrorMessage } from '../api/http';
+import { adminNaiveThemeOverrides } from '../config/adminTheme';
 
 const message = useMessage();
 const route = useRoute();
@@ -58,7 +59,8 @@ async function submit() {
 </script>
 
 <template>
-  <main class="admin-login-shell">
+  <n-config-provider abstract :theme-overrides="adminNaiveThemeOverrides">
+    <main class="admin-login-shell">
     <section class="admin-login-card">
       <RouterLink to="/" class="auth-back"><ArrowLeft :size="16" />返回首页</RouterLink>
       <div class="admin-login-mark">
@@ -90,5 +92,6 @@ async function submit() {
         </n-button>
       </form>
     </section>
-  </main>
+    </main>
+  </n-config-provider>
 </template>

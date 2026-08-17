@@ -1156,3 +1156,10 @@
 - ⑦ backend/canvas-routes/routes.js：template/settings、canvas/generate-prompt、template/generate-image、template/reverse-prompt 迁入；enhance-prompt 与 dialog-agent-generate 因两个校验脚本的 server.js 字符串锚点保留原位（agent 已确认锚点重放全 OK）。
 - 附带修复：verify-canvas-performance-assets.js 的 server 读取合并 image-tools/canvas-routes 两个新模块（第四批拆分导致的断言失效）。
 - server.js 7590→5598 行（-26%），全部批次 E2E 12/12 通过。
+
+## 2026-08-15 admin 后台全部页面卡片风翻新
+
+- 方向（用户选定）：全部 13 个 admin 页面，对齐用户中心卡片风（#f4f4f5 底、白卡 16-18px 圆角、橙 #f97316 强调）。
+- 实现：app.css 仅 admin 区域改造（变量 token 化 + 235 处样式替换，非 admin 区域零触碰）；新增 frontend/src/config/adminTheme.ts（naive primary 橙、圆角、Tag pill）；AdminPageShell/AdminLoginSource 包 abstract NConfigProvider。
+- 关键修复：App.vue 全局 darkTheme 导致 admin naive 组件暗色渲染（工具栏控件近乎不可见）——admin 区域切回亮色 + 橙 overrides；暗色 API 线路编辑面板改软橙亮卡。
+- 13 个页面 Vue 文件零改动（样式全在 app.css，行为零变化）；12 页 CDP 截图验收通过（.scratch/admin-ui-*.png），构建（vue-tsc+vite）通过。

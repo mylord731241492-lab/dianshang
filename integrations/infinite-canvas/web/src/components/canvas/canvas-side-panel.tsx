@@ -95,9 +95,9 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, onFocusNode, onInsertA
                 data-canvas-no-zoom
             >
                 <div className="flex items-center gap-5 px-4 pt-3.5">
+                    <TabButton label="生图记录" active={tab === "records"} theme={theme} onClick={() => setTab("records")} />
                     <TabButton label="画布" active={tab === "canvas"} theme={theme} onClick={() => setTab("canvas")} />
                     <TabButton label="资产" active={tab === "assets"} theme={theme} onClick={() => setTab("assets")} />
-                    <TabButton label="生图记录" active={tab === "records"} theme={theme} onClick={() => setTab("records")} />
                     <TabButton label="提示词库" active={tab === "prompts"} theme={theme} onClick={() => setTab("prompts")} />
                 </div>
                 <div className="mt-2 min-h-0 flex-1 overflow-hidden">
@@ -222,7 +222,10 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
                     <div className="space-y-1.5">
                         {filtered.map((node) => {
                             const Icon = NODE_TYPE_ICON[node.type] || FileText;
-                            const isImage = node.type === CanvasNodeType.Image && node.metadata?.content;
+                            const thumbContent = node.type === CanvasNodeType.Image
+                                ? node.metadata?.content || ""
+                                : (node.metadata?.generatedImages?.length ? node.metadata.generatedImages[node.metadata.generatedImages.length - 1]?.content : "") || "";
+                            const isImage = Boolean(thumbContent);
                             const isChecked = checked.has(node.id);
                             const active = selectMode ? isChecked : selectedNodeIds.has(node.id);
                             return (
@@ -235,7 +238,7 @@ function CanvasNodesTab({ nodes, selectedNodeIds, onFocusNode, theme }: { nodes:
                                 >
                                     {selectMode ? <CheckMark checked={isChecked} theme={theme} /> : null}
                                     <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md">
-                                        {isImage ? <img src={node.metadata!.content} alt={node.title} className="size-full object-cover" /> : <Icon className="size-5 opacity-60" />}
+                                        {isImage ? <img src={thumbContent} alt={node.title} className="size-full bg-black/5 object-contain" /> : <Icon className="size-5 opacity-60" />}
                                     </span>
                                     <span className="min-w-0 flex-1 space-y-0.5">
                                         <span className="block truncate text-sm font-medium leading-snug">{nodeDisplayTitle(node)}</span>

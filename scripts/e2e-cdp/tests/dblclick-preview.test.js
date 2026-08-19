@@ -9,22 +9,6 @@ async function main() {
   await send('Page.navigate', { url: `http://127.0.0.1:3468/canvas/${process.argv[2] || 'proj_mscjyl35965edc3d'}` });
   await sleep(9000);
 
-  // 单击最后一张 tile（避开已选中的）→ 「已选中」提示出现
-  const clickResult = await evaluate(`(() => {
-    const tiles = [...document.querySelectorAll('[data-drawing-node-preview] button')];
-    if (!tiles.length) return 'no-tile';
-    const tile = tiles[tiles.length - 1];
-    tile.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 500, clientY: 400 }));
-    tile.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 500, clientY: 400 }));
-    return 'clicked:' + tiles.length;
-  })()`);
-  await sleep(1200);
-  const selected = await evaluate(`(() => {
-    const node = [...document.querySelectorAll('[data-drawing-node-preview]')].find((el) => (el.textContent || '').includes('已选中'));
-    return !!node;
-  })()`);
-  console.log('single click:', clickResult, '→ 已选中 overlay:', selected);
-
   // 双击 → antd 原图预览
   await evaluate(`(() => {
     const tiles = [...document.querySelectorAll('[data-drawing-node-preview] button')];
@@ -43,7 +27,7 @@ async function main() {
 
   ws.close();
   chrome.kill();
-  const ok = selected && preview.open && preview.hasImg;
+  const ok = preview.open && preview.hasImg;
   console.log(ok ? 'PREVIEW PASS' : 'PREVIEW FAIL');
   if (!ok) process.exit(2);
 }

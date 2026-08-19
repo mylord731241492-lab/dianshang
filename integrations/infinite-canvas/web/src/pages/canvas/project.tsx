@@ -3304,20 +3304,6 @@ function InfiniteCanvasPage() {
     const handleNodeViewImage = useCallback((node: CanvasNodeData) => setPreviewNodeId(node.id), []);
     const handleNodeUploadImage = useCallback((node: CanvasNodeData) => handleUploadRequest(node.id, undefined, true), [handleUploadRequest]);
     const handleNodeDropImage = useCallback((nodeId: string, file: File) => void replaceImageNodeFile(nodeId, file), [replaceImageNodeFile]);
-    const handleSelectGeneratedImage = useCallback((nodeId: string, imageIndex: number) => {
-        setNodes((prev) =>
-            prev.map((node) => {
-                if (node.id !== nodeId || !node.metadata?.generatedImages?.length) return node;
-                return {
-                    ...node,
-                    metadata: {
-                        ...node.metadata,
-                        ...generatedImageSelectionMetadata(node.metadata.generatedImages, imageIndex),
-                    },
-                };
-            }),
-        );
-    }, []);
     const handleNodeRetry = useCallback((node: CanvasNodeData) => void handleRetryNode(node), [handleRetryNode]);
     const handleNodeContextMenu = useCallback((event: ReactMouseEvent, nodeId: string) => {
         event.preventDefault();
@@ -3363,13 +3349,8 @@ function InfiniteCanvasPage() {
     );
 
     const renderNodeContentPanel = useCallback(
-        (contentNode: CanvasNodeData) => (
-            <CanvasConfigNodePanel
-                node={contentNode}
-                onSelectImage={handleSelectGeneratedImage}
-            />
-        ),
-        [handleSelectGeneratedImage],
+        (contentNode: CanvasNodeData) => <CanvasConfigNodePanel node={contentNode} />,
+        [],
     );
 
     if (projectLoadError) {

@@ -48,7 +48,8 @@ export function generatedImageMetadata(image: UploadedImage): CanvasGeneratedIma
 }
 
 export function generatedImageSelectionMetadata(images: CanvasGeneratedImage[], selectedIndex = 0): CanvasNodeMetadata {
-    const index = Math.max(0, Math.min(selectedIndex, Math.max(0, images.length - 1)));
+    // 单图化：永远以最后一张为准（忽略传入的选中索引）。
+    const index = Math.max(0, images.length - 1);
     const selected = images[index];
     if (!selected) return { generatedImages: [], selectedGeneratedImageIndex: 0 };
     return {

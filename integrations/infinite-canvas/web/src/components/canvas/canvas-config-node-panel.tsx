@@ -1,5 +1,5 @@
 import { useRef, useState, type CSSProperties } from "react";
-import { AlertCircle, Check, Image as ImageIcon, LoaderCircle, Play, Settings2, Square } from "lucide-react";
+import { AlertCircle, Image as ImageIcon, LoaderCircle, Play, Settings2, Square } from "lucide-react";
 import { Button, Image } from "antd";
 
 import { defaultConfig, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
@@ -13,7 +13,6 @@ import type { CanvasGeneratedImage, CanvasNodeData, CanvasNodeMetadata } from "@
 
 type CanvasConfigNodePanelProps = {
     node: CanvasNodeData;
-    onSelectImage: (nodeId: string, imageIndex: number) => void;
 };
 
 type CanvasConfigGenerationPanelProps = {
@@ -27,17 +26,11 @@ type CanvasConfigGenerationPanelProps = {
     onClose: () => void;
 };
 
-export function generatedImageGridClass(count: number): string {
-    if (count === 2) return "grid-cols-2 grid-rows-1";
-    if (count === 3) return "grid-cols-3 grid-rows-1";
-    if (count >= 4) return "grid-cols-2 grid-rows-2";
-    return "grid-cols-1 grid-rows-1";
-}
-
-export function CanvasConfigNodePanel({ node, onSelectImage }: CanvasConfigNodePanelProps) {
+export function CanvasConfigNodePanel({ node }: CanvasConfigNodePanelProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const images = node.metadata?.generatedImages || [];
-    const selectedIndex = Math.max(0, Math.min(node.metadata?.selectedGeneratedImageIndex || 0, Math.max(0, images.length - 1)));
+    // 单图化：只显示最后一张生成的图（下游连接也以它为准），不再提供多图选择。
+    const displayImage = images.length ? images[images.length - 1] : null;
     const isLoading = node.metadata?.status === "loading";
     const isError = node.metadata?.status === "error";
     const task = node.metadata?.generationTask;
@@ -48,12 +41,8 @@ export function CanvasConfigNodePanel({ node, onSelectImage }: CanvasConfigNodeP
             className="relative h-full w-full cursor-pointer overflow-hidden rounded-[inherit]"
             style={{ background: theme.node.fill, color: theme.node.text }}
         >
-            {images.length ? (
-                <div className={`grid h-full w-full gap-1.5 p-1.5 ${generatedImageGridClass(images.length)}`}>
-                    {images.slice(0, 4).map((image, index) => (
-                        <GeneratedImageTile key={`${image.storageKey || image.content}-${index}`} image={image} index={index} selected={index === selectedIndex} onSelect={() => onSelectImage(node.id, index)} />
-                    ))}
-                </div>
+            {displayImage ? (
+                <GeneratedImageTile key={displayImage.storageKey || displayImage.content} image={displayImage} index={images.length - 1} />
             ) : (
                 <div
                     className="relative flex h-full w-full items-center justify-center overflow-hidden"
@@ -82,16 +71,12 @@ export function CanvasConfigNodePanel({ node, onSelectImage }: CanvasConfigNodeP
                 </div>
             ) : null}
 
-            {images.length > 1 ? (
-                <div className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-black/70 px-2 py-1 text-[10px] font-medium text-white">
-                    {selectedIndex + 1}/{images.length}
-                </div>
-            ) : null}
+
         </div>
     );
 }
 
-function GeneratedImageTile({ image, index, selected, onSelect }: { image: CanvasGeneratedImage; index: number; selected: boolean; onSelect: () => void }) {
+function GeneratedImageTile({ image, index }: { image: CanvasGeneratedImage; index: number }) {
     // 不拦截 mousedown：拖动时让节点整体移动；只在未发生位移的点击时选中结果。
     // 双击放大查看原图（antd Image preview，与引用图预览同一形态）。
     const downPos = useRef<{ x: number; y: number } | null>(null);
@@ -100,7 +85,7 @@ function GeneratedImageTile({ image, index, selected, onSelect }: { image: Canva
         <>
         <button
             type="button"
-            className={`relative min-h-0 min-w-0 overflow-hidden rounded-xl border-2 bg-black/20 transition ${selected ? "border-cyan-400" : "border-transparent hover:border-white/50"}`}
+            className="relative h-full w-full overflow-hidden rounded-xl border-2 border-transparent bg-black/20 transition hover:border-white/50"
             onPointerDown={(event) => {
                 downPos.current = { x: event.clientX, y: event.clientY };
             }}
@@ -109,7 +94,6 @@ function GeneratedImageTile({ image, index, selected, onSelect }: { image: Canva
                 downPos.current = null;
                 if (moved > 5) return;
                 event.stopPropagation();
-                onSelect();
             }}
             onDoubleClick={(event) => {
                 event.stopPropagation();
@@ -117,16 +101,7 @@ function GeneratedImageTile({ image, index, selected, onSelect }: { image: Canva
             }}
         >
             <img src={image.content} alt={`生成结果 ${index + 1}`} className="h-full w-full object-contain" draggable={false} />
-            {selected ? (
-                <span className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 bg-cyan-500/15">
-                    <span className="flex items-center gap-1 rounded-full bg-cyan-500/90 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg">
-                        <Check className="size-3.5" />
-                        已选中
-                    </span>
-                    <span className="rounded-full bg-black/55 px-2 py-0.5 text-[10px] text-white/90">将作为下游参考图</span>
-                </span>
-            ) : null}
-            <span className="absolute left-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-black/70 text-[10px] font-semibold text-white">{index + 1}</span>
+
         </button>
         {previewOpen ? (
             <Image
@@ -179,7 +154,7 @@ export function CanvasConfigGenerationPanel({ node, isRunning, inputs, inputSumm
                     placement="topRight"
                     autoAdjustOverflow={false}
                     buttonClassName="canvas-compact-control !h-10 !w-full !justify-start !rounded-lg !px-2"
-                    onConfigChange={(key, value) => onConfigChange(node.id, key === "count" ? { count: Math.max(1, Math.min(4, Number(value) || 1)) } : { [key]: value })}
+                    onConfigChange={(key, value) => onConfigChange(node.id, key === "count" ? { count: 1 } : { [key]: value })}
                 />
             </div>
 
@@ -221,6 +196,6 @@ function buildNodeConfig(globalConfig: AiConfig, node: CanvasNodeData): AiConfig
         quality: node.metadata?.quality || globalConfig.quality || defaultConfig.quality,
         size: node.metadata?.size || globalConfig.size || defaultConfig.size,
         background: node.metadata?.background ?? globalConfig.background ?? defaultConfig.background,
-        count: String(Math.max(1, Math.min(4, node.metadata?.count || Number(globalConfig.canvasImageCount || globalConfig.count || defaultConfig.count)))),
+        count: "1",
     };
 }

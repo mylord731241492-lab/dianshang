@@ -3467,6 +3467,11 @@ function InfiniteCanvasPage() {
                                             setSelectedNodeIds(new Set());
                                             setContextMenu({ type: "connection", x: event.clientX, y: event.clientY, connectionId: connection.id });
                                         }}
+                                        onDoubleClick={() => {
+                                            // 双击线条直接取消链接
+                                            deleteConnection(connection.id);
+                                            setSelectedConnectionId(null);
+                                        }}
                                     />
                                 );
                             })}

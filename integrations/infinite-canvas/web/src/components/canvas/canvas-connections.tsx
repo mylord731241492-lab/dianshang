@@ -11,6 +11,7 @@ export function ConnectionPath({
     active,
     onSelect,
     onContextMenu,
+    onDoubleClick,
 }: {
     connection: CanvasConnection;
     from: CanvasNodeData;
@@ -18,6 +19,7 @@ export function ConnectionPath({
     active: boolean;
     onSelect: () => void;
     onContextMenu?: (event: ReactMouseEvent<SVGPathElement>) => void;
+    onDoubleClick?: (event: ReactMouseEvent<SVGPathElement>) => void;
 }) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const startX = from.position.x + from.width;
@@ -37,9 +39,14 @@ export function ConnectionPath({
                 strokeWidth="16"
                 fill="none"
                 style={{ cursor: "pointer", pointerEvents: "stroke" }}
-                onClick={(event) => {
+                onClick={(event) => {
+                    event.stopPropagation();
+                    onSelect();
+                }}
+                onDoubleClick={(event) => {
+                    event.preventDefault();
                     event.stopPropagation();
-                    onSelect();
+                    onDoubleClick?.(event);
                 }}
                 onContextMenu={(event) => {
                     event.preventDefault();

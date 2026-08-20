@@ -48,7 +48,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export function CanvasSidePanel({ nodes, selectedNodeIds, onFocusNode, onInsertAsset }: Props) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
-    const [tab, setTab] = useState<PanelTab>("canvas");
+    const [tab, setTab] = useState<PanelTab>("records");
     const width = useCanvasSidePanelStore((state) => state.width);
     const panelOpen = useCanvasSidePanelStore((state) => state.panelOpen);
     const panelMounted = useCanvasSidePanelStore((state) => state.panelMounted);

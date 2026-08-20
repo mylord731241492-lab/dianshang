@@ -39,11 +39,11 @@ export function ConnectionCreateMenu({
                 </button>
             </div>
             <div className="grid gap-1">
+                <ConnectionCreateOption theme={theme} icon={<Palette className="size-5" />} title="生图节点" onClick={() => onCreate(CanvasNodeType.Config)} />
                 <ConnectionCreateOption theme={theme} icon={<List className="size-5" />} title="文本生成" onClick={() => onCreate(CanvasNodeType.Text)} />
                 <ConnectionCreateOption theme={theme} icon={<ImageIcon className="size-5" />} title="图片节点" onClick={() => onCreate(CanvasNodeType.Image)} />
                 <ConnectionCreateOption theme={theme} icon={<Video className="size-5" />} title="视频生成" onClick={() => onCreate(CanvasNodeType.Video)} />
                 <ConnectionCreateOption theme={theme} icon={<Music2 className="size-5" />} title="音频参考" onClick={() => onCreate(CanvasNodeType.Audio)} />
-                <ConnectionCreateOption theme={theme} icon={<Palette className="size-5" />} title="生图节点" onClick={() => onCreate(CanvasNodeType.Config)} />
             </div>
         </div>
     );

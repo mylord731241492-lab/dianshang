@@ -1205,3 +1205,9 @@
 - 连按模式试水后用户反馈「点太多」：改为同节点生成中按钮禁用（显示「生成中…」），完成后才能再点；提示词面板同步禁用并恢复 isRunning 提交守卫。
 - 服务端多任务队列能力保留（不同节点可各自排队），仅同节点 UI 层防连点。
 - 用户截图的「生成失败」实为旧代码连按时中止前序任务导致的 TASK_CANCELLED（取消），新逻辑不再产生。
+
+## 2026-08-20 Agent 反推生图节点兼容修复
+
+- Kimi Code 最近一次会话停在 `canvas_reverse_image_prompt` 处理 `@图片1` 的阶段，日志确认因 billing cycle usage limit 返回 403，未完成修复。
+- 候选工作树现已支持从带 `generatedImages` 的生图（Config）节点选择当前生成结果，连同普通 Image 节点一起进入反推提示词流程；Agent 工具、Fake Planner 和前端节点操作已对齐。
+- 本轮只修改候选工作树，未合并 `F:\dianshang`、未重建 Docker、未调用真实 Provider；后续浏览器复测应使用候选画布实例。

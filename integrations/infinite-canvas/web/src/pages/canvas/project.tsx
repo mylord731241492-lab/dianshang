@@ -2070,8 +2070,14 @@ function InfiniteCanvasPage() {
     // 文本节点经 metadata.sourceNodeId/derivedFrom 与连线保持与原图节点的可追溯关系。
     const createImageReversePromptNodes = useCallback(
         async (node: CanvasNodeData) => {
-            if (node.type !== CanvasNodeType.Image || !node.metadata?.content) {
-                message.warning("图片节点为空，无法反推提示词");
+            const metadata = node.metadata;
+            const generatedImages = metadata?.generatedImages || [];
+            const selectedIndex = Math.max(0, Math.min(metadata?.selectedGeneratedImageIndex ?? generatedImages.length - 1, generatedImages.length - 1));
+            const selectedGeneratedImage = generatedImages[selectedIndex];
+            const imageContent = metadata?.content || selectedGeneratedImage?.content;
+            const isImageSource = node.type === CanvasNodeType.Image || node.type === CanvasNodeType.Config;
+            if (!isImageSource || (!imageContent && !metadata?.storageKey && !selectedGeneratedImage?.storageKey)) {
+                message.warning("节点没有可用图片，无法反推提示词");
                 return;
             }
 
@@ -2095,7 +2101,10 @@ function InfiniteCanvasPage() {
             setContextMenu(null);
 
             try {
-                const imageUrl = await imageToDataUrl({ url: node.metadata.content, storageKey: node.metadata.storageKey });
+                const imageUrl = await imageToDataUrl({
+                    url: imageContent,
+                    storageKey: selectedGeneratedImage?.storageKey || metadata?.storageKey,
+                });
                 const result = await getImageToolsApi().reversePrompt({ imageUrl });
                 setNodes((prev) =>
                     prev.map((item) => (item.id === textNode.id ? { ...item, metadata: { ...item.metadata, content: result.prompt, prompt: result.prompt, status: NODE_STATUS_SUCCESS } } : item)),

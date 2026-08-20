@@ -75,6 +75,22 @@ test('反推工具解析指定、选中或首个图片节点', () => {
   assert.deepEqual(fallback.execution.ops, [{ type: 'reverse_prompt', nodeId: 'img_1' }]);
 });
 
+test('反推工具支持带生成结果的生图节点', () => {
+  const context = makeContext();
+  context.snapshot.nodes = [{
+    id: 'config_1',
+    type: 'config',
+    title: '生图节点',
+    position: { x: 0, y: 0 },
+    metadata: {
+      generatedImages: [{ storageKey: 'asset:generated_1' }]
+    }
+  }];
+  context.snapshot.selectedNodeIds = ['config_1'];
+  const call = prepareToolCall('canvas_reverse_image_prompt', {}, context);
+  assert.deepEqual(call.execution.ops, [{ type: 'reverse_prompt', nodeId: 'config_1' }]);
+});
+
 test('反推工具在没有图片节点时明确报错', () => {
   const context = makeContext();
   context.snapshot.nodes = [];

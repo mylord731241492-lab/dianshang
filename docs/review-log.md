@@ -6040,3 +6040,9 @@
 - 改动：HomeWorkbench.vue（移除弹窗引用与强制逻辑，画布/创建/用户中心未登录跳登录）；router/index.ts（requiresAuth + beforeEach）；api/http.ts（401 整页跳登录，登录/注册页除外）；AuthSource.vue（管理员入口链接 + 403/401 文案）。
 - 验证：vue-tsc + vite build 通过；Playwright 在 3466 全链路 16 项断言通过（首页不弹窗、画布中心跳登录、错误密码、admin 后台提示、管理员链接、/user/center 与 /gallery 守卫、注册、无限画布、401 跳登录），无页面错误。
 - 环境变化：localhost:3456 已切回 Docker 生产端；候选验证端口为 127.0.0.1:3466（CANVAS_RUNTIME=infinite）。测试账号已清理；生产 Docker 未动。本轮已提交。
+
+## 2026-08-20 Agent 反推生图节点回归审查
+
+- 根因：反推工具和前端 `createImageReversePromptNodes` 只接受 `type=image` 且要求节点级图片内容，未把生图节点的 `generatedImages` 当作可反推图片来源。
+- 修复：统一接受 Image/Config 两类节点，解析选中的生成结果（或最后一张），并继续复用现有 `imageToDataUrl` 与反推 API；增加 Config 节点工具契约回归用例。
+- 结论：候选代码与测试链路通过；未对 `F:\dianshang`、3456 或真实 Provider 做状态变更。

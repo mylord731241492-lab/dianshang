@@ -160,10 +160,19 @@ function mockPlan(input) {
   }
   if (/反推/.test(message)) {
     const nodes = Array.isArray(input.snapshot?.nodes) ? input.snapshot.nodes : [];
-    const hasImage = nodes.some((node) => node && node.type === 'image' && node.metadata && (node.metadata.content || node.metadata.storageKey || node.metadata.assetId));
+    const hasImage = nodes.some((node) => {
+      if (!node || !['image', 'config'].includes(node.type) || !node.metadata) return false;
+      const generatedImages = Array.isArray(node.metadata.generatedImages) ? node.metadata.generatedImages : [];
+      return Boolean(
+        node.metadata.content
+        || node.metadata.storageKey
+        || node.metadata.assetId
+        || generatedImages.some((image) => image && (image.content || image.storageKey || image.assetId))
+      );
+    });
     if (!hasImage) {
       return {
-        text: '画布上还没有可反推的图片节点，请先上传一张图片或选中图片节点。',
+        text: '画布上还没有可反推的图片，请先上传或选中图片节点，或选中已有生成结果的生图节点。',
         toolCalls: []
       };
     }

@@ -517,13 +517,24 @@ function prepareCanvasExecution(name, input, context) {
   if (name === 'canvas_reverse_image_prompt') {
     const nodes = Array.isArray(snapshot.nodes) ? snapshot.nodes : [];
     const selected = new Set(snapshot.selectedNodeIds || []);
-    // 快照经 compactNode 脱敏后 metadata.content 被剥离，这里用 storageKey/assetId 判断节点已有图片。
-    const isImageNode = (node) => node && node.type === 'image' && node.metadata && (node.metadata.content || node.metadata.storageKey || node.metadata.assetId);
+    // 快照经 compactNode 脱敏后 metadata.content 被剥离，这里用 storageKey/assetId
+    // 或生成结果判断节点已有图片。生图节点（config）也可能承载当前结果图，
+    // 因此不能只认独立的图片节点（image）。
+    const isImageNode = (node) => {
+      if (!node || !['image', 'config'].includes(node.type) || !node.metadata) return false;
+      const generatedImages = Array.isArray(node.metadata.generatedImages) ? node.metadata.generatedImages : [];
+      return Boolean(
+        node.metadata.content
+        || node.metadata.storageKey
+        || node.metadata.assetId
+        || generatedImages.some((image) => image && (image.content || image.storageKey || image.assetId))
+      );
+    };
     const target = (input.nodeId && nodes.find((node) => node.id === input.nodeId))
       || nodes.find((node) => selected.has(node.id) && isImageNode(node))
       || nodes.find(isImageNode);
     if (!isImageNode(target)) {
-      const error = new Error('没有找到可反推的图片节点：请先上传或选中一个图片节点。');
+      const error = new Error('没有找到可反推的图片：请先上传或选中图片节点，或选中已有生成结果的生图节点。');
       error.status = 400;
       error.code = 'CANVAS_AGENT_REVERSE_SOURCE_NOT_FOUND';
       throw error;

@@ -3852,3 +3852,9 @@
 - 幂等改写：仅当 ecommerce-main-image.instructions 命中旧特征文本（自由生成/不得套用）时替换为源码新默认；其他 3 个 agent 与其余设置键未动。
 - 回读验证：旧文本无残留、新文本命中。生产服务 readState 每请求读库，无需重启容器即生效。
 - 至此交接文档三项全部完成（对话 Agent 移植、套图补齐、P0 生产配置）。
+
+## 2026-08-20 Agent 反推生图节点兼容修复
+
+- 修复候选端 Agent 对 `@图片` 选中生图（Config）节点时误报“没有找到可反推的图片节点”的问题：支持读取当前 `selectedGeneratedImageIndex`，无索引时回退到最后一张生成结果。
+- 同步更新 `backend/canvas-agent/tool-contracts.js`、`provider-planner.js`、无限画布 `project.tsx` 及回归测试。
+- 验证：Agent 相关 Node 测试 21 项通过，后端语法检查通过，候选前端 typecheck 与 build 通过；主工作区和生产 Docker 未动。

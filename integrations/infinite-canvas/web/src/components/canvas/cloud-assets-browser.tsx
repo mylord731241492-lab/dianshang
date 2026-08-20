@@ -29,7 +29,7 @@ const sourceOptions: { label: string; value: SourceFilter }[] = [
 
 const sourceLabels: Record<string, string> = { upload: "上传", generated: "生成", tool: "图片工具", generation: "历史生成" };
 
-export function CloudAssetsBrowser({ onInsert, defaultSource = "", gridClassName = "grid-cols-4" }: { onInsert: (payload: InsertAssetPayload) => void; defaultSource?: SourceFilter; gridClassName?: string }) {
+export function CloudAssetsBrowser({ onInsert, defaultSource = "", gridClassName = "grid-cols-4", active }: { onInsert: (payload: InsertAssetPayload) => void; defaultSource?: SourceFilter; gridClassName?: string; active?: boolean }) {
 
     const { message } = App.useApp();
     // 本视图独立持有列表数据，不与左侧"资产"tab 共享，避免切换时互相覆盖。
@@ -44,6 +44,16 @@ export function CloudAssetsBrowser({ onInsert, defaultSource = "", gridClassName
 
     // 搜索与类型/来源筛选变化时重新从服务端取第一页（防抖避免每个字符一次请求）。
     useEffect(() => setSourceFilter(defaultSource), [defaultSource]);
+
+    // 生图记录自动刷新：tab 激活时 + 生图任务终态事件时。
+    useEffect(() => {
+        if (!active) return;
+        const reload = () => void refreshCloudAssets({ q: keyword.trim() || undefined, kind: kindFilter || undefined, source: sourceFilter || undefined });
+        reload();
+        window.addEventListener("hjm:generation-task-terminal", reload);
+        return () => window.removeEventListener("hjm:generation-task-terminal", reload);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [active, keyword, kindFilter, sourceFilter]);
     useEffect(() => {
         const timer = window.setTimeout(() => {
             void refreshCloudAssets({ q: keyword.trim() || undefined, kind: kindFilter || undefined, source: sourceFilter || undefined });

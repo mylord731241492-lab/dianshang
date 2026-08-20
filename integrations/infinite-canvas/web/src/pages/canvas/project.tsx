@@ -411,7 +411,13 @@ function InfiniteCanvasPage() {
     }, []);
 
     // Task 8：轮询/终态时把任务快照写回所有携带该 taskId 的节点（保留各节点的 imageIndex）。
+    const generationTerminalNotifiedRef = useRef<Set<string>>(new Set());
     const updateGenerationTaskNodes = useCallback((task: GenerationTask) => {
+        // 生图任务终态广播（去重）：驱动生图记录 tab 自动刷新。
+        if (["success", "failed", "cancelled"].includes(task.status) && !generationTerminalNotifiedRef.current.has(task.taskId)) {
+            generationTerminalNotifiedRef.current.add(task.taskId);
+            window.dispatchEvent(new CustomEvent("hjm:generation-task-terminal", { detail: { taskId: task.taskId, status: task.status } }));
+        }
         setNodes((prev) =>
             prev.map((node) => {
                 const current = node.metadata?.generationTask;

@@ -109,7 +109,7 @@ export function CanvasSidePanel({ nodes, selectedNodeIds, onFocusNode, onInsertA
                         <CanvasAssetsTab onInsert={onInsertAsset} theme={theme} />
                     </div>
                     <div className={tab === "records" ? "h-full overflow-y-auto px-3 py-2" : "hidden"}>
-                        <CloudAssetsBrowser onInsert={onInsertAsset} defaultSource="generated" gridClassName="grid-cols-2" />
+                        <CloudAssetsBrowser onInsert={onInsertAsset} defaultSource="generated" gridClassName="grid-cols-2" active={tab === "records"} />
                     </div>
                     <div className={tab === "prompts" ? "h-full" : "hidden"}>
                         <PromptLibraryPanel onInsert={onInsertAsset} theme={theme} />

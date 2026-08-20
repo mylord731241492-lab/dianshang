@@ -1211,3 +1211,8 @@
 - Kimi Code 最近一次会话停在 `canvas_reverse_image_prompt` 处理 `@图片1` 的阶段，日志确认因 billing cycle usage limit 返回 403，未完成修复。
 - 候选工作树现已支持从带 `generatedImages` 的生图（Config）节点选择当前生成结果，连同普通 Image 节点一起进入反推提示词流程；Agent 工具、Fake Planner 和前端节点操作已对齐。
 - 本轮只修改候选工作树，未合并 `F:\dianshang`、未重建 Docker、未调用真实 Provider；后续浏览器复测应使用候选画布实例。
+
+## 2026-08-20 候选画布 Docker 内网测试部署
+
+- 候选 Docker 使用独立容器 `dianshang-canvas-candidate`、独立数据卷和端口 `192.168.0.39:3466`，继续运行 `CANVAS_RUNTIME=infinite`；旧画布和正式 `3456` 未重建。
+- 镜像与容器已按提交 `467f97e` 重建，健康检查通过；本轮未触发真实生图调用。

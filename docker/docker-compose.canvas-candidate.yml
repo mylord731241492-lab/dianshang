@@ -2,7 +2,7 @@ name: dianshang-canvas-candidate
 
 # 无限画布候选隔离环境（Task 13）。
 # 边界：
-# - 只绑定 127.0.0.1:3466，不占用正式 3456/3457/3464。
+# - 只绑定内网地址 192.168.0.39:3466，不占用正式 3456/3457/3464；不监听其他网卡。
 # - 数据全部落在候选工作树 ../.scratch/infinite-canvas-candidate/，不挂载正式 docker/data、docker/uploads。
 # - 全部 ENABLE_REAL_*=false：Fake Provider / Fake Storage，零真实 Provider 调用与费用。
 # - 不启动、不重建正式 gateway/app（LibreChat 与 MongoDB 已随候选支线移除）；本文件只含候选 app 一个服务。
@@ -49,7 +49,7 @@ services:
       GENERATION_MAX_QUEUED: ${GENERATION_MAX_QUEUED:-60}                       # 排队上限；10 人×每人 3 任务=30 会顶满默认值被拒，留一倍余量
       GENERATION_MAX_USER_NONTERMINAL: ${GENERATION_MAX_USER_NONTERMINAL:-3}    # 单用户未完结任务上限，防一人刷满队列
     ports:
-      - "127.0.0.1:3466:3466"
+      - "192.168.0.39:3466:3466"
     volumes:
       - ../.scratch/infinite-canvas-candidate/data:/app/data
       - ../.scratch/infinite-canvas-candidate/uploads:/app/uploads

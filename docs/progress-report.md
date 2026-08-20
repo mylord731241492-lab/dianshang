@@ -3858,3 +3858,8 @@
 - 修复候选端 Agent 对 `@图片` 选中生图（Config）节点时误报“没有找到可反推的图片节点”的问题：支持读取当前 `selectedGeneratedImageIndex`，无索引时回退到最后一张生成结果。
 - 同步更新 `backend/canvas-agent/tool-contracts.js`、`provider-planner.js`、无限画布 `project.tsx` 及回归测试。
 - 验证：Agent 相关 Node 测试 21 项通过，后端语法检查通过，候选前端 typecheck 与 build 通过；主工作区和生产 Docker 未动。
+
+## 2026-08-20 候选画布 Docker 内网测试部署
+
+- 候选 compose 端口改为仅绑定内网网卡 `192.168.0.39:3466`，与旧画布端口隔离；候选容器按 `467f97e` 重建并报告 healthy。
+- 验证：`/api/health` 返回 200 且 `canvasRuntime: infinite`，`/canvas` 返回无限画布 HTML；未执行真实生图。

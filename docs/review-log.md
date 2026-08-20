@@ -6046,3 +6046,9 @@
 - 根因：反推工具和前端 `createImageReversePromptNodes` 只接受 `type=image` 且要求节点级图片内容，未把生图节点的 `generatedImages` 当作可反推图片来源。
 - 修复：统一接受 Image/Config 两类节点，解析选中的生成结果（或最后一张），并继续复用现有 `imageToDataUrl` 与反推 API；增加 Config 节点工具契约回归用例。
 - 结论：候选代码与测试链路通过；未对 `F:\dianshang`、3456 或真实 Provider 做状态变更。
+
+## 2026-08-20 候选画布 Docker 内网部署审查
+
+- 部署边界符合候选隔离约束：容器名 `dianshang-canvas-candidate`、端口 `3466`、独立数据路径，不占用正式画布端口。
+- 监听地址由 `127.0.0.1` 收窄为宿主机内网地址 `192.168.0.39`，避免暴露到其他网卡；正式 Docker 未动。
+- 镜像健康检查、`/api/health` 和 `/canvas` 均通过；真实 Provider 未调用。

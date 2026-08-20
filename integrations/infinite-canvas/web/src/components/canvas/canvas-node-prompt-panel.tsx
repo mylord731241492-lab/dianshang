@@ -19,7 +19,6 @@ type CanvasNodePromptPanelProps = {
     onPromptChange: (nodeId: string, prompt: string) => void;
     onConfigChange: (nodeId: string, patch: Partial<CanvasNodeData["metadata"]>) => void;
     onGenerate: (nodeId: string, mode: CanvasNodeGenerationMode, prompt: string) => void;
-    onStop: (nodeId: string) => void;
     mentionReferences?: CanvasResourceReference[];
     onImageSettingsOpenChange?: (open: boolean) => void;
     modeOverride?: CanvasNodeGenerationMode; // 节点定义用 useBuiltinPanel.mode 指定生成类型
@@ -27,7 +26,7 @@ type CanvasNodePromptPanelProps = {
 
 // Task 11：第一轮只开放生图。模型/线路一律从后端读取（CanvasBackendModelPicker），
 // 文本/视频/音频模式的生成入口禁用并标注暂未开放。
-export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, mentionReferences = [], onImageSettingsOpenChange, modeOverride }: CanvasNodePromptPanelProps) {
+export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfigChange, onGenerate, mentionReferences = [], onImageSettingsOpenChange, modeOverride }: CanvasNodePromptPanelProps) {
     const globalConfig = useEffectiveConfig();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const mode = modeOverride ?? defaultMode(node.type);
@@ -50,7 +49,7 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
 
     const submit = () => {
         const text = prompt.trim();
-        if (!text || isRunning || mode !== "image") return;
+        if (!text || mode !== "image") return;
         onGenerate(node.id, mode, text);
     };
 
@@ -95,18 +94,16 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                 <Button
                     type="primary"
                     className="!h-10 !min-w-16 shrink-0 !rounded-full !px-3"
-                    danger={isRunning}
-                    disabled={(!isRunning && !prompt.trim()) || (!isRunning && mode !== "image")}
-                    onClick={() => (isRunning ? onStop(node.id) : submit())}
-                    aria-label={isRunning ? "停止生成" : "生成"}
-                    title={mode !== "image" && !isRunning ? "该生成模式暂未开放" : undefined}
+                    disabled={!prompt.trim() || mode !== "image"}
+                    onClick={() => submit()}
+                    aria-label="生成"
+                    title={mode !== "image" ? "该生成模式暂未开放" : isRunning ? "再次生成（任务并发排队）" : "生成"}
                 >
                     <span className="flex items-center gap-1.5">
                         {isRunning ? (
                             <>
                                 <LoaderCircle className="size-4 animate-spin" />
-                                <Square className="size-3.5 fill-current" />
-                                <span className="text-xs font-medium">停止</span>
+                                <span className="text-xs font-medium">再次生成</span>
                             </>
                         ) : (
                             <ArrowUp className="size-4" />

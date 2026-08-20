@@ -1169,3 +1169,8 @@
 - 用户四项需求：① 侧栏 tab 顺序改为 生图记录/画布/资产/提示词库（默认选中不变）；② 侧栏缩略图 object-cover→object-contain+底衬，生图节点也显示最后一张缩略图；③ 生图节点单图化：只显示最后一张，删除多图网格/选中逻辑/「已选中」覆盖层/序号徽标/n-n 角标，generatedImageSelectionMetadata 恒取最后一张（下游连接自动以最后一张为准，handleSelectGeneratedImage/onSelectImage 已删）；④ 生成张数多选删除（设置面板整块移除，count 归一化钳制为 1，防旧配置白花）。
 - 双击放大原图保留（移到单图上）。旧多图节点数据不动，仅显示最后一张。
 - E2E：chain-generation 重写为全新项目全流程（A 1 张→连线→B 生成→查库双任务 success，CHAIN PASS）；selected-ui 改单图断言；dblclick 只留双击断言。typecheck/build 通过，免费 13/13 + 付费 2/2 通过。
+
+## 2026-08-16 生图节点显示排队位置（排队中 · 第 N 位）
+
+- 对标 ComfyUI 队列体验的最后一块：任务模型确认同构（接受即入队/连点并行接收/状态可追/刷新恢复），补前端展示。CanvasGenerationTaskState 加 queuePosition，taskStateFromGenerationTask 透传，节点加载遮罩在 pending 且 queuePosition>0 时显示「排队中 · 第 N 位」。
+- 实测：连发 4 任务，第 1 个 running、第 2/3 个 queuePosition=1/2、第 4 个被单用户未完结上限（3）429 拒——公平闸按设计工作。

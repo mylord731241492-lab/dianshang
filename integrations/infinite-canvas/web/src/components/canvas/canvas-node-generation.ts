@@ -171,6 +171,7 @@ export function taskStateFromGenerationTask(task: GenerationTask, imageIndex?: n
         status: task.status,
         stage: task.stage,
         progressText: task.errorMessage || taskStageLabel(task.stage),
+        queuePosition: task.queuePosition || 0,
         resultUrls: task.images.map((image) => image.url),
         billingStatus: task.billingStatus,
         errorCode: task.errorCode || undefined,

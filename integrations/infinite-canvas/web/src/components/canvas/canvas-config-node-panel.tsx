@@ -59,7 +59,9 @@ export function CanvasConfigNodePanel({ node }: CanvasConfigNodePanelProps) {
             {isLoading ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/55 text-white backdrop-blur-[2px]">
                     <LoaderCircle className="size-8 animate-spin" />
-                    <div className="text-sm font-medium">{task?.progressText || "图片生成中"}</div>
+                    <div className="text-sm font-medium">
+                        {task?.status === "pending" && (task?.queuePosition || 0) > 0 ? `排队中 · 第 ${task!.queuePosition} 位` : task?.progressText || "图片生成中"}
+                    </div>
                     {typeof task?.stage === "string" ? <div className="text-xs opacity-70">{task.stage}</div> : null}
                 </div>
             ) : null}

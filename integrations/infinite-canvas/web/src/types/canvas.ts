@@ -34,6 +34,8 @@ export type CanvasGenerationTaskState = {
     status: "pending" | "running" | "success" | "failed" | "cancelled";
     stage?: string;
     progressText?: string;
+    /** 排队位置（pending 时 >0，0 表示已在执行）。 */
+    queuePosition?: number;
     resultUrls?: string[];
     billingStatus?: string;
     errorCode?: string;

@@ -395,8 +395,7 @@ function InfiniteCanvasPage() {
     );
 
     const startGenerationRequest = useCallback((targetNodeId: string, originNodeId: string, runningId = originNodeId, controller = new AbortController()) => {
-        const previous = generationRequestsRef.current.get(targetNodeId);
-        if (previous?.controller !== controller) previous?.controller.abort();
+        // 多按几次多生几次：不再中止同节点旧请求，多个任务并发排队，各自独立完成写回（最后完成者覆盖节点结果）。
         generationRequestsRef.current.set(targetNodeId, { targetNodeId, originNodeId, runningNodeId: runningId, controller });
         return controller;
     }, []);
@@ -3326,7 +3325,6 @@ function InfiniteCanvasPage() {
                         const target = nodesRef.current.find((item) => item.id === nodeId);
                         void handleGenerateNode(nodeId, "image", target?.metadata?.composerContent ?? target?.metadata?.prompt ?? "");
                     }}
-                    onStop={confirmStopGeneration}
                     onClose={() => setDialogNodeId(null)}
                 />
             ) : (

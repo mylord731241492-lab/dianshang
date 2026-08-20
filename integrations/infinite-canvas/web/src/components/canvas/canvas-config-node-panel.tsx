@@ -22,7 +22,6 @@ type CanvasConfigGenerationPanelProps = {
     inputSummary: { textCount: number; imageCount: number; videoCount: number; audioCount: number };
     onConfigChange: (nodeId: string, patch: Partial<CanvasNodeMetadata>) => void;
     onGenerate: (nodeId: string) => void;
-    onStop: (nodeId: string) => void;
     onClose: () => void;
 };
 
@@ -117,7 +116,7 @@ function GeneratedImageTile({ image, index }: { image: CanvasGeneratedImage; ind
     );
 }
 
-export function CanvasConfigGenerationPanel({ node, isRunning, inputs, inputSummary, onConfigChange, onGenerate, onStop, onClose }: CanvasConfigGenerationPanelProps) {
+export function CanvasConfigGenerationPanel({ node, isRunning, inputs, inputSummary, onConfigChange, onGenerate, onClose }: CanvasConfigGenerationPanelProps) {
     const globalConfig = useEffectiveConfig();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const config = buildNodeConfig(globalConfig, node);
@@ -162,19 +161,10 @@ export function CanvasConfigGenerationPanel({ node, isRunning, inputs, inputSumm
 
             <div className="mt-3 flex items-center gap-2">
                 <div className="min-w-0 flex-1 truncate text-[11px] opacity-55">生成 4 张时在节点内显示 2×2 四宫格</div>
-                <Button type="primary" className="!h-9 !min-w-28 !cursor-pointer !rounded-lg" danger={isRunning} disabled={!isRunning && !canGenerate} onClick={() => (isRunning ? onStop(node.id) : onGenerate(node.id))}>
+                <Button type="primary" className="!h-9 !min-w-28 !cursor-pointer !rounded-lg" disabled={!canGenerate} onClick={() => onGenerate(node.id)}>
                     <span className="inline-flex items-center gap-1.5">
-                        {isRunning ? (
-                            <>
-                                <Square className="size-3.5 fill-current" />
-                                停止
-                            </>
-                        ) : (
-                            <>
-                                <Play className="size-4" />
-                                开始生成
-                            </>
-                        )}
+                        <Play className="size-4" />
+                        {isRunning ? "再次生成" : "开始生成"}
                     </span>
                 </Button>
             </div>

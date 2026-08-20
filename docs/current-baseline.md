@@ -1184,3 +1184,8 @@
 
 - 用户在 3466 测到 mock 渐变占位图（ENABLE_REAL_AI=false 的预期行为）。已将 3468 的 4 条真实线路（1 文本 + 3 图片，含 key）同步进 3466 库（app_state admin.apiProviders），compose 改 ENABLE_REAL_AI=true，并加 LINGSUAN_IMAGE_PROXY_URL=http://host.docker.internal:7890（容器经宿主机 Clash 出站，127.0.0.1 在容器内不是宿主机）。
 - 验证：容器内真实任务 success，返回真实生成图（非 mock）。3466 现在与 3468 同为真实链路（真实计费，余额各自独立）。
+
+## 2026-08-16 生图按钮改连按模式（多按几次多生几次）
+
+- 用户要求去掉「停止」，生成中可继续按。改动：① 面板按钮在生成中显示「再次生成」且可点击，不再有停止按钮（onStop 面板 prop 移除）；② startGenerationRequest 不再中止同节点旧请求——同节点多任务并发排队，各自独立完成写回，最后完成者覆盖节点结果（与单图化语义一致）。
+- 实测：连按 3 次（开始生成→再次生成→再次生成）创建 3 个任务全部接受（MULTI-GEN PASS）。单用户未完结上限（3）仍在服务端兜底，第 4 次会 429。

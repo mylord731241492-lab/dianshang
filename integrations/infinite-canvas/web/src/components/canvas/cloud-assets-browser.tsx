@@ -113,16 +113,17 @@ export function CloudAssetsBrowser({ onInsert, defaultSource = "", gridClassName
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-                <Input className="w-56" size="small" prefix={<Search className="size-3.5 text-stone-400" />} placeholder="搜索资产名称" value={keyword} allowClear onChange={(e) => setKeyword(e.target.value)} />
-                <div className="flex gap-1.5">
+            <div className="space-y-2">
+                {/* 窄侧栏下固定三行布局：搜索 / 类型 / 来源，避免筛选状态变化引起换行跳动 */}
+                <Input className="w-full" size="small" prefix={<Search className="size-3.5 text-stone-400" />} placeholder="搜索资产名称" value={keyword} allowClear onChange={(e) => setKeyword(e.target.value)} />
+                <div className="flex gap-1.5 whitespace-nowrap">
                     {kindOptions.map((opt) => (
                         <Tag.CheckableTag key={opt.value || "all"} checked={kindFilter === opt.value} className={cn("prompt-filter-tag", kindFilter === opt.value && "is-active")} onChange={() => setKindFilter(opt.value)}>
                             {opt.label}
                         </Tag.CheckableTag>
                     ))}
                 </div>
-                <div className="flex gap-1.5">
+                <div className="flex gap-1.5 whitespace-nowrap">
                     {sourceOptions.map((opt) => (
                         <Tag.CheckableTag key={opt.value || "all"} checked={sourceFilter === opt.value} className={cn("prompt-filter-tag", sourceFilter === opt.value && "is-active")} onChange={() => setSourceFilter(opt.value)}>
                             {opt.label}

@@ -1412,6 +1412,34 @@ function generationInputError(status, code, message) {
   return error;
 }
 
+// 参考图超限自动压缩：目标刚好低于上限（默认 5MB 的 99%），先降质量再缩尺寸，尽量少压。
+async function compressImageToLimit(buffer, mime, limitBytes) {
+  if (buffer.length <= limitBytes) return { buffer, mime, compressed: false };
+  const target = Math.floor(limitBytes * 0.99);
+  const source = sharp(buffer, { failOn: 'none' });
+  const meta = await source.metadata().catch(() => ({}));
+  const hasAlpha = meta.hasAlpha === true;
+  const preferJpeg = !hasAlpha; // 无透明通道的 PNG 转 JPEG 体积收益最大
+  const attempts = preferJpeg
+    ? [98, 95, 92, 88, 82, 74, 64].map((quality) => ({ format: 'jpeg', quality }))
+    : [9, 8, 7, 6].map((level) => ({ format: 'png', compressionLevel: level }));
+  let width = meta.width || 0;
+  for (const attempt of attempts) {
+    for (const scale of [1, 0.85, 0.7, 0.55]) {
+      const resizeWidth = width && scale < 1 ? Math.max(64, Math.round(width * scale)) : undefined;
+      let pipeline = sharp(buffer, { failOn: 'none' });
+      if (resizeWidth) pipeline = pipeline.resize({ width: resizeWidth, withoutEnlargement: true });
+      const out = attempt.format === 'jpeg'
+        ? await pipeline.jpeg({ quality: attempt.quality, mozjpeg: true }).toBuffer().catch(() => null)
+        : await pipeline.png({ compressionLevel: attempt.compressionLevel }).toBuffer().catch(() => null);
+      if (out && out.length <= target) {
+        return { buffer: out, mime: attempt.format === 'jpeg' ? 'image/jpeg' : 'image/png', compressed: true };
+      }
+    }
+  }
+  throw generationInputError(413, 'GENERATION_REFERENCE_IMAGE_TOO_LARGE', '参考图过大且自动压缩失败，请手动压缩后重试');
+}
+
 function generationTaskInputDirectory(taskId) {
   const target = path.resolve(GENERATION_TASK_INPUT_DIR, String(taskId || ''));
   const relative = path.relative(GENERATION_TASK_INPUT_DIR, target);
@@ -1441,13 +1469,11 @@ async function stageGenerationTaskBody(body = {}, taskId, req) {
   let totalBytes = 0;
   try {
     for (let index = 0; index < references.length; index += 1) {
-      const file = await loadReferenceImageFile(references[index], req);
+      let file = await loadReferenceImageFile(references[index], req);
       if (file.buffer.length > GENERATION_MAX_REFERENCE_BYTES) {
-        throw generationInputError(
-          413,
-          'GENERATION_REFERENCE_IMAGE_TOO_LARGE',
-          `第 ${index + 1} 张参考图超过 5MB，请压缩后重试`
-        );
+        const compressed = await compressImageToLimit(file.buffer, file.mime, GENERATION_MAX_REFERENCE_BYTES);
+        file = { ...file, buffer: compressed.buffer, mime: compressed.mime };
+        console.log(`[REFERENCE_COMPRESS] 第 ${index + 1} 张参考图超限，已自动压缩到 ${(compressed.buffer.length / 1024 / 1024).toFixed(2)}MB`);
       }
       totalBytes += file.buffer.length;
       if (totalBytes > GENERATION_MAX_REFERENCE_TOTAL_BYTES) {
@@ -1470,9 +1496,10 @@ async function stageGenerationTaskBody(body = {}, taskId, req) {
       const maskReference = maskSource && typeof maskSource === 'object'
         ? maskSource
         : { url: maskSource, dataUrl: maskSource };
-      const maskFile = await loadReferenceImageFile(maskReference, req);
+      let maskFile = await loadReferenceImageFile(maskReference, req);
       if (maskFile.buffer.length > GENERATION_MAX_REFERENCE_BYTES) {
-        throw generationInputError(413, 'GENERATION_MASK_TOO_LARGE', '蒙版图片超过 5MB，请压缩后重试');
+        const compressedMask = await compressImageToLimit(maskFile.buffer, maskFile.mime, GENERATION_MAX_REFERENCE_BYTES);
+        maskFile = { ...maskFile, buffer: compressedMask.buffer, mime: compressedMask.mime };
       }
       const mime = providerImageMime(maskFile.buffer, maskFile.mime);
       const fileName = `mask.${providerImageExt(mime)}`;

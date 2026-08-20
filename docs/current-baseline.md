@@ -1174,3 +1174,8 @@
 
 - 对标 ComfyUI 队列体验的最后一块：任务模型确认同构（接受即入队/连点并行接收/状态可追/刷新恢复），补前端展示。CanvasGenerationTaskState 加 queuePosition，taskStateFromGenerationTask 透传，节点加载遮罩在 pending 且 queuePosition>0 时显示「排队中 · 第 N 位」。
 - 实测：连发 4 任务，第 1 个 running、第 2/3 个 queuePosition=1/2、第 4 个被单用户未完结上限（3）429 拒——公平闸按设计工作。
+
+## 2026-08-16 参考图超限自动压缩（5MB 内，尽量少压）
+
+- 用户导入参考图 >5MB 原来直接 413 报错。现改为自动压缩：compressImageToLimit（sharp），目标为上限 99%；无透明通道的 PNG 转 JPEG，质量阶梯 98→95→92→88→82→74→64 取第一个达标（最高质量、最接近 5MB），仍不够再按 0.85/0.7/0.55 缩尺寸；带透明通道保 PNG 调 compressionLevel。蒙版同逻辑。压缩失败才报 413。
+- 实测：6.42MB 噪点 PNG → 2.55MB JPEG q98（噪点为极端不可压缩场景，正常照片会更接近 5MB 上限），任务 202 接受。

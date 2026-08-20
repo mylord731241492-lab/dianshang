@@ -161,10 +161,19 @@ export function CanvasConfigGenerationPanel({ node, isRunning, inputs, inputSumm
 
             <div className="mt-3 flex items-center gap-2">
                 <div className="min-w-0 flex-1 truncate text-[11px] opacity-55">生成 4 张时在节点内显示 2×2 四宫格</div>
-                <Button type="primary" className="!h-9 !min-w-28 !cursor-pointer !rounded-lg" disabled={!canGenerate} onClick={() => onGenerate(node.id)}>
+                <Button type="primary" className="!h-9 !min-w-28 !cursor-pointer !rounded-lg" disabled={isRunning || !canGenerate} onClick={() => onGenerate(node.id)}>
                     <span className="inline-flex items-center gap-1.5">
-                        <Play className="size-4" />
-                        {isRunning ? "再次生成" : "开始生成"}
+                        {isRunning ? (
+                            <>
+                                <LoaderCircle className="size-4 animate-spin" />
+                                生成中…
+                            </>
+                        ) : (
+                            <>
+                                <Play className="size-4" />
+                                开始生成
+                            </>
+                        )}
                     </span>
                 </Button>
             </div>

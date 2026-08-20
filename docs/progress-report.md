@@ -3863,3 +3863,8 @@
 
 - 候选 compose 端口改为仅绑定内网网卡 `192.168.0.39:3466`，与旧画布端口隔离；候选容器按 `467f97e` 重建并报告 healthy。
 - 验证：`/api/health` 返回 200 且 `canvasRuntime: infinite`，`/canvas` 返回无限画布 HTML；未执行真实生图。
+
+## 2026-08-20 画布剪贴板图片自动上传
+
+- 修改 `integrations/infinite-canvas/web/src/pages/canvas/project.tsx`：监听原生 `paste` 事件，从剪贴板图片文件创建 `File`，上传后自动生成 Image 节点；内部节点复制优先级不变。
+- 验证：候选前端 typecheck、build 通过；Playwright 在 `192.168.0.39:3466` 派发图片粘贴事件，节点数 `0→1`，事件 `defaultPrevented=true`。

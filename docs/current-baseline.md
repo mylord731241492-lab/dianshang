@@ -1216,3 +1216,9 @@
 
 - 候选 Docker 使用独立容器 `dianshang-canvas-candidate`、独立数据卷和端口 `192.168.0.39:3466`，继续运行 `CANVAS_RUNTIME=infinite`；旧画布和正式 `3456` 未重建。
 - 镜像与容器已按提交 `467f97e` 重建，健康检查通过；本轮未触发真实生图调用。
+
+## 2026-08-20 画布剪贴板图片自动上传
+
+- 修复候选画布 `Ctrl/Cmd+V` 图片粘贴：优先读取原生 `paste` 事件的 `clipboardData`，复用现有图片上传并在画布中心创建 Image 节点；拖拽上传保持不变。
+- 内网 HTTP 下 Clipboard API 权限失败时不再静默中断；无原生数据时才回退 `navigator.clipboard`，文本粘贴仍创建文本节点。
+- Docker 内网浏览器回归通过：粘贴图片事件被拦截并创建 1 个图片节点；未调用真实 Provider。

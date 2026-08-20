@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowUp, LoaderCircle, Square } from "lucide-react";
+import { ArrowUp, LoaderCircle } from "lucide-react";
 import { Button } from "antd";
 
 import { defaultConfig, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
@@ -49,7 +49,7 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
 
     const submit = () => {
         const text = prompt.trim();
-        if (!text || isRunning || mode !== "image") return;
+        if (!text || mode !== "image") return;
         onGenerate(node.id, mode, text);
     };
 
@@ -94,16 +94,16 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                 <Button
                     type="primary"
                     className="!h-10 !min-w-16 shrink-0 !rounded-full !px-3"
-                    disabled={isRunning || !prompt.trim() || mode !== "image"}
+                    disabled={!prompt.trim() || mode !== "image"}
                     onClick={() => submit()}
                     aria-label="生成"
-                    title={mode !== "image" ? "该生成模式暂未开放" : isRunning ? "生成中，完成后可再次生成" : "生成"}
+                    title={mode !== "image" ? "该生成模式暂未开放" : isRunning ? "再次生成（任务并发排队）" : "生成"}
                 >
                     <span className="flex items-center gap-1.5">
                         {isRunning ? (
                             <>
                                 <LoaderCircle className="size-4 animate-spin" />
-                                <span className="text-xs font-medium">生成中…</span>
+                                <span className="text-xs font-medium">再次生成</span>
                             </>
                         ) : (
                             <ArrowUp className="size-4" />

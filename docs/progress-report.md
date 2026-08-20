@@ -3868,3 +3868,9 @@
 
 - 修改 `integrations/infinite-canvas/web/src/pages/canvas/project.tsx`：监听原生 `paste` 事件，从剪贴板图片文件创建 `File`，上传后自动生成 Image 节点；内部节点复制优先级不变。
 - 验证：候选前端 typecheck、build 通过；Playwright 在 `192.168.0.39:3466` 派发图片粘贴事件，节点数 `0→1`，事件 `defaultPrevented=true`。
+
+## 2026-08-20 候选画布恢复生图连按
+
+- 恢复两个生图面板的连按入口，生成中按钮显示“再次生成”，不再阻断同节点提交。
+- 同节点生成请求追踪改为数组，避免并发任务完成顺序导致运行态提前清除。
+- 验证：候选前端 typecheck/build 通过；3466 Docker 重建后 healthy；浏览器连续点击两次创建两个同提示词任务，按钮保持“再次生成”，第二个任务显示排队，后台两条任务均成功；测试画布与测试任务已清理。

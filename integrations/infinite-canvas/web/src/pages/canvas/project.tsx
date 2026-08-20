@@ -387,7 +387,7 @@ function InfiniteCanvasPage() {
     const connectionTargetNodeIdRef = useRef(connectionTargetNodeId);
     const selectionBoxRef = useRef(selectionBox);
     const pendingConnectionCreateRef = useRef(pendingConnectionCreate);
-    const generationRequestsRef = useRef(new Map<string, CanvasGenerationRequest>());
+    const generationRequestsRef = useRef(new Map<string, CanvasGenerationRequest[]>());
 
     const createHistoryEntry = useCallback(
         (): CanvasHistoryEntry => ({
@@ -410,13 +410,21 @@ function InfiniteCanvasPage() {
 
     const startGenerationRequest = useCallback((targetNodeId: string, originNodeId: string, runningId = originNodeId, controller = new AbortController()) => {
         // 多按几次多生几次：不再中止同节点旧请求，多个任务并发排队，各自独立完成写回（最后完成者覆盖节点结果）。
-        generationRequestsRef.current.set(targetNodeId, { targetNodeId, originNodeId, runningNodeId: runningId, controller });
+        const request = { targetNodeId, originNodeId, runningNodeId: runningId, controller };
+        const requests = generationRequestsRef.current.get(targetNodeId) || [];
+        generationRequestsRef.current.set(targetNodeId, [...requests, request]);
         return controller;
     }, []);
 
     const finishGenerationRequest = useCallback((targetNodeId: string, controller: AbortController) => {
-        const request = generationRequestsRef.current.get(targetNodeId);
-        if (request?.controller === controller) generationRequestsRef.current.delete(targetNodeId);
+        const requests = generationRequestsRef.current.get(targetNodeId);
+        const finished = requests?.find((request) => request.controller === controller);
+        if (!requests || !finished) return;
+        const remaining = requests.filter((request) => request.controller !== controller);
+        if (remaining.length) generationRequestsRef.current.set(targetNodeId, remaining);
+        else generationRequestsRef.current.delete(targetNodeId);
+        const hasActiveRequest = Array.from(generationRequestsRef.current.values()).some((items) => items.some((request) => request.runningNodeId === finished.runningNodeId));
+        if (!hasActiveRequest) setRunningNodeId((current) => (current === finished.runningNodeId ? null : current));
     }, []);
 
     // Task 8：任务终态后刷新用户资料（余额）与云端资产库；余额事实源在服务端，前端不自行计算。
@@ -443,12 +451,16 @@ function InfiniteCanvasPage() {
 
     const stopGenerationByRunningId = useCallback((runningId: string) => {
         const affectedNodeIds = new Set<string>();
-        generationRequestsRef.current.forEach((request) => {
-            if (request.runningNodeId !== runningId) return;
-            request.controller.abort();
-            generationRequestsRef.current.delete(request.targetNodeId);
-            affectedNodeIds.add(request.targetNodeId);
-            affectedNodeIds.add(request.originNodeId);
+        Array.from(generationRequestsRef.current.entries()).forEach(([targetNodeId, requests]) => {
+            const remaining = requests.filter((request) => {
+                if (request.runningNodeId !== runningId) return true;
+                request.controller.abort();
+                affectedNodeIds.add(request.targetNodeId);
+                affectedNodeIds.add(request.originNodeId);
+                return false;
+            });
+            if (remaining.length) generationRequestsRef.current.set(targetNodeId, remaining);
+            else generationRequestsRef.current.delete(targetNodeId);
         });
         setRunningNodeId((current) => (current === runningId ? null : current));
         if (!affectedNodeIds.size) return;
@@ -2750,7 +2762,6 @@ function InfiniteCanvasPage() {
             const effectivePrompt = generationContext.prompt.trim();
             if (runController.signal.aborted) {
                 finishGenerationRequest(nodeId, runController);
-                setRunningNodeId(null);
                 return;
             }
             const markSourceStatus = sourceNode?.type !== CanvasNodeType.Image;
@@ -2958,7 +2969,6 @@ function InfiniteCanvasPage() {
                             ),
                         );
                         finishGenerationRequest(nodeId, controller);
-                        setRunningNodeId(null);
                         return;
                     }
                     const batchTargetIds = [rootId, ...childIds];
@@ -3069,7 +3079,6 @@ function InfiniteCanvasPage() {
                 );
             } finally {
                 finishGenerationRequest(nodeId, runController);
-                setRunningNodeId(null);
             }
         },
         [effectiveConfig, finishGenerationRequest, message, startGenerationRequest, updateGenerationTaskNodes, refreshAccountAfterGenerationTask],

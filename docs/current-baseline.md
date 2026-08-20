@@ -1179,3 +1179,8 @@
 
 - 用户导入参考图 >5MB 原来直接 413 报错。现改为自动压缩：compressImageToLimit（sharp），目标为上限 99%；无透明通道的 PNG 转 JPEG，质量阶梯 98→95→92→88→82→74→64 取第一个达标（最高质量、最接近 5MB），仍不够再按 0.85/0.7/0.55 缩尺寸；带透明通道保 PNG 调 compressionLevel。蒙版同逻辑。压缩失败才报 413。
 - 实测：6.42MB 噪点 PNG → 2.55MB JPEG q98（噪点为极端不可压缩场景，正常照片会更接近 5MB 上限），任务 202 接受。
+
+## 2026-08-16 3466 候选容器接入真实生图
+
+- 用户在 3466 测到 mock 渐变占位图（ENABLE_REAL_AI=false 的预期行为）。已将 3468 的 4 条真实线路（1 文本 + 3 图片，含 key）同步进 3466 库（app_state admin.apiProviders），compose 改 ENABLE_REAL_AI=true，并加 LINGSUAN_IMAGE_PROXY_URL=http://host.docker.internal:7890（容器经宿主机 Clash 出站，127.0.0.1 在容器内不是宿主机）。
+- 验证：容器内真实任务 success，返回真实生成图（非 mock）。3466 现在与 3468 同为真实链路（真实计费，余额各自独立）。

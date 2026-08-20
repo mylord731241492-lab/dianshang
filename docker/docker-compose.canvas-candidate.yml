@@ -34,11 +34,13 @@ services:
       WORKFLOW_DIR: /app/workflows
       UPLOAD_DIR: /app/uploads
       LOG_DIR: /app/logs
-      ENABLE_REAL_AI: "false"
+      ENABLE_REAL_AI: "true"
       ENABLE_REAL_EMAIL: "false"
       ENABLE_REAL_PAYMENT: "false"
       ENABLE_REAL_STORAGE: "false"
       ASSET_URL_SIGNING_SECRET: ${ASSET_URL_SIGNING_SECRET}
+      # 容器内访问宿主机 Clash 代理（本机 DNS 污染时 Provider 出站用；网络正常可置空）
+      LINGSUAN_IMAGE_PROXY_URL: ${LINGSUAN_IMAGE_PROXY_URL:-http://host.docker.internal:7890}
       ASSET_FAKE_STORAGE_ROOT: /app/object-storage
       # ---- 生图并发参数（10 人内网推荐值，详见 docs/deployment.md「生图并发与排队」）----
       GENERATION_GLOBAL_CONCURRENCY: ${GENERATION_GLOBAL_CONCURRENCY:-4}        # 全服同时跑的上游生图请求；实际上限=线路域名数，3 条线路设 4 留余量

@@ -45,13 +45,21 @@ export function CloudAssetsBrowser({ onInsert, defaultSource = "", gridClassName
     // 搜索与类型/来源筛选变化时重新从服务端取第一页（防抖避免每个字符一次请求）。
     useEffect(() => setSourceFilter(defaultSource), [defaultSource]);
 
-    // 生图记录自动刷新：tab 激活时 + 生图任务终态事件时。
+    // 生图记录自动刷新：tab 激活时 + 终态事件立即刷 + 3 秒补刷（覆盖资产落盘滞后）+ 12 秒轮询兜底。
     useEffect(() => {
         if (!active) return;
         const reload = () => void refreshCloudAssets({ q: keyword.trim() || undefined, kind: kindFilter || undefined, source: sourceFilter || undefined });
+        const onTerminal = () => {
+            reload();
+            window.setTimeout(reload, 3000);
+        };
         reload();
-        window.addEventListener("hjm:generation-task-terminal", reload);
-        return () => window.removeEventListener("hjm:generation-task-terminal", reload);
+        window.addEventListener("hjm:generation-task-terminal", onTerminal);
+        const timer = window.setInterval(reload, 12000);
+        return () => {
+            window.removeEventListener("hjm:generation-task-terminal", onTerminal);
+            window.clearInterval(timer);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [active, keyword, kindFilter, sourceFilter]);
     useEffect(() => {

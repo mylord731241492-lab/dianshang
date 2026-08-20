@@ -1194,3 +1194,8 @@
 
 - 原来生图记录只在筛选条件变化时刷新，生成完成不自动出现。现加三路刷新：tab 激活时刷新、生图任务终态事件（hjm:generation-task-terminal，updateGenerationTaskNodes 去重派发）时刷新。
 - CDP 实测：不刷新页面真实生成 1 张，终态后记录图数 48→49（RECORDS-REFRESH PASS）。
+
+## 2026-08-16 生图记录刷新加固 + 3466 同步
+
+- 用户反馈记录仍有延迟。两手处理：① 刷新加固——tab 激活期间 12 秒轮询兜底（切走即停），终态事件后立即刷 + 3 秒补刷（覆盖资产落盘/签发滞后）；② 3466 重建（此前容器缺自动刷新/连按/压缩等全部改动）。
+- 验证：3466 容器 bundle 已含 hjm:generation-task-terminal 新逻辑（grep 实证）；容器内用户真实生成任务连续 success。E2E 账号支持 E2E_USER/E2E_PASS 环境变量覆盖。

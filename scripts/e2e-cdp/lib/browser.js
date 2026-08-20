@@ -7,7 +7,7 @@ const DIR = process.env.E2E_WORK_DIR || require('path').join(__dirname, '..', '.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function start(port, profile) {
-  const res = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'test01', password: 'test123456' }) });
+  const res = await fetch(`${BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: process.env.E2E_USER || 'test01', password: process.env.E2E_PASS || 'test123456' }) });
   const token = (await res.json()).token;
   const chrome = spawn(CHROME, ['--headless', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', `--remote-debugging-port=${port}`, '--no-first-run', `--user-data-dir=${DIR}/${profile}`, '--window-size=1600,1000', 'about:blank'], { stdio: 'ignore' });
   let targets = null;
